@@ -2,14 +2,184 @@
 import "@/styles/global.css"
 ---
 
-<html lang="en">
+<html lang="vi">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Astro App</title>
+    <title>DryStack.dev — Biến ý tưởng thành thương hiệu đỉnh</title>
+    <meta
+      name="description"
+      content="DryStack là team freelance chuyên thiết kế website, logo, branding và SEO cho doanh nghiệp Việt. Giá rẻ, chất lượng đỉnh — chỉ từ 2.000.000đ."
+    />
+
+    <!-- Google Fonts (giữ nguyên từ file gốc) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Be+Vietnam+Pro:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Iconify (solar: + logos:) — giữ nguyên từ file gốc -->
+    <script
+      is:inline
+      src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
   </head>
   <body>
     <slot />
+
+    <!-- ═══ Global scroll-FX engine (reveal / parallax / rotate / drift / tilt / zoom)
+         + scrollspy + animated counters. Ported 1:1 from the design logic. ═══ -->
+    <script>
+      const clamp = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v)
+      let fx: HTMLElement[] = []
+      let staggerIdx = 0
+      let activeSpy: string | null = null
+      let countDone = false
+
+      const collect = () => {
+        fx = Array.from(document.querySelectorAll<HTMLElement>("[data-fx]"))
+        let ri = 0
+        fx.forEach((el) => {
+          if (el.dataset.fx === "reveal") {
+            if (el.dataset.depth === undefined || el.dataset.depth === "") {
+              const fr = el.dataset.from || "up"
+              const base = ri % 3 === 0 ? 0.18 : ri % 3 === 1 ? 0.42 : 0.28
+              el.dataset.depth = String(fr === "right" ? -base : base)
+              ri++
+            }
+            if (el.dataset.out === "1" && (el.dataset.stagger === undefined || el.dataset.stagger === "")) {
+              el.dataset.stagger = String(staggerIdx % 4)
+              staggerIdx++
+            }
+          }
+        })
+      }
+
+      const isMobile = () => window.innerWidth < 820
+
+      const counters = () => {
+        const targets = [50, 30, 98, 3]
+        const suf = ["+", "+", "%", "+"]
+        const nodes = document.querySelectorAll<HTMLElement>("[data-counter]")
+        if (!nodes.length) return
+        const dur = 2000
+        const st = performance.now()
+        const go = (now: number) => {
+          const p = Math.min((now - st) / dur, 1)
+          const e = 1 - Math.pow(1 - p, 3)
+          nodes.forEach((n, i) => {
+            n.textContent = Math.floor(e * targets[i]) + suf[i]
+          })
+          if (p < 1) requestAnimationFrame(go)
+        }
+        requestAnimationFrame(go)
+      }
+
+      const spy = () => {
+        const ids = ["about", "services", "projects", "pricing", "blog"]
+        let active: string | null = null
+        for (const id of ids) {
+          const s = document.getElementById(id)
+          if (s && s.getBoundingClientRect().top <= 140) active = id
+        }
+        if (active !== activeSpy) {
+          activeSpy = active
+          document.querySelectorAll<HTMLElement>("[data-navlink]").forEach((a) => {
+            const on = a.dataset.navlink === active
+            a.style.color = on ? "#ffce6a" : "rgba(245,236,224,0.7)"
+            // The sliding underline (in Nav.astro) reacts to this attribute.
+            if (on) a.setAttribute("data-active", "")
+            else a.removeAttribute("data-active")
+          })
+        }
+      }
+
+      const apply = () => {
+        const vh = window.innerHeight || 800
+        const scrollY = window.scrollY || window.pageYOffset || 0
+        for (const el of fx) {
+          const type = el.dataset.fx
+          const r = el.getBoundingClientRect()
+          const mid = (r.top + r.height / 2 - vh / 2) / vh
+          if (type === "reveal") {
+            const stagger = parseFloat(el.dataset.stagger || "0")
+            let e = clamp((vh - r.top) / (vh * 0.5) - stagger * 0.13)
+            if (el.dataset.out === "1") {
+              const eo = clamp(r.bottom / (vh * 0.45))
+              if (eo < e) e = eo
+            }
+            const from = el.dataset.from || "up"
+            const depth = parseFloat(el.dataset.depth || "0")
+            let tx = 0,
+              ty = 0
+            if (from === "left") tx = (1 - e) * -90
+            else if (from === "right") tx = (1 - e) * 90
+            else ty = (1 - e) * 52
+            ty += -mid * depth * 70
+            el.style.opacity = e.toFixed(3)
+            el.style.filter = "blur(" + ((1 - e) * 9).toFixed(2) + "px) brightness(" + (0.55 + e * 0.45).toFixed(3) + ")"
+            el.style.transform = "translate(" + tx.toFixed(1) + "px," + ty.toFixed(1) + "px) scale(" + (0.95 + e * 0.05).toFixed(3) + ")"
+          } else if (type === "parallax") {
+            const sp = parseFloat(el.dataset.speed || "0.25")
+            el.style.transform = "translateY(" + (-mid * sp * 120).toFixed(1) + "px)"
+          } else if (type === "rotate") {
+            const rot = parseFloat(el.dataset.rot || "20")
+            el.style.transform = "rotate(" + (mid * rot).toFixed(2) + "deg)"
+          } else if (type === "drift") {
+            const prog = clamp((window.scrollY || window.pageYOffset || 0) / vh)
+            const dx = parseFloat(el.dataset.dx || "0")
+            const dy = parseFloat(el.dataset.dy || "0")
+            const drot = parseFloat(el.dataset.drot || "0")
+            const baseOp = parseFloat(el.dataset.op || "1") * (isMobile() ? 0.45 : 1)
+            el.style.transform = "translate(" + (prog * dx).toFixed(1) + "px," + (prog * dy).toFixed(1) + "px) rotate(" + (prog * drot).toFixed(1) + "deg)"
+            el.style.opacity = (baseOp * (1 - prog * 0.55)).toFixed(3)
+          } else if (type === "tilt") {
+            const lean = mid * -14
+            el.style.transform = "perspective(1100px) rotateY(" + lean.toFixed(2) + "deg) rotateX(" + (mid * 6).toFixed(2) + "deg)"
+          } else if (type === "zoom") {
+            const prog = clamp(-r.top / vh)
+            el.style.transform = "scale(" + (1 + prog * 0.4).toFixed(3) + ")"
+            el.style.opacity = (1 - prog * 0.6).toFixed(3)
+          } else if (type === "heroRings") {
+            // Central rings: zoom outward + fade as you scroll through the hero.
+            const prog = clamp(scrollY / vh)
+            el.style.transform = "scale(" + (1 + prog * 0.7).toFixed(3) + ")"
+            el.style.opacity = (1 - prog * 0.95).toFixed(3)
+          } else if (type === "heroRise") {
+            // Badge + headline drift up + fade as the hero scrolls away.
+            const prog = clamp(scrollY / vh)
+            el.style.transform = "translateY(" + (-prog * 180).toFixed(1) + "px)"
+            el.style.opacity = Math.max(0, 1 - prog * 1.15).toFixed(3)
+          } else if (type === "heroSink") {
+            // Stats block drifts down + fade (opposite direction to the headline).
+            const prog = clamp(scrollY / vh)
+            el.style.transform = "translateY(" + (prog * 150).toFixed(1) + "px)"
+            el.style.opacity = Math.max(0, 1 - prog * 1.15).toFixed(3)
+          }
+        }
+        spy()
+        if (!countDone) {
+          const c = document.querySelector("[data-counter]")
+          if (c) {
+            const r = c.getBoundingClientRect()
+            if (r.top < vh * 0.9 && r.bottom > 0) {
+              countDone = true
+              counters()
+            }
+          }
+        }
+      }
+
+      const loop = () => {
+        apply()
+        requestAnimationFrame(loop)
+      }
+
+      collect()
+      window.addEventListener("resize", collect)
+      loop()
+    </script>
   </body>
 </html>

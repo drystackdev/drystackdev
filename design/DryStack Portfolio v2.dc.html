@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { background: #080810; color: #f0f0f0; font-family: 'DM Sans', sans-serif; overflow-x: hidden; }
+    ::selection { background: rgba(0,229,255,0.25); color: #fff; }
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: #080810; }
+    ::-webkit-scrollbar-thumb { background: linear-gradient(#00e5ff,#7b5fff); }
+    a { color: inherit; text-decoration: none; }
+    input, textarea, select, button { font-family: inherit; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+    @keyframes floatY { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-16px)} }
+    @keyframes marquee { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+    @keyframes shimmer { 0%{background-position:0% center} 100%{background-position:200% center} }
+    @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }
+  </style>
+</helmet>
+
+<!-- ══ NAV ══ -->
+<nav id="topnav" style="position:fixed; top:0; left:0; right:0; z-index:1000; padding:16px 44px; display:flex; align-items:center; justify-content:space-between; background:transparent; border-bottom:1px solid transparent; transition:background 0.3s, border-bottom 0.3s;">
+  <a href="#" style="display:flex; align-items:center; gap:10px; font-family:'Be Vietnam Pro',sans-serif; font-weight:800; font-size:21px; letter-spacing:-0.5px;">
+    <div style="width:34px; height:34px; background:linear-gradient(135deg,#00e5ff,#7b5fff); border-radius:10px; display:flex; align-items:center; justify-content:center;">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><polygon points="8,1 15,14 1,14" fill="white" opacity="0.95"></polygon><polygon points="8,5 12,14 4,14" fill="#00e5ff"></polygon></svg>
+    </div>
+    <span style="color:#fff;">DryStack</span>
+  </a>
+  <div style="display:flex; align-items:center; gap:28px;">
+    <a href="#about" style="font-size:14px; font-weight:500; color:rgba(255,255,255,0.62);" style-hover="color:#fff;">Giới thiệu</a>
+    <a href="#services" style="font-size:14px; font-weight:500; color:rgba(255,255,255,0.62);" style-hover="color:#fff;">Dịch vụ</a>
+    <a href="#projects" style="font-size:14px; font-weight:500; color:rgba(255,255,255,0.62);" style-hover="color:#fff;">Dự án</a>
+    <a href="#pricing" style="font-size:14px; font-weight:500; color:rgba(255,255,255,0.62);" style-hover="color:#fff;">Giá cả</a>
+    <a href="#blog" style="font-size:14px; font-weight:500; color:rgba(255,255,255,0.62);" style-hover="color:#fff;">Blog</a>
+    <a href="#contact" style="display:inline-flex; align-items:center; gap:6px; background:linear-gradient(135deg,#00e5ff,#7b5fff); color:#080810; padding:10px 22px; border-radius:100px; font-size:13px; font-weight:700; transition:transform 0.2s;" style-hover="transform:translateY(-1px);">Liên hệ ngay</a>
+  </div>
+</nav>
+
+<!-- ══ HERO (DARK) ══ -->
+<section style="position:relative; min-height:100vh; display:flex; align-items:center; justify-content:center; text-align:center; padding:120px 40px 90px; overflow:hidden; z-index:1;">
+  <div style="position:absolute; inset:0; pointer-events:none; overflow:hidden;">
+    <div data-fx="zoom" style="position:absolute; top:8%; left:4%; width:560px; height:560px; background:radial-gradient(circle, rgba(0,229,255,0.09) 0%, transparent 65%); border-radius:50%; will-change:transform,opacity;"></div>
+    <div data-fx="zoom" style="position:absolute; bottom:6%; right:4%; width:680px; height:680px; background:radial-gradient(circle, rgba(123,95,255,0.09) 0%, transparent 65%); border-radius:50%; will-change:transform,opacity;"></div>
+    <div style="position:absolute; inset:0; background-image:radial-gradient(rgba(255,255,255,0.035) 1px, transparent 1px); background-size:32px 32px;"></div>
+    <div data-fx="parallax" data-speed="0.6" style="position:absolute; top:20%; right:11%; width:78px; height:78px; border:1px solid rgba(0,229,255,0.22); border-radius:20px; will-change:transform;"></div>
+    <div data-fx="parallax" data-speed="-0.5" style="position:absolute; bottom:26%; left:8%; width:60px; height:60px; border:1px solid rgba(123,95,255,0.25); border-radius:50%; will-change:transform;"></div>
+    <div data-fx="rotate" data-rot="50" style="position:absolute; top:62%; right:17%; width:40px; height:40px; background:rgba(0,229,255,0.07); border-radius:9px; will-change:transform;"></div>
+    <div data-fx="parallax" data-speed="0.4" style="position:absolute; top:38%; left:5%; width:26px; height:26px; background:rgba(123,95,255,0.1); border-radius:50%; will-change:transform;"></div>
+  </div>
+
+  <div style="position:relative; z-index:1; max-width:940px; margin:0 auto;">
+    <div style="display:inline-flex; align-items:center; gap:8px; background:rgba(0,229,255,0.07); border:1px solid rgba(0,229,255,0.22); border-radius:100px; padding:7px 16px; margin-bottom:34px; font-size:12px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:#00e5ff;">
+      <span style="width:6px; height:6px; background:#00e5ff; border-radius:50%; animation:blink 2s infinite;"></span>
+      Freelance Team · Đang nhận dự án mới
+    </div>
+    <h1 style="font-family:'Be Vietnam Pro',sans-serif; font-size:clamp(42px,6.5vw,90px); font-weight:800; line-height:1.04; letter-spacing:-2.5px; color:#f0f0f0; margin-bottom:4px;">Biến Ý Tưởng Thành</h1>
+    <h1 style="font-family:'Be Vietnam Pro',sans-serif; font-size:clamp(42px,6.5vw,90px); font-weight:800; line-height:1.08; letter-spacing:-2.5px; margin-bottom:34px; min-height:1.1em;">
+      <span style="background:linear-gradient(90deg,#00e5ff,#7b5fff,#00e5ff); background-size:200% auto; -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; animation:shimmer 3s linear infinite;" id="js-typed"></span><span style="display:inline-block; width:4px; height:0.78em; background:#00e5ff; margin-left:3px; vertical-align:middle; animation:blink 1s step-end infinite;"></span>
+    </h1>
+    <p style="font-size:clamp(15px,1.8vw,19px); color:rgba(240,240,240,0.58); max-width:580px; margin:0 auto 50px; line-height:1.75; font-weight:300;">
+      Website · Logo · Branding · SEO — Dịch vụ chuyên nghiệp, giá cả phải chăng dành cho doanh nghiệp Việt. Chỉ từ <strong style="color:#f0f0f0; font-weight:600;">2.000.000đ</strong>.
+    </p>
+    <div style="display:flex; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap; margin-bottom:84px;">
+      <a href="#services" style="display:inline-flex; align-items:center; gap:8px; background:linear-gradient(135deg,#00e5ff,#7b5fff); color:#080810; padding:16px 34px; border-radius:100px; font-size:15px; font-weight:700; box-shadow:0 0 40px rgba(0,229,255,0.22); transition:transform 0.2s, box-shadow 0.2s;" style-hover="transform:translateY(-2px); box-shadow:0 10px 50px rgba(0,229,255,0.38);">Xem Dịch Vụ <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M2 7.5H13M13 7.5L8.5 3M13 7.5L8.5 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+      <a href="#contact" style="display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.13); color:#f0f0f0; padding:16px 34px; border-radius:100px; font-size:15px; font-weight:500; transition:border-color 0.2s, background 0.2s;" style-hover="border-color:rgba(0,229,255,0.4); background:rgba(0,229,255,0.07);">Liên Hệ Ngay</a>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:1px; border-top:1px solid rgba(255,255,255,0.08);">
+      <sc-for list="{{ stats }}" as="stat" hint-placeholder-count="4">
+        <div style="padding:34px 14px 0; text-align:center;">
+          <div data-counter="" style="font-family:'Be Vietnam Pro',sans-serif; font-size:clamp(28px,3.5vw,46px); font-weight:800; color:#00e5ff; line-height:1; margin-bottom:8px; letter-spacing:-1px;">{{ stat.display }}</div>
+          <div style="font-size:13px; color:rgba(240,240,240,0.45);">{{ stat.label }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</section>
+
+<!-- ══ MARQUEE (DARK) ══ -->
+<div style="overflow:hidden; padding:18px 0; border-top:1px solid rgba(255,255,255,0.055); border-bottom:1px solid rgba(255,255,255,0.055); background:rgba(255,255,255,0.018); position:relative; z-index:1;">
+  <div style="display:flex; gap:52px; width:max-content; animation:marquee 28s linear infinite; align-items:center;">
+    <span style="font-family:'Be Vietnam Pro',sans-serif; font-size:12px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:rgba(240,240,240,0.3); white-space:nowrap;">THIẾT KẾ WEBSITE</span><span style="color:#00e5ff;">✦</span>
+    <span style="font-family:'Be Vietnam Pro',sans-serif; font-size:12px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:rgba(240,240,240,0.3); white-space:nowrap;">THIẾT KẾ LOGO</span><span style="color:#7b5fff;">✦</span>
+    <span style="font-family:'Be Vietnam Pro',sans-serif; font-size:12px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:rgba(240,240,240,0.3); white-space:nowrap;">BRANDING</span><span style="color:#00e5ff;">✦</span>
+    <span style="font-family:'Be Vietnam Pro',sans-serif; font-size:12px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:rgba(240,240,240,0.3); white-space:nowrap;">VIẾT BÀI SEO</span><span style="color:#7b5fff;">✦</span>
+    <span style="font-family:'Be Vietnam Pro',sans-serif; font-size:12px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:rgba(240,240,240,0.3); white-space:nowrap;">UI/UX DESIGN</span><span style="color:#00e5ff;">✦</span>
+    <span style="font-family:'Be Vietnam Pro',sans-serif; font-size:12px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:rgba(240,240,240,0.3); white-space:nowrap;">SOCIAL MEDIA</span><span style="color:#7b5fff;">✦</span>
+    <span style="font-family:'Be Vietnam Pro',sans-serif; font-size:12px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:rgba(240,240,240,0.3); white-space:nowrap;">GOOGLE ADS</span><span style="color:#00e5ff;">✦</span>
+    <span style="font-family:'Be Vietnam Pro',sans-serif; font-size:12px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:rgba(240,240,240,0.3); white-space:nowrap;">THIẾT KẾ WEBSITE</span><span style="color:#7b5fff;">✦</span>
+    <span style="font-family:'Be Vietnam Pro',sans-serif; font-size:12px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:rgba(240,240,240,0.3); white-space:nowrap;">THIẾT KẾ LOGO</span><span style="color:#00e5ff;">✦</span>
+    <span style="font-family:'Be Vietnam Pro',sans-serif; font-size:12px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:rgba(240,240,240,0.3); white-space:nowrap;">BRANDING</span><span style="color:#7b5fff;">✦</span>
+    <span style="font-family:'Be Vietnam Pro',sans-serif; font-size:12px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:rgba(240,240,240,0.3); white-space:nowrap;">VIẾT BÀI SEO</span><span style="color:#00e5ff;">✦</span>
+    <span style="font-family:'Be Vietnam Pro',sans-serif; font-size:12px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:rgba(240,240,240,0.3); white-space:nowrap;">UI/UX DESIGN</span><span style="color:#7b5fff;">✦</span>
+    <span style="font-family:'Be Vietnam Pro',sans-serif; font-size:12px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:rgba(240,240,240,0.3); white-space:nowrap;">SOCIAL MEDIA</span><span style="color:#00e5ff;">✦</span>
+    <span style="font-family:'Be Vietnam Pro',sans-serif; font-size:12px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:rgba(240,240,240,0.3); white-space:nowrap;">GOOGLE ADS</span><span style="color:#7b5fff;">✦</span>
+  </div>
+</div>
+
+<!-- ══ ABOUT (LIGHT) ══ -->
+<section id="about" style="position:relative; z-index:2; margin-top:-50px; border-radius:54px 54px 0 0; background:#f2efe6; color:#14141c; padding:130px 40px 120px; overflow:hidden; box-shadow:0 -30px 70px rgba(0,0,0,0.35);">
+  <div data-fx="parallax" data-speed="0.5" style="position:absolute; top:40px; right:-40px; font-family:'Be Vietnam Pro',sans-serif; font-size:200px; font-weight:800; color:rgba(20,20,28,0.035); letter-spacing:-10px; line-height:0.8; pointer-events:none; will-change:transform; white-space:nowrap;">ABOUT</div>
+  <div style="max-width:1200px; margin:0 auto; position:relative;">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:80px; align-items:center;">
+      <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; position:relative;">
+        <div data-fx="rotate" data-rot="-8" style="position:absolute; top:-26px; left:-26px; width:120px; height:120px; background:linear-gradient(135deg,#00e5ff,#7b5fff); border-radius:28px; opacity:0.9; z-index:0; will-change:transform;"></div>
+        <div style="position:relative; z-index:1; background:#ffffff; border:1px solid rgba(20,20,28,0.07); border-radius:26px; padding:52px 46px; box-shadow:0 30px 70px rgba(20,20,28,0.1); overflow:hidden;">
+          <div style="font-family:'Be Vietnam Pro',sans-serif; font-size:64px; font-weight:800; color:rgba(20,20,28,0.05); line-height:1; margin-bottom:22px; letter-spacing:-3px;">DRY<br>STACK</div>
+          <div style="font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#6438e8; margin-bottom:10px;">✦ Est. 2022 · Hà Nội</div>
+          <p style="font-size:15px; color:rgba(20,20,28,0.6); line-height:1.7; max-width:300px; font-weight:400;">Team freelance tận tâm, chuyên xây dựng thương hiệu số cho doanh nghiệp Việt với giá phải chăng.</p>
+          <div style="margin-top:36px; height:1px; background:linear-gradient(90deg, rgba(100,56,232,0.4), transparent);"></div>
+          <div style="margin-top:22px; display:flex; align-items:center; gap:10px;">
+            <div style="width:8px; height:8px; background:#00b8d4; border-radius:50%; animation:blink 2.5s infinite;"></div>
+            <span style="font-size:13px; color:rgba(20,20,28,0.5);">Đang nhận dự án mới</span>
+          </div>
+        </div>
+      </div>
+      <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter;">
+        <p style="font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#6438e8; margin-bottom:16px;">VỀ CHÚNG TÔI</p>
+        <h2 style="font-family:'Be Vietnam Pro',sans-serif; font-size:clamp(30px,3.8vw,48px); font-weight:800; letter-spacing:-1.2px; line-height:1.15; margin-bottom:24px; color:#14141c;">Thương hiệu mạnh<br>bắt đầu từ đây</h2>
+        <p style="font-size:16px; color:rgba(20,20,28,0.6); line-height:1.82; margin-bottom:18px;">DryStack là team freelance chuyên thiết kế website và branding cho doanh nghiệp vừa và nhỏ tại Việt Nam. Mọi doanh nghiệp đều xứng đáng có thương hiệu đẳng cấp — dù ngân sách lớn hay nhỏ.</p>
+        <p style="font-size:16px; color:rgba(20,20,28,0.6); line-height:1.82; margin-bottom:40px;">Với phương châm <strong style="color:#14141c; font-weight:700;">"Giá rẻ, chất lượng đỉnh"</strong>, chúng tôi đã đồng hành cùng hơn 50 doanh nghiệp.</p>
+        <div style="display:flex; flex-direction:column; gap:15px;">
+          <div style="display:flex; align-items:center; gap:12px;"><div style="width:22px; height:22px; background:linear-gradient(135deg,#00e5ff,#7b5fff); border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:11px; color:#fff; font-weight:800;">✓</div><span style="font-size:15px; color:rgba(20,20,28,0.72);">Tư vấn miễn phí, báo giá trong 24h</span></div>
+          <div style="display:flex; align-items:center; gap:12px;"><div style="width:22px; height:22px; background:linear-gradient(135deg,#00e5ff,#7b5fff); border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:11px; color:#fff; font-weight:800;">✓</div><span style="font-size:15px; color:rgba(20,20,28,0.72);">Giao sản phẩm đúng deadline cam kết</span></div>
+          <div style="display:flex; align-items:center; gap:12px;"><div style="width:22px; height:22px; background:linear-gradient(135deg,#00e5ff,#7b5fff); border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:11px; color:#fff; font-weight:800;">✓</div><span style="font-size:15px; color:rgba(20,20,28,0.72);">Hỗ trợ sau bàn giao, bảo hành dài hạn</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ SERVICES (DARK) ══ -->
+<section id="services" style="position:relative; z-index:3; margin-top:-50px; border-radius:54px 54px 0 0; background:#080810; color:#f0f0f0; padding:130px 40px 120px; overflow:hidden; box-shadow:0 -30px 70px rgba(0,0,0,0.5);">
+  <div data-fx="parallax" data-speed="-0.4" style="position:absolute; top:60px; left:-30px; font-family:'Be Vietnam Pro',sans-serif; font-size:190px; font-weight:800; color:rgba(255,255,255,0.022); letter-spacing:-8px; line-height:0.8; pointer-events:none; will-change:transform; white-space:nowrap;">SERVICES</div>
+  <div style="max-width:1200px; margin:0 auto; position:relative;">
+    <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; text-align:center; margin-bottom:70px;">
+      <p style="font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#00e5ff; margin-bottom:14px;">DỊCH VỤ</p>
+      <h2 style="font-family:'Be Vietnam Pro',sans-serif; font-size:clamp(30px,4vw,52px); font-weight:800; letter-spacing:-1.2px; line-height:1.12; margin-bottom:18px;">Chúng tôi làm được gì cho bạn?</h2>
+      <p style="font-size:17px; color:rgba(240,240,240,0.52); max-width:540px; margin:0 auto; line-height:1.7; font-weight:300;">Từ website đến thương hiệu hoàn chỉnh — tất cả dưới một mái nhà với giá cực hợp lý.</p>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:24px;">
+      <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; background:#0e0e1c; border:1px solid rgba(255,255,255,0.06); border-radius:20px; padding:40px;" style-hover="border-color:rgba(0,229,255,0.3); box-shadow:0 24px 70px rgba(0,0,0,0.5);">
+        <div style="width:56px; height:56px; background:linear-gradient(135deg, rgba(0,229,255,0.12), rgba(0,229,255,0.04)); border:1px solid rgba(0,229,255,0.2); border-radius:16px; display:flex; align-items:center; justify-content:center; margin-bottom:28px; font-family:'Be Vietnam Pro',sans-serif; font-weight:800; font-size:18px; color:#00e5ff;">W</div>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; gap:12px;"><h3 style="font-family:'Be Vietnam Pro',sans-serif; font-size:22px; font-weight:700; letter-spacing:-0.5px;">Thiết kế Website</h3><span style="font-size:13px; font-weight:700; color:#00e5ff; background:rgba(0,229,255,0.08); padding:5px 12px; border-radius:100px; white-space:nowrap;">Từ 2.000.000đ</span></div>
+        <p style="font-size:15px; color:rgba(240,240,240,0.55); line-height:1.75; margin-bottom:28px; font-weight:300;">Website chuyên nghiệp, responsive hoàn toàn, tốc độ tải nhanh, tích hợp SEO cơ bản và CMS dễ quản lý.</p>
+        <div style="display:flex; flex-wrap:wrap; gap:8px;"><span style="font-size:12px; color:rgba(240,240,240,0.45); background:rgba(255,255,255,0.05); padding:4px 12px; border-radius:100px; border:1px solid rgba(255,255,255,0.07);">Responsive</span><span style="font-size:12px; color:rgba(240,240,240,0.45); background:rgba(255,255,255,0.05); padding:4px 12px; border-radius:100px; border:1px solid rgba(255,255,255,0.07);">CMS Dashboard</span><span style="font-size:12px; color:rgba(240,240,240,0.45); background:rgba(255,255,255,0.05); padding:4px 12px; border-radius:100px; border:1px solid rgba(255,255,255,0.07);">SSL miễn phí</span></div>
+      </div>
+      <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; background:#0e0e1c; border:1px solid rgba(255,255,255,0.06); border-radius:20px; padding:40px;" style-hover="border-color:rgba(123,95,255,0.35); box-shadow:0 24px 70px rgba(0,0,0,0.5);">
+        <div style="width:56px; height:56px; background:linear-gradient(135deg, rgba(123,95,255,0.12), rgba(123,95,255,0.04)); border:1px solid rgba(123,95,255,0.2); border-radius:16px; display:flex; align-items:center; justify-content:center; margin-bottom:28px; font-family:'Be Vietnam Pro',sans-serif; font-weight:800; font-size:18px; color:#7b5fff;">L</div>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; gap:12px;"><h3 style="font-family:'Be Vietnam Pro',sans-serif; font-size:22px; font-weight:700; letter-spacing:-0.5px;">Thiết kế Logo</h3><span style="font-size:13px; font-weight:700; color:#7b5fff; background:rgba(123,95,255,0.08); padding:5px 12px; border-radius:100px; white-space:nowrap;">Từ 500.000đ</span></div>
+        <p style="font-size:15px; color:rgba(240,240,240,0.55); line-height:1.75; margin-bottom:28px; font-weight:300;">Logo độc đáo, đậm chất thương hiệu, phù hợp mọi nền tảng. Giao file vector AI, PDF, PNG độ phân giải cao.</p>
+        <div style="display:flex; flex-wrap:wrap; gap:8px;"><span style="font-size:12px; color:rgba(240,240,240,0.45); background:rgba(255,255,255,0.05); padding:4px 12px; border-radius:100px; border:1px solid rgba(255,255,255,0.07);">3 concept</span><span style="font-size:12px; color:rgba(240,240,240,0.45); background:rgba(255,255,255,0.05); padding:4px 12px; border-radius:100px; border:1px solid rgba(255,255,255,0.07);">File gốc AI/PDF</span><span style="font-size:12px; color:rgba(240,240,240,0.45); background:rgba(255,255,255,0.05); padding:4px 12px; border-radius:100px; border:1px solid rgba(255,255,255,0.07);">Revision ∞</span></div>
+      </div>
+      <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; background:#0e0e1c; border:1px solid rgba(255,255,255,0.06); border-radius:20px; padding:40px; position:relative; overflow:hidden;" style-hover="border-color:rgba(0,229,255,0.3); box-shadow:0 24px 70px rgba(0,0,0,0.5);">
+        <div style="position:absolute; top:20px; right:20px; background:linear-gradient(135deg,#00e5ff,#7b5fff); color:#080810; font-size:10px; font-weight:800; letter-spacing:1.5px; padding:4px 10px; border-radius:100px;">HOT</div>
+        <div style="width:56px; height:56px; background:linear-gradient(135deg, rgba(0,229,255,0.1), rgba(123,95,255,0.1)); border:1px solid rgba(0,229,255,0.15); border-radius:16px; display:flex; align-items:center; justify-content:center; margin-bottom:28px; font-family:'Be Vietnam Pro',sans-serif; font-weight:800; font-size:18px; color:#00e5ff;">B</div>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; gap:12px;"><h3 style="font-family:'Be Vietnam Pro',sans-serif; font-size:22px; font-weight:700; letter-spacing:-0.5px;">Branding Package</h3><span style="font-size:13px; font-weight:700; color:#00e5ff; background:rgba(0,229,255,0.08); padding:5px 12px; border-radius:100px; white-space:nowrap;">Từ 3.000.000đ</span></div>
+        <p style="font-size:15px; color:rgba(240,240,240,0.55); line-height:1.75; margin-bottom:28px; font-weight:300;">Bộ nhận diện hoàn chỉnh: logo, màu sắc, typography, business card, letterhead và brand guideline.</p>
+        <div style="display:flex; flex-wrap:wrap; gap:8px;"><span style="font-size:12px; color:rgba(240,240,240,0.45); background:rgba(255,255,255,0.05); padding:4px 12px; border-radius:100px; border:1px solid rgba(255,255,255,0.07);">Brand Guideline</span><span style="font-size:12px; color:rgba(240,240,240,0.45); background:rgba(255,255,255,0.05); padding:4px 12px; border-radius:100px; border:1px solid rgba(255,255,255,0.07);">Business Card</span><span style="font-size:12px; color:rgba(240,240,240,0.45); background:rgba(255,255,255,0.05); padding:4px 12px; border-radius:100px; border:1px solid rgba(255,255,255,0.07);">Social Kit</span></div>
+      </div>
+      <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; background:#0e0e1c; border:1px solid rgba(255,255,255,0.06); border-radius:20px; padding:40px;" style-hover="border-color:rgba(123,95,255,0.35); box-shadow:0 24px 70px rgba(0,0,0,0.5);">
+        <div style="width:56px; height:56px; background:linear-gradient(135deg, rgba(123,95,255,0.12), rgba(123,95,255,0.04)); border:1px solid rgba(123,95,255,0.2); border-radius:16px; display:flex; align-items:center; justify-content:center; margin-bottom:28px; font-family:'Be Vietnam Pro',sans-serif; font-weight:800; font-size:18px; color:#7b5fff;">S</div>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; gap:12px;"><h3 style="font-family:'Be Vietnam Pro',sans-serif; font-size:22px; font-weight:700; letter-spacing:-0.5px;">Viết bài SEO</h3><span style="font-size:13px; font-weight:700; color:#7b5fff; background:rgba(123,95,255,0.08); padding:5px 12px; border-radius:100px; white-space:nowrap;">Từ 200.000đ/bài</span></div>
+        <p style="font-size:15px; color:rgba(240,240,240,0.55); line-height:1.75; margin-bottom:28px; font-weight:300;">Nội dung chuẩn SEO, đúng ngữ nghĩa, thu hút người đọc và tối ưu để leo top Google bền vững.</p>
+        <div style="display:flex; flex-wrap:wrap; gap:8px;"><span style="font-size:12px; color:rgba(240,240,240,0.45); background:rgba(255,255,255,0.05); padding:4px 12px; border-radius:100px; border:1px solid rgba(255,255,255,0.07);">Keyword Research</span><span style="font-size:12px; color:rgba(240,240,240,0.45); background:rgba(255,255,255,0.05); padding:4px 12px; border-radius:100px; border:1px solid rgba(255,255,255,0.07);">On-page SEO</span><span style="font-size:12px; color:rgba(240,240,240,0.45); background:rgba(255,255,255,0.05); padding:4px 12px; border-radius:100px; border:1px solid rgba(255,255,255,0.07);">1000–2000 từ</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ PROJECTS (LIGHT) ══ -->
+<section id="projects" style="position:relative; z-index:4; margin-top:-50px; border-radius:54px 54px 0 0; background:#f2efe6; color:#14141c; padding:130px 40px 120px; overflow:hidden; box-shadow:0 -30px 70px rgba(0,0,0,0.35);">
+  <div data-fx="parallax" data-speed="0.5" style="position:absolute; top:50px; right:-30px; font-family:'Be Vietnam Pro',sans-serif; font-size:190px; font-weight:800; color:rgba(20,20,28,0.03); letter-spacing:-8px; line-height:0.8; pointer-events:none; will-change:transform; white-space:nowrap;">WORK</div>
+  <div style="max-width:1200px; margin:0 auto; position:relative;">
+    <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:60px; flex-wrap:wrap; gap:24px;">
+      <div>
+        <p style="font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#6438e8; margin-bottom:14px;">DỰ ÁN</p>
+        <h2 style="font-family:'Be Vietnam Pro',sans-serif; font-size:clamp(30px,4vw,52px); font-weight:800; letter-spacing:-1.2px; line-height:1.12; color:#14141c;">Những gì chúng tôi<br>đã làm</h2>
+      </div>
+      <a href="#contact" style="display:inline-flex; align-items:center; gap:8px; color:rgba(20,20,28,0.6); font-size:14px; font-weight:500; border:1px solid rgba(20,20,28,0.14); padding:12px 22px; border-radius:100px; transition:all 0.2s;" style-hover="color:#6438e8; border-color:rgba(100,56,232,0.4);">Xem tất cả dự án →</a>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:20px;">
+      <sc-for list="{{ projects }}" as="project" hint-placeholder-count="6">
+        <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; background:#ffffff; border:1px solid rgba(20,20,28,0.07); border-radius:18px; overflow:hidden; box-shadow:0 16px 44px rgba(20,20,28,0.06); cursor:pointer; transition:box-shadow 0.3s;" style-hover="box-shadow:0 28px 70px rgba(20,20,28,0.14);">
+          <div style="height:190px; background:linear-gradient(135deg, #14141c 0%, #20203a 100%); display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;">
+            <div style="position:absolute; inset:0; background-image:radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px); background-size:22px 22px;"></div>
+            <div style="font-family:'Be Vietnam Pro',sans-serif; font-size:56px; font-weight:800; color:rgba(255,255,255,0.1); letter-spacing:-2px; position:relative;">{{ project.initials }}</div>
+            <div style="position:absolute; bottom:12px; left:14px; font-family:monospace; font-size:10px; color:rgba(255,255,255,0.25); letter-spacing:1.5px; text-transform:uppercase;">[ screenshot ]</div>
+          </div>
+          <div style="padding:22px 24px;">
+            <div style="display:inline-flex; padding:4px 11px; background:rgba(20,20,28,0.05); border-radius:100px; font-size:11px; color:rgba(20,20,28,0.5); margin-bottom:11px;">{{ project.type }}</div>
+            <h3 style="font-family:'Be Vietnam Pro',sans-serif; font-size:19px; font-weight:700; margin-bottom:7px; letter-spacing:-0.3px; color:#14141c;">{{ project.title }}</h3>
+            <p style="font-size:12px; color:rgba(20,20,28,0.4); letter-spacing:0.5px;">{{ project.tagsText }}</p>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</section>
+
+<!-- ══ STACK (DARK) ══ -->
+<section id="stack" style="position:relative; z-index:5; margin-top:-50px; border-radius:54px 54px 0 0; background:#080810; color:#f0f0f0; padding:120px 40px; overflow:hidden; box-shadow:0 -30px 70px rgba(0,0,0,0.5);">
+  <div style="max-width:1100px; margin:0 auto;">
+    <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; text-align:center; margin-bottom:60px;">
+      <p style="font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#00e5ff; margin-bottom:14px;">CÔNG NGHỆ</p>
+      <h2 style="font-family:'Be Vietnam Pro',sans-serif; font-size:clamp(28px,3.5vw,46px); font-weight:800; letter-spacing:-1px; line-height:1.15;">Tech Stack chúng tôi sử dụng</h2>
+    </div>
+    <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(40px) scale(0.94); will-change:transform,opacity,filter; display:grid; grid-template-columns:repeat(5,1fr); gap:16px;">
+      <div style="background:#0e0e1c; border:1px solid rgba(255,255,255,0.06); border-radius:16px; padding:28px 16px; text-align:center; transition:transform 0.3s, border-color 0.3s;" style-hover="border-color:rgba(0,229,255,0.25); transform:translateY(-4px);"><div style="font-family:'Be Vietnam Pro',sans-serif; font-size:22px; font-weight:800; color:#61DAFB; margin-bottom:8px;">React</div><div style="font-size:12px; color:rgba(240,240,240,0.35);">Frontend</div></div>
+      <div style="background:#0e0e1c; border:1px solid rgba(255,255,255,0.06); border-radius:16px; padding:28px 16px; text-align:center; transition:transform 0.3s, border-color 0.3s;" style-hover="border-color:rgba(0,229,255,0.25); transform:translateY(-4px);"><div style="font-family:'Be Vietnam Pro',sans-serif; font-size:22px; font-weight:800; color:#f0f0f0; margin-bottom:8px;">Next.js</div><div style="font-size:12px; color:rgba(240,240,240,0.35);">Full-stack</div></div>
+      <div style="background:#0e0e1c; border:1px solid rgba(255,255,255,0.06); border-radius:16px; padding:28px 16px; text-align:center; transition:transform 0.3s, border-color 0.3s;" style-hover="border-color:rgba(0,229,255,0.25); transform:translateY(-4px);"><div style="font-family:'Be Vietnam Pro',sans-serif; font-size:22px; font-weight:800; color:#3b9ec9; margin-bottom:8px;">WP</div><div style="font-size:12px; color:rgba(240,240,240,0.35);">WordPress</div></div>
+      <div style="background:#0e0e1c; border:1px solid rgba(255,255,255,0.06); border-radius:16px; padding:28px 16px; text-align:center; transition:transform 0.3s, border-color 0.3s;" style-hover="border-color:rgba(0,229,255,0.25); transform:translateY(-4px);"><div style="font-family:'Be Vietnam Pro',sans-serif; font-size:22px; font-weight:800; color:#A259FF; margin-bottom:8px;">Figma</div><div style="font-size:12px; color:rgba(240,240,240,0.35);">UI/UX</div></div>
+      <div style="background:#0e0e1c; border:1px solid rgba(255,255,255,0.06); border-radius:16px; padding:28px 16px; text-align:center; transition:transform 0.3s, border-color 0.3s;" style-hover="border-color:rgba(0,229,255,0.25); transform:translateY(-4px);"><div style="font-family:'Be Vietnam Pro',sans-serif; font-size:22px; font-weight:800; color:#FF9A00; margin-bottom:8px;">Ai</div><div style="font-size:12px; color:rgba(240,240,240,0.35);">Illustrator</div></div>
+      <div style="background:#0e0e1c; border:1px solid rgba(255,255,255,0.06); border-radius:16px; padding:28px 16px; text-align:center; transition:transform 0.3s, border-color 0.3s;" style-hover="border-color:rgba(0,229,255,0.25); transform:translateY(-4px);"><div style="font-family:'Be Vietnam Pro',sans-serif; font-size:22px; font-weight:800; color:#31A8FF; margin-bottom:8px;">Ps</div><div style="font-size:12px; color:rgba(240,240,240,0.35);">Photoshop</div></div>
+      <div style="background:#0e0e1c; border:1px solid rgba(255,255,255,0.06); border-radius:16px; padding:28px 16px; text-align:center; transition:transform 0.3s, border-color 0.3s;" style-hover="border-color:rgba(0,229,255,0.25); transform:translateY(-4px);"><div style="font-family:'Be Vietnam Pro',sans-serif; font-size:22px; font-weight:800; color:#DE4C36; margin-bottom:8px;">WC</div><div style="font-size:12px; color:rgba(240,240,240,0.35);">WooCommerce</div></div>
+      <div style="background:#0e0e1c; border:1px solid rgba(255,255,255,0.06); border-radius:16px; padding:28px 16px; text-align:center; transition:transform 0.3s, border-color 0.3s;" style-hover="border-color:rgba(0,229,255,0.25); transform:translateY(-4px);"><div style="font-family:'Be Vietnam Pro',sans-serif; font-size:22px; font-weight:800; color:#E37400; margin-bottom:8px;">GA4</div><div style="font-size:12px; color:rgba(240,240,240,0.35);">Analytics</div></div>
+      <div style="background:#0e0e1c; border:1px solid rgba(255,255,255,0.06); border-radius:16px; padding:28px 16px; text-align:center; transition:transform 0.3s, border-color 0.3s;" style-hover="border-color:rgba(0,229,255,0.25); transform:translateY(-4px);"><div style="font-family:'Be Vietnam Pro',sans-serif; font-size:22px; font-weight:800; color:#FF6900; margin-bottom:8px;">SEMr</div><div style="font-size:12px; color:rgba(240,240,240,0.35);">SEMrush</div></div>
+      <div style="background:#0e0e1c; border:1px solid rgba(255,255,255,0.06); border-radius:16px; padding:28px 16px; text-align:center; transition:transform 0.3s, border-color 0.3s;" style-hover="border-color:rgba(0,229,255,0.25); transform:translateY(-4px);"><div style="font-family:'Be Vietnam Pro',sans-serif; font-size:22px; font-weight:800; color:#F05032; margin-bottom:8px;">Git</div><div style="font-size:12px; color:rgba(240,240,240,0.35);">Version</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ TEAM (LIGHT) ══ -->
+<section id="team" style="position:relative; z-index:6; margin-top:-50px; border-radius:54px 54px 0 0; background:#f2efe6; color:#14141c; padding:130px 40px 120px; overflow:hidden; box-shadow:0 -30px 70px rgba(0,0,0,0.35);">
+  <div data-fx="parallax" data-speed="-0.4" style="position:absolute; top:60px; left:-30px; font-family:'Be Vietnam Pro',sans-serif; font-size:190px; font-weight:800; color:rgba(20,20,28,0.03); letter-spacing:-8px; line-height:0.8; pointer-events:none; will-change:transform; white-space:nowrap;">TEAM</div>
+  <div style="max-width:1100px; margin:0 auto; position:relative;">
+    <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; text-align:center; margin-bottom:64px;">
+      <p style="font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#6438e8; margin-bottom:14px;">ĐỘI NGŨ</p>
+      <h2 style="font-family:'Be Vietnam Pro',sans-serif; font-size:clamp(30px,4vw,52px); font-weight:800; letter-spacing:-1.2px; line-height:1.12; color:#14141c;">Con người đằng sau DryStack</h2>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:24px;">
+      <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; background:#ffffff; border:1px solid rgba(20,20,28,0.07); border-radius:20px; padding:40px 32px; text-align:center; box-shadow:0 16px 44px rgba(20,20,28,0.06); transition:transform 0.3s;" style-hover="transform:translateY(-5px);">
+        <div style="width:80px; height:80px; background:linear-gradient(135deg,#00e5ff,#7b5fff); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 20px; font-family:'Be Vietnam Pro',sans-serif; font-size:28px; font-weight:800; color:#fff;">MT</div>
+        <div style="font-family:monospace; font-size:10px; letter-spacing:2px; color:#6438e8; text-transform:uppercase; margin-bottom:10px;">FOUNDER · DEV</div>
+        <h3 style="font-family:'Be Vietnam Pro',sans-serif; font-size:20px; font-weight:700; margin-bottom:12px; color:#14141c;">Minh Tuấn</h3>
+        <p style="font-size:14px; color:rgba(20,20,28,0.5); line-height:1.65;">Full-stack developer 4+ năm kinh nghiệm. Chuyên Next.js, WordPress và tối ưu hiệu năng web.</p>
+      </div>
+      <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; background:#ffffff; border:1px solid rgba(20,20,28,0.07); border-radius:20px; padding:40px 32px; text-align:center; box-shadow:0 16px 44px rgba(20,20,28,0.06); transition:transform 0.3s;" style-hover="transform:translateY(-5px);">
+        <div style="width:80px; height:80px; background:linear-gradient(135deg,#7b5fff,#c084fc); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 20px; font-family:'Be Vietnam Pro',sans-serif; font-size:28px; font-weight:800; color:#fff;">HA</div>
+        <div style="font-family:monospace; font-size:10px; letter-spacing:2px; color:#6438e8; text-transform:uppercase; margin-bottom:10px;">UI/UX · BRANDING</div>
+        <h3 style="font-family:'Be Vietnam Pro',sans-serif; font-size:20px; font-weight:700; margin-bottom:12px; color:#14141c;">Hồng Anh</h3>
+        <p style="font-size:14px; color:rgba(20,20,28,0.5); line-height:1.65;">Designer đam mê thẩm mỹ, chuyên thiết kế logo, brand identity và giao diện người dùng trên Figma.</p>
+      </div>
+      <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; background:#ffffff; border:1px solid rgba(20,20,28,0.07); border-radius:20px; padding:40px 32px; text-align:center; box-shadow:0 16px 44px rgba(20,20,28,0.06); transition:transform 0.3s;" style-hover="transform:translateY(-5px);">
+        <div style="width:80px; height:80px; background:linear-gradient(135deg,#00e5ff,#06b6d4); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 20px; font-family:'Be Vietnam Pro',sans-serif; font-size:28px; font-weight:800; color:#fff;">VĐ</div>
+        <div style="font-family:monospace; font-size:10px; letter-spacing:2px; color:#6438e8; text-transform:uppercase; margin-bottom:10px;">SEO · CONTENT</div>
+        <h3 style="font-family:'Be Vietnam Pro',sans-serif; font-size:20px; font-weight:700; margin-bottom:12px; color:#14141c;">Văn Đức</h3>
+        <p style="font-size:14px; color:rgba(20,20,28,0.5); line-height:1.65;">Chuyên gia SEO hơn 3 năm kinh nghiệm, giúp hàng chục website leo top Google và tăng traffic bền vững.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ PRICING (DARK) ══ -->
+<section id="pricing" style="position:relative; z-index:7; margin-top:-50px; border-radius:54px 54px 0 0; background:#080810; color:#f0f0f0; padding:130px 40px 120px; overflow:hidden; box-shadow:0 -30px 70px rgba(0,0,0,0.5);">
+  <div style="max-width:1100px; margin:0 auto;">
+    <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; text-align:center; margin-bottom:64px;">
+      <p style="font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#00e5ff; margin-bottom:14px;">GIÁ CẢ</p>
+      <h2 style="font-family:'Be Vietnam Pro',sans-serif; font-size:clamp(30px,4vw,52px); font-weight:800; letter-spacing:-1.2px; line-height:1.12; margin-bottom:16px;">Minh bạch, không phát sinh</h2>
+      <p style="font-size:17px; color:rgba(240,240,240,0.5); max-width:500px; margin:0 auto; font-weight:300; line-height:1.7;">Chọn gói phù hợp với nhu cầu của bạn. Tất cả đều có thể tùy chỉnh theo yêu cầu riêng.</p>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:22px; align-items:stretch;">
+      <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; background:#0e0e1c; border:1px solid rgba(255,255,255,0.07); border-radius:22px; padding:40px 36px; display:flex; flex-direction:column;">
+        <div style="font-family:'Be Vietnam Pro',sans-serif; font-size:13px; font-weight:700; letter-spacing:2px; color:rgba(240,240,240,0.45); text-transform:uppercase; margin-bottom:12px;">STARTER</div>
+        <div style="font-family:'Be Vietnam Pro',sans-serif; font-size:44px; font-weight:800; letter-spacing:-2px; line-height:1; margin-bottom:4px;">2 <span style="font-size:24px;">triệu</span></div>
+        <div style="font-size:13px; color:rgba(240,240,240,0.38); margin-bottom:32px;">đồng / dự án</div>
+        <div style="height:1px; background:rgba(255,255,255,0.07); margin-bottom:32px;"></div>
+        <div style="flex:1; display:flex; flex-direction:column; gap:14px; margin-bottom:36px;">
+          <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:rgba(240,240,240,0.72);"><span style="color:#00e5ff; font-weight:800;">✓</span> Website Landing Page</div>
+          <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:rgba(240,240,240,0.72);"><span style="color:#00e5ff; font-weight:800;">✓</span> Responsive & Mobile-first</div>
+          <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:rgba(240,240,240,0.72);"><span style="color:#00e5ff; font-weight:800;">✓</span> SSL miễn phí</div>
+          <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:rgba(240,240,240,0.72);"><span style="color:#00e5ff; font-weight:800;">✓</span> SEO cơ bản</div>
+          <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:rgba(240,240,240,0.72);"><span style="color:#00e5ff; font-weight:800;">✓</span> Bảo hành 1 tháng</div>
+          <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:rgba(240,240,240,0.32);"><span style="color:rgba(240,240,240,0.2);">✗</span> <span style="text-decoration:line-through; opacity:0.5;">Logo & Branding</span></div>
+        </div>
+        <a href="#contact" style="display:block; text-align:center; padding:14px; border:1px solid rgba(255,255,255,0.15); border-radius:12px; font-size:14px; font-weight:600; color:rgba(240,240,240,0.8); transition:all 0.2s;" style-hover="border-color:rgba(0,229,255,0.4); color:#00e5ff;">Bắt đầu ngay</a>
+      </div>
+      <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(40px) scale(0.94); will-change:transform,opacity,filter; background:linear-gradient(160deg, #0f1228, #0d1022); border:1px solid rgba(0,229,255,0.35); border-radius:22px; padding:40px 36px; display:flex; flex-direction:column; position:relative; box-shadow:0 0 60px rgba(0,229,255,0.08);">
+        <div style="position:absolute; top:-14px; left:50%; transform:translateX(-50%); background:linear-gradient(135deg,#00e5ff,#7b5fff); color:#080810; font-size:11px; font-weight:800; letter-spacing:2px; padding:5px 18px; border-radius:100px; white-space:nowrap;">✦ PHỔ BIẾN NHẤT</div>
+        <div style="font-family:'Be Vietnam Pro',sans-serif; font-size:13px; font-weight:700; letter-spacing:2px; color:#00e5ff; text-transform:uppercase; margin-bottom:12px;">PRO</div>
+        <div style="font-family:'Be Vietnam Pro',sans-serif; font-size:44px; font-weight:800; letter-spacing:-2px; line-height:1; margin-bottom:4px;">5 <span style="font-size:24px;">triệu</span></div>
+        <div style="font-size:13px; color:rgba(240,240,240,0.38); margin-bottom:32px;">đồng / dự án</div>
+        <div style="height:1px; background:rgba(0,229,255,0.15); margin-bottom:32px;"></div>
+        <div style="flex:1; display:flex; flex-direction:column; gap:14px; margin-bottom:36px;">
+          <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:rgba(240,240,240,0.82);"><span style="color:#00e5ff; font-weight:800;">✓</span> Website đa trang (5–10 trang)</div>
+          <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:rgba(240,240,240,0.82);"><span style="color:#00e5ff; font-weight:800;">✓</span> Logo + Brand cơ bản</div>
+          <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:rgba(240,240,240,0.82);"><span style="color:#00e5ff; font-weight:800;">✓</span> CMS Dashboard đầy đủ</div>
+          <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:rgba(240,240,240,0.82);"><span style="color:#00e5ff; font-weight:800;">✓</span> SEO On-page chuyên sâu</div>
+          <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:rgba(240,240,240,0.82);"><span style="color:#00e5ff; font-weight:800;">✓</span> Google Analytics tích hợp</div>
+          <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:rgba(240,240,240,0.82);"><span style="color:#00e5ff; font-weight:800;">✓</span> Bảo hành 3 tháng</div>
+        </div>
+        <a href="#contact" style="display:block; text-align:center; padding:15px; background:linear-gradient(135deg,#00e5ff,#7b5fff); border-radius:12px; font-size:14px; font-weight:700; color:#080810; transition:transform 0.2s;" style-hover="transform:translateY(-1px);">Chọn gói Pro</a>
+      </div>
+      <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; background:#0e0e1c; border:1px solid rgba(255,255,255,0.07); border-radius:22px; padding:40px 36px; display:flex; flex-direction:column;">
+        <div style="font-family:'Be Vietnam Pro',sans-serif; font-size:13px; font-weight:700; letter-spacing:2px; color:rgba(240,240,240,0.45); text-transform:uppercase; margin-bottom:12px;">ENTERPRISE</div>
+        <div style="font-family:'Be Vietnam Pro',sans-serif; font-size:34px; font-weight:800; letter-spacing:-1.5px; line-height:1; margin-bottom:4px;">Thương lượng</div>
+        <div style="font-size:13px; color:rgba(240,240,240,0.38); margin-bottom:32px;">tùy quy mô dự án</div>
+        <div style="height:1px; background:rgba(255,255,255,0.07); margin-bottom:32px;"></div>
+        <div style="flex:1; display:flex; flex-direction:column; gap:14px; margin-bottom:36px;">
+          <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:rgba(240,240,240,0.72);"><span style="color:#7b5fff; font-weight:800;">✓</span> Trọn gói: Web + Logo + Brand</div>
+          <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:rgba(240,240,240,0.72);"><span style="color:#7b5fff; font-weight:800;">✓</span> SEO Content 3 tháng</div>
+          <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:rgba(240,240,240,0.72);"><span style="color:#7b5fff; font-weight:800;">✓</span> Social Media Kit đầy đủ</div>
+          <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:rgba(240,240,240,0.72);"><span style="color:#7b5fff; font-weight:800;">✓</span> Tư vấn chiến lược thương hiệu</div>
+          <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:rgba(240,240,240,0.72);"><span style="color:#7b5fff; font-weight:800;">✓</span> Priority support 12 tháng</div>
+          <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:rgba(240,240,240,0.72);"><span style="color:#7b5fff; font-weight:800;">✓</span> Bảo hành 12 tháng</div>
+        </div>
+        <a href="#contact" style="display:block; text-align:center; padding:14px; border:1px solid rgba(123,95,255,0.35); border-radius:12px; font-size:14px; font-weight:600; color:#7b5fff; transition:all 0.2s;" style-hover="background:rgba(123,95,255,0.08); border-color:rgba(123,95,255,0.6);">Liên hệ tư vấn</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ TESTIMONIALS (LIGHT) ══ -->
+<section style="position:relative; z-index:8; margin-top:-50px; border-radius:54px 54px 0 0; background:#f2efe6; color:#14141c; padding:130px 40px 120px; overflow:hidden; box-shadow:0 -30px 70px rgba(0,0,0,0.35);">
+  <div data-fx="parallax" data-speed="0.5" style="position:absolute; top:50px; right:-30px; font-family:'Be Vietnam Pro',sans-serif; font-size:170px; font-weight:800; color:rgba(20,20,28,0.03); letter-spacing:-8px; line-height:0.8; pointer-events:none; will-change:transform; white-space:nowrap;">REVIEWS</div>
+  <div style="max-width:1100px; margin:0 auto; position:relative;">
+    <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; text-align:center; margin-bottom:64px;">
+      <p style="font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#6438e8; margin-bottom:14px;">ĐÁNH GIÁ</p>
+      <h2 style="font-family:'Be Vietnam Pro',sans-serif; font-size:clamp(30px,4vw,52px); font-weight:800; letter-spacing:-1.2px; line-height:1.12; color:#14141c;">Khách hàng nói gì về chúng tôi</h2>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:22px;">
+      <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; background:#ffffff; border:1px solid rgba(20,20,28,0.07); border-radius:20px; padding:36px; display:flex; flex-direction:column; gap:20px; box-shadow:0 16px 44px rgba(20,20,28,0.06);">
+        <span style="color:#fbbf24; font-size:15px;">★★★★★</span>
+        <p style="font-size:15px; color:rgba(20,20,28,0.7); line-height:1.8; font-style:italic;">"DryStack đã giúp spa của mình có website đẹp hơn hẳn mong đợi. Giá rất hợp lý, team chuyên nghiệp và giao đúng hẹn. Khách cứ khen website đẹp liên tục!"</p>
+        <div style="display:flex; align-items:center; gap:12px; margin-top:auto; padding-top:20px; border-top:1px solid rgba(20,20,28,0.07);"><div style="width:42px; height:42px; background:linear-gradient(135deg,#ff9f43,#e17055); border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Be Vietnam Pro',sans-serif; font-size:14px; font-weight:800; color:#fff;">NH</div><div><div style="font-size:14px; font-weight:600; color:#14141c;">Nguyễn Thị Hoa</div><div style="font-size:12px; color:rgba(20,20,28,0.45);">Chủ Spa Beauty by Linh</div></div></div>
+      </div>
+      <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; background:#ffffff; border:1px solid rgba(20,20,28,0.07); border-radius:20px; padding:36px; display:flex; flex-direction:column; gap:20px; box-shadow:0 16px 44px rgba(20,20,28,0.06);">
+        <span style="color:#fbbf24; font-size:15px;">★★★★★</span>
+        <p style="font-size:15px; color:rgba(20,20,28,0.7); line-height:1.8; font-style:italic;">"Tìm team làm website lâu lắm mới gặp DryStack. Code sạch, UX tốt, SEO hiệu quả rõ rệt sau 2 tháng. Traffic tăng 3 lần. Sẽ tiếp tục hợp tác dài lâu!"</p>
+        <div style="display:flex; align-items:center; gap:12px; margin-top:auto; padding-top:20px; border-top:1px solid rgba(20,20,28,0.07);"><div style="width:42px; height:42px; background:linear-gradient(135deg,#00e5ff,#7b5fff); border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Be Vietnam Pro',sans-serif; font-size:14px; font-weight:800; color:#fff;">TN</div><div><div style="font-size:14px; font-weight:600; color:#14141c;">Trần Văn Nam</div><div style="font-size:12px; color:rgba(20,20,28,0.45);">CEO · TechViet Solutions</div></div></div>
+      </div>
+      <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; background:#ffffff; border:1px solid rgba(20,20,28,0.07); border-radius:20px; padding:36px; display:flex; flex-direction:column; gap:20px; box-shadow:0 16px 44px rgba(20,20,28,0.06);">
+        <span style="color:#fbbf24; font-size:15px;">★★★★★</span>
+        <p style="font-size:15px; color:rgba(20,20,28,0.7); line-height:1.8; font-style:italic;">"Logo và bộ nhận diện của nhà hàng mình giờ trông cực chuyên nghiệp. Giá chỉ 3 triệu mà nhận chất lượng tưởng mấy chục triệu. Quá xứng đáng!"</p>
+        <div style="display:flex; align-items:center; gap:12px; margin-top:auto; padding-top:20px; border-top:1px solid rgba(20,20,28,0.07);"><div style="width:42px; height:42px; background:linear-gradient(135deg,#26de81,#20bf6b); border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Be Vietnam Pro',sans-serif; font-size:14px; font-weight:800; color:#fff;">LM</div><div><div style="font-size:14px; font-weight:600; color:#14141c;">Lê Thị Mai</div><div style="font-size:12px; color:rgba(20,20,28,0.45);">Chủ Nhà Hàng Phở Hà Nội</div></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ BLOG (DARK) ══ -->
+<section id="blog" style="position:relative; z-index:9; margin-top:-50px; border-radius:54px 54px 0 0; background:#080810; color:#f0f0f0; padding:130px 40px 120px; overflow:hidden; box-shadow:0 -30px 70px rgba(0,0,0,0.5);">
+  <div style="max-width:1100px; margin:0 auto;">
+    <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:60px; flex-wrap:wrap; gap:24px;">
+      <div><p style="font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#00e5ff; margin-bottom:14px;">BLOG</p><h2 style="font-family:'Be Vietnam Pro',sans-serif; font-size:clamp(28px,3.5vw,46px); font-weight:800; letter-spacing:-1px; line-height:1.15;">Kiến thức miễn phí từ DryStack</h2></div>
+      <a href="#" style="display:inline-flex; align-items:center; gap:8px; color:rgba(240,240,240,0.55); font-size:14px; font-weight:500; border:1px solid rgba(255,255,255,0.1); padding:12px 22px; border-radius:100px; transition:all 0.2s;" style-hover="color:#00e5ff; border-color:rgba(0,229,255,0.3);">Xem tất cả →</a>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:22px;">
+      <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; background:#0e0e1c; border:1px solid rgba(255,255,255,0.06); border-radius:18px; overflow:hidden; cursor:pointer; transition:transform 0.3s, border-color 0.3s;" style-hover="border-color:rgba(0,229,255,0.2); transform:translateY(-5px);">
+        <div style="height:160px; background:linear-gradient(135deg, #080f16, #0d1b26); display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;"><div style="position:absolute; inset:0; background-image:radial-gradient(rgba(0,229,255,0.05) 1px, transparent 1px); background-size:20px 20px;"></div><div style="font-family:monospace; font-size:10px; color:rgba(240,240,240,0.18); letter-spacing:2px; text-transform:uppercase; position:relative;">[ article cover ]</div></div>
+        <div style="padding:26px 28px;"><span style="font-size:11px; color:#00e5ff; background:rgba(0,229,255,0.07); padding:3px 10px; border-radius:100px; font-weight:600;">Website</span><h3 style="font-family:'Be Vietnam Pro',sans-serif; font-size:17px; font-weight:700; line-height:1.4; margin:14px 0 12px; letter-spacing:-0.3px;">5 lý do doanh nghiệp nhỏ cần website chuyên nghiệp 2024</h3><p style="font-size:13px; color:rgba(240,240,240,0.42); margin-bottom:18px; line-height:1.6; font-weight:300;">Nhiều chủ doanh nghiệp vẫn nghĩ website là thứ xa xỉ. Nhưng thực tế ngược lại...</p><div style="font-size:12px; color:rgba(240,240,240,0.3);">15 tháng 3, 2024 · 5 phút đọc</div></div>
+      </div>
+      <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; background:#0e0e1c; border:1px solid rgba(255,255,255,0.06); border-radius:18px; overflow:hidden; cursor:pointer; transition:transform 0.3s, border-color 0.3s;" style-hover="border-color:rgba(0,229,255,0.2); transform:translateY(-5px);">
+        <div style="height:160px; background:linear-gradient(135deg, #11080f, #1e0d18); display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;"><div style="position:absolute; inset:0; background-image:radial-gradient(rgba(123,95,255,0.05) 1px, transparent 1px); background-size:20px 20px;"></div><div style="font-family:monospace; font-size:10px; color:rgba(240,240,240,0.18); letter-spacing:2px; text-transform:uppercase; position:relative;">[ article cover ]</div></div>
+        <div style="padding:26px 28px;"><span style="font-size:11px; color:#7b5fff; background:rgba(123,95,255,0.07); padding:3px 10px; border-radius:100px; font-weight:600;">Branding</span><h3 style="font-family:'Be Vietnam Pro',sans-serif; font-size:17px; font-weight:700; line-height:1.4; margin:14px 0 12px; letter-spacing:-0.3px;">Branding là gì và tại sao quan trọng với mọi doanh nghiệp?</h3><p style="font-size:13px; color:rgba(240,240,240,0.42); margin-bottom:18px; line-height:1.6; font-weight:300;">Branding không chỉ là logo hay màu sắc. Đó là toàn bộ cảm xúc khách hàng cảm nhận...</p><div style="font-size:12px; color:rgba(240,240,240,0.3);">2 tháng 4, 2024 · 7 phút đọc</div></div>
+      </div>
+      <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; background:#0e0e1c; border:1px solid rgba(255,255,255,0.06); border-radius:18px; overflow:hidden; cursor:pointer; transition:transform 0.3s, border-color 0.3s;" style-hover="border-color:rgba(0,229,255,0.2); transform:translateY(-5px);">
+        <div style="height:160px; background:linear-gradient(135deg, #080d11, #0d1820); display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;"><div style="position:absolute; inset:0; background-image:radial-gradient(rgba(0,229,255,0.04) 1px, transparent 1px); background-size:20px 20px;"></div><div style="font-family:monospace; font-size:10px; color:rgba(240,240,240,0.18); letter-spacing:2px; text-transform:uppercase; position:relative;">[ article cover ]</div></div>
+        <div style="padding:26px 28px;"><span style="font-size:11px; color:#00e5ff; background:rgba(0,229,255,0.07); padding:3px 10px; border-radius:100px; font-weight:600;">SEO</span><h3 style="font-family:'Be Vietnam Pro',sans-serif; font-size:17px; font-weight:700; line-height:1.4; margin:14px 0 12px; letter-spacing:-0.3px;">SEO On-page 2024: Checklist đầy đủ cho người mới</h3><p style="font-size:13px; color:rgba(240,240,240,0.42); margin-bottom:18px; line-height:1.6; font-weight:300;">Tối ưu SEO không cần phức tạp. Với checklist này, bạn có thể tự làm ngay hôm nay...</p><div style="font-size:12px; color:rgba(240,240,240,0.3);">18 tháng 4, 2024 · 8 phút đọc</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ CONTACT (LIGHT) ══ -->
+<section id="contact" style="position:relative; z-index:10; margin-top:-50px; border-radius:54px 54px 0 0; background:#f2efe6; color:#14141c; padding:130px 40px 120px; overflow:hidden; box-shadow:0 -30px 70px rgba(0,0,0,0.35);">
+  <div style="max-width:1100px; margin:0 auto;">
+    <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter; text-align:center; margin-bottom:64px;">
+      <p style="font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#6438e8; margin-bottom:14px;">LIÊN HỆ</p>
+      <h2 style="font-family:'Be Vietnam Pro',sans-serif; font-size:clamp(30px,4vw,52px); font-weight:800; letter-spacing:-1.2px; line-height:1.12; margin-bottom:16px; color:#14141c;">Sẵn sàng bắt đầu dự án?</h2>
+      <p style="font-size:17px; color:rgba(20,20,28,0.55); max-width:500px; margin:0 auto; line-height:1.7;">Điền form bên dưới hoặc nhắn tin trực tiếp. Chúng tôi phản hồi trong vòng 24h.</p>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1.6fr; gap:60px; align-items:start;">
+      <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter;">
+        <div style="display:flex; flex-direction:column; gap:24px; margin-bottom:40px;">
+          <div style="display:flex; align-items:flex-start; gap:16px;"><div style="width:44px; height:44px; background:#fff; border:1px solid rgba(20,20,28,0.1); border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:16px;">📧</div><div><div style="font-size:12px; color:rgba(20,20,28,0.4); letter-spacing:1px; text-transform:uppercase; margin-bottom:4px;">Email</div><div style="font-size:15px; color:#14141c; font-weight:600;">hello@drystack.vn</div></div></div>
+          <div style="display:flex; align-items:flex-start; gap:16px;"><div style="width:44px; height:44px; background:#fff; border:1px solid rgba(20,20,28,0.1); border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:16px;">📱</div><div><div style="font-size:12px; color:rgba(20,20,28,0.4); letter-spacing:1px; text-transform:uppercase; margin-bottom:4px;">Zalo / Phone</div><div style="font-size:15px; color:#14141c; font-weight:600;">0901 234 567</div></div></div>
+          <div style="display:flex; align-items:flex-start; gap:16px;"><div style="width:44px; height:44px; background:#fff; border:1px solid rgba(20,20,28,0.1); border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:16px;">📍</div><div><div style="font-size:12px; color:rgba(20,20,28,0.4); letter-spacing:1px; text-transform:uppercase; margin-bottom:4px;">Địa chỉ</div><div style="font-size:15px; color:#14141c; font-weight:600;">Hà Nội, Việt Nam</div></div></div>
+        </div>
+        <div style="background:#fff; border:1px solid rgba(100,56,232,0.18); border-radius:16px; padding:22px 24px;"><div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;"><div style="width:8px; height:8px; background:#00b8d4; border-radius:50%; animation:blink 2s infinite;"></div><span style="font-size:13px; font-weight:700; color:#6438e8; letter-spacing:0.5px;">PHẢN HỒI NHANH</span></div><p style="font-size:14px; color:rgba(20,20,28,0.6); line-height:1.6;">Thường phản hồi trong <strong style="color:#14141c; font-weight:700;">dưới 2 tiếng</strong> trong giờ làm việc (8h–21h, T2–CN)</p></div>
+      </div>
+      <div data-fx="reveal" style="opacity:0; filter:blur(12px) brightness(0.5); transform:translateY(46px) scale(0.93); will-change:transform,opacity,filter;">
+        <sc-if value="{{ formSubmitted }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#fff; border:1px solid rgba(0,184,212,0.3); border-radius:20px; padding:60px 40px; text-align:center; box-shadow:0 20px 50px rgba(20,20,28,0.08);">
+            <div style="font-size:48px; margin-bottom:20px;">✅</div>
+            <h3 style="font-family:'Be Vietnam Pro',sans-serif; font-size:26px; font-weight:800; margin-bottom:14px; color:#14141c;">Đã gửi thành công!</h3>
+            <p style="font-size:16px; color:rgba(20,20,28,0.58); line-height:1.7;">Cảm ơn bạn đã liên hệ! DryStack sẽ phản hồi trong vòng 24h. Hẹn gặp bạn sớm nhé! 🚀</p>
+          </div>
+        </sc-if>
+        <sc-if value="{{ showForm }}" hint-placeholder-val="{{ true }}">
+          <form onSubmit="{{ handleSubmit }}" style="background:#fff; border:1px solid rgba(20,20,28,0.08); border-radius:20px; padding:40px; display:flex; flex-direction:column; gap:20px; box-shadow:0 20px 50px rgba(20,20,28,0.08);">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+              <div><label style="display:block; font-size:12px; font-weight:600; letter-spacing:1px; color:rgba(20,20,28,0.45); text-transform:uppercase; margin-bottom:8px;">Tên của bạn</label><input type="text" placeholder="Nguyễn Văn A" required="" style="width:100%; background:#f7f5f0; border:1px solid rgba(20,20,28,0.1); border-radius:10px; padding:13px 16px; font-size:14px; color:#14141c; outline:none;"></div>
+              <div><label style="display:block; font-size:12px; font-weight:600; letter-spacing:1px; color:rgba(20,20,28,0.45); text-transform:uppercase; margin-bottom:8px;">Số điện thoại</label><input type="tel" placeholder="0901 234 567" style="width:100%; background:#f7f5f0; border:1px solid rgba(20,20,28,0.1); border-radius:10px; padding:13px 16px; font-size:14px; color:#14141c; outline:none;"></div>
+            </div>
+            <div><label style="display:block; font-size:12px; font-weight:600; letter-spacing:1px; color:rgba(20,20,28,0.45); text-transform:uppercase; margin-bottom:8px;">Email</label><input type="email" placeholder="email@cty.com" required="" style="width:100%; background:#f7f5f0; border:1px solid rgba(20,20,28,0.1); border-radius:10px; padding:13px 16px; font-size:14px; color:#14141c; outline:none;"></div>
+            <div><label style="display:block; font-size:12px; font-weight:600; letter-spacing:1px; color:rgba(20,20,28,0.45); text-transform:uppercase; margin-bottom:8px;">Dịch vụ quan tâm</label><select style="width:100%; background:#f7f5f0; border:1px solid rgba(20,20,28,0.1); border-radius:10px; padding:13px 16px; font-size:14px; color:#14141c; outline:none; cursor:pointer;"><option value="">Chọn dịch vụ...</option><option value="website">Thiết kế Website</option><option value="logo">Thiết kế Logo</option><option value="branding">Branding Package</option><option value="seo">Viết bài SEO</option><option value="combo">Combo nhiều dịch vụ</option></select></div>
+            <div><label style="display:block; font-size:12px; font-weight:600; letter-spacing:1px; color:rgba(20,20,28,0.45); text-transform:uppercase; margin-bottom:8px;">Mô tả dự án</label><textarea placeholder="Mô tả ngắn về dự án, ngân sách dự kiến, deadline..." rows="4" style="width:100%; background:#f7f5f0; border:1px solid rgba(20,20,28,0.1); border-radius:10px; padding:13px 16px; font-size:14px; color:#14141c; outline:none; resize:vertical; line-height:1.6;"></textarea></div>
+            <button type="submit" style="width:100%; padding:16px; background:linear-gradient(135deg,#00e5ff,#7b5fff); border:none; border-radius:12px; font-size:15px; font-weight:700; color:#080810; cursor:pointer; transition:transform 0.2s;" style-hover="transform:translateY(-1px);">Gửi yêu cầu tư vấn →</button>
+          </form>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ FOOTER (DARK) ══ -->
+<footer style="position:relative; z-index:11; margin-top:-50px; border-radius:54px 54px 0 0; border-top:1px solid rgba(255,255,255,0.07); padding:90px 40px 40px; background:#06060c; box-shadow:0 -30px 70px rgba(0,0,0,0.5);">
+  <div style="max-width:1100px; margin:0 auto;">
+    <div style="display:grid; grid-template-columns:2fr 1fr 1fr 1fr; gap:48px; margin-bottom:56px;">
+      <div>
+        <div style="display:flex; align-items:center; gap:10px; font-family:'Be Vietnam Pro',sans-serif; font-weight:800; font-size:20px; letter-spacing:-0.5px; margin-bottom:16px;"><div style="width:30px; height:30px; background:linear-gradient(135deg,#00e5ff,#7b5fff); border-radius:8px; display:flex; align-items:center; justify-content:center;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><polygon points="7,1 13,13 1,13" fill="white" opacity="0.95"></polygon><polygon points="7,4 11,13 3,13" fill="#00e5ff"></polygon></svg></div>DryStack</div>
+        <p style="font-size:14px; color:rgba(240,240,240,0.42); line-height:1.75; max-width:260px; font-weight:300; margin-bottom:24px;">Team freelance chuyên thiết kế website & branding cho doanh nghiệp Việt. Giá rẻ, chất lượng đỉnh.</p>
+        <div style="display:flex; gap:12px;"><a href="#" style="width:36px; height:36px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:13px; transition:all 0.2s;" style-hover="border-color:rgba(0,229,255,0.35); background:rgba(0,229,255,0.07);">fb</a><a href="#" style="width:36px; height:36px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:13px; transition:all 0.2s;" style-hover="border-color:rgba(0,229,255,0.35); background:rgba(0,229,255,0.07);">in</a><a href="#" style="width:36px; height:36px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:13px; transition:all 0.2s;" style-hover="border-color:rgba(0,229,255,0.35); background:rgba(0,229,255,0.07);">yt</a></div>
+      </div>
+      <div><div style="font-size:12px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:rgba(240,240,240,0.35); margin-bottom:20px;">DỊCH VỤ</div><div style="display:flex; flex-direction:column; gap:12px;"><a href="#services" style="font-size:14px; color:rgba(240,240,240,0.52); font-weight:300;" style-hover="color:#00e5ff;">Thiết kế Website</a><a href="#services" style="font-size:14px; color:rgba(240,240,240,0.52); font-weight:300;" style-hover="color:#00e5ff;">Thiết kế Logo</a><a href="#services" style="font-size:14px; color:rgba(240,240,240,0.52); font-weight:300;" style-hover="color:#00e5ff;">Branding Package</a><a href="#services" style="font-size:14px; color:rgba(240,240,240,0.52); font-weight:300;" style-hover="color:#00e5ff;">Viết bài SEO</a></div></div>
+      <div><div style="font-size:12px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:rgba(240,240,240,0.35); margin-bottom:20px;">CÔNG TY</div><div style="display:flex; flex-direction:column; gap:12px;"><a href="#about" style="font-size:14px; color:rgba(240,240,240,0.52); font-weight:300;" style-hover="color:#00e5ff;">Về chúng tôi</a><a href="#team" style="font-size:14px; color:rgba(240,240,240,0.52); font-weight:300;" style-hover="color:#00e5ff;">Đội ngũ</a><a href="#projects" style="font-size:14px; color:rgba(240,240,240,0.52); font-weight:300;" style-hover="color:#00e5ff;">Dự án</a><a href="#blog" style="font-size:14px; color:rgba(240,240,240,0.52); font-weight:300;" style-hover="color:#00e5ff;">Blog</a></div></div>
+      <div><div style="font-size:12px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:rgba(240,240,240,0.35); margin-bottom:20px;">LIÊN HỆ</div><div style="display:flex; flex-direction:column; gap:12px;"><a href="mailto:hello@drystack.vn" style="font-size:14px; color:rgba(240,240,240,0.52); font-weight:300;" style-hover="color:#00e5ff;">hello@drystack.vn</a><a href="tel:0901234567" style="font-size:14px; color:rgba(240,240,240,0.52); font-weight:300;" style-hover="color:#00e5ff;">0901 234 567</a><span style="font-size:14px; color:rgba(240,240,240,0.52); font-weight:300;">Hà Nội, Việt Nam</span><a href="#pricing" style="font-size:14px; color:#00e5ff; font-weight:500;" style-hover="color:#fff;">Xem bảng giá →</a></div></div>
+    </div>
+    <div style="border-top:1px solid rgba(255,255,255,0.06); padding-top:28px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;"><p style="font-size:13px; color:rgba(240,240,240,0.3); font-weight:300;">© 2024 DryStack. All rights reserved.</p><p style="font-size:13px; color:rgba(240,240,240,0.3); font-weight:300;">Made with ✦ in Hà Nội</p></div>
+  </div>
+</footer>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;$preview&quot;: { &quot;width&quot;: 1440, &quot;height&quot;: 900 }
+}">
+class Component extends DCLogic {
+  state = { formSubmitted: false };
+  _typeTimeout = null;
+  _raf = null;
+  _fx = [];
+  _nav = null;
+  _countDone = false;
+
+  componentDidMount() {
+    this._collect();
+    this._typeWriter();
+    this._loop();
+    window.addEventListener('resize', this._collect);
+  }
+
+  componentWillUnmount() {
+    if (this._typeTimeout) clearTimeout(this._typeTimeout);
+    if (this._raf) cancelAnimationFrame(this._raf);
+    window.removeEventListener('resize', this._collect);
+  }
+
+  componentDidUpdate() {
+    // re-collect after any re-render (e.g. form submit) so FX targets stay fresh
+    this._collect();
+  }
+
+  _collect = () => {
+    this._fx = Array.from(document.querySelectorAll('[data-fx]'));
+    this._nav = document.getElementById('topnav');
+  };
+
+  _loop = () => {
+    this._apply();
+    this._raf = requestAnimationFrame(this._loop);
+  };
+
+  _clamp = (v) => v < 0 ? 0 : v > 1 ? 1 : v;
+
+  _apply = () => {
+    const vh = window.innerHeight || 800;
+
+    if (this._nav) {
+      const s = window.scrollY > 60;
+      this._nav.style.background = s ? 'rgba(8,8,16,0.9)' : 'transparent';
+      this._nav.style.backdropFilter = s ? 'blur(22px) saturate(1.4)' : 'none';
+      this._nav.style.webkitBackdropFilter = s ? 'blur(22px) saturate(1.4)' : 'none';
+      this._nav.style.borderBottom = s ? '1px solid rgba(255,255,255,0.08)' : '1px solid transparent';
+    }
+
+    for (const el of this._fx) {
+      const type = el.dataset.fx;
+      const r = el.getBoundingClientRect();
+      const mid = (r.top + r.height / 2 - vh / 2) / vh;
+
+      if (type === 'reveal') {
+        const e = this._clamp((vh - r.top) / (vh * 0.55));
+        el.style.opacity = e.toFixed(3);
+        el.style.filter = 'blur(' + ((1 - e) * 12).toFixed(2) + 'px) brightness(' + (0.45 + e * 0.55).toFixed(3) + ')';
+        el.style.transform = 'translateY(' + ((1 - e) * 46).toFixed(1) + 'px) scale(' + (0.93 + e * 0.07).toFixed(3) + ')';
+      } else if (type === 'parallax') {
+        const sp = parseFloat(el.dataset.speed || 0.25);
+        el.style.transform = 'translateY(' + (-mid * sp * 120).toFixed(1) + 'px)';
+      } else if (type === 'rotate') {
+        const rot = parseFloat(el.dataset.rot || 20);
+        el.style.transform = 'rotate(' + (mid * rot).toFixed(2) + 'deg)';
+      } else if (type === 'zoom') {
+        const prog = this._clamp(-r.top / vh);
+        el.style.transform = 'scale(' + (1 + prog * 0.4).toFixed(3) + ')';
+        el.style.opacity = (1 - prog * 0.7).toFixed(3);
+      }
+    }
+
+    if (!this._countDone) {
+      const c = document.querySelector('[data-counter]');
+      if (c) {
+        const r = c.getBoundingClientRect();
+        if (r.top < vh * 0.9 && r.bottom > 0) {
+          this._countDone = true;
+          this._counters();
+        }
+      }
+    }
+  };
+
+  _counters = () => {
+    const targets = [50, 30, 98, 3];
+    const suf = ['+', '+', '%', '+'];
+    const nodes = document.querySelectorAll('[data-counter]');
+    if (!nodes.length) return;
+    const dur = 2000;
+    const st = performance.now();
+    const go = (now) => {
+      const p = Math.min((now - st) / dur, 1);
+      const e = 1 - Math.pow(1 - p, 3);
+      nodes.forEach((n, i) => { n.textContent = Math.floor(e * targets[i]) + suf[i]; });
+      if (p < 1) requestAnimationFrame(go);
+    };
+    requestAnimationFrame(go);
+  };
+
+  _typeWriter = () => {
+    const texts = ['Thương Hiệu Đỉnh', 'Website Pro', 'Logo Ấn Tượng', 'Nội Dung SEO'];
+    let ti = 0, ci = 0, deleting = false;
+    const tick = () => {
+      const node = document.getElementById('js-typed');
+      if (!node) { this._typeTimeout = setTimeout(tick, 200); return; }
+      const cur = texts[ti];
+      if (deleting) {
+        ci--;
+        node.textContent = cur.substring(0, ci);
+        if (ci === 0) { deleting = false; ti = (ti + 1) % texts.length; }
+        this._typeTimeout = setTimeout(tick, 70);
+      } else {
+        ci++;
+        node.textContent = cur.substring(0, ci);
+        if (ci === cur.length) { deleting = true; this._typeTimeout = setTimeout(tick, 2200); }
+        else { this._typeTimeout = setTimeout(tick, 105); }
+      }
+    };
+    tick();
+  };
+
+  handleSubmit = (e) => {
+    e.preventDefault();
+    this.setState({ formSubmitted: true });
+  };
+
+  renderVals() {
+    const stats = [
+      { label: 'Dự án hoàn thành', display: '0+' },
+      { label: 'Khách hàng tin tưởng', display: '0+' },
+      { label: 'Tỷ lệ hài lòng', display: '0%' },
+      { label: 'Năm kinh nghiệm', display: '0+' },
+    ];
+    const projects = [
+      { initials: 'NK', title: 'Nha Khoa Smile', type: 'Website + Logo', tagsText: 'Next.js · Figma · SEO' },
+      { initials: 'PH', title: 'Phở Hà Nội', type: 'Website + Branding', tagsText: 'WordPress · WooCommerce' },
+      { initials: 'TV', title: 'TechViet Solutions', type: 'Website Doanh Nghiệp', tagsText: 'React · Node.js · Figma' },
+      { initials: 'BL', title: 'Beauty by Linh', type: 'Website + Branding', tagsText: 'WordPress · Figma' },
+      { initials: 'GF', title: 'GreenFarm Store', type: 'E-Commerce Website', tagsText: 'WooCommerce · SEO' },
+      { initials: 'LT', title: 'LogiTrans Việt', type: 'Website + Branding', tagsText: 'Next.js · Figma' },
+    ];
+    return {
+      stats,
+      projects,
+      formSubmitted: this.state.formSubmitted,
+      showForm: !this.state.formSubmitted,
+      handleSubmit: this.handleSubmit,
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+---
+import { Badge } from "@/components/ui/badge"
+
+const services = [
+  {
+    icon: "solar:monitor-smartphone-bold-duotone",
+    title: "Thiết kế Website",
+    price: "Từ 2.000.000đ",
+    desc: "Website chuyên nghiệp, responsive hoàn toàn, tốc độ tải nhanh, tích hợp SEO và CMS dễ quản lý.",
+    tags: ["Responsive", "CMS", "SSL"],
+    hot: false,
+  },
+  {
+    icon: "solar:palette-bold-duotone",
+    title: "Thiết kế Logo",
+    price: "Từ 500.000đ",
+    desc: "Logo độc đáo, đậm chất thương hiệu, phù hợp mọi nền tảng. Giao file vector AI, PDF, PNG.",
+    tags: ["3 concept", "File AI/PDF", "Revision ∞"],
+    hot: false,
+  },
+  {
+    icon: "solar:layers-minimalistic-bold-duotone",
+    title: "Branding Package",
+    price: "Từ 3.000.000đ",
+    desc: "Bộ nhận diện hoàn chỉnh: logo, màu sắc, typography, business card và brand guideline.",
+    tags: ["Guideline", "Card", "Social Kit"],
+    hot: true,
+  },
+  {
+    icon: "solar:magnifer-zoom-in-bold-duotone",
+    title: "Viết bài SEO",
+    price: "Từ 200.000đ/bài",
+    desc: "Nội dung chuẩn SEO, đúng ngữ nghĩa, thu hút người đọc và tối ưu để leo top Google bền vững.",
+    tags: ["Keyword", "On-page", "1000–2000 từ"],
+    hot: false,
+  },
+]
+---
+
+<section
+  id="services"
+  style="scroll-margin-top:100px; position:relative; z-index:3; margin-top:-48px; border-radius:32px 32px 0 0; background:#100b06; color:#f5ece0; padding:clamp(80px,10vw,130px) clamp(20px,5vw,40px) clamp(80px,10vw,120px); overflow:hidden; box-shadow:0 -24px 60px rgba(0,0,0,0.5);"
+>
+  <div
+    data-fx="parallax"
+    data-speed="-0.4"
+    style="position:absolute; top:50px; left:-30px; font-family:var(--font-heading); font-size:clamp(110px,16vw,200px); font-weight:800; color:rgba(255,255,255,0.022); letter-spacing:-9px; line-height:0.8; pointer-events:none; white-space:nowrap;"
+  >
+    SERVICES
+  </div>
+  <div style="max-width:1180px; margin:0 auto; position:relative;">
+    <div
+      data-fx="reveal"
+      data-from="up"
+      style="opacity:0; transform:translateY(48px) scale(0.95); filter:blur(8px); will-change:transform,opacity,filter; text-align:center; margin-bottom:64px;"
+    >
+      <p class="ds-grad-text" style="font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; margin-bottom:14px;">DỊCH VỤ</p>
+      <h2 style="font-family:var(--font-heading); font-size:clamp(30px,4vw,52px); font-weight:800; letter-spacing:-1.2px; line-height:1.12; margin-bottom:18px;">Chúng tôi làm được gì cho bạn?</h2>
+      <p style="font-size:17px; color:rgba(245,236,224,0.52); max-width:540px; margin:0 auto; line-height:1.7; font-weight:300;">Từ website đến thương hiệu hoàn chỉnh — tất cả dưới một mái nhà với giá cực hợp lý.</p>
+    </div>
+    <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:22px;">
+      {
+        services.map((s) => (
+          <div
+            data-fx="reveal"
+            data-from="up"
+            data-out="1"
+            class="ds-lift5"
+            style={`flex:1 1 300px; max-width:380px; opacity:0; transform:translateY(60px) scale(0.96); filter:blur(8px); will-change:transform,opacity,filter; border-radius:22px; padding:38px; ${s.hot ? "position:relative; overflow:hidden; background:linear-gradient(#181009,#181009) padding-box, linear-gradient(160deg,#ffd24a,#ff8a3d) border-box; border:1.5px solid transparent;" : "background:linear-gradient(#181009,#181009) padding-box, linear-gradient(160deg, rgba(255,200,90,0.25), rgba(255,255,255,0.04)) border-box; border:1px solid transparent;"}`}
+          >
+            {s.hot && (
+              <div style="position:absolute; top:18px; right:18px; background:#ffab2e; color:#1a1206; font-size:10px; font-weight:800; letter-spacing:1.5px; padding:4px 10px; border-radius:100px;">
+                HOT
+              </div>
+            )}
+            <div style={`width:56px; height:56px; border-radius:16px; display:flex; align-items:center; justify-content:center; margin-bottom:26px; background:rgba(255,170,60,${s.hot ? "0.12" : "0.1"}); border:1px solid rgba(255,170,60,${s.hot ? "0.25" : "0.2"});`}>
+              <iconify-icon icon={s.icon} style="font-size:30px; color:#ffb13d;" />
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; gap:12px;">
+              <h3 style="font-family:var(--font-heading); font-size:22px; font-weight:700; letter-spacing:-0.5px;">{s.title}</h3>
+              <Badge className="ds-chip-price">{s.price}</Badge>
+            </div>
+            <p style="font-size:15px; color:rgba(245,236,224,0.55); line-height:1.75; margin-bottom:26px; font-weight:300;">{s.desc}</p>
+            <div style="display:flex; flex-wrap:wrap; gap:8px;">
+              {s.tags.map((t) => (
+                <Badge className="ds-chip">{t}</Badge>
+              ))}
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>

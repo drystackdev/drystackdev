@@ -1,0 +1,176 @@
+---
+// Frosted pill navigation + mobile menu.
+// Responsive desktop/mobile split is handled with a media query (the design
+// originally toggled this in JS via innerWidth < 820 — same breakpoint here).
+const links = [
+  { href: "#about", id: "about", label: "Giới thiệu" },
+  { href: "#services", id: "services", label: "Dịch vụ" },
+  { href: "#projects", id: "projects", label: "Dự án" },
+  { href: "#team", id: "team", label: "Đội ngũ" },
+  { href: "#pricing", id: "pricing", label: "Giá cả" },
+  { href: "#blog", id: "blog", label: "Blog" },
+]
+---
+
+<nav
+  style="position:fixed; top:16px; left:50%; transform:translateX(-50%); width:min(1180px, calc(100% - 28px)); z-index:1000; display:flex; align-items:center; justify-content:space-between; padding:11px 14px 11px 22px; border-radius:100px; background:rgba(22,15,8,0.55); backdrop-filter:blur(20px) saturate(1.4); -webkit-backdrop-filter:blur(20px) saturate(1.4); border:1px solid rgba(255,200,90,0.16); box-shadow:0 10px 40px rgba(0,0,0,0.4);"
+>
+  <a
+    href="#"
+    style="display:flex; align-items:center; gap:10px; font-family:var(--font-heading); font-weight:800; font-size:20px; letter-spacing:-0.5px;"
+  >
+    <div
+      style="width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:linear-gradient(#1a1206,#1a1206) padding-box, linear-gradient(135deg,#ffd24a,#ff8a3d) border-box; border:1.5px solid transparent;"
+    >
+      <iconify-icon icon="solar:layers-bold-duotone" style="font-size:18px; color:#ffb13d;"></iconify-icon>
+    </div>
+    <span><span class="ds-grad-text">Dry</span>Stack<span style="color:rgba(245,236,224,0.45); font-weight:600;">.dev</span></span>
+  </a>
+
+  <!-- Desktop links -->
+  <div class="ds-desktop-nav" style="position:relative; align-items:center; gap:8px;">
+    <span class="ds-underline" id="ds-underline"></span>
+    {
+      links.map((l) => (
+        <a
+          href={l.href}
+          data-navlink={l.id}
+          class="ds-navlink"
+          style="font-size:14px; font-weight:500; color:rgba(245,236,224,0.7); padding:8px 14px; border-radius:100px;"
+        >
+          {l.label}
+        </a>
+      ))
+    }
+    <a
+      href="#contact"
+      style="position:relative; display:inline-flex; align-items:center; padding:1.5px; border-radius:100px; overflow:hidden; margin-left:6px;"
+    >
+      <span
+        style="position:absolute; top:50%; left:50%; width:260%; height:700%; background:conic-gradient(from 0deg, transparent 0deg 300deg, #fff 335deg, #ffe7a8 350deg, transparent 360deg); animation:spin 3s linear infinite; pointer-events:none;"
+      ></span>
+      <span
+        style="position:relative; display:inline-flex; align-items:center; gap:6px; background:#ffab2e; color:#1a1206; padding:9px 18px; border-radius:100px; font-size:13px; font-weight:700;"
+      >
+        Liên hệ <iconify-icon icon="solar:arrow-right-up-linear" style="font-size:15px;"></iconify-icon>
+      </span>
+    </a>
+  </div>
+
+  <!-- Mobile hamburger -->
+  <button
+    id="ds-menu-btn"
+    aria-label="Mở menu"
+    class="ds-mobile-nav"
+    style="width:42px; height:42px; border-radius:50%; border:1px solid rgba(255,200,90,0.2); background:rgba(255,200,90,0.07); color:#ffb13d; align-items:center; justify-content:center; cursor:pointer;"
+  >
+    <iconify-icon icon="solar:hamburger-menu-linear" style="font-size:22px;"></iconify-icon>
+  </button>
+</nav>
+
+<!-- Mobile menu (hidden by default; toggled via JS) -->
+<div id="ds-menu" hidden>
+  <div
+    data-menu-close
+    style="position:fixed; inset:0; z-index:998; background:rgba(10,7,3,0.55); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);"
+  >
+  </div>
+  <div
+    style="position:fixed; top:100px; left:50%; transform:translateX(-50%); width:min(1180px, calc(100% - 28px)); z-index:999; background:rgba(22,15,8,0.96); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); border:1px solid rgba(255,200,90,0.16); border-radius:22px; padding:14px; display:flex; flex-direction:column; gap:4px; box-shadow:0 24px 60px rgba(0,0,0,0.6);"
+  >
+    {
+      links.map((l) => (
+        <a
+          href={l.href}
+          data-menu-close
+          class="ds-mnavlink"
+          style="font-size:15px; font-weight:500; color:rgba(245,236,224,0.85); padding:14px 16px; border-radius:14px;"
+        >
+          {l.label}
+        </a>
+      ))
+    }
+    <a
+      href="#contact"
+      data-menu-close
+      style="text-align:center; background:#ffab2e; color:#1a1206; padding:14px; border-radius:14px; font-size:15px; font-weight:700; margin-top:4px;"
+    >
+      Liên hệ ngay
+    </a>
+  </div>
+</div>
+
+<style>
+  /* Desktop / mobile split at 820px (matches the original JS breakpoint) */
+  .ds-desktop-nav {
+    display: flex;
+  }
+  .ds-mobile-nav {
+    display: none;
+  }
+  @media (max-width: 819px) {
+    .ds-desktop-nav {
+      display: none;
+    }
+    .ds-mobile-nav {
+      display: flex;
+    }
+  }
+</style>
+
+<script>
+  const btn = document.getElementById("ds-menu-btn")
+  const menu = document.getElementById("ds-menu")
+  const open = () => {
+    if (menu) menu.hidden = false
+  }
+  const close = () => {
+    if (menu) menu.hidden = true
+  }
+  btn?.addEventListener("click", open)
+  menu?.querySelectorAll("[data-menu-close]").forEach((el) => el.addEventListener("click", close))
+  // Close the menu if the viewport grows back to desktop width.
+  window.addEventListener("resize", () => {
+    if (window.innerWidth >= 820) close()
+  })
+
+  // ── Sliding underline that follows the hovered link, resting on the
+  //    scrollspy-active link (set via [data-active] in the layout FX engine). ──
+  const navWrap = document.querySelector<HTMLElement>(".ds-desktop-nav")
+  const underline = document.getElementById("ds-underline")
+  if (navWrap && underline) {
+    const links = Array.from(navWrap.querySelectorAll<HTMLElement>("[data-navlink]"))
+    let hovering = false
+
+    const moveTo = (link: HTMLElement | null) => {
+      if (!link) {
+        underline.style.opacity = "0"
+        return
+      }
+      underline.style.opacity = "1"
+      underline.style.left = link.offsetLeft + "px"
+      underline.style.width = link.offsetWidth + "px"
+    }
+    const activeLink = () => links.find((l) => l.hasAttribute("data-active")) || null
+    const settle = () => {
+      if (!hovering) moveTo(activeLink())
+    }
+
+    links.forEach((l) => l.addEventListener("mouseenter", () => {
+      hovering = true
+      moveTo(l)
+    }))
+    navWrap.addEventListener("mouseleave", () => {
+      hovering = false
+      settle()
+    })
+
+    // React to scrollspy changes (data-active toggled by the FX engine).
+    const obs = new MutationObserver(settle)
+    links.forEach((l) => obs.observe(l, { attributes: true, attributeFilter: ["data-active"] }))
+
+    window.addEventListener("resize", settle)
+    window.addEventListener("load", settle)
+    settle()
+  }
+</script>

@@ -1,0 +1,138 @@
+---
+// Hero — animated background + typewriter headline + animated stats.
+// On scroll: headline/badge rise, stats sink, central rings zoom out & fade.
+// The hero scrolls away normally (not pinned); the next section overlaps it.
+const stats = [
+  { label: "Dự án hoàn thành", display: "0+" },
+  { label: "Khách hàng tin tưởng", display: "0+" },
+  { label: "Tỷ lệ hài lòng", display: "0%" },
+  { label: "Năm kinh nghiệm", display: "0+" },
+]
+---
+
+<section
+  style="position:relative; min-height:100vh; display:flex; align-items:center; justify-content:center; text-align:center; padding:140px 24px 90px; overflow:hidden; z-index:1;"
+>
+  <div style="position:absolute; inset:0; pointer-events:none; overflow:hidden;">
+    <div style="position:absolute; inset:0; background-image:radial-gradient(rgba(255,200,90,0.05) 1px, transparent 1px); background-size:34px 34px;"></div>
+    <!-- orbiting rings (zoom out + fade on scroll) -->
+    <div data-fx="heroRings" style="position:absolute; inset:0;">
+      <div style="position:absolute; top:50%; left:50%; width:720px; height:720px; border-radius:50%; border:1px solid transparent; background:linear-gradient(#100b06,#100b06) padding-box, conic-gradient(from 0deg, transparent, rgba(255,180,60,0.35), transparent 40%) border-box; animation:spin 38s linear infinite; max-width:140vw; max-height:140vw;"></div>
+      <div style="position:absolute; top:50%; left:50%; width:500px; height:500px; border-radius:50%; border:1px solid transparent; background:linear-gradient(#100b06,#100b06) padding-box, conic-gradient(from 180deg, transparent, rgba(255,130,60,0.4), transparent 35%) border-box; animation:spinR 26s linear infinite; max-width:110vw; max-height:110vw;"></div>
+      <div style="position:absolute; top:50%; left:50%; width:920px; height:920px; border-radius:50%; border:1px dashed rgba(255,200,90,0.07); animation:spin 60s linear infinite; max-width:170vw; max-height:170vw;"></div>
+    </div>
+    <!-- glow blobs -->
+    <div data-fx="zoom" style="position:absolute; top:14%; left:10%; width:380px; height:380px; background:radial-gradient(circle, rgba(255,160,50,0.10) 0%, transparent 65%); border-radius:50%;"></div>
+    <div data-fx="zoom" style="position:absolute; bottom:12%; right:10%; width:440px; height:440px; background:radial-gradient(circle, rgba(255,120,50,0.09) 0%, transparent 65%); border-radius:50%;"></div>
+    <!-- floating shapes (parallax) -->
+    <div data-fx="drift" data-dx="240" data-dy="-60" data-drot="160" data-op="1" style="position:absolute; top:22%; right:13%; width:64px; height:64px; border-radius:18px; background:linear-gradient(#100b06,#100b06) padding-box, linear-gradient(135deg,#ffd24a,#ff8a3d) border-box; border:1.5px solid transparent;"></div>
+    <div data-fx="drift" data-dx="-220" data-dy="70" data-drot="-150" data-op="1" style="position:absolute; bottom:24%; left:9%; width:48px; height:48px; border-radius:50%; border:1.5px solid rgba(255,150,60,0.4);"></div>
+    <div data-fx="drift" data-dx="190" data-dy="90" data-drot="200" data-op="1" style="position:absolute; top:64%; right:18%; width:34px; height:34px; border-radius:8px; background:rgba(255,170,60,0.12);"></div>
+    <!-- twinkling particles -->
+    <div style="position:absolute; top:18%; left:24%; width:5px; height:5px; border-radius:50%; background:#ffce6a; animation:twinkle 3s ease-in-out infinite;"></div>
+    <div style="position:absolute; top:30%; right:28%; width:4px; height:4px; border-radius:50%; background:#ff9a3d; animation:twinkle 4s ease-in-out infinite 1s;"></div>
+    <div style="position:absolute; bottom:32%; left:32%; width:6px; height:6px; border-radius:50%; background:#ffce6a; animation:twinkle 3.5s ease-in-out infinite 0.5s;"></div>
+    <div style="position:absolute; top:46%; left:14%; width:4px; height:4px; border-radius:50%; background:#ffb13d; animation:twinkle 5s ease-in-out infinite 1.5s;"></div>
+    <div style="position:absolute; bottom:22%; right:34%; width:5px; height:5px; border-radius:50%; background:#ff9a3d; animation:twinkle 4.5s ease-in-out infinite 2s;"></div>
+    <div style="position:absolute; top:60%; right:12%; width:4px; height:4px; border-radius:50%; background:#ffce6a; animation:twinkle 3.2s ease-in-out infinite 0.8s;"></div>
+    <div data-fx="drift" data-dx="-260" data-dy="-40" data-drot="-120" data-op="0.45" style="position:absolute; top:34%; left:15%; width:88px; height:88px; border-radius:22px; background:linear-gradient(#100b06,#100b06) padding-box, linear-gradient(135deg,#ffd24a,#ff8a3d) border-box; border:1.5px solid transparent;"></div>
+    <div data-fx="drift" data-dx="200" data-dy="80" data-drot="130" data-op="0.8" style="position:absolute; bottom:18%; right:23%; width:66px; height:66px; border-radius:50%; border:1px solid rgba(255,170,60,0.18);"></div>
+    <div data-fx="drift" data-dx="230" data-dy="-50" data-drot="140" data-op="1" style="position:absolute; top:52%; right:7%; width:50px; height:50px; border-radius:14px; background:rgba(255,170,60,0.06); border:1px solid rgba(255,170,60,0.12);"></div>
+  </div>
+
+  <div style="position:relative; z-index:1; max-width:940px; margin:0 auto;">
+    <!-- badge + headline: rise + fade on scroll -->
+    <div data-fx="heroRise">
+      <div class="hero-in">
+        <div
+          style="display:inline-flex; align-items:center; gap:8px; border-radius:100px; padding:7px 16px; margin-bottom:32px; font-size:12px; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; color:#ffc46a; background:linear-gradient(#160f08,#160f08) padding-box, linear-gradient(120deg,#ffd24a,#ff8a3d) border-box; border:1px solid transparent;"
+        >
+          <span style="width:6px; height:6px; background:#ffb13d; border-radius:50%; animation:blink 2s infinite;"></span>
+          Freelance Team · Nhận dự án toàn quốc
+        </div>
+        <h1 style="font-family:var(--font-heading); font-size:clamp(40px,6.5vw,92px); font-weight:800; line-height:1.04; letter-spacing:-2.5px; margin-bottom:4px;">Biến Ý Tưởng Thành</h1>
+        <h1 style="font-family:var(--font-heading); font-size:clamp(40px,6.5vw,92px); font-weight:800; line-height:1.08; letter-spacing:-2.5px; margin-bottom:32px; min-height:1.1em;">
+          <span style="background:linear-gradient(110deg,#ffe08a,#ffae3d,#ff7a3d,#ffae3d); background-size:200% auto; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; color:transparent; animation:shimmer 3.5s linear infinite;" id="js-typed"></span><span style="display:inline-block; width:4px; height:0.78em; background:#ffae3d; margin-left:3px; vertical-align:middle; animation:blink 1s step-end infinite;"></span>
+        </h1>
+      </div>
+    </div>
+
+    <!-- description + CTAs: entrance only (pivot point) -->
+    <div class="hero-in hero-in-2">
+      <p style="font-size:clamp(15px,1.8vw,19px); color:rgba(245,236,224,0.6); max-width:580px; margin:0 auto 46px; line-height:1.75; font-weight:300;">
+        Website · Logo · Branding · SEO — Dịch vụ chuyên nghiệp, giá cả phải chăng dành cho doanh nghiệp Việt. Chỉ từ <strong style="color:#ffce6a; font-weight:600;">2.000.000đ</strong>.
+      </p>
+      <div style="display:flex; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap; margin-bottom:76px;">
+        <a
+          href="#services"
+          class="ds-lift2"
+          style="position:relative; display:inline-flex; align-items:center; padding:2px; border-radius:100px; overflow:hidden; box-shadow:0 10px 40px rgba(255,150,40,0.25);"
+        >
+          <span style="position:absolute; top:50%; left:50%; width:220%; height:700%; background:conic-gradient(from 0deg, transparent 0deg 300deg, #fff 335deg, #ffe7a8 350deg, transparent 360deg); animation:spin 3.2s linear infinite; pointer-events:none;"></span>
+          <span style="position:relative; display:inline-flex; align-items:center; gap:8px; background:#ffab2e; color:#1a1206; padding:15px 30px; border-radius:100px; font-size:15px; font-weight:700;">Xem Dịch Vụ <iconify-icon icon="solar:arrow-right-linear" style="font-size:18px;"></iconify-icon></span>
+        </a>
+        <a
+          href="#contact"
+          class="ds-lift2"
+          style="display:inline-flex; align-items:center; gap:8px; color:#ffce6a; padding:16px 32px; border-radius:100px; font-size:15px; font-weight:600; background:linear-gradient(#140e07,#140e07) padding-box, linear-gradient(120deg,#ffd24a,#ff8a3d) border-box; border:1.5px solid transparent;"
+          >Liên Hệ Ngay</a
+        >
+      </div>
+    </div>
+
+    <!-- stats: sink + fade on scroll -->
+    <div data-fx="heroSink">
+      <div class="hero-in hero-in-3" style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; max-width:760px; margin:0 auto;">
+        {
+          stats.map((stat) => (
+            <div style="padding:24px 8px; border-radius:18px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,200,90,0.08);">
+              <div
+                data-counter
+                class="ds-grad-text"
+                style="font-family:var(--font-heading); font-size:clamp(26px,3.5vw,42px); font-weight:800; line-height:1; margin-bottom:8px; letter-spacing:-1px;"
+              >
+                {stat.display}
+              </div>
+              <div style="font-size:12px; color:rgba(245,236,224,0.5);">{stat.label}</div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // Typewriter for the gradient headline (#js-typed). Ported from the design.
+  const texts = ["Thương Hiệu Đỉnh", "Website Pro", "Logo Ấn Tượng", "Nội Dung SEO"]
+  let ti = 0,
+    ci = 0,
+    deleting = false
+  const tick = () => {
+    const node = document.getElementById("js-typed")
+    if (!node) {
+      setTimeout(tick, 200)
+      return
+    }
+    const cur = texts[ti]
+    if (deleting) {
+      ci--
+      node.textContent = cur.substring(0, ci)
+      if (ci === 0) {
+        deleting = false
+        ti = (ti + 1) % texts.length
+      }
+      setTimeout(tick, 70)
+    } else {
+      ci++
+      node.textContent = cur.substring(0, ci)
+      if (ci === cur.length) {
+        deleting = true
+        setTimeout(tick, 2200)
+      } else {
+        setTimeout(tick, 105)
+      }
+    }
+  }
+  tick()
+</script>

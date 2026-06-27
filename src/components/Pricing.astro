@@ -1,0 +1,134 @@
+---
+const starterFeatures = [
+  "Website Landing Page",
+  "Responsive & Mobile-first",
+  "SSL miễn phí",
+  "SEO cơ bản",
+  "Bảo hành 1 tháng",
+]
+const proFeatures = [
+  "Website đa trang (5–10 trang)",
+  "Logo + Brand cơ bản",
+  "CMS Dashboard đầy đủ",
+  "SEO On-page chuyên sâu",
+  "Automation Testing",
+  "Bảo hành 3 tháng",
+]
+const enterpriseFeatures = [
+  "Trọn gói Web + Logo + Brand",
+  "SEO Content 3 tháng",
+  "Social Media Kit đầy đủ",
+  "Tư vấn chiến lược thương hiệu",
+  "Priority support 12 tháng",
+  "Bảo hành 12 tháng",
+]
+---
+
+<section
+  id="pricing"
+  style="scroll-margin-top:100px; position:relative; z-index:7; margin-top:-48px; border-radius:52px 52px 0 0; background:#100b06; color:#f5ece0; padding:clamp(80px,10vw,130px) clamp(20px,5vw,40px) clamp(80px,10vw,120px); overflow:hidden; box-shadow:0 -24px 60px rgba(0,0,0,0.5);"
+>
+  <div style="max-width:1100px; margin:0 auto;">
+    <div
+      data-fx="reveal"
+      data-from="up"
+      style="opacity:0; transform:translateY(48px) scale(0.95); filter:blur(8px); will-change:transform,opacity,filter; text-align:center; margin-bottom:60px;"
+    >
+      <p class="ds-grad-text" style="font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; margin-bottom:14px;">GIÁ CẢ</p>
+      <h2 style="font-family:var(--font-heading); font-size:clamp(30px,4vw,52px); font-weight:800; letter-spacing:-1.2px; line-height:1.12; margin-bottom:16px;">Minh bạch, không phát sinh</h2>
+      <p style="font-size:17px; color:rgba(245,236,224,0.5); max-width:500px; margin:0 auto; font-weight:300; line-height:1.7;">Chọn gói phù hợp với nhu cầu của bạn. Tất cả đều có thể tùy chỉnh.</p>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:22px; align-items:stretch;">
+      <!-- STARTER -->
+      <div
+        data-fx="reveal"
+        data-from="right"
+        style="opacity:0; transform:translateX(90px) scale(0.96); filter:blur(8px); will-change:transform,opacity,filter; position:relative; border-radius:23px; padding:2px; overflow:hidden;"
+      >
+        <div style="position:absolute; top:50%; left:50%; width:160%; height:160%; background:conic-gradient(from 0deg, transparent 0deg 280deg, rgba(255,210,74,0.9) 320deg, rgba(255,138,61,0.7) 345deg, transparent 360deg); animation:spin 5s linear infinite; pointer-events:none;"></div>
+        <div style="position:relative; background:#181009; border-radius:21px; padding:38px 34px; display:flex; flex-direction:column; height:100%;">
+          <div style="font-family:var(--font-heading); font-size:13px; font-weight:700; letter-spacing:2px; color:rgba(245,236,224,0.45); text-transform:uppercase; margin-bottom:12px;">STARTER</div>
+          <div style="font-family:var(--font-heading); font-size:42px; font-weight:800; letter-spacing:-2px; line-height:1; margin-bottom:4px;">2 <span style="font-size:22px;">triệu</span></div>
+          <div style="font-size:13px; color:rgba(245,236,224,0.38); margin-bottom:30px;">đồng / dự án</div>
+          <div style="height:1px; background:rgba(255,200,90,0.1); margin-bottom:30px;"></div>
+          <div style="flex:1; display:flex; flex-direction:column; gap:13px; margin-bottom:32px;">
+            {
+              starterFeatures.map((f) => (
+                <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:rgba(245,236,224,0.72);">
+                  <iconify-icon icon="solar:check-circle-bold" style="font-size:18px; color:#ffae3d;" /> {f}
+                </div>
+              ))
+            }
+          </div>
+          <a
+            href="#contact"
+            class="ds-link-gold"
+            style="display:block; text-align:center; padding:14px; border-radius:12px; font-size:14px; font-weight:600; color:#ffce6a; background:linear-gradient(#181009,#181009) padding-box, linear-gradient(120deg,#ffd24a,#ff8a3d) border-box; border:1.5px solid transparent;"
+            >Bắt đầu ngay</a
+          >
+        </div>
+      </div>
+
+      <!-- PRO (featured) -->
+      <div
+        data-fx="reveal"
+        data-from="up"
+        style="opacity:0; transform:translateY(40px) scale(0.96); filter:blur(8px); will-change:transform,opacity,filter; position:relative; border-radius:22px; padding:2px; overflow:hidden;"
+      >
+        <div style="position:absolute; top:50%; left:50%; width:170%; height:170%; background:conic-gradient(from 0deg, transparent 0deg 250deg, #ffd24a 300deg, #ff7a3d 330deg, #ffe7a8 348deg, transparent 360deg); animation:spin 4s linear infinite; pointer-events:none;"></div>
+        <div style="position:relative; background:#15100a; border-radius:20px; padding:38px 34px; display:flex; flex-direction:column; height:100%;">
+          <div style="position:absolute; top:-2px; left:50%; transform:translateX(-50%); background:#ffab2e; color:#1a1206; font-size:11px; font-weight:800; letter-spacing:2px; padding:5px 18px; border-radius:0 0 12px 12px; white-space:nowrap;">✦ PHỔ BIẾN NHẤT</div>
+          <div class="ds-grad-text" style="font-family:var(--font-heading); font-size:13px; font-weight:700; letter-spacing:2px; text-transform:uppercase; margin-bottom:12px; margin-top:8px;">PRO</div>
+          <div style="font-family:var(--font-heading); font-size:42px; font-weight:800; letter-spacing:-2px; line-height:1; margin-bottom:4px;">5 <span style="font-size:22px;">triệu</span></div>
+          <div style="font-size:13px; color:rgba(245,236,224,0.38); margin-bottom:30px;">đồng / dự án</div>
+          <div style="height:1px; background:rgba(255,200,90,0.18); margin-bottom:30px;"></div>
+          <div style="flex:1; display:flex; flex-direction:column; gap:13px; margin-bottom:32px;">
+            {
+              proFeatures.map((f) => (
+                <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:rgba(245,236,224,0.85);">
+                  <iconify-icon icon="solar:check-circle-bold" style="font-size:18px; color:#ffae3d;" /> {f}
+                </div>
+              ))
+            }
+          </div>
+          <a
+            href="#contact"
+            class="ds-btn-pro"
+            style="display:block; text-align:center; padding:15px; background:#ffab2e; border-radius:12px; font-size:14px; font-weight:700; color:#1a1206;"
+            >Chọn gói Pro</a
+          >
+        </div>
+      </div>
+
+      <!-- ENTERPRISE -->
+      <div
+        data-fx="reveal"
+        data-from="left"
+        style="opacity:0; transform:translateX(-90px) scale(0.96); filter:blur(8px); will-change:transform,opacity,filter; position:relative; border-radius:23px; padding:2px; overflow:hidden;"
+      >
+        <div style="position:absolute; top:50%; left:50%; width:160%; height:160%; background:conic-gradient(from 180deg, transparent 0deg 280deg, rgba(255,210,74,0.9) 320deg, rgba(255,138,61,0.7) 345deg, transparent 360deg); animation:spin 5s linear infinite; pointer-events:none;"></div>
+        <div style="position:relative; background:#181009; border-radius:21px; padding:38px 34px; display:flex; flex-direction:column; height:100%;">
+          <div style="font-family:var(--font-heading); font-size:13px; font-weight:700; letter-spacing:2px; color:rgba(245,236,224,0.45); text-transform:uppercase; margin-bottom:12px;">ENTERPRISE</div>
+          <div style="font-family:var(--font-heading); font-size:32px; font-weight:800; letter-spacing:-1.5px; line-height:1; margin-bottom:4px;">Thương lượng</div>
+          <div style="font-size:13px; color:rgba(245,236,224,0.38); margin-bottom:30px;">tùy quy mô dự án</div>
+          <div style="height:1px; background:rgba(255,200,90,0.1); margin-bottom:30px;"></div>
+          <div style="flex:1; display:flex; flex-direction:column; gap:13px; margin-bottom:32px;">
+            {
+              enterpriseFeatures.map((f) => (
+                <div style="display:flex; align-items:center; gap:10px; font-size:14px; color:rgba(245,236,224,0.72);">
+                  <iconify-icon icon="solar:check-circle-bold" style="font-size:18px; color:#ffae3d;" /> {f}
+                </div>
+              ))
+            }
+          </div>
+          <a
+            href="#contact"
+            class="ds-link-gold"
+            style="display:block; text-align:center; padding:14px; border-radius:12px; font-size:14px; font-weight:600; color:#ffce6a; background:linear-gradient(#181009,#181009) padding-box, linear-gradient(120deg,#ffd24a,#ff8a3d) border-box; border:1.5px solid transparent;"
+            >Liên hệ tư vấn</a
+          >
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

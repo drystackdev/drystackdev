@@ -1,0 +1,94 @@
+---
+// Tech stack — light section with a 3D rotating icon cloud (logos:* via Iconify).
+const features = [
+  { icon: "solar:bolt-bold", label: "Tốc độ tải < 2s" },
+  { icon: "solar:shield-keyhole-bold", label: "Bảo mật cao" },
+  { icon: "solar:graph-new-up-bold", label: "Chuẩn SEO" },
+]
+---
+
+<section
+  id="stack"
+  style="scroll-margin-top:100px; position:relative; z-index:4; margin-top:-48px; border-radius:52px 52px 0 0; background:#faf5ec; color:#1a1206; padding:clamp(80px,10vw,120px) clamp(20px,5vw,40px); overflow:hidden; box-shadow:0 -24px 60px rgba(0,0,0,0.35);"
+>
+  <div style="max-width:1100px; margin:0 auto; display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:50px; align-items:center;">
+    <div
+      data-fx="reveal"
+      data-from="right"
+      style="opacity:0; transform:translateX(90px) scale(0.96); filter:blur(8px); will-change:transform,opacity,filter;"
+    >
+      <p class="ds-grad-text-light" style="font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; margin-bottom:16px;">CÔNG NGHỆ</p>
+      <h2 style="font-family:var(--font-heading); font-size:clamp(28px,3.6vw,46px); font-weight:800; letter-spacing:-1px; line-height:1.14; margin-bottom:20px; color:#1a1206;">Tech stack hiện đại,<br />hiệu năng tối ưu</h2>
+      <p style="font-size:16px; color:rgba(26,18,6,0.62); line-height:1.8; margin-bottom:28px;">Chúng tôi dùng các công nghệ mới nhất: <strong style="color:#1a1206;">React, Astro, Next.js, Strapi, TypeScript, Tailwind</strong> — cho website nhanh, an toàn và dễ mở rộng.</p>
+      <div style="display:flex; flex-wrap:wrap; gap:10px;">
+        {
+          features.map((f) => (
+            <span style="display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:600; color:#1a1206; padding:8px 16px; border-radius:100px; background:#fff; box-shadow:0 6px 18px rgba(26,18,6,0.06);">
+              <iconify-icon icon={f.icon} style="color:#ff8a3d; font-size:16px;" /> {f.label}
+            </span>
+          ))
+        }
+      </div>
+    </div>
+    <div
+      data-fx="reveal"
+      data-from="left"
+      style="opacity:0; transform:translateX(-90px) scale(0.96); filter:blur(8px); will-change:transform,opacity,filter; display:flex; justify-content:center;"
+    >
+      <div id="icon-cloud" style="position:relative; width:min(420px,80vw); height:min(420px,80vw); perspective:1000px;"></div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // 3D spherical icon cloud — ported from the design's _initCloud / _cloudTick.
+  type CloudItem = { el: HTMLDivElement; x: number; y: number; z: number }
+  const wrap = document.getElementById("icon-cloud")
+  if (wrap) {
+    const icons = [
+      "logos:react", "logos:nextjs-icon", "logos:astro-icon", "logos:strapi-icon",
+      "logos:typescript-icon", "logos:tailwindcss-icon", "logos:nodejs-icon", "logos:graphql",
+      "logos:figma", "logos:vitejs", "logos:vercel-icon", "logos:playwright",
+      "logos:javascript", "logos:git-icon",
+    ]
+    const N = icons.length
+    const cloud: CloudItem[] = icons.map((ic, i) => {
+      const phi = Math.acos(-1 + (2 * i + 1) / N)
+      const theta = Math.sqrt(N * Math.PI) * phi
+      const x = Math.sin(phi) * Math.cos(theta)
+      const y = Math.sin(phi) * Math.sin(theta)
+      const z = Math.cos(phi)
+      const el = document.createElement("div")
+      el.style.cssText =
+        "position:absolute; top:50%; left:50%; width:48px; height:48px; margin:-24px 0 0 -24px; display:flex; align-items:center; justify-content:center; border-radius:14px; background:rgba(255,255,255,0.7); box-shadow:0 6px 18px rgba(26,18,6,0.12); will-change:transform,opacity;"
+      el.innerHTML = '<iconify-icon icon="' + ic + '" style="font-size:30px;"></iconify-icon>'
+      wrap.appendChild(el)
+      return { el, x, y, z }
+    })
+
+    let ry = 0
+    const tick = () => {
+      ry += 0.0038
+      const R = wrap.clientWidth / 2 - 30
+      const sinY = Math.sin(ry),
+        cosY = Math.cos(ry)
+      const tilt = 0.42,
+        sinX = Math.sin(tilt),
+        cosX = Math.cos(tilt)
+      for (const p of cloud) {
+        const x = p.x * cosY - p.z * sinY
+        const z = p.x * sinY + p.z * cosY
+        const y = p.y
+        const y2 = y * cosX - z * sinX
+        const z2 = y * sinX + z * cosX
+        const scale = (z2 + 1.7) / 2.7
+        p.el.style.transform =
+          "translate3d(" + (x * R).toFixed(1) + "px," + (y2 * R).toFixed(1) + "px,0) scale(" + scale.toFixed(3) + ")"
+        p.el.style.opacity = (0.4 + 0.6 * scale).toFixed(3)
+        p.el.style.zIndex = String(Math.round(scale * 100))
+      }
+      requestAnimationFrame(tick)
+    }
+    tick()
+  }
+</script>
