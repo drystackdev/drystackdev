@@ -58,6 +58,7 @@ function SpinButton({ children, type = "submit" }: { children: React.ReactNode; 
           background:
             "conic-gradient(from 0deg, transparent 0deg 300deg, #fff 335deg, #ffe7a8 350deg, transparent 360deg)",
           animation: "spin 3s linear infinite",
+          animationDelay: "-1s",
           pointerEvents: "none",
         }}
       />

@@ -40,14 +40,14 @@ const projects = [
         Xem tất cả <iconify-icon icon="solar:arrow-right-linear" style="font-size:16px;"></iconify-icon>
       </a>
     </div>
-    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); gap:20px;">
+    <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:20px;">
       {
         projects.map((p) => (
           <div
             data-fx="reveal"
             data-from="up"
             class="ds-card-dark"
-            style="opacity:0; transform:translateY(48px) scale(0.95); filter:blur(8px); will-change:transform,opacity,filter; background:#181009; border:1px solid rgba(255,200,90,0.08); border-radius:18px; overflow:hidden; cursor:pointer;"
+            style="flex:1 1 270px; max-width:380px; opacity:0; transform:translateY(48px) scale(0.95); filter:blur(8px); will-change:transform,opacity,filter; background:#181009; border:1px solid rgba(255,200,90,0.08); border-radius:18px; overflow:hidden; cursor:pointer;"
           >
             <div style="height:185px; background:#0c0905; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;">
               <div style="position:absolute; inset:0; background-image:radial-gradient(rgba(255,200,90,0.05) 1px, transparent 1px); background-size:22px 22px;" />

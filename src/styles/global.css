@@ -244,8 +244,27 @@ iconify-icon { display: inline-block; }
 .ds-link-gold:hover { color: #fff; }
 
 /* footer links / social */
-.ds-flink { transition: color 0.2s; }
+.ds-flink {
+  color: rgba(245, 236, 224, 0.52);
+  font-size: 14px;
+  font-weight: 300;
+  transition: color 0.2s;
+  position: relative;
+  text-decoration: none;
+  display: inline-block;
+}
+.ds-flink::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 1px;
+  background: var(--color-ds-amber-light);
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
 .ds-flink:hover { color: var(--color-ds-amber-light); }
+.ds-flink:hover::after { width: 100%; }
 .ds-social { transition: background 0.2s, color 0.2s; }
 .ds-social:hover { background: rgba(255, 170, 60, 0.14); }
 
@@ -340,7 +359,7 @@ iconify-icon { display: inline-block; }
   transition: transform 0.7s cubic-bezier(0.4, 0.2, 0.2, 1);
   transform-style: preserve-3d;
 }
-.team-card:hover .team-flip {
+.team-card.is-active:hover .team-flip {
   transform: rotateY(180deg);
 }
 .team-front,
@@ -360,7 +379,7 @@ iconify-icon { display: inline-block; }
   transform: translateY(105%);
   transition: transform 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) 0.22s;
 }
-.team-card:hover .team-back-info {
+.team-card.is-active:hover .team-back-info {
   transform: translateY(0);
 }
 .team-dot {

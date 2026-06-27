@@ -38,7 +38,7 @@ const enterpriseFeatures = [
       <h2 style="font-family:var(--font-heading); font-size:clamp(30px,4vw,52px); font-weight:800; letter-spacing:-1.2px; line-height:1.12; margin-bottom:16px;">Minh bạch, không phát sinh</h2>
       <p style="font-size:17px; color:rgba(245,236,224,0.5); max-width:500px; margin:0 auto; font-weight:300; line-height:1.7;">Chọn gói phù hợp với nhu cầu của bạn. Tất cả đều có thể tùy chỉnh.</p>
     </div>
-    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:22px; align-items:stretch;">
+    <div class="pricing-grid" style="display:grid; grid-template-columns:1fr 1.15fr 1fr; gap:22px; align-items:center;">
       <!-- STARTER -->
       <div
         data-fx="reveal"
@@ -73,7 +73,7 @@ const enterpriseFeatures = [
       <div
         data-fx="reveal"
         data-from="up"
-        style="opacity:0; transform:translateY(40px) scale(0.96); filter:blur(8px); will-change:transform,opacity,filter; position:relative; border-radius:22px; padding:2px; overflow:hidden;"
+        style="opacity:0; transform:translateY(40px) scale(0.96); filter:blur(8px); will-change:transform,opacity,filter; position:relative; border-radius:22px; padding:2px; overflow:hidden; z-index:2;"
       >
         <div style="position:absolute; top:50%; left:50%; width:170%; height:170%; background:conic-gradient(from 0deg, transparent 0deg 250deg, #ffd24a 300deg, #ff7a3d 330deg, #ffe7a8 348deg, transparent 360deg); animation:spin 4s linear infinite; pointer-events:none;"></div>
         <div style="position:relative; background:#15100a; border-radius:20px; padding:38px 34px; display:flex; flex-direction:column; height:100%;">
@@ -132,3 +132,11 @@ const enterpriseFeatures = [
     </div>
   </div>
 </section>
+
+<style>
+  @media (max-width: 780px) {
+    .pricing-grid {
+      grid-template-columns: 1fr !important;
+    }
+  }
+</style>

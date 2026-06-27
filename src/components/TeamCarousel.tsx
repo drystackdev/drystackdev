@@ -85,6 +85,12 @@ export default function TeamCarousel() {
         tilt.style.opacity = (1 - Math.min(Math.abs(cl), 1.5) * 0.42).toFixed(3)
         // z-index on the item so the centred card overlaps its neighbours
         item.style.zIndex = String(100 - Math.round(Math.abs(cl) * 10))
+        // flip hover only available on the active (centre) card
+        const card = item.querySelector<HTMLElement>(".team-card")
+        if (card) {
+          if (Math.abs(cl) < 0.35) card.classList.add("is-active")
+          else card.classList.remove("is-active")
+        }
       })
     }
     update()
@@ -134,7 +140,7 @@ export default function TeamCarousel() {
         opts={{ loop: true, align: "center" }}
         className="w-full"
       >
-        <CarouselContent className="py-[40px]">
+        <CarouselContent className="py-[80px]">
           {members.map((m) => (
             <CarouselItem key={m.name} className="cf-item basis-auto pl-[26px]">
               <div className="cf-tilt">
