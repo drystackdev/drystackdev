@@ -198,6 +198,7 @@ iconify-icon { display: inline-block; }
 @keyframes spinR { from { transform: translate(-50%, -50%) rotate(360deg); } to { transform: translate(-50%, -50%) rotate(0); } }
 @keyframes beam { from { transform: rotate(0); } to { transform: rotate(360deg); } }
 @keyframes twinkle { 0%, 100% { opacity: 0.15; transform: scale(1); } 50% { opacity: 0.7; transform: scale(1.4); } }
+@keyframes ringBreathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
 @keyframes heroIn {
   from { opacity: 0; filter: blur(14px); transform: translateY(26px); }
   to { opacity: 1; filter: blur(0); transform: translateY(0); }

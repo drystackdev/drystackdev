@@ -15,19 +15,24 @@ const stats = [
 >
   <div style="position:absolute; inset:0; pointer-events:none; overflow:hidden;">
     <div style="position:absolute; inset:0; background-image:radial-gradient(rgba(255,200,90,0.05) 1px, transparent 1px); background-size:34px 34px;"></div>
-    <!-- orbiting rings (zoom out + fade on scroll) -->
+    <!-- orbiting rings: spin + breathe scale (wrapper handles scale, inner handles spin) -->
     <div data-fx="heroRings" style="position:absolute; inset:0;">
-      <div style="position:absolute; top:50%; left:50%; width:720px; height:720px; border-radius:50%; border:1px solid transparent; background:linear-gradient(#100b06,#100b06) padding-box, conic-gradient(from 0deg, transparent, rgba(255,180,60,0.35), transparent 40%) border-box; animation:spin 38s linear infinite; max-width:140vw; max-height:140vw;"></div>
-      <div style="position:absolute; top:50%; left:50%; width:500px; height:500px; border-radius:50%; border:1px solid transparent; background:linear-gradient(#100b06,#100b06) padding-box, conic-gradient(from 180deg, transparent, rgba(255,130,60,0.4), transparent 35%) border-box; animation:spinR 26s linear infinite; max-width:110vw; max-height:110vw;"></div>
-      <div style="position:absolute; top:50%; left:50%; width:920px; height:920px; border-radius:50%; border:1px dashed rgba(255,200,90,0.07); animation:spin 60s linear infinite; max-width:170vw; max-height:170vw;"></div>
+      <div style="position:absolute; inset:0; animation:ringBreathe 14s ease-in-out infinite;">
+        <div style="position:absolute; top:50%; left:50%; width:720px; height:720px; border-radius:50%; border:1px solid transparent; background:linear-gradient(#100b06,#100b06) padding-box, conic-gradient(from 0deg, transparent, rgba(255,180,60,0.35), transparent 40%) border-box; animation:spin 38s linear infinite; max-width:140vw; max-height:140vw;"></div>
+        <div style="position:absolute; top:50%; left:50%; width:500px; height:500px; border-radius:50%; border:1px solid transparent; background:linear-gradient(#100b06,#100b06) padding-box, conic-gradient(from 180deg, transparent, rgba(255,130,60,0.4), transparent 35%) border-box; animation:spinR 26s linear infinite; max-width:110vw; max-height:110vw;"></div>
+        <div style="position:absolute; top:50%; left:50%; width:920px; height:920px; border-radius:50%; border:1px dashed rgba(255,200,90,0.07); animation:spin 60s linear infinite; max-width:170vw; max-height:170vw;"></div>
+      </div>
     </div>
-    <!-- glow blobs -->
-    <div data-fx="zoom" style="position:absolute; top:14%; left:10%; width:380px; height:380px; background:radial-gradient(circle, rgba(255,160,50,0.10) 0%, transparent 65%); border-radius:50%;"></div>
-    <div data-fx="zoom" style="position:absolute; bottom:12%; right:10%; width:440px; height:440px; background:radial-gradient(circle, rgba(255,120,50,0.09) 0%, transparent 65%); border-radius:50%;"></div>
-    <!-- floating shapes (parallax) -->
-    <div data-fx="drift" data-dx="240" data-dy="-60" data-drot="160" data-op="1" style="position:absolute; top:22%; right:13%; width:64px; height:64px; border-radius:18px; background:linear-gradient(#100b06,#100b06) padding-box, linear-gradient(135deg,#ffd24a,#ff8a3d) border-box; border:1.5px solid transparent;"></div>
-    <div data-fx="drift" data-dx="-220" data-dy="70" data-drot="-150" data-op="1" style="position:absolute; bottom:24%; left:9%; width:48px; height:48px; border-radius:50%; border:1.5px solid rgba(255,150,60,0.4);"></div>
-    <div data-fx="drift" data-dx="190" data-dy="90" data-drot="200" data-op="1" style="position:absolute; top:64%; right:18%; width:34px; height:34px; border-radius:8px; background:rgba(255,170,60,0.12);"></div>
+    <!-- glow blobs: gentle float -->
+    <div style="position:absolute; top:14%; left:10%; width:380px; height:380px; background:radial-gradient(circle, rgba(255,160,50,0.10) 0%, transparent 65%); border-radius:50%; animation:floatY 18s ease-in-out infinite;"></div>
+    <div style="position:absolute; bottom:12%; right:10%; width:440px; height:440px; background:radial-gradient(circle, rgba(255,120,50,0.09) 0%, transparent 65%); border-radius:50%; animation:floatY2 22s ease-in-out infinite 3s;"></div>
+    <!-- floating shapes: independent CSS float animations -->
+    <div style="position:absolute; top:22%; right:13%; width:64px; height:64px; border-radius:18px; background:linear-gradient(#100b06,#100b06) padding-box, linear-gradient(135deg,#ffd24a,#ff8a3d) border-box; border:1.5px solid transparent; animation:floatY 7s ease-in-out infinite;"></div>
+    <div style="position:absolute; bottom:24%; left:9%; width:48px; height:48px; border-radius:50%; border:1.5px solid rgba(255,150,60,0.4); animation:floatY2 9s ease-in-out infinite 1.2s;"></div>
+    <div style="position:absolute; top:64%; right:18%; width:34px; height:34px; border-radius:8px; background:rgba(255,170,60,0.12); animation:floatY 5.5s ease-in-out infinite 0.7s;"></div>
+    <div style="position:absolute; top:34%; left:15%; width:88px; height:88px; border-radius:22px; background:linear-gradient(#100b06,#100b06) padding-box, linear-gradient(135deg,#ffd24a,#ff8a3d) border-box; border:1.5px solid transparent; opacity:0.45; animation:floatY2 11s ease-in-out infinite 2.5s;"></div>
+    <div style="position:absolute; bottom:18%; right:23%; width:66px; height:66px; border-radius:50%; border:1px solid rgba(255,170,60,0.18); opacity:0.8; animation:floatY 8s ease-in-out infinite 1.8s;"></div>
+    <div style="position:absolute; top:52%; right:7%; width:50px; height:50px; border-radius:14px; background:rgba(255,170,60,0.06); border:1px solid rgba(255,170,60,0.12); animation:floatY2 6.5s ease-in-out infinite 3.2s;"></div>
     <!-- twinkling particles -->
     <div style="position:absolute; top:18%; left:24%; width:5px; height:5px; border-radius:50%; background:#ffce6a; animation:twinkle 3s ease-in-out infinite;"></div>
     <div style="position:absolute; top:30%; right:28%; width:4px; height:4px; border-radius:50%; background:#ff9a3d; animation:twinkle 4s ease-in-out infinite 1s;"></div>
@@ -35,9 +40,6 @@ const stats = [
     <div style="position:absolute; top:46%; left:14%; width:4px; height:4px; border-radius:50%; background:#ffb13d; animation:twinkle 5s ease-in-out infinite 1.5s;"></div>
     <div style="position:absolute; bottom:22%; right:34%; width:5px; height:5px; border-radius:50%; background:#ff9a3d; animation:twinkle 4.5s ease-in-out infinite 2s;"></div>
     <div style="position:absolute; top:60%; right:12%; width:4px; height:4px; border-radius:50%; background:#ffce6a; animation:twinkle 3.2s ease-in-out infinite 0.8s;"></div>
-    <div data-fx="drift" data-dx="-260" data-dy="-40" data-drot="-120" data-op="0.45" style="position:absolute; top:34%; left:15%; width:88px; height:88px; border-radius:22px; background:linear-gradient(#100b06,#100b06) padding-box, linear-gradient(135deg,#ffd24a,#ff8a3d) border-box; border:1.5px solid transparent;"></div>
-    <div data-fx="drift" data-dx="200" data-dy="80" data-drot="130" data-op="0.8" style="position:absolute; bottom:18%; right:23%; width:66px; height:66px; border-radius:50%; border:1px solid rgba(255,170,60,0.18);"></div>
-    <div data-fx="drift" data-dx="230" data-dy="-50" data-drot="140" data-op="1" style="position:absolute; top:52%; right:7%; width:50px; height:50px; border-radius:14px; background:rgba(255,170,60,0.06); border:1px solid rgba(255,170,60,0.12);"></div>
   </div>
 
   <div style="position:relative; z-index:1; max-width:940px; margin:0 auto;">
@@ -52,10 +54,11 @@ const stats = [
         </div>
         <div style="position:relative;">
           <h1
-            style="font-family:var(--font-heading); font-size:clamp(40px,6.5vw,92px); font-weight:700; line-height:1.04; letter-spacing:-2.5px; color:rgba(245,236,224,0.65); -webkit-mask-image:linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 100%); mask-image:linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 100%);"
+            style="font-family:var(--font-heading); font-size:clamp(40px,6.5vw,92px); font-weight:700; line-height:1.04; letter-spacing:-2.5px; color:rgba(245,236,224,0.65); -webkit-mask-image:linear-gradient(to bottom, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 90%); mask-image:linear-gradient(to bottom, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 90%);"
           >Biến Ý Tưởng Thành</h1>
           <h1
-            style="font-family:var(--font-heading); font-size:clamp(40px,6.5vw,92px); font-weight:800; line-height:1.08; letter-spacing:-2.5px; margin-top:-0.55em; margin-bottom:32px; min-height:1.1em; position:relative; z-index:2;"
+            class=""
+            style="font-family:var(--font-heading); font-size:clamp(40px,6.5vw,92px); font-weight:800; line-height:1.08; letter-spacing:-2.5px; margin-top:-0.55em; margin-bottom:32px; min-height:1.1em; position:relative; z-index:2; filter:drop-shadow(0 4px 18px rgba(0,0,0,0.85)) drop-shadow(0 2px 6px rgba(0,0,0,0.6));"
           >
             <span style="background:linear-gradient(110deg,#ffe08a,#ffae3d,#ff7a3d,#ffae3d); background-size:200% auto; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; color:transparent; animation:shimmer 3.5s linear infinite;" id="js-typed"></span><span style="display:inline-block; width:4px; height:0.78em; background:#ffae3d; margin-left:3px; vertical-align:middle; animation:blink 1s step-end infinite;"></span>
           </h1>
