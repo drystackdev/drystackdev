@@ -1,7 +1,7 @@
 ---
 import Layout from "@/layouts/main.astro"
 import Nav from "@/components/Nav.astro"
-import Hero from "@/components/Hero.astro"
+import Hero from "@/components/Hero"
 import Marquee from "@/components/Marquee.astro"
 import About from "@/components/About.astro"
 import Services from "@/components/Services.astro"
@@ -19,7 +19,7 @@ import FloatContact from "@/components/FloatContact"
 
 <Layout>
   <Nav />
-  <Hero />
+  <Hero client:load />
   <Marquee />
   <About />
   <Services />
