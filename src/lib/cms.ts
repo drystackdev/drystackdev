@@ -14,11 +14,19 @@
  * tự rơi về default, build không bao giờ vỡ.
  */
 
-const STRAPI_URL = import.meta.env.STRAPI_URL || "http://localhost:1337"
+// Đọc từ process.env vì các flag này được truyền qua command-line (không nằm
+// trong .env nên không vào import.meta.env). File này chỉ chạy ở server/build —
+// process.env luôn có sẵn và KHÔNG bao giờ lọt vào bundle client.
+const STRAPI_URL = process.env.STRAPI_URL || "http://localhost:1337"
 
-// Chỉ đọc CMS ở dev, hoặc khi build có chủ đích bật USE_CMS_IN_BUILD.
+// CHỈ gọi CMS khi có flag:
+//  - WITH_CMS=true        → bật ở dev khi chạy kèm CMS (lệnh `npm run dev` ở root).
+//  - USE_CMS_IN_BUILD=true → bake dữ liệu CMS vào HTML lúc build.
+// Không có flag (vd chạy web một mình) → dùng default tĩnh, không chạm CMS.
 const ENABLED =
-  import.meta.env.DEV || import.meta.env.USE_CMS_IN_BUILD === "true"
+  process.env.WITH_CMS === "true" || process.env.USE_CMS_IN_BUILD === "true"
+
+console.log("[cms] ENABLED=", ENABLED, "WITH_CMS=", process.env.WITH_CMS, "STRAPI_URL=", STRAPI_URL)
 
 type StrapiItem = Record<string, any>
 
