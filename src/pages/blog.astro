@@ -4,9 +4,35 @@ import Nav from "@/components/Nav"
 import BlogList from "@/components/BlogList"
 import Footer from "@/components/Footer"
 import FloatContact from "@/components/FloatContact"
+import { POSTS } from "@/lib/posts"
+
+const site = Astro.site?.href.replace(/\/$/, "") ?? "https://drystack.dev"
+
+// Blog + ItemList giúp Google hiểu đây là trang tổng hợp bài viết và biết
+// danh sách bài bên trong.
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Blog",
+  name: "Blog DryStack.dev",
+  description:
+    "Kiến thức về thiết kế website, branding, logo và SEO cho doanh nghiệp Việt.",
+  url: `${site}/blog`,
+  inLanguage: "vi-VN",
+  blogPost: POSTS.map((p) => ({
+    "@type": "BlogPosting",
+    headline: p.title,
+    url: `${site}/blog/${p.slug}`,
+    datePublished: p.date,
+    author: { "@type": "Person", name: p.author.name },
+  })),
+}
 ---
 
-<Layout>
+<Layout
+  title="Blog — Kiến thức website, branding & SEO | DryStack.dev"
+  description="Blog DryStack: bài viết về thiết kế website, xây dựng thương hiệu, logo và SEO dành cho doanh nghiệp nhỏ tại Việt Nam. Cập nhật mẹo thực chiến, dễ áp dụng."
+>
+  <script slot="head" type="application/ld+json" set:html={JSON.stringify(jsonLd)} is:inline />
   <Nav client:load />
   <BlogList client:load />
   <Footer />

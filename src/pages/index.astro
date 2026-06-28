@@ -15,9 +15,38 @@ import Blog from "@/components/Blog"
 import Contact from "@/components/Contact"
 import Footer from "@/components/Footer"
 import FloatContact from "@/components/FloatContact"
+
+const site = Astro.site?.href.replace(/\/$/, "") ?? "https://drystack.dev"
+
+// Organization + WebSite cho trang chủ giúp Google hiểu thực thể thương hiệu
+// và bật ô tìm kiếm sitelinks.
+const jsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "DryStack.dev",
+    url: site,
+    logo: `${site}/favicon.svg`,
+    description:
+      "Team freelance chuyên thiết kế website, logo, branding và SEO cho doanh nghiệp Việt.",
+    areaServed: "VN",
+    knowsAbout: ["Thiết kế website", "Logo", "Branding", "SEO", "Landing page"],
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "DryStack.dev",
+    url: site,
+    inLanguage: "vi-VN",
+  },
+]
 ---
 
-<Layout>
+<Layout
+  title="DryStack.dev — Thiết kế website, logo & branding cho doanh nghiệp Việt"
+  description="Team freelance DryStack thiết kế website, logo, branding và SEO chuẩn cho doanh nghiệp Việt. Tốc độ nhanh, chuẩn SEO, giá chỉ từ 2.000.000đ. Nhận tư vấn miễn phí."
+>
+  <script slot="head" type="application/ld+json" set:html={JSON.stringify(jsonLd)} is:inline />
   <Nav client:load />
   <div style="position:relative; height:130vh;">
     <Hero client:load />

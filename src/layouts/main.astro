@@ -4,12 +4,26 @@ import "@/styles/global.css"
 type Props = {
   title?: string
   description?: string
+  /** "website" cho trang thường, "article" cho bài blog */
+  ogType?: "website" | "article"
+  /** Ảnh share — đường dẫn tuyệt đối hoặc tương đối (mặc định /og-image.jpg) */
+  image?: string
+  /** Bỏ qua trang khỏi index của Google (vd: trang lọc) */
+  noindex?: boolean
 }
 
 const {
-  title = "DryStack.dev — Biến ý tưởng thành thương hiệu đỉnh",
+  title = "DryStack.dev — Thiết kế website, logo & branding cho doanh nghiệp Việt",
   description = "DryStack là team freelance chuyên thiết kế website, logo, branding và SEO cho doanh nghiệp Việt. Giá rẻ, chất lượng đỉnh — chỉ từ 2.000.000đ.",
+  ogType = "website",
+  image = "/og-image.jpg",
+  noindex = false,
 } = Astro.props
+
+// Canonical + ảnh OG dạng URL tuyệt đối (Google/Facebook yêu cầu absolute URL)
+const canonical = new URL(Astro.url.pathname, Astro.site).href
+const ogImage = new URL(image, Astro.site).href
+const siteName = "DryStack.dev"
 ---
 
 <html lang="vi">
@@ -19,6 +33,37 @@ const {
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title}</title>
     <meta name="description" content={description} />
+
+    {/* Canonical + chỉ dẫn cho bot */}
+    <link rel="canonical" href={canonical} />
+    {
+      noindex ? (
+        <meta name="robots" content="noindex, follow" />
+      ) : (
+        <meta name="robots" content="index, follow, max-image-preview:large" />
+      )
+    }
+    <meta name="generator" content={Astro.generator} />
+
+    {/* Open Graph (Facebook, Zalo, LinkedIn) */}
+    <meta property="og:type" content={ogType} />
+    <meta property="og:locale" content="vi_VN" />
+    <meta property="og:site_name" content={siteName} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    {/* Twitter / X */}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+
+    {/* JSON-LD structured data — mỗi trang truyền vào qua <slot name="jsonld" /> */}
+    <slot name="head" />
 
     <!-- Google Fonts (giữ nguyên từ file gốc) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -85,7 +130,7 @@ const {
       }
 
       const spy = () => {
-        const ids = ["about", "services", "projects", "team", "pricing", "blog"]
+        const ids = ["about", "services", "projects", "team", "pricing", "blog", "contact"]
         let active: string | null = null
         for (const id of ids) {
           const s = document.getElementById(id)

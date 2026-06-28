@@ -441,10 +441,11 @@ iconify-icon { display: inline-block; }
 }
 /* ── Relocated from converted React components (was Astro scoped <style>) ── */
 
-/* Nav: desktop/mobile split at 820px (matches the original JS breakpoint) */
+/* Nav: desktop/mobile split at 900px (below this the link row + CTA no longer
+   fits, which squeezes the "Liên hệ" button down to just its icon) */
 .ds-desktop-nav { display: flex; }
 .ds-mobile-nav { display: none; }
-@media (max-width: 819px) {
+@media (max-width: 899px) {
   .ds-desktop-nav { display: none; }
   .ds-mobile-nav { display: flex; }
 }

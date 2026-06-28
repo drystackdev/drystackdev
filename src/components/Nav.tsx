@@ -41,7 +41,7 @@ export default function Nav({
   // Close the menu if the viewport grows back to desktop width.
   React.useEffect(() => {
     const onResize = () => {
-      if (window.innerWidth >= 820) setMenuOpen(false)
+      if (window.innerWidth >= 900) setMenuOpen(false)
     }
     window.addEventListener("resize", onResize)
     return () => window.removeEventListener("resize", onResize)
@@ -119,7 +119,7 @@ export default function Nav({
           })}
           <a href={ctaHref} style={{ position: "relative", display: "inline-flex", alignItems: "center", padding: 1.5, borderRadius: 100, overflow: "hidden", marginLeft: 6 }}>
             <span style={{ position: "absolute", top: "50%", left: "50%", width: "260%", height: "700%", background: "conic-gradient(from 0deg, transparent 0deg 300deg, #fff 335deg, #ffe7a8 350deg, transparent 360deg)", animation: "spin 3s linear infinite", pointerEvents: "none" }} />
-            <span style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 6, background: "#ffab2e", color: "#1a1206", padding: "9px 18px", borderRadius: 100, fontSize: 13, fontWeight: 700 }}>
+            <span style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 6, background: "#ffab2e", color: "#1a1206", padding: "9px 18px", borderRadius: 100, fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}>
               {ctaLabel} <iconify-icon icon="solar:arrow-right-up-linear" style={{ fontSize: 15 }} />
             </span>
           </a>

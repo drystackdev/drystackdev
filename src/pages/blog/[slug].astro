@@ -17,9 +17,49 @@ const related = relatedPosts(post, 3)
 const tocItems = post.sections.map((s) => ({ id: slugifyHeading(s.heading), heading: s.heading }))
 
 const reveal = "opacity:0;transform:translateY(48px) scale(0.95);filter:blur(8px);will-change:transform,opacity,filter;"
+
+const site = Astro.site?.href.replace(/\/$/, "") ?? "https://drystack.dev"
+const postUrl = `${site}/blog/${post.slug}`
+const articleBody = post.sections.flatMap((s) => s.paragraphs).join("\n\n")
+
+// BlogPosting + BreadcrumbList: giúp Google hiển thị rich result (tác giả, ngày
+// đăng) và đường dẫn phân cấp trong kết quả tìm kiếm.
+const jsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: post.title,
+    description: post.excerpt,
+    articleBody,
+    url: postUrl,
+    mainEntityOfPage: { "@type": "WebPage", "@id": postUrl },
+    datePublished: post.date,
+    dateModified: post.date,
+    inLanguage: "vi-VN",
+    articleSection: post.cat,
+    keywords: post.tags.join(", "),
+    wordCount: articleBody.split(/\s+/).filter(Boolean).length,
+    author: { "@type": "Person", name: post.author.name, jobTitle: post.author.role },
+    publisher: {
+      "@type": "Organization",
+      name: "DryStack.dev",
+      logo: { "@type": "ImageObject", url: `${site}/favicon.svg` },
+    },
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Trang chủ", item: site },
+      { "@type": "ListItem", position: 2, name: "Blog", item: `${site}/blog` },
+      { "@type": "ListItem", position: 3, name: post.title, item: postUrl },
+    ],
+  },
+]
 ---
 
-<Layout title={`${post.title} — DryStack Blog`} description={post.excerpt}>
+<Layout title={`${post.title} | DryStack Blog`} description={post.excerpt} ogType="article">
+  <script slot="head" type="application/ld+json" set:html={JSON.stringify(jsonLd)} is:inline />
   <Nav client:load />
 
   <article
