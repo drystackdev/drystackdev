@@ -120,14 +120,14 @@ export default function Nav({
       {/* Mobile menu */}
       {menuOpen && (
         <div>
-          <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 998, background: "rgba(10,7,3,0.55)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }} />
-          <div style={{ position: "fixed", top: 100, left: "50%", transform: "translateX(-50%)", width: "min(1180px, calc(100% - 28px))", zIndex: 999, background: "rgba(22,15,8,0.96)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", border: "1px solid rgba(255,200,90,0.16)", borderRadius: 22, padding: 14, display: "flex", flexDirection: "column", gap: 4, boxShadow: "0 24px 60px rgba(0,0,0,0.6)" }}>
-            {links.map((l) => (
-              <a key={l.id} href={l.href} onClick={() => setMenuOpen(false)} className="ds-mnavlink" style={{ fontSize: 15, fontWeight: 500, color: "rgba(245,236,224,0.85)", padding: "14px 16px", borderRadius: 14 }}>
+          <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 998, background: "rgba(10,7,3,0.55)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", animation: "ds-menu-fade 0.25s ease both" }} />
+          <div style={{ position: "fixed", top: 100, left: "50%", transform: "translateX(-50%)", width: "min(1180px, calc(100% - 28px))", zIndex: 999, background: "rgba(22,15,8,0.96)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", border: "1px solid rgba(255,200,90,0.16)", borderRadius: 22, padding: 14, display: "flex", flexDirection: "column", gap: 4, boxShadow: "0 24px 60px rgba(0,0,0,0.6)", animation: "ds-menu-pop 0.32s cubic-bezier(0.2,0.8,0.2,1) both", transformOrigin: "top center" }}>
+            {links.map((l, i) => (
+              <a key={l.id} href={l.href} onClick={() => setMenuOpen(false)} className="ds-mnavlink" style={{ fontSize: 15, fontWeight: 500, color: "rgba(245,236,224,0.85)", padding: "14px 16px", borderRadius: 14, animation: "ds-menu-item 0.3s ease both", animationDelay: `${0.06 + i * 0.04}s` }}>
                 {l.label}
               </a>
             ))}
-            <a href={ctaHref} onClick={() => setMenuOpen(false)} style={{ textAlign: "center", background: "#ffab2e", color: "#1a1206", padding: 14, borderRadius: 14, fontSize: 15, fontWeight: 700, marginTop: 4 }}>
+            <a href={ctaHref} onClick={() => setMenuOpen(false)} style={{ textAlign: "center", background: "#ffab2e", color: "#1a1206", padding: 14, borderRadius: 14, fontSize: 15, fontWeight: 700, marginTop: 4, animation: "ds-menu-item 0.3s ease both", animationDelay: `${0.06 + links.length * 0.04}s` }}>
               Liên hệ ngay
             </a>
           </div>

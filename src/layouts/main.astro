@@ -177,16 +177,37 @@ import "@/styles/global.css"
         requestAnimationFrame(loop)
       }
 
-      // Start only after the page has fully loaded, so React islands
-      // (client:load) have hydrated first. Mutating the DOM before hydration
-      // would desync the markup and trigger React hydration-mismatch errors.
+      // Start only after every React island has hydrated. Astro marks each
+      // <astro-island> with an `ssr` attribute and removes it once hydration
+      // completes. Mutating island DOM before that desyncs the markup and
+      // triggers React hydration-mismatch errors, so we wait for all of them.
       const start = () => {
         collect()
         window.addEventListener("resize", collect)
         loop()
       }
-      if (document.readyState === "complete") start()
-      else window.addEventListener("load", start)
+      // Astro removes `ssr` as soon as hydrateRoot() is *called*, but React's
+      // concurrent hydration finishes a few frames later. Wait a couple frames
+      // after the last island so heavier islands (carousel/globe/form) finish
+      // hydrating before we touch their DOM.
+      const deferredStart = () => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(start, 120)))
+      const islandsReady = () => document.querySelectorAll("astro-island[ssr]").length === 0
+      if (islandsReady()) {
+        deferredStart()
+      } else {
+        const obs = new MutationObserver(() => {
+          if (islandsReady()) {
+            obs.disconnect()
+            deferredStart()
+          }
+        })
+        obs.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["ssr"] })
+        // Fallback so the page still animates if an island never hydrates.
+        setTimeout(() => {
+          obs.disconnect()
+          deferredStart()
+        }, 5000)
+      }
     </script>
   </body>
 </html>
