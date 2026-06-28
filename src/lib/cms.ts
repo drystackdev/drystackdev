@@ -26,8 +26,6 @@ const STRAPI_URL = process.env.STRAPI_URL || "http://localhost:1337"
 const ENABLED =
   process.env.WITH_CMS === "true" || process.env.USE_CMS_IN_BUILD === "true"
 
-console.log("[cms] ENABLED=", ENABLED, "WITH_CMS=", process.env.WITH_CMS, "STRAPI_URL=", STRAPI_URL)
-
 type StrapiItem = Record<string, any>
 
 async function fetchAPI<T = StrapiItem[]>(
