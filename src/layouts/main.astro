@@ -112,10 +112,18 @@ const siteName = "DryStack.dev"
       const isMobile = () => window.innerWidth < 820
 
       const counters = () => {
-        const targets = [50, 30, 98, 3]
-        const suf = ["+", "+", "%", "+"]
         const nodes = document.querySelectorAll<HTMLElement>("[data-counter]")
         if (!nodes.length) return
+        // Target + suffix đọc từ data-attribute (do Hero render từ CMS / default).
+        // Fallback về bộ số cũ nếu thiếu attribute.
+        const fallbackT = [50, 30, 98, 3]
+        const fallbackS = ["+", "+", "%", "+"]
+        const targets = Array.from(nodes).map(
+          (n, i) => Number(n.dataset.target ?? fallbackT[i] ?? 0),
+        )
+        const suf = Array.from(nodes).map(
+          (n, i) => n.dataset.suffix ?? fallbackS[i] ?? "",
+        )
         const dur = 2000
         const st = performance.now()
         const go = (now: number) => {

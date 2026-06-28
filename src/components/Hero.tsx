@@ -1,15 +1,46 @@
 import * as React from "react"
 
-const stats = [
-  { label: "Dự án hoàn thành", display: "0+" },
-  { label: "Khách hàng tin tưởng", display: "0+" },
-  { label: "Tỷ lệ hài lòng", display: "0%" },
-  { label: "Năm kinh nghiệm", display: "0+" },
+type Stat = { label: string; value: number; suffix: string }
+type Cta = { label: string; href: string }
+
+type HeroProps = {
+  badge?: string
+  headlinePre?: string
+  typewriterTexts?: string[]
+  description?: React.ReactNode
+  ctaPrimary?: Cta
+  ctaSecondary?: Cta
+  stats?: Stat[]
+}
+
+const DEFAULT_STATS: Stat[] = [
+  { label: "Dự án hoàn thành", value: 50, suffix: "+" },
+  { label: "Khách hàng tin tưởng", value: 30, suffix: "+" },
+  { label: "Tỷ lệ hài lòng", value: 98, suffix: "%" },
+  { label: "Năm kinh nghiệm", value: 3, suffix: "+" },
 ]
 
-const texts = ["Thương Hiệu Đỉnh", "Website Pro", "Logo Ấn Tượng", "Nội Dung SEO"]
+const DEFAULT_TEXTS = ["Thương Hiệu Đỉnh", "Website Pro", "Logo Ấn Tượng", "Nội Dung SEO"]
 
-export default function Hero() {
+const DEFAULT_DESCRIPTION = (
+  <>
+    Website · Logo · Branding · SEO — Dịch vụ chuyên nghiệp, giá cả phải chăng dành cho doanh nghiệp Việt. Chỉ từ{" "}
+    <strong style={{ color: "#ffce6a", fontWeight: 600 }}>2.000.000đ</strong>.
+  </>
+)
+
+export default function Hero({
+  badge = "Freelance Team · Nhận dự án toàn quốc",
+  headlinePre = "Biến Ý Tưởng Thành",
+  typewriterTexts,
+  description = DEFAULT_DESCRIPTION,
+  ctaPrimary = { label: "Xem Dịch Vụ", href: "#services" },
+  ctaSecondary = { label: "Liên Hệ Ngay", href: "#contact" },
+  stats,
+}: HeroProps) {
+  const texts =
+    typewriterTexts && typewriterTexts.length ? typewriterTexts : DEFAULT_TEXTS
+  const statList = stats && stats.length ? stats : DEFAULT_STATS
   const typedRef = React.useRef<HTMLSpanElement>(null)
 
   // Typewriter
@@ -99,13 +130,13 @@ export default function Hero() {
             {/* badge */}
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, borderRadius: 100, padding: "7px 16px", marginBottom: 32, fontSize: 12, fontWeight: 600, letterSpacing: "1.5px", textTransform: "uppercase", color: "#ffc46a", background: "linear-gradient(#160f08,#160f08) padding-box, linear-gradient(120deg,#ffd24a,#ff8a3d) border-box", border: "1px solid transparent" }}>
               <span style={{ width: 6, height: 6, background: "#ffb13d", borderRadius: "50%", animation: "blink 2s infinite" }} />
-              Freelance Team · Nhận dự án toàn quốc
+              {badge}
             </div>
 
             {/* stacked headlines */}
             <div style={{ position: "relative" }}>
               <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "clamp(40px,6.5vw,82px)", fontWeight: 700, lineHeight: 1.04, letterSpacing: "-2.5px", color: "rgba(245,236,224,0.65)", WebkitMaskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 90%)", maskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 90%)", margin: 0 }}>
-                Biến Ý Tưởng Thành
+                {headlinePre}
               </h1>
               <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "clamp(50px,7.5vw,92px)", fontWeight: 800, lineHeight: 1.08, letterSpacing: "-2.5px", marginTop: "-0.55em", marginBottom: 32, minHeight: "1.1em", position: "relative", zIndex: 2, filter: "drop-shadow(0 4px 18px rgba(0,0,0,0.85)) drop-shadow(0 2px 6px rgba(0,0,0,0.6))" }}>
                 <span ref={typedRef} style={{ background: "linear-gradient(110deg,#ffe08a,#ffae3d,#ff7a3d,#ffae3d)", backgroundSize: "200% auto", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent", color: "transparent", animation: "shimmer 3.5s linear infinite" }} />
@@ -118,17 +149,17 @@ export default function Hero() {
         {/* description + CTAs */}
         <div className="hero-in hero-in-2">
           <p style={{ fontSize: "clamp(15px,1.8vw,19px)", color: "rgba(245,236,224,0.6)", maxWidth: 580, margin: "0 auto 46px", lineHeight: 1.75, fontWeight: 300 }}>
-            Website · Logo · Branding · SEO — Dịch vụ chuyên nghiệp, giá cả phải chăng dành cho doanh nghiệp Việt. Chỉ từ <strong style={{ color: "#ffce6a", fontWeight: 600 }}>2.000.000đ</strong>.
+            {description}
           </p>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, flexWrap: "wrap", marginBottom: 76 }}>
-            <a href="#services" className="ds-lift2" style={{ position: "relative", display: "inline-flex", alignItems: "center", padding: 2, borderRadius: 100, overflow: "hidden", boxShadow: "0 10px 40px rgba(255,150,40,0.25)" }}>
+            <a href={ctaPrimary.href} className="ds-lift2" style={{ position: "relative", display: "inline-flex", alignItems: "center", padding: 2, borderRadius: 100, overflow: "hidden", boxShadow: "0 10px 40px rgba(255,150,40,0.25)" }}>
               <span style={{ position: "absolute", top: "50%", left: "50%", width: "220%", height: "700%", background: "conic-gradient(from 0deg, transparent 0deg 300deg, #fff 335deg, #ffe7a8 350deg, transparent 360deg)", animation: "spin 3.2s linear infinite", pointerEvents: "none" }} />
               <span style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 8, background: "#ffab2e", color: "#1a1206", padding: "15px 30px", borderRadius: 100, fontSize: 15, fontWeight: 700 }}>
-                Xem Dịch Vụ <iconify-icon icon="solar:arrow-right-linear" style={{ fontSize: 18 }}></iconify-icon>
+                {ctaPrimary.label} <iconify-icon icon="solar:arrow-right-linear" style={{ fontSize: 18 }}></iconify-icon>
               </span>
             </a>
-            <a href="#contact" className="ds-lift2" style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#ffce6a", padding: "16px 32px", borderRadius: 100, fontSize: 15, fontWeight: 600, background: "linear-gradient(#140e07,#140e07) padding-box, linear-gradient(120deg,#ffd24a,#ff8a3d) border-box", border: "1.5px solid transparent" }}>
-              Liên Hệ Ngay
+            <a href={ctaSecondary.href} className="ds-lift2" style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#ffce6a", padding: "16px 32px", borderRadius: 100, fontSize: 15, fontWeight: 600, background: "linear-gradient(#140e07,#140e07) padding-box, linear-gradient(120deg,#ffd24a,#ff8a3d) border-box", border: "1.5px solid transparent" }}>
+              {ctaSecondary.label}
             </a>
           </div>
         </div>
@@ -136,10 +167,10 @@ export default function Hero() {
         {/* stats: sink + fade on scroll */}
         <div data-fx="heroSink">
           <div className="hero-in hero-in-3" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, maxWidth: 760, margin: "0 auto" }}>
-            {stats.map((stat) => (
+            {statList.map((stat) => (
               <div key={stat.label} style={{ padding: "24px 8px", borderRadius: 18, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,200,90,0.08)" }}>
-                <div data-counter className="ds-grad-text" style={{ fontFamily: "var(--font-heading)", fontSize: "clamp(26px,3.5vw,42px)", fontWeight: 800, lineHeight: 1, marginBottom: 8, letterSpacing: "-1px" }}>
-                  {stat.display}
+                <div data-counter data-target={stat.value} data-suffix={stat.suffix} className="ds-grad-text" style={{ fontFamily: "var(--font-heading)", fontSize: "clamp(26px,3.5vw,42px)", fontWeight: 800, lineHeight: 1, marginBottom: 8, letterSpacing: "-1px" }}>
+                  {"0" + stat.suffix}
                 </div>
                 <div style={{ fontSize: 12, color: "rgba(245,236,224,0.5)" }}>{stat.label}</div>
               </div>

@@ -15,8 +15,47 @@ import Blog from "@/components/Blog"
 import Contact from "@/components/Contact"
 import Footer from "@/components/Footer"
 import FloatContact from "@/components/FloatContact"
+import { formatDateVi } from "@/lib/posts"
+import {
+  getHero,
+  getServices,
+  getProjects,
+  getPricing,
+  getTestimonials,
+  getTips,
+  getPosts,
+  getSiteSetting,
+} from "@/lib/cms"
 
 const site = Astro.site?.href.replace(/\/$/, "") ?? "https://drystack.dev"
+
+// ── Đọc dữ liệu CMS ở server/build-time (KHÔNG gọi từ client) ──
+// Mọi giá trị có thể là null khi CMS tắt → component tự dùng default tĩnh.
+const [hero, services, projects, pricing, testimonials, tips, posts, setting] =
+  await Promise.all([
+    getHero(),
+    getServices(),
+    getProjects(),
+    getPricing(),
+    getTestimonials(),
+    getTips(),
+    getPosts(),
+    getSiteSetting(),
+  ])
+
+// Blog preview ở trang chủ: 3 bài mới nhất, map về shape {icon,cat,title,excerpt,meta}.
+const blogPreview = posts
+  ? [...posts]
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 3)
+      .map((p) => ({
+        icon: p.icon,
+        cat: p.cat,
+        title: p.title,
+        excerpt: p.excerpt,
+        meta: `${formatDateVi(p.date)} · ${p.readTime}`,
+      }))
+  : undefined
 
 // Organization + WebSite cho trang chủ giúp Google hiểu thực thể thương hiệu
 // và bật ô tìm kiếm sitelinks.
@@ -47,21 +86,42 @@ const jsonLd = [
   description="Team freelance DryStack thiết kế website, logo, branding và SEO chuẩn cho doanh nghiệp Việt. Tốc độ nhanh, chuẩn SEO, giá chỉ từ 2.000.000đ. Nhận tư vấn miễn phí."
 >
   <script slot="head" type="application/ld+json" set:html={JSON.stringify(jsonLd)} is:inline />
-  <Nav client:load />
+  <Nav client:load ctaLabel={setting?.ctaLabel} />
   <div style="position:relative; height:130vh;">
-    <Hero client:load />
+    <Hero
+      client:load
+      badge={hero?.badge}
+      headlinePre={hero?.headlinePre}
+      typewriterTexts={hero?.typewriterTexts}
+      description={hero?.description}
+      ctaPrimary={hero?.ctaPrimary}
+      ctaSecondary={hero?.ctaSecondary}
+      stats={hero?.stats}
+    />
   </div>
   <Marquee />
-  <About client:load />
-  <Services />
+  <About
+    client:load
+    heading={setting?.aboutHeading}
+    paragraphs={setting?.aboutParagraphs}
+    points={setting?.aboutPoints}
+  />
+  <Services services={services ?? undefined} />
   <TechCloud client:load />
-  <Projects />
+  <Projects projects={projects ?? undefined} />
   <Team client:load />
-  <Pricing />
-  <Testimonials client:load />
-  <Knowledge />
-  <Blog />
-  <Contact client:load />
-  <Footer />
+  <Pricing plans={pricing ?? undefined} />
+  <Testimonials client:load reviews={testimonials ?? undefined} />
+  <Knowledge tips={tips ?? undefined} />
+  <Blog posts={blogPreview} />
+  <Contact client:load infos={setting?.contactInfos ?? undefined} />
+  <Footer
+    description={setting?.footerDesc}
+    serviceLinks={setting?.serviceLinks}
+    companyLinks={setting?.companyLinks}
+    socials={setting?.socials}
+    copyright={setting?.copyright}
+    credit={setting?.credit}
+  />
   <FloatContact client:load />
 </Layout>

@@ -5,8 +5,12 @@ import BlogList from "@/components/BlogList"
 import Footer from "@/components/Footer"
 import FloatContact from "@/components/FloatContact"
 import { POSTS } from "@/lib/posts"
+import { getPosts } from "@/lib/cms"
 
 const site = Astro.site?.href.replace(/\/$/, "") ?? "https://drystack.dev"
+
+// Đọc bài viết từ CMS (server/build-time). Tắt CMS / lỗi → dùng POSTS tĩnh.
+const POSTS_DATA = (await getPosts()) ?? POSTS
 
 // Blog + ItemList giúp Google hiểu đây là trang tổng hợp bài viết và biết
 // danh sách bài bên trong.
@@ -18,7 +22,7 @@ const jsonLd = {
     "Kiến thức về thiết kế website, branding, logo và SEO cho doanh nghiệp Việt.",
   url: `${site}/blog`,
   inLanguage: "vi-VN",
-  blogPost: POSTS.map((p) => ({
+  blogPost: POSTS_DATA.map((p) => ({
     "@type": "BlogPosting",
     headline: p.title,
     url: `${site}/blog/${p.slug}`,
@@ -34,7 +38,7 @@ const jsonLd = {
 >
   <script slot="head" type="application/ld+json" set:html={JSON.stringify(jsonLd)} is:inline />
   <Nav client:load />
-  <BlogList client:load />
+  <BlogList client:load posts={POSTS_DATA} />
   <Footer />
   <FloatContact client:load />
 </Layout>

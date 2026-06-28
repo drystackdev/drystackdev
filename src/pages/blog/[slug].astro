@@ -5,14 +5,25 @@ import Footer from "@/components/Footer"
 import FloatContact from "@/components/FloatContact"
 import BlogToc from "@/components/BlogToc"
 import { Badge } from "@/components/ui/badge"
-import { POSTS, relatedPosts, formatDateVi, slugifyHeading, type Post } from "@/lib/posts"
+import { POSTS, formatDateVi, slugifyHeading, type Post } from "@/lib/posts"
+import { getPosts } from "@/lib/cms"
 
-export function getStaticPaths() {
-  return POSTS.map((p) => ({ params: { slug: p.slug }, props: { post: p } }))
+export async function getStaticPaths() {
+  // Dev: đọc bài từ CMS. Build (mặc định) / lỗi: dùng POSTS tĩnh.
+  const all = (await getPosts()) ?? POSTS
+  return all.map((p) => ({
+    params: { slug: p.slug },
+    props: { post: p, all },
+  }))
 }
 
-const { post } = Astro.props as { post: Post }
-const related = relatedPosts(post, 3)
+const { post, all } = Astro.props as { post: Post; all: Post[] }
+
+// Bài liên quan: cùng chuyên mục trước, rồi tới các bài khác.
+const related = [
+  ...all.filter((p) => p.slug !== post.slug && p.cat === post.cat),
+  ...all.filter((p) => p.slug !== post.slug && p.cat !== post.cat),
+].slice(0, 3)
 
 const tocItems = post.sections.map((s) => ({ id: slugifyHeading(s.heading), heading: s.heading }))
 
