@@ -35,13 +35,22 @@ const DEFAULT_HEADING = (
 )
 
 // Mỗi dòng: tên công nghệ + lợi ích thực tế cho doanh nghiệp (dễ hiểu, không thuật ngữ).
+// Đầy đủ 15 công nghệ, khớp với DEFAULT_ICONS bên dưới.
 const DEFAULT_TECH_LINES = [
   "React — giao diện mượt mà, giữ chân khách hàng lâu hơn",
-  "Astro — website tải nhanh, thân thiện Google, dễ lên top",
   "Next.js — nền tảng vững chắc, mở rộng thoải mái khi lớn mạnh",
-  "Strapi — tự cập nhật nội dung, không cần biết lập trình",
+  "Astro — website tải nhanh, thân thiện Google, dễ lên top",
+  "JavaScript — tương tác mượt mà, trải nghiệm người dùng tốt hơn",
   "TypeScript — code chặt chẽ, ít lỗi, vận hành bền bỉ",
-  "Tailwind — thiết kế đẹp & đồng nhất, ra mắt nhanh",
+  "Tailwind CSS — thiết kế đẹp & đồng nhất, ra mắt nhanh",
+  "Node.js — xử lý backend nhanh, ổn định khi traffic tăng cao",
+  "GraphQL — lấy đúng dữ liệu cần, ứng dụng phản hồi nhanh hơn",
+  "Strapi — tự cập nhật nội dung, không cần biết lập trình",
+  "Figma — thiết kế rõ ràng, duyệt & góp ý dễ dàng trước khi code",
+  "Vite — môi trường phát triển nhanh, ra tính năng mới sớm hơn",
+  "Playwright — kiểm thử tự động, hạn chế lỗi trước khi ra mắt",
+  "Git — quản lý phiên bản chặt chẽ, an toàn khi cập nhật tính năng",
+  "Vercel — triển khai tức thì, website luôn sẵn sàng phục vụ khách",
   "Cloudflare — bảo mật & chống tấn công, an tâm 24/7",
 ]
 

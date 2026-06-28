@@ -35,7 +35,8 @@ export default function Nav({
     () => "",
   )
   const isPageLink = (href: string) => href.startsWith("/") && !href.startsWith("/#") && href !== "/"
-  const isActivePage = (href: string) => isPageLink(href) && (path === href || path === href + "/")
+  const isActivePage = (href: string) =>
+    isPageLink(href) && (path === href || path === href + "/" || path.startsWith(`${href}/`))
 
   // Close the menu if the viewport grows back to desktop width.
   React.useEffect(() => {

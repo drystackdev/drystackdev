@@ -66,7 +66,6 @@ export default function BlogToc({ items }: BlogTocProps) {
                     border: "none",
                     cursor: "pointer",
                     padding: "7px 12px",
-                    borderRadius: 10,
                     fontSize: 13,
                     lineHeight: 1.5,
                     fontWeight: on ? 700 : 500,
@@ -125,8 +124,6 @@ export default function BlogToc({ items }: BlogTocProps) {
                 overflowY: "auto",
                 background: "#faf5ec",
                 borderRadius: "20px 20px 0 0",
-                // padding-bottom đủ lớn để nội dung không bị che bởi nút float (đặt
-                // fixed bottom:30, cao 52px) đang nằm chồng lên góc trái drawer này.
                 padding: "20px 22px calc(96px + env(safe-area-inset-bottom))",
                 boxShadow: "0 -16px 48px rgba(0,0,0,0.25)",
               }}

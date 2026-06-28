@@ -256,6 +256,13 @@ export default function BlogList({
       </div>
 
       <style>{`
+        @keyframes dsBlogReveal {
+          from { opacity: 0; transform: translateY(28px) scale(0.97); filter: blur(6px); }
+          to   { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          [style*="dsBlogReveal"] { animation: none !important; opacity: 1 !important; }
+        }
         .ds-blog-card {
           opacity: 0;
           transform: translateY(36px) scale(0.96);
@@ -402,8 +409,26 @@ function BlogCard({
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12, paddingTop: 14, borderTop: "1px solid rgba(26,18,6,0.06)" }}>
           <button
             onClick={() => onAuthorClick(p.author.name)}
-            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "rgba(26,18,6,0.6)", fontWeight: 700 }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", padding: 0, cursor: "pointer", color: "rgba(26,18,6,0.6)", fontWeight: 700 }}
           >
+            <span
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: "50%",
+                background: "linear-gradient(135deg,#ffd24a,#ff8a3d)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontFamily: "var(--font-heading)",
+                fontWeight: 800,
+                fontSize: 10,
+                color: "#1a1206",
+                flexShrink: 0,
+              }}
+            >
+              {p.author.name.charAt(0)}
+            </span>
             {p.author.name}
           </button>
           <span style={{ color: "rgba(26,18,6,0.4)" }}>{formatDateVi(p.date)} · {p.readTime}</span>
