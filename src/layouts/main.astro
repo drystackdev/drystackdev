@@ -177,9 +177,16 @@ import "@/styles/global.css"
         requestAnimationFrame(loop)
       }
 
-      collect()
-      window.addEventListener("resize", collect)
-      loop()
+      // Start only after the page has fully loaded, so React islands
+      // (client:load) have hydrated first. Mutating the DOM before hydration
+      // would desync the markup and trigger React hydration-mismatch errors.
+      const start = () => {
+        collect()
+        window.addEventListener("resize", collect)
+        loop()
+      }
+      if (document.readyState === "complete") start()
+      else window.addEventListener("load", start)
     </script>
   </body>
 </html>

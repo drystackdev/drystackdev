@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
+
 import {
   Carousel,
   CarouselContent,
@@ -111,19 +113,28 @@ export default function TeamCarousel() {
   }, [api])
 
   // Auto-advance every 4.2s, pause while hovering (so the flipped back can be read).
+  // A manual prev/next click reschedules the next auto-advance 10s out instead
+  // of letting it fire on the regular 4.2s cadence right away.
+  const restartRef = React.useRef<(delay?: number) => void>(() => {})
   React.useEffect(() => {
     if (!api) return
-    let timer: ReturnType<typeof setInterval>
-    const start = () => {
-      timer = setInterval(() => api.scrollNext(), 4200)
+    let intervalId: ReturnType<typeof setInterval>
+    let delayId: ReturnType<typeof setTimeout>
+    const stop = () => {
+      clearInterval(intervalId)
+      clearTimeout(delayId)
     }
-    const stop = () => clearInterval(timer)
-    const root = api.rootNode()
-    start()
-    const onLeave = () => {
+    const restart = (delay = 4200) => {
       stop()
-      start()
+      delayId = setTimeout(() => {
+        api.scrollNext()
+        intervalId = setInterval(() => api.scrollNext(), 4200)
+      }, delay)
     }
+    restartRef.current = restart
+    const root = api.rootNode()
+    restart()
+    const onLeave = () => restart()
     root.addEventListener("mouseenter", stop)
     root.addEventListener("mouseleave", onLeave)
     return () => {
@@ -132,6 +143,15 @@ export default function TeamCarousel() {
       root.removeEventListener("mouseleave", onLeave)
     }
   }, [api])
+
+  const goPrev = () => {
+    api?.scrollPrev()
+    restartRef.current(10000)
+  }
+  const goNext = () => {
+    api?.scrollNext()
+    restartRef.current(10000)
+  }
 
   return (
     <div>
@@ -230,6 +250,24 @@ export default function TeamCarousel() {
             </CarouselItem>
           ))}
         </CarouselContent>
+        {/* edge fade-blur zones: wide clickable panels with a soft gradient
+            transition into the cards, rather than a small floating button */}
+        <button
+          type="button"
+          aria-label="Xem thành viên trước"
+          onClick={goPrev}
+          className="group absolute inset-y-0 left-0 z-200 flex w-20 items-center justify-start bg-linear-to-r from-ds-cream/85 via-ds-cream/40 to-transparent pl-3 backdrop-blur-md transition-[backdrop-filter,background] duration-300 hover:from-ds-cream hover:via-ds-cream/60 md:w-32 md:pl-6"
+        >
+          <ChevronLeftIcon className="size-7 text-[#e8920c] transition-transform duration-300 group-hover:scale-125 group-hover:text-[#ff6a2d] md:size-9" />
+        </button>
+        <button
+          type="button"
+          aria-label="Xem thành viên kế tiếp"
+          onClick={goNext}
+          className="group absolute inset-y-0 right-0 z-200 flex w-20 items-center justify-end bg-linear-to-l from-ds-cream/85 via-ds-cream/40 to-transparent pr-3 backdrop-blur-md transition-[backdrop-filter,background] duration-300 hover:from-ds-cream hover:via-ds-cream/60 md:w-32 md:pr-6"
+        >
+          <ChevronRightIcon className="size-7 text-[#e8920c] transition-transform duration-300 group-hover:scale-125 group-hover:text-[#ff6a2d] md:size-9" />
+        </button>
       </Carousel>
 
       {/* Dots (summary indicator below the cards) */}

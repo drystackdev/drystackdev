@@ -429,3 +429,22 @@ iconify-icon { display: inline-block; }
 .ds-field::placeholder {
   color: rgba(26, 18, 6, 0.4);
 }
+/* ── Relocated from converted React components (was Astro scoped <style>) ── */
+
+/* Nav: desktop/mobile split at 820px (matches the original JS breakpoint) */
+.ds-desktop-nav { display: flex; }
+.ds-mobile-nav { display: none; }
+@media (max-width: 819px) {
+  .ds-desktop-nav { display: none; }
+  .ds-mobile-nav { display: flex; }
+}
+
+/* Pricing: stack columns on small screens */
+@media (max-width: 780px) {
+  .pricing-grid { grid-template-columns: 1fr !important; }
+}
+
+/* Contact: info row hover */
+.info-row { transition: opacity 0.2s; }
+.info-row:hover { opacity: 0.78; }
+.info-row:hover .info-value { color: #e8920c; }

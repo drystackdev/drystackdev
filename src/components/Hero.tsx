@@ -38,7 +38,7 @@ export default function Hero() {
   }, [])
 
   return (
-    <section style={{ position: "relative", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "140px 24px 90px", overflow: "hidden", zIndex: 1 }}>
+    <section style={{ position: "sticky", top: 0, height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "140px 24px 90px", overflow: "hidden", zIndex: 0 }}>
 
       {/* ── background layer ── */}
       <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
@@ -104,10 +104,10 @@ export default function Hero() {
 
             {/* stacked headlines */}
             <div style={{ position: "relative" }}>
-              <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "clamp(40px,6.5vw,92px)", fontWeight: 700, lineHeight: 1.04, letterSpacing: "-2.5px", color: "rgba(245,236,224,0.65)", WebkitMaskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 90%)", maskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 90%)", margin: 0 }}>
+              <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "clamp(40px,6.5vw,82px)", fontWeight: 700, lineHeight: 1.04, letterSpacing: "-2.5px", color: "rgba(245,236,224,0.65)", WebkitMaskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 90%)", maskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 90%)", margin: 0 }}>
                 Biến Ý Tưởng Thành
               </h1>
-              <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "clamp(40px,6.5vw,92px)", fontWeight: 800, lineHeight: 1.08, letterSpacing: "-2.5px", marginTop: "-0.55em", marginBottom: 32, minHeight: "1.1em", position: "relative", zIndex: 2, filter: "drop-shadow(0 4px 18px rgba(0,0,0,0.85)) drop-shadow(0 2px 6px rgba(0,0,0,0.6))" }}>
+              <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "clamp(50px,7.5vw,92px)", fontWeight: 800, lineHeight: 1.08, letterSpacing: "-2.5px", marginTop: "-0.55em", marginBottom: 32, minHeight: "1.1em", position: "relative", zIndex: 2, filter: "drop-shadow(0 4px 18px rgba(0,0,0,0.85)) drop-shadow(0 2px 6px rgba(0,0,0,0.6))" }}>
                 <span ref={typedRef} style={{ background: "linear-gradient(110deg,#ffe08a,#ffae3d,#ff7a3d,#ffae3d)", backgroundSize: "200% auto", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent", color: "transparent", animation: "shimmer 3.5s linear infinite" }} />
                 <span style={{ display: "inline-block", width: 4, height: "0.78em", background: "#ffae3d", marginLeft: 3, verticalAlign: "middle", animation: "blink 1s step-end infinite" }} />
               </h1>
