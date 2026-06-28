@@ -44,7 +44,7 @@ export default function Blog({
   eyebrow = "BLOG",
   heading = "Kiến thức miễn phí từ DryStack",
   ctaLabel = "Xem tất cả",
-  ctaHref = "#",
+  ctaHref = "/blog",
   posts = DEFAULT_POSTS,
 }: BlogProps) {
   return (

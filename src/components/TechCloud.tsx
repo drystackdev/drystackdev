@@ -14,9 +14,9 @@ type TechCloudProps = {
 }
 
 const DEFAULT_FEATURES: Feature[] = [
-  { icon: "solar:bolt-bold", label: "Tốc độ tải < 2s" },
-  { icon: "solar:shield-check-bold", label: "Bảo mật Cloudflare" },
-  { icon: "solar:graph-new-up-bold", label: "Chuẩn SEO" },
+  { icon: "solar:bolt-bold", label: "Tốc độ tải dưới 2 giây nhờ tối ưu ảnh, cache và CDN — khách không phải chờ đợi." },
+  { icon: "solar:shield-check-bold", label: "Bảo mật toàn diện với Cloudflare: chống tấn công, mã hóa SSL và sao lưu an toàn." },
+  { icon: "solar:graph-new-up-bold", label: "Chuẩn SEO ngay từ nền tảng, giúp website dễ lên top Google và tiếp cận nhiều khách hàng hơn." },
 ]
 
 const DEFAULT_ICONS = [
@@ -152,17 +152,17 @@ export default function TechCloud({
             <span style={{ display: "inline-block", width: 2, height: "1.05em", background: "#ff8a3d", marginLeft: 2, verticalAlign: "text-bottom", animation: "blink 1s step-end infinite" }} />
           </p>
 
-          {/* Cloudflare security note (small, ngắn gọn) */}
-          <p style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: "rgba(26,18,6,0.55)", lineHeight: 1.6, marginBottom: 26 }}>
-            <iconify-icon icon="solar:shield-check-bold" style={{ fontSize: 17, color: "#ff8a3d", flexShrink: 0, marginTop: 1 }} />
-            <span>{securityNote}</span>
-          </p>
-
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+          {/* Một list chung: ghi chú Cloudflare + các tính năng */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <p style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: "rgba(26,18,6,0.55)", lineHeight: 1.6, margin: 0 }}>
+              <iconify-icon icon="solar:shield-check-bold" style={{ fontSize: 17, color: "#ff8a3d", flexShrink: 0, marginTop: 1 }} />
+              <span>{securityNote}</span>
+            </p>
             {features.map((f, i) => (
-              <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 600, color: "#1a1206", padding: "8px 16px", borderRadius: 100, background: "#fff", boxShadow: "0 6px 18px rgba(26,18,6,0.06)" }}>
-                <iconify-icon icon={f.icon} width="16" height="16" style={{ color: "#ff8a3d", fontSize: 16 }} /> {f.label}
-              </span>
+              <p key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: "rgba(26,18,6,0.55)", lineHeight: 1.6, margin: 0 }}>
+                <iconify-icon icon={f.icon} width="17" height="17" style={{ fontSize: 17, color: "#ff8a3d", flexShrink: 0, marginTop: 1 }} />
+                <span>{f.label}</span>
+              </p>
             ))}
           </div>
         </div>

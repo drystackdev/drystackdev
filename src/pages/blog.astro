@@ -1,0 +1,14 @@
+---
+import Layout from "@/layouts/main.astro"
+import Nav from "@/components/Nav"
+import BlogList from "@/components/BlogList"
+import Footer from "@/components/Footer"
+import FloatContact from "@/components/FloatContact"
+---
+
+<Layout>
+  <Nav client:load />
+  <BlogList client:load />
+  <Footer />
+  <FloatContact client:load />
+</Layout>

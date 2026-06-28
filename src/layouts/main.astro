@@ -1,5 +1,15 @@
 ---
 import "@/styles/global.css"
+
+type Props = {
+  title?: string
+  description?: string
+}
+
+const {
+  title = "DryStack.dev — Biến ý tưởng thành thương hiệu đỉnh",
+  description = "DryStack là team freelance chuyên thiết kế website, logo, branding và SEO cho doanh nghiệp Việt. Giá rẻ, chất lượng đỉnh — chỉ từ 2.000.000đ.",
+} = Astro.props
 ---
 
 <html lang="vi">
@@ -7,11 +17,8 @@ import "@/styles/global.css"
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>DryStack.dev — Biến ý tưởng thành thương hiệu đỉnh</title>
-    <meta
-      name="description"
-      content="DryStack là team freelance chuyên thiết kế website, logo, branding và SEO cho doanh nghiệp Việt. Giá rẻ, chất lượng đỉnh — chỉ từ 2.000.000đ."
-    />
+    <title>{title}</title>
+    <meta name="description" content={description} />
 
     <!-- Google Fonts (giữ nguyên từ file gốc) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

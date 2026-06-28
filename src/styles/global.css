@@ -335,6 +335,16 @@ iconify-icon { display: inline-block; }
   padding: 3px 10px;
   border-radius: 100px;
 }
+/* Cùng họ với .ds-chip-cat nhưng đủ tương phản trên card nền sáng (#fff/#faf5ec) */
+.ds-chip-cat-light {
+  height: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: #e8920c;
+  background: rgba(255, 170, 60, 0.14);
+  padding: 3px 10px;
+  border-radius: 100px;
+}
 
 /* ── team carousel (coverflow tilt + 3D hover flip) ── */
 /* coverflow: each slide tilts around its own centre (perspective() function),
@@ -443,6 +453,26 @@ iconify-icon { display: inline-block; }
 @media (max-width: 780px) {
   .pricing-grid { grid-template-columns: 1fr !important; }
 }
+
+/* Blog detail: TOC sidebar (desktop) vs floating button + drawer (mobile) */
+.ds-toc-desktop { display: block; width: 220px; flex-shrink: 0; }
+.ds-toc-mobile { display: none; }
+@media (max-width: 900px) {
+  .ds-toc-desktop { display: none; }
+  .ds-toc-mobile { display: block; }
+}
+.ds-tag-chip {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(26, 18, 6, 0.55);
+  background: #faf6ef;
+  border: 1px solid rgba(26, 18, 6, 0.1);
+  padding: 4px 11px;
+  border-radius: 100px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.ds-tag-chip:hover { background: rgba(255, 170, 60, 0.12); border-color: rgba(255, 170, 60, 0.3); }
 
 /* Contact: info row hover */
 .info-row { transition: opacity 0.2s; }

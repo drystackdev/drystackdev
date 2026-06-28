@@ -256,7 +256,7 @@ export default function TeamCarousel() {
           type="button"
           aria-label="Xem thành viên trước"
           onClick={goPrev}
-          className="group absolute inset-y-0 left-0 z-200 flex w-20 items-center justify-start bg-linear-to-r from-ds-cream/85 via-ds-cream/40 to-transparent pl-3 backdrop-blur-md transition-[backdrop-filter,background] duration-300 hover:from-ds-cream hover:via-ds-cream/60 md:w-32 md:pl-6"
+          className="group absolute inset-y-0 left-0 z-200 flex w-20 items-center justify-start bg-linear-to-r from-ds-cream/85 via-ds-cream/40 to-transparent pl-3 backdrop-blur-md transition-[backdrop-filter,background] duration-300 md:w-32 md:pl-6 backdrop:blur-5xl"
         >
           <ChevronLeftIcon className="size-7 text-[#e8920c] transition-transform duration-300 group-hover:scale-125 group-hover:text-[#ff6a2d] md:size-9" />
         </button>
@@ -264,7 +264,7 @@ export default function TeamCarousel() {
           type="button"
           aria-label="Xem thành viên kế tiếp"
           onClick={goNext}
-          className="group absolute inset-y-0 right-0 z-200 flex w-20 items-center justify-end bg-linear-to-l from-ds-cream/85 via-ds-cream/40 to-transparent pr-3 backdrop-blur-md transition-[backdrop-filter,background] duration-300 hover:from-ds-cream hover:via-ds-cream/60 md:w-32 md:pr-6"
+          className="group absolute inset-y-0 right-0 z-200 flex w-20 items-center justify-end bg-linear-to-l from-ds-cream/85 via-ds-cream/40 to-transparent pr-3 backdrop-blur-md transition-[backdrop-filter,background] duration-300  md:w-32 md:pr-6 backdrop:blur-5xl"
         >
           <ChevronRightIcon className="size-7 text-[#e8920c] transition-transform duration-300 group-hover:scale-125 group-hover:text-[#ff6a2d] md:size-9" />
         </button>

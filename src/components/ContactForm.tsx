@@ -160,7 +160,7 @@ export default function ContactForm() {
         <div>
           <Label className="ds-label">Dịch vụ quan tâm</Label>
           <Select value={data.fService} onValueChange={(v) => save({ fService: (v as string) ?? "" })}>
-            <SelectTrigger className="ds-field">
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Chọn dịch vụ..." />
             </SelectTrigger>
             <SelectContent>
