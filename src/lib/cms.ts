@@ -14,28 +14,46 @@
  * tự rơi về default, build không bao giờ vỡ.
  */
 
-// Đọc từ process.env vì các flag này được truyền qua command-line (không nằm
-// trong .env nên không vào import.meta.env). File này chỉ chạy ở server/build —
-// process.env luôn có sẵn và KHÔNG bao giờ lọt vào bundle client.
-const STRAPI_URL = process.env.STRAPI_URL || "http://localhost:1337"
+// Flag chạy được truyền qua command-line → đọc process.env. Biến trong .env
+// (token, url) → tham chiếu TĨNH import.meta.env.X để Vite inline đúng (truy cập
+// động import.meta.env[k] không inline được biến custom). File này chỉ chạy ở
+// server/build — không lọt vào bundle client.
+const STRAPI_URL =
+  process.env.STRAPI_URL || import.meta.env.STRAPI_URL || "http://localhost:1337"
+const PREVIEW_TOKEN =
+  process.env.STRAPI_PREVIEW_TOKEN || import.meta.env.STRAPI_PREVIEW_TOKEN || ""
 
 // CHỈ gọi CMS khi có flag:
 //  - WITH_CMS=true        → bật ở dev khi chạy kèm CMS (lệnh `npm run dev` ở root).
 //  - USE_CMS_IN_BUILD=true → bake dữ liệu CMS vào HTML lúc build.
 // Không có flag (vd chạy web một mình) → dùng default tĩnh, không chạm CMS.
 const ENABLED =
-  process.env.WITH_CMS === "true" || process.env.USE_CMS_IN_BUILD === "true"
+  process.env.WITH_CMS === "true" ||
+  import.meta.env.WITH_CMS === "true" ||
+  process.env.USE_CMS_IN_BUILD === "true" ||
+  import.meta.env.USE_CMS_IN_BUILD === "true"
 
 type StrapiItem = Record<string, any>
+
+export type FetchOpts = { draft?: boolean }
 
 async function fetchAPI<T = StrapiItem[]>(
   path: string,
   query = "",
+  opts: FetchOpts = {},
 ): Promise<T | null> {
-  if (!ENABLED) return null
+  const draft = opts.draft === true
+  // Preview (draft) luôn được phép fetch dù không bật flag — vì là yêu cầu xem
+  // trước có chủ đích từ Strapi. Chế độ thường thì tôn trọng flag ENABLED.
+  if (!ENABLED && !draft) return null
   try {
-    const url = `${STRAPI_URL}/api/${path}${query ? `?${query}` : ""}`
-    const res = await fetch(url)
+    const sep = query ? "&" : ""
+    const finalQuery = draft ? `${query}${sep}status=draft` : query
+    const url = `${STRAPI_URL}/api/${path}${finalQuery ? `?${finalQuery}` : ""}`
+    // Draft cần token (bản nháp không công khai). Bản published thì fetch ẩn danh.
+    const headers: Record<string, string> =
+      draft && PREVIEW_TOKEN ? { Authorization: `Bearer ${PREVIEW_TOKEN}` } : {}
+    const res = await fetch(url, { headers })
     if (!res.ok) {
       console.warn(`[cms] ${url} → ${res.status}`)
       return null
@@ -59,8 +77,8 @@ const sortByOrder = <T extends { order?: number }>(arr: T[]): T[] =>
 // COLLECTION TYPES
 // ─────────────────────────────────────────
 
-export async function getServices() {
-  const data = await fetchAPI("services", "populate=*&pagination[pageSize]=100")
+export async function getServices(opts: FetchOpts = {}) {
+  const data = await fetchAPI("services", "populate=*&pagination[pageSize]=100", opts)
   if (!data?.length) return null
   return sortByOrder(data).map((s) => ({
     icon: s.icon,
@@ -72,8 +90,8 @@ export async function getServices() {
   }))
 }
 
-export async function getProjects() {
-  const data = await fetchAPI("projects", "populate=*&pagination[pageSize]=100")
+export async function getProjects(opts: FetchOpts = {}) {
+  const data = await fetchAPI("projects", "populate=*&pagination[pageSize]=100", opts)
   if (!data?.length) return null
   return sortByOrder(data).map((p) => ({
     initials: p.initials,
@@ -83,8 +101,8 @@ export async function getProjects() {
   }))
 }
 
-export async function getTeam() {
-  const data = await fetchAPI("team-members", "populate=*&pagination[pageSize]=100")
+export async function getTeam(opts: FetchOpts = {}) {
+  const data = await fetchAPI("team-members", "populate=*&pagination[pageSize]=100", opts)
   if (!data?.length) return null
   return sortByOrder(data).map((m) => ({
     role: m.role,
@@ -98,8 +116,8 @@ export async function getTeam() {
 
 const PLAN_FROM = ["right", "up", "left"] as const
 
-export async function getPricing() {
-  const data = await fetchAPI("pricing-plans", "populate=*&pagination[pageSize]=100")
+export async function getPricing(opts: FetchOpts = {}) {
+  const data = await fetchAPI("pricing-plans", "populate=*&pagination[pageSize]=100", opts)
   if (!data?.length) return null
   return sortByOrder(data).map((p, i) => ({
     name: p.name,
@@ -115,8 +133,8 @@ export async function getPricing() {
 
 const REVIEW_FROM = ["right", "up", "left"] as const
 
-export async function getTestimonials() {
-  const data = await fetchAPI("testimonials", "populate=*&pagination[pageSize]=100")
+export async function getTestimonials(opts: FetchOpts = {}) {
+  const data = await fetchAPI("testimonials", "populate=*&pagination[pageSize]=100", opts)
   if (!data?.length) return null
   return sortByOrder(data).map((t, i) => ({
     quote: t.quote,
@@ -129,8 +147,8 @@ export async function getTestimonials() {
   }))
 }
 
-export async function getTips() {
-  const data = await fetchAPI("knowledge-tips", "populate=*&pagination[pageSize]=100")
+export async function getTips(opts: FetchOpts = {}) {
+  const data = await fetchAPI("knowledge-tips", "populate=*&pagination[pageSize]=100", opts)
   if (!data?.length) return null
   return sortByOrder(data).map((t) => ({
     icon: t.icon,
@@ -153,13 +171,15 @@ export type CmsPost = {
   readTime: string
   author: { name: string; role: string }
   tags: string[]
-  sections: { heading: string; paragraphs: string[] }[]
+  /** Nội dung richtext (markdown) — Astro tự parse heading (#, ##) để dựng TOC. */
+  content: string
 }
 
-export async function getPosts(): Promise<CmsPost[] | null> {
+export async function getPosts(opts: FetchOpts = {}): Promise<CmsPost[] | null> {
   const data = await fetchAPI(
     "posts",
-    "populate[tags]=true&populate[sections][populate]=*&pagination[pageSize]=100",
+    "populate[tags]=true&pagination[pageSize]=100",
+    opts,
   )
   if (!data?.length) return null
   return data.map((p) => ({
@@ -172,12 +192,7 @@ export async function getPosts(): Promise<CmsPost[] | null> {
     readTime: p.readTime ?? "",
     author: { name: p.authorName, role: p.authorRole ?? "" },
     tags: values(p.tags),
-    sections: Array.isArray(p.sections)
-      ? p.sections.map((s: any) => ({
-          heading: s.heading,
-          paragraphs: values(s.paragraphs),
-        }))
-      : [],
+    content: p.content ?? "",
   }))
 }
 
@@ -185,8 +200,8 @@ export async function getPosts(): Promise<CmsPost[] | null> {
 // SINGLE TYPES
 // ─────────────────────────────────────────
 
-export async function getHero() {
-  const d = await fetchAPI<StrapiItem>("hero", "populate=*")
+export async function getHero(opts: FetchOpts = {}) {
+  const d = await fetchAPI<StrapiItem>("hero", "populate=*", opts)
   if (!d) return null
   return {
     badge: d.badge,
@@ -201,8 +216,8 @@ export async function getHero() {
   }
 }
 
-export async function getSiteSetting() {
-  const d = await fetchAPI<StrapiItem>("site-setting", "populate=*")
+export async function getSiteSetting(opts: FetchOpts = {}) {
+  const d = await fetchAPI<StrapiItem>("site-setting", "populate=*", opts)
   if (!d) return null
   const links = (arr?: any[]) =>
     Array.isArray(arr) ? arr.map((l) => ({ href: l.href, label: l.label })) : []

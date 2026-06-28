@@ -9,7 +9,10 @@ export type Author = {
 
 export type Section = {
   heading: string
-  paragraphs: string[]
+  /** Nội dung richtext (markdown) — nguồn từ CMS. */
+  content?: string
+  /** Các đoạn văn rời — dùng cho dữ liệu tĩnh fallback trong file này. */
+  paragraphs?: string[]
 }
 
 export type Post = {
@@ -22,7 +25,23 @@ export type Post = {
   readTime: string // ví dụ "5 phút đọc"
   author: Author
   tags: string[]
-  sections: Section[] // mỗi section có 1 heading (dùng cho mục lục) + các đoạn văn
+  /** Nội dung richtext (markdown) — nguồn từ CMS, 1 field duy nhất. */
+  content?: string
+  /** Dữ liệu tĩnh fallback trong file này (mỗi section heading + đoạn văn). */
+  sections?: Section[]
+}
+
+/**
+ * Trả về nội dung bài dạng markdown thống nhất, bất kể nguồn:
+ * - CMS: dùng thẳng `post.content`.
+ * - Tĩnh: gộp các section thành "## heading\n\n đoạn văn".
+ * Astro sẽ parse heading (#, ##) từ chuỗi này để dựng mục lục + neo cuộn.
+ */
+export function postMarkdown(post: Post): string {
+  if (post.content) return post.content
+  return (post.sections ?? [])
+    .map((s) => `## ${s.heading}\n\n${(s.paragraphs ?? []).join("\n\n")}`)
+    .join("\n\n")
 }
 
 const MINH_KHOI: Author = { name: "Minh Khôi", role: "Web Strategist" }

@@ -5,19 +5,40 @@ import Footer from "@/components/Footer"
 import FloatContact from "@/components/FloatContact"
 import BlogToc from "@/components/BlogToc"
 import { Badge } from "@/components/ui/badge"
-import { POSTS, formatDateVi, slugifyHeading, type Post } from "@/lib/posts"
+import { POSTS, formatDateVi, slugifyHeading, postMarkdown, type Post } from "@/lib/posts"
 import { getPosts } from "@/lib/cms"
+import { marked } from "marked"
 
 export async function getStaticPaths() {
   // Dev: đọc bài từ CMS. Build (mặc định) / lỗi: dùng POSTS tĩnh.
-  const all = (await getPosts()) ?? POSTS
+  const published = (await getPosts()) ?? POSTS
+  // Khi dev kèm CMS, gộp thêm slug của các bài draft (kể cả bài chưa từng
+  // publish) để route preview tồn tại. Build production không có token →
+  // draft fetch trả null → chỉ dùng bài đã publish.
+  const draft = await getPosts({ draft: true })
+  const bySlug = new Map(published.map((p) => [p.slug, p]))
+  if (draft) for (const d of draft) if (!bySlug.has(d.slug)) bySlug.set(d.slug, d)
+  const all = [...bySlug.values()]
   return all.map((p) => ({
     params: { slug: p.slug },
     props: { post: p, all },
   }))
 }
 
-const { post, all } = Astro.props as { post: Post; all: Post[] }
+const { post: builtPost, all: builtAll } = Astro.props as { post: Post; all: Post[] }
+
+// Preview: khi mở từ Strapi (?preview=1) → lấy bản nháp mới nhất theo slug.
+const isPreview = Astro.url.searchParams.get("preview") === "1"
+let post = builtPost
+let all = builtAll
+if (isPreview) {
+  const draftAll = await getPosts({ draft: true })
+  if (draftAll?.length) {
+    all = draftAll
+    const found = draftAll.find((p) => p.slug === Astro.params.slug)
+    if (found) post = found
+  }
+}
 
 // Bài liên quan: cùng chuyên mục trước, rồi tới các bài khác.
 const related = [
@@ -25,13 +46,31 @@ const related = [
   ...all.filter((p) => p.slug !== post.slug && p.cat !== post.cat),
 ].slice(0, 3)
 
-const tocItems = post.sections.map((s) => ({ id: slugifyHeading(s.heading), heading: s.heading }))
+// Nội dung bài là 1 chuỗi markdown (CMS) — Astro tự parse heading để dựng mục lục.
+const markdown = postMarkdown(post)
+
+// Mục lục: lấy các heading cấp 1 & 2 (mặc định) từ markdown.
+const tocItems = markdown
+  .split("\n")
+  .map((line) => line.match(/^(#{1,2})\s+(.+?)\s*$/))
+  .filter((m): m is RegExpMatchArray => Boolean(m))
+  .map((m) => ({ id: slugifyHeading(m[2]), heading: m[2] }))
+
+// Render markdown → HTML, chèn id vào h1/h2 để neo cuộn từ mục lục.
+const contentHtml = (marked.parse(markdown) as string).replace(
+  /<(h[12])>([\s\S]*?)<\/\1>/g,
+  (_m, tag, inner) => {
+    const text = inner.replace(/<[^>]+>/g, "")
+    return `<${tag} id="${slugifyHeading(text)}">${inner}</${tag}>`
+  },
+)
 
 const reveal = "opacity:0;transform:translateY(48px) scale(0.95);filter:blur(8px);will-change:transform,opacity,filter;"
 
 const site = Astro.site?.href.replace(/\/$/, "") ?? "https://drystack.dev"
 const postUrl = `${site}/blog/${post.slug}`
-const articleBody = post.sections.flatMap((s) => s.paragraphs).join("\n\n")
+// articleBody (SEO): bỏ cú pháp markdown thô.
+const articleBody = markdown.replace(/^#{1,6}\s+/gm, "").replace(/[*_`>#]/g, "")
 
 // BlogPosting + BreadcrumbList: giúp Google hiển thị rich result (tác giả, ngày
 // đăng) và đường dẫn phân cấp trong kết quả tìm kiếm.
@@ -150,28 +189,12 @@ const jsonLd = [
         </div>
 
         <div
+          class="ds-article"
           data-fx="reveal"
           data-from="up"
           style={`${reveal}padding-bottom:60px;border-bottom:1px solid rgba(26,18,6,0.08);margin-bottom:60px;`}
-        >
-          {post.sections.map((section, si) => (
-            <div style={si > 0 ? "margin-top:34px;" : ""}>
-              <h2
-                id={slugifyHeading(section.heading)}
-                style="scroll-margin-top:110px;font-family:var(--font-heading);font-size:22px;font-weight:800;letter-spacing:-0.4px;color:#1a1206;margin-bottom:16px;"
-              >
-                {section.heading}
-              </h2>
-              {section.paragraphs.map((paragraph, pi) => (
-                <p
-                  style={`font-size:${si === 0 && pi === 0 ? 18 : 16}px;font-weight:${si === 0 && pi === 0 ? 600 : 400};color:${si === 0 && pi === 0 ? "#1a1206" : "rgba(26,18,6,0.68)"};line-height:1.85;margin-bottom:18px;`}
-                >
-                  {paragraph}
-                </p>
-              ))}
-            </div>
-          ))}
-        </div>
+          set:html={contentHtml}
+        />
       </div>
 
       <aside style="position:relative;">
@@ -227,5 +250,65 @@ const jsonLd = [
   .ds-related-card:hover {
     transform: translateY(-5px);
     border-color: rgba(255, 170, 60, 0.3);
+  }
+
+  /* Nội dung bài viết render từ markdown (richtext CMS) */
+  .ds-article :global(h1),
+  .ds-article :global(h2) {
+    scroll-margin-top: 110px;
+    font-family: var(--font-heading);
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.4px;
+    color: #1a1206;
+    margin: 34px 0 16px;
+  }
+  .ds-article :global(h1:first-child),
+  .ds-article :global(h2:first-child) {
+    margin-top: 0;
+  }
+  .ds-article :global(h3) {
+    font-family: var(--font-heading);
+    font-size: 18px;
+    font-weight: 700;
+    color: #1a1206;
+    margin: 24px 0 12px;
+  }
+  .ds-article :global(p) {
+    font-size: 16px;
+    color: rgba(26, 18, 6, 0.68);
+    line-height: 1.85;
+    margin-bottom: 18px;
+  }
+  .ds-article :global(ul),
+  .ds-article :global(ol) {
+    margin: 0 0 18px 22px;
+    color: rgba(26, 18, 6, 0.68);
+    line-height: 1.85;
+  }
+  .ds-article :global(li) {
+    margin-bottom: 8px;
+  }
+  .ds-article :global(strong) {
+    color: #1a1206;
+    font-weight: 700;
+  }
+  .ds-article :global(a) {
+    color: #c2410c;
+    text-decoration: underline;
+  }
+  .ds-article :global(blockquote) {
+    border-left: 3px solid #ffab2e;
+    margin: 0 0 18px;
+    padding: 6px 18px;
+    color: rgba(26, 18, 6, 0.7);
+    background: #fff;
+    border-radius: 0 10px 10px 0;
+  }
+  .ds-article :global(code) {
+    background: rgba(26, 18, 6, 0.06);
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 14px;
   }
 </style>

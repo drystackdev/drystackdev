@@ -31,16 +31,19 @@ const site = Astro.site?.href.replace(/\/$/, "") ?? "https://drystack.dev"
 
 // ── Đọc dữ liệu CMS ở server/build-time (KHÔNG gọi từ client) ──
 // Mọi giá trị có thể là null khi CMS tắt → component tự dùng default tĩnh.
+// Khi mở từ "Open preview" của Strapi (?preview=1) → fetch bản nháp (draft).
+const isPreview = Astro.url.searchParams.get("preview") === "1"
+const opts = isPreview ? { draft: true } : undefined
 const [hero, services, projects, pricing, testimonials, tips, posts, setting] =
   await Promise.all([
-    getHero(),
-    getServices(),
-    getProjects(),
-    getPricing(),
-    getTestimonials(),
-    getTips(),
-    getPosts(),
-    getSiteSetting(),
+    getHero(opts),
+    getServices(opts),
+    getProjects(opts),
+    getPricing(opts),
+    getTestimonials(opts),
+    getTips(opts),
+    getPosts(opts),
+    getSiteSetting(opts),
   ])
 
 // Blog preview ở trang chủ: 3 bài mới nhất, map về shape {icon,cat,title,excerpt,meta}.
