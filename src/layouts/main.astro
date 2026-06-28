@@ -132,7 +132,7 @@ import "@/styles/global.css"
             const dx = parseFloat(el.dataset.dx || "0")
             const dy = parseFloat(el.dataset.dy || "0")
             const drot = parseFloat(el.dataset.drot || "0")
-            const baseOp = parseFloat(el.dataset.op || "1") * (isMobile() ? 0.45 : 1)
+            const baseOp = parseFloat(el.dataset.op || "1") * (isMobile() ? 0.5 : 1)
             el.style.transform = "translate(" + (prog * dx).toFixed(1) + "px," + (prog * dy).toFixed(1) + "px) rotate(" + (prog * drot).toFixed(1) + "deg)"
             el.style.opacity = (baseOp * (1 - prog * 0.55)).toFixed(3)
           } else if (type === "tilt") {

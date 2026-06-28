@@ -58,13 +58,28 @@ export default function Hero() {
         <div style={{ position: "absolute", top: "14%", left: "10%", width: 380, height: 380, background: "radial-gradient(circle, rgba(255,160,50,0.10) 0%, transparent 65%)", borderRadius: "50%", animation: "floatY 18s ease-in-out infinite" }} />
         <div style={{ position: "absolute", bottom: "12%", right: "10%", width: 440, height: 440, background: "radial-gradient(circle, rgba(255,120,50,0.09) 0%, transparent 65%)", borderRadius: "50%", animation: "floatY2 22s ease-in-out infinite 3s" }} />
 
-        {/* floating shapes */}
-        <div style={{ position: "absolute", top: "22%", right: "13%", width: 64, height: 64, borderRadius: 18, background: "linear-gradient(#100b06,#100b06) padding-box, linear-gradient(135deg,#ffd24a,#ff8a3d) border-box", border: "1.5px solid transparent", animation: "floatY 7s ease-in-out infinite" }} />
-        <div style={{ position: "absolute", bottom: "24%", left: "9%", width: 48, height: 48, borderRadius: "50%", border: "1.5px solid rgba(255,150,60,0.4)", animation: "floatY2 9s ease-in-out infinite 1.2s" }} />
-        <div style={{ position: "absolute", top: "64%", right: "18%", width: 34, height: 34, borderRadius: 8, background: "rgba(255,170,60,0.12)", animation: "floatY 5.5s ease-in-out infinite 0.7s" }} />
-        <div style={{ position: "absolute", top: "34%", left: "15%", width: 88, height: 88, borderRadius: 22, background: "linear-gradient(#100b06,#100b06) padding-box, linear-gradient(135deg,#ffd24a,#ff8a3d) border-box", border: "1.5px solid transparent", opacity: 0.45, animation: "floatY2 11s ease-in-out infinite 2.5s" }} />
-        <div style={{ position: "absolute", bottom: "18%", right: "23%", width: 66, height: 66, borderRadius: "50%", border: "1px solid rgba(255,170,60,0.18)", opacity: 0.8, animation: "floatY 8s ease-in-out infinite 1.8s" }} />
-        <div style={{ position: "absolute", top: "52%", right: "7%", width: 50, height: 50, borderRadius: 14, background: "rgba(255,170,60,0.06)", border: "1px solid rgba(255,170,60,0.12)", animation: "floatY2 6.5s ease-in-out infinite 3.2s" }} />
+        {/* floating shapes: outer div drifts out to either side via JS scroll-fx,
+            inner div keeps the CSS floatY bob — kept on separate elements because a
+            CSS animation that touches `transform` always wins over an inline style
+            set on the same element, which silently killed the scroll drift before */}
+        <div data-fx="drift" data-dx="140" data-dy="-60" data-drot="35" data-op="1" style={{ position: "absolute", top: "22%", right: "13%", width: 64, height: 64 }}>
+          <div style={{ width: "100%", height: "100%", borderRadius: 18, background: "linear-gradient(#100b06,#100b06) padding-box, linear-gradient(135deg,#ffd24a,#ff8a3d) border-box", border: "1.5px solid transparent", animation: "floatY 7s ease-in-out infinite" }} />
+        </div>
+        <div data-fx="drift" data-dx="-150" data-dy="50" data-drot="-30" data-op="1" style={{ position: "absolute", bottom: "24%", left: "9%", width: 48, height: 48 }}>
+          <div style={{ width: "100%", height: "100%", borderRadius: "50%", border: "1.5px solid rgba(255,150,60,0.4)", animation: "floatY2 9s ease-in-out infinite 1.2s" }} />
+        </div>
+        <div data-fx="drift" data-dx="160" data-dy="40" data-drot="40" data-op="1" style={{ position: "absolute", top: "64%", right: "18%", width: 34, height: 34 }}>
+          <div style={{ width: "100%", height: "100%", borderRadius: 8, background: "rgba(255,170,60,0.12)", animation: "floatY 5.5s ease-in-out infinite 0.7s" }} />
+        </div>
+        <div data-fx="drift" data-dx="-120" data-dy="-70" data-drot="-25" data-op="0.45" style={{ position: "absolute", top: "34%", left: "15%", width: 88, height: 88 }}>
+          <div style={{ width: "100%", height: "100%", borderRadius: 22, background: "linear-gradient(#100b06,#100b06) padding-box, linear-gradient(135deg,#ffd24a,#ff8a3d) border-box", border: "1.5px solid transparent", animation: "floatY2 11s ease-in-out infinite 2.5s" }} />
+        </div>
+        <div data-fx="drift" data-dx="130" data-dy="60" data-drot="-20" data-op="0.8" style={{ position: "absolute", bottom: "18%", right: "23%", width: 66, height: 66 }}>
+          <div style={{ width: "100%", height: "100%", borderRadius: "50%", border: "1px solid rgba(255,170,60,0.18)", animation: "floatY 8s ease-in-out infinite 1.8s" }} />
+        </div>
+        <div data-fx="drift" data-dx="110" data-dy="-40" data-drot="25" data-op="1" style={{ position: "absolute", top: "52%", right: "7%", width: 50, height: 50 }}>
+          <div style={{ width: "100%", height: "100%", borderRadius: 14, background: "rgba(255,170,60,0.06)", border: "1px solid rgba(255,170,60,0.12)", animation: "floatY2 6.5s ease-in-out infinite 3.2s" }} />
+        </div>
 
         {/* twinkling particles */}
         <div style={{ position: "absolute", top: "18%", left: "24%", width: 5, height: 5, borderRadius: "50%", background: "#ffce6a", animation: "twinkle 3s ease-in-out infinite" }} />
