@@ -1,0 +1,800 @@
+import { OperationData, OperationVariables, FragmentData } from '@ts-gql/tag';
+import { gql } from '@ts-gql/tag/no-transform';
+import { useRouter } from '../router';
+import { Config, LocalConfig } from '../../config';
+import {
+  useMemo,
+  useEffect,
+  createContext,
+  useContext,
+  useCallback,
+  ReactNode,
+  useState,
+} from 'react';
+import { CombinedError, useQuery, UseQueryState } from 'urql';
+import { getSingletonPath } from '../path-utils';
+import {
+  getTreeNodeAtPath,
+  treeEntriesToTreeNodes,
+  TreeEntry,
+  TreeNode,
+  treeSha,
+  treeToEntries,
+} from '../trees';
+import {
+  DataState,
+  LOADING,
+  mapDataState,
+  mergeDataStates,
+  useData,
+} from '../useData';
+import {
+  getEntriesInCollectionWithTreeKey,
+  isGitHubConfig,
+  KEYSTATIC_CLOUD_API_URL,
+  KEYSTATIC_CLOUD_HEADERS,
+  MaybePromise,
+  redirectToCloudAuth,
+} from '../utils';
+import { LRUCache as LRU } from 'lru-cache';
+import { isDefined } from 'emery';
+import { getAuth, getCloudAuth } from '../auth';
+import { ViewerContext, SidebarFooter_viewer } from './viewer-data';
+import { parseRepoConfig, serializeRepoConfig } from '../repo-config';
+import * as s from 'superstruct';
+import { scopeEntriesWithPathPrefix } from './path-prefix';
+import {
+  garbageCollectGitObjects,
+  getTreeFromPersistedCache,
+  setTreeToPersistedCache,
+} from '../object-cache';
+import { CollabProvider } from './collab';
+import { EmptyRepo } from './empty-repo';
+
+export function fetchLocalTree(sha: string, basePath: string) {
+  if (treeCache.has(sha)) {
+    return treeCache.get(sha)!;
+  }
+  const promise = fetch(`/api${basePath}/tree`, { headers: { 'no-cors': '1' } })
+    .then(x => x.json())
+    .then(async (entries: TreeEntry[]) => hydrateTreeCacheWithEntries(entries));
+  treeCache.set(sha, promise);
+  return promise;
+}
+
+export function useSetTreeSha() {
+  return useContext(SetTreeShaContext);
+}
+
+export const SetTreeShaContext = createContext<(sha: string) => void>(() => {
+  throw new Error('SetTreeShaContext not set');
+});
+
+export function LocalAppShellProvider(props: {
+  config: LocalConfig;
+  children: ReactNode;
+}) {
+  const [currentTreeSha, setCurrentTreeSha] = useState<string>('initial');
+  const { basePath } = useRouter();
+
+  const tree = useData(
+    useCallback(
+      () => fetchLocalTree(currentTreeSha, basePath),
+      [currentTreeSha, basePath]
+    )
+  );
+
+  const allTreeData = useMemo(
+    () => ({
+      unscopedDefault: tree,
+      scoped: {
+        default: tree,
+        current: tree,
+        merged: mergeDataStates({ default: tree, current: tree }),
+      },
+    }),
+    [tree]
+  );
+  const changedData = useMemo(() => {
+    if (allTreeData.scoped.merged.kind !== 'loaded') {
+      return {
+        collections: new Map<
+          string,
+          {
+            removed: Set<string>;
+            added: Set<string>;
+            changed: Set<string>;
+            totalCount: number;
+          }
+        >(),
+        singletons: new Set<string>(),
+      };
+    }
+    return getChangedData(props.config, allTreeData.scoped.merged.data);
+  }, [allTreeData, props.config]);
+
+  return (
+    <SetTreeShaContext.Provider value={setCurrentTreeSha}>
+      <ChangedContext.Provider value={changedData}>
+        <TreeContext.Provider value={allTreeData}>
+          {props.children}
+        </TreeContext.Provider>
+      </ChangedContext.Provider>
+    </SetTreeShaContext.Provider>
+  );
+}
+
+const cloudInfoSchema = s.type({
+  user: s.type({
+    id: s.string(),
+    name: s.string(),
+    email: s.string(),
+    avatarUrl: s.optional(s.string()),
+  }),
+  project: s.type({
+    name: s.string(),
+  }),
+  team: s.object({
+    name: s.string(),
+    slug: s.string(),
+    images: s.boolean(),
+    multiplayer: s.boolean(),
+  }),
+});
+
+const CloudInfo = createContext<
+  null | s.Infer<typeof cloudInfoSchema> | 'unauthorized'
+>(null);
+
+export function useCloudInfo() {
+  const context = useContext(CloudInfo);
+  return context === 'unauthorized' ? null : context;
+}
+
+export function useRawCloudInfo() {
+  return useContext(CloudInfo);
+}
+
+export function CloudInfoProvider(props: {
+  children: ReactNode;
+  config: Config;
+}) {
+  const data = useData(
+    useCallback(async () => {
+      if (!props.config.cloud?.project) throw new Error('no cloud project set');
+      const token = getCloudAuth(props.config)?.accessToken;
+      if (!token) {
+        return 'unauthorized' as const;
+      }
+      const res = await fetch(`${KEYSTATIC_CLOUD_API_URL}/v1/info`, {
+        headers: {
+          ...KEYSTATIC_CLOUD_HEADERS,
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.status === 401) return 'unauthorized' as const;
+      return cloudInfoSchema.create(await res.json());
+    }, [props.config])
+  );
+  return (
+    <CloudInfo.Provider value={data.kind === 'loaded' ? data.data : null}>
+      {props.children}
+    </CloudInfo.Provider>
+  );
+}
+
+export const GitHubAppShellDataContext = createContext<null | UseQueryState<
+  OperationData<typeof GitHubAppShellQuery | typeof CloudAppShellQuery>,
+  OperationVariables<typeof GitHubAppShellQuery | typeof CloudAppShellQuery>
+>>(null);
+
+export function GitHubAppShellDataProvider(props: {
+  config: Config;
+  children: ReactNode;
+}) {
+  const repo =
+    props.config.storage.kind === 'github'
+      ? parseRepoConfig(props.config.storage.repo)
+      : { name: 'repo-name', owner: 'repo-owner' };
+  const [state] = useQuery<
+    OperationData<typeof GitHubAppShellQuery | typeof CloudAppShellQuery>,
+    OperationVariables<typeof GitHubAppShellQuery | typeof CloudAppShellQuery>
+  >({
+    query:
+      props.config.storage.kind === 'github'
+        ? GitHubAppShellQuery
+        : CloudAppShellQuery,
+    variables: repo,
+  });
+
+  const [cursorState, setCursorState] = useState<string | null>(null);
+
+  const [moreRefsState] = useQuery({
+    query: gql`
+      query FetchMoreRefs($owner: String!, $name: String!, $after: String) {
+        repository(owner: $owner, name: $name) {
+          __typename
+          id
+          refs(refPrefix: "refs/heads/", first: 100, after: $after) {
+            __typename
+            nodes {
+              ...Ref_base
+            }
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+          }
+        }
+      }
+      ${Ref_base}
+    ` as import('../../../__generated__/ts-gql/FetchMoreRefs').type,
+    pause: !state.data?.repository?.refs?.pageInfo.hasNextPage,
+    variables: {
+      ...repo,
+      after: cursorState ?? state.data?.repository?.refs?.pageInfo.endCursor,
+    },
+  });
+
+  const pageInfo = moreRefsState.data?.repository?.refs?.pageInfo;
+  if (
+    pageInfo?.hasNextPage &&
+    pageInfo.endCursor !== cursorState &&
+    pageInfo.endCursor
+  ) {
+    setCursorState(pageInfo.endCursor);
+  }
+
+  if (
+    state.data?.repository?.owner &&
+    !state.data.repository.defaultBranchRef &&
+    !state.fetching &&
+    !state.error
+  ) {
+    return (
+      <EmptyRepo
+        repo={`${state.data.repository.owner.login}/${state.data.repository.name}`}
+      />
+    );
+  }
+
+  return (
+    <GitHubAppShellDataContext.Provider value={state}>
+      <ViewerContext.Provider
+        value={
+          state.data && 'viewer' in state.data ? state.data.viewer : undefined
+        }
+      >
+        {props.children}
+      </ViewerContext.Provider>
+    </GitHubAppShellDataContext.Provider>
+  );
+}
+
+const writePermissions = new Set(['WRITE', 'ADMIN', 'MAINTAIN']);
+
+export function GitHubAppShellProvider(props: {
+  currentBranch: string;
+  config: Config;
+  children: ReactNode;
+}) {
+  const router = useRouter();
+  const { data, error } = useContext(GitHubAppShellDataContext)!;
+  let repo:
+    | FragmentData<typeof Repo_ghDirect>
+    | FragmentData<typeof Repo_primary>
+    | FragmentData<typeof BaseRepo>
+    | undefined
+    | null = data?.repository;
+
+  if (
+    repo &&
+    'viewerPermission' in repo &&
+    repo.viewerPermission &&
+    !writePermissions.has(repo.viewerPermission) &&
+    'forks' in repo
+  ) {
+    repo = repo.forks?.nodes?.[0] ?? repo;
+  }
+
+  const defaultBranchRef = repo?.refs?.nodes?.find(
+    (x): x is typeof x & { target: { __typename: 'Commit' } } =>
+      x?.name === repo?.defaultBranchRef?.name
+  );
+
+  const currentBranchRef = repo?.refs?.nodes?.find(
+    (x): x is typeof x & { target: { __typename: 'Commit' } } =>
+      x?.name === props.currentBranch
+  );
+
+  useEffect(() => {
+    if (repo?.refs?.nodes) {
+      garbageCollectGitObjects(
+        repo.refs.nodes
+          .map(x =>
+            x?.target?.__typename === 'Commit' ? x.target.tree.oid : undefined
+          )
+          .filter(isDefined)
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repo?.id]);
+
+  const defaultBranchTreeSha = defaultBranchRef?.target.tree.oid ?? null;
+  const currentBranchTreeSha = currentBranchRef?.target.tree.oid ?? null;
+
+  const defaultBranchTree = useGitHubTreeData(
+    defaultBranchTreeSha,
+    props.config
+  );
+  const currentBranchTree = useGitHubTreeData(
+    currentBranchTreeSha,
+    props.config
+  );
+
+  const allTreeData = useMemo(() => {
+    const scopedDefault = mapDataState(defaultBranchTree, tree =>
+      scopeEntriesWithPathPrefix(tree, props.config)
+    );
+    const scopedCurrent = mapDataState(currentBranchTree, tree =>
+      scopeEntriesWithPathPrefix(tree, props.config)
+    );
+    return {
+      unscopedDefault: currentBranchTree,
+      scoped: {
+        default: scopedDefault,
+        current: scopedCurrent,
+        merged: mergeDataStates({
+          default: scopedDefault,
+          current: scopedCurrent,
+        }),
+      },
+    };
+  }, [currentBranchTree, defaultBranchTree, props.config]);
+  const changedData = useMemo(() => {
+    if (allTreeData.scoped.merged.kind !== 'loaded') {
+      return {
+        collections: new Map<
+          string,
+          {
+            removed: Set<string>;
+            added: Set<string>;
+            changed: Set<string>;
+            totalCount: number;
+          }
+        >(),
+        singletons: new Set<string>(),
+      };
+    }
+    return getChangedData(props.config, allTreeData.scoped.merged.data);
+  }, [allTreeData, props.config]);
+
+  useEffect(() => {
+    if (error?.response?.status === 401) {
+      if (isGitHubConfig(props.config)) {
+        window.location.href = `/api${
+          router.basePath
+        }/github/login?from=${router.params
+          .map(encodeURIComponent)
+          .join('/')}`;
+      } else {
+        redirectToCloudAuth(
+          router.params.map(encodeURIComponent).join('/'),
+          props.config,
+          router.basePath
+        );
+      }
+    }
+    if (
+      !repo?.id &&
+      error?.graphQLErrors.some(
+        err =>
+          (err?.originalError as any)?.type === 'NOT_FOUND' ||
+          (err?.originalError as any)?.type === 'FORBIDDEN'
+      )
+    ) {
+      window.location.href = `/api${
+        router.basePath
+      }/github/repo-not-found?from=${router.params
+        .map(encodeURIComponent)
+        .join('/')}`;
+    }
+  }, [error, router, repo?.id, props.config]);
+  const branches = useMemo((): Map<string, BranchInfo> => {
+    return new Map<string, BranchInfo>(
+      repo?.refs?.nodes?.flatMap(x => {
+        if (x?.target?.__typename !== 'Commit') {
+          return [];
+        }
+        return [
+          [
+            x.name,
+            { id: x.id, commitSha: x.target.oid, treeSha: x.target.tree.oid },
+          ],
+        ];
+      })
+    );
+  }, [repo?.refs?.nodes]);
+
+  const hasWritePermission =
+    !!repo &&
+    (props.config.storage.kind === 'cloud' ||
+      ('viewerPermission' in repo &&
+        !!repo?.viewerPermission &&
+        writePermissions.has(repo.viewerPermission)));
+
+  const repoInfo = useMemo((): RepoInfo | null => {
+    if (!data?.repository || !repo?.defaultBranchRef?.name) return null;
+    return {
+      id: repo.id,
+      defaultBranch: repo.defaultBranchRef.name,
+      hasWritePermission,
+      isPrivate: repo.isPrivate,
+      name: repo.name,
+      owner: repo.owner.login,
+      upstream: {
+        name: repo.name,
+        owner: repo.owner.login,
+      },
+    };
+  }, [
+    data?.repository,
+    hasWritePermission,
+    repo?.defaultBranchRef?.name,
+    repo?.id,
+    repo?.isPrivate,
+    repo?.name,
+    repo?.owner.login,
+  ]);
+
+  return (
+    <AppShellErrorContext.Provider value={error}>
+      <CurrentBranchContext.Provider value={props.currentBranch}>
+        <BranchesContext.Provider value={branches}>
+          <RepoInfoContext.Provider value={repoInfo}>
+            <ChangedContext.Provider value={changedData}>
+              <TreeContext.Provider value={allTreeData}>
+                {props.config.storage.kind === 'cloud' ? (
+                  <CollabProvider config={props.config}>
+                    {props.children}
+                  </CollabProvider>
+                ) : (
+                  props.children
+                )}
+              </TreeContext.Provider>
+            </ChangedContext.Provider>
+          </RepoInfoContext.Provider>
+        </BranchesContext.Provider>
+      </CurrentBranchContext.Provider>
+    </AppShellErrorContext.Provider>
+  );
+}
+
+export const AppShellErrorContext = createContext<CombinedError | undefined>(
+  undefined
+);
+
+const CurrentBranchContext = createContext<string>('');
+
+export function useCurrentBranch() {
+  return useContext(CurrentBranchContext);
+}
+
+type BranchInfo = {
+  id: string;
+  commitSha: string;
+  treeSha: string;
+};
+
+const BranchesContext = createContext<Map<string, BranchInfo>>(new Map());
+
+export function useBranches() {
+  return useContext(BranchesContext);
+}
+
+type RepoInfo = {
+  id: string;
+  defaultBranch: string;
+  isPrivate: boolean;
+  owner: string;
+  name: string;
+  hasWritePermission: boolean;
+  upstream: {
+    owner: string;
+    name: string;
+  };
+};
+
+const RepoInfoContext = createContext<RepoInfo | null>(null);
+
+export function useRepoInfo() {
+  return useContext(RepoInfoContext);
+}
+
+export const ChangedContext = createContext<{
+  collections: Map<
+    string,
+    {
+      added: Set<string>;
+      removed: Set<string>;
+      changed: Set<string>;
+      totalCount: number;
+    }
+  >;
+  singletons: Set<string>;
+}>({ collections: new Map(), singletons: new Set() });
+
+type Filepath = string;
+
+export type TreeData = {
+  entries: Map<Filepath, TreeEntry>;
+  tree: Map<string, TreeNode>;
+};
+
+type AllTreeData = {
+  unscopedDefault: DataState<TreeData>;
+  scoped: {
+    current: DataState<TreeData>;
+    default: DataState<TreeData>;
+    merged: DataState<{
+      current: TreeData;
+      default: TreeData;
+    }>;
+  };
+};
+
+const TreeContext = createContext<AllTreeData>({
+  unscopedDefault: { kind: 'loading', promise: LOADING },
+  scoped: {
+    current: { kind: 'loading', promise: LOADING },
+    default: { kind: 'loading', promise: LOADING },
+    merged: { kind: 'loading', promise: LOADING },
+  },
+});
+
+export function useTree() {
+  return useContext(TreeContext).scoped;
+}
+
+export function useCurrentUnscopedTree() {
+  return useContext(TreeContext).unscopedDefault;
+}
+
+export function useChanged() {
+  return useContext(ChangedContext);
+}
+
+export function useBaseCommit() {
+  const branchInfo = useBranches();
+  const currentBranch = useCurrentBranch();
+  return branchInfo.get(currentBranch)?.commitSha ?? '';
+}
+
+export const Ref_base = gql`
+  fragment Ref_base on Ref {
+    id
+    name
+    target {
+      __typename
+      id
+      oid
+      ... on Commit {
+        tree {
+          id
+          oid
+        }
+      }
+    }
+  }
+` as import('../../../__generated__/ts-gql/Ref_base').type;
+
+const BaseRepo = gql`
+  fragment Repo_base on Repository {
+    id
+    isPrivate
+    owner {
+      id
+      login
+    }
+    name
+    defaultBranchRef {
+      id
+      name
+    }
+    refs(refPrefix: "refs/heads/", first: 100) {
+      nodes {
+        ...Ref_base
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+  ${Ref_base}
+` as import('../../../__generated__/ts-gql/Repo_base').type;
+
+export const CloudAppShellQuery = gql`
+  query CloudAppShell($name: String!, $owner: String!) {
+    repository(owner: $owner, name: $name) {
+      id
+      ...Repo_base
+    }
+  }
+  ${BaseRepo}
+` as import('../../../__generated__/ts-gql/CloudAppShell').type;
+
+const Repo_ghDirect = gql`
+  fragment Repo_ghDirect on Repository {
+    id
+    ...Repo_base
+    viewerPermission
+  }
+  ${BaseRepo}
+` as import('../../../__generated__/ts-gql/Repo_ghDirect').type;
+
+const Repo_primary = gql`
+  fragment Repo_primary on Repository {
+    id
+    ...Repo_ghDirect
+    forks(affiliations: [OWNER], first: 1) {
+      nodes {
+        ...Repo_ghDirect
+      }
+    }
+  }
+  ${Repo_ghDirect}
+` as import('../../../__generated__/ts-gql/Repo_primary').type;
+
+export const GitHubAppShellQuery = gql`
+  query GitHubAppShell($name: String!, $owner: String!) {
+    repository(owner: $owner, name: $name) {
+      id
+      ...Repo_primary
+    }
+    viewer {
+      ...SidebarFooter_viewer
+    }
+  }
+  ${Repo_primary}
+  ${SidebarFooter_viewer}
+` as import('../../../__generated__/ts-gql/GitHubAppShell').type;
+
+export type AppShellData = OperationData<typeof GitHubAppShellQuery>;
+
+const treeCache = new LRU<
+  string,
+  MaybePromise<{
+    entries: Map<Filepath, TreeEntry>;
+    tree: Map<string, TreeNode>;
+  }>
+>({
+  max: 40,
+});
+
+export async function hydrateTreeCacheWithEntries(entries: TreeEntry[]) {
+  const data = {
+    entries: new Map(entries.map(entry => [entry.path, entry])),
+    tree: treeEntriesToTreeNodes(entries),
+  };
+  const sha = await treeSha(data.tree);
+  treeCache.set(sha, data);
+  return data;
+}
+
+export function fetchGitHubTreeData(
+  sha: string,
+  config: Config,
+  basePath: string
+) {
+  const cached = treeCache.get(sha);
+  if (cached) return cached;
+  const cachedFromPersisted = getTreeFromPersistedCache(sha);
+  if (cachedFromPersisted && !(cachedFromPersisted instanceof Promise)) {
+    const entries = treeToEntries(cachedFromPersisted.children!);
+    const result = {
+      entries: new Map(entries.map(entry => [entry.path, entry])),
+      tree: cachedFromPersisted.children!,
+    };
+    treeCache.set(sha, result);
+    return result;
+  }
+  const promise = (async () => {
+    const cached = await cachedFromPersisted;
+    if (cached) {
+      const entries = treeToEntries(cached.children!);
+      const result = {
+        entries: new Map(entries.map(entry => [entry.path, entry])),
+        tree: cached.children!,
+      };
+      treeCache.set(sha, result);
+      return result;
+    }
+    const auth = await getAuth(config, basePath);
+    if (!auth) throw new Error('Not authorized');
+    const { tree }: { tree: (TreeEntry & { url: string; size?: number })[] } =
+      await fetch(
+        config.storage.kind === 'github'
+          ? `https://api.github.com/repos/${serializeRepoConfig(
+              config.storage.repo
+            )}/git/trees/${sha}?recursive=1`
+          : `${KEYSTATIC_CLOUD_API_URL}/v1/github/trees/${sha}`,
+        {
+          headers: {
+            Authorization: `Bearer ${auth.accessToken}`,
+            ...(config.storage.kind === 'cloud' ? KEYSTATIC_CLOUD_HEADERS : {}),
+          },
+        }
+      ).then(x => x.json());
+    const treeEntries = tree.map(({ url, size, ...rest }) => rest as TreeEntry);
+    await setTreeToPersistedCache(sha, treeEntriesToTreeNodes(treeEntries));
+    return hydrateTreeCacheWithEntries(treeEntries);
+  })();
+  treeCache.set(sha, promise);
+  return promise;
+}
+
+function useGitHubTreeData(sha: string | null, config: Config) {
+  const { basePath } = useRouter();
+  return useData(
+    useCallback(
+      () => (sha ? fetchGitHubTreeData(sha, config, basePath) : LOADING),
+      [sha, config, basePath]
+    )
+  );
+}
+
+function getChangedData(
+  config: Config,
+  trees: { current: TreeData; default: TreeData }
+) {
+  return {
+    collections: new Map(
+      Object.keys(config.collections ?? {}).map(collection => {
+        const currentBranch = new Map(
+          getEntriesInCollectionWithTreeKey(
+            config,
+            collection,
+            trees.current.tree
+          ).map(x => [x.slug, x.key])
+        );
+        const defaultBranch = new Map(
+          getEntriesInCollectionWithTreeKey(
+            config,
+            collection,
+            trees.default.tree
+          ).map(x => [x.slug, x.key])
+        );
+
+        const changed = new Set<string>();
+        const added = new Set<string>();
+        for (const [key, entry] of currentBranch) {
+          const defaultBranchEntry = defaultBranch.get(key);
+          if (defaultBranchEntry === undefined) {
+            added.add(key);
+            continue;
+          }
+          if (entry !== defaultBranchEntry) {
+            changed.add(key);
+          }
+        }
+        const removed = new Set(
+          [...defaultBranch.keys()].filter(key => !currentBranch.has(key))
+        );
+        return [
+          collection,
+          { removed, added, changed, totalCount: currentBranch.size },
+        ];
+      })
+    ),
+    singletons: new Set(
+      Object.keys(config.singletons ?? {}).filter(singleton => {
+        const singletonPath = getSingletonPath(config, singleton);
+        return (
+          getTreeNodeAtPath(trees.current.tree, singletonPath)?.entry.sha !==
+          getTreeNodeAtPath(trees.default.tree, singletonPath)?.entry.sha
+        );
+      })
+    ),
+  };
+}

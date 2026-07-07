@@ -1,0 +1,64 @@
+{
+  "name": "@drystack/astro",
+  "version": "5.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Thinkmill/keystatic/",
+    "directory": "packages/astro"
+  },
+  "type": "module",
+  "exports": {
+    "./ui": "./src/ui.tsx",
+    "./api": "./src/api.tsx",
+    ".": "./src/index.ts",
+    "./package.json": "./package.json",
+    "./internal/keystatic-api.js": "./internal/keystatic-api.js",
+    "./internal/keystatic-astro-page.astro": "./internal/keystatic-astro-page.astro"
+  },
+  "keywords": [
+    "astro-integration"
+  ],
+  "files": [
+    "dist",
+    "internal"
+  ],
+  "scripts": {
+    "setup": "ts-gql build && tsx scripts/l10n.ts",
+    "build": "pnpm run setup && next build",
+    "dev": "next dev",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.18.3",
+    "@types/react": "^19.0.8",
+    "set-cookie-parser": "^2.5.1"
+  },
+  "devDependencies": {
+    "@drystack/core": "workspace:^",
+    "@types/set-cookie-parser": "^2.4.2",
+    "astro": "^7.0.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@types/node": "^26.1.0"
+  },
+  "peerDependencies": {
+    "@drystack/core": "*",
+    "astro": "2 || 3 || 4 || 5 || 6 || 7",
+    "react": "^18.2.0 || ^19.0.0",
+    "react-dom": "^18.2.0 || ^19.0.0"
+  },
+  "preconstruct": {
+    "entrypoints": [
+      "ui.tsx",
+      "api.tsx",
+      "index.ts"
+    ],
+    "exports": {
+      "extra": {
+        "./internal/keystatic-api.js": "./internal/keystatic-api.js",
+        "./internal/keystatic-astro-page.astro": "./internal/keystatic-astro-page.astro"
+      }
+    }
+  }
+}
