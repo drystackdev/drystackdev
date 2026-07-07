@@ -1,5 +1,9 @@
 ---
+import { createReader } from '@drystack/core/reader';
+import config from '../../keystatic.config';
 
+const reader = createReader(process.cwd(), config);
+const demo = await reader.singletons.demo.read();
 ---
 
 <html lang="en">
@@ -12,6 +16,7 @@
 		<title>Astro</title>
 	</head>
 	<body>
-		<h1>Astro</h1>
+		<h1>{demo?.heading ?? 'Astro'}</h1>
+		{demo?.description && <p>{demo.description}</p>}
 	</body>
 </html>

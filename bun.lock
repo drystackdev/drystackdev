@@ -41,7 +41,7 @@
         "react-dom": "^18.2.0 || ^19.0.0",
       },
     },
-    "packages/keystatic": {
+    "packages/drystack": {
       "name": "@drystack/core",
       "version": "0.5.50",
       "dependencies": {
@@ -314,7 +314,7 @@
 
     "@drystack/astro": ["@drystack/astro@workspace:packages/astro"],
 
-    "@drystack/core": ["@drystack/core@workspace:packages/keystatic"],
+    "@drystack/core": ["@drystack/core@workspace:packages/drystack"],
 
     "@emnapi/core": ["@emnapi/core@1.11.1", "", { "dependencies": { "@emnapi/wasi-threads": "1.2.2", "tslib": "^2.4.0" } }, "sha512-RSvbQmHzdKzNsLYa/wHrbc3KN4sYLKAdPZxqiM2HATqv/SBk2/ENSHpvXGaLOMcsAyz0poEGqkmmKYG3OWiJEQ=="],
 

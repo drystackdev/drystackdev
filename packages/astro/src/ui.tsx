@@ -1,5 +1,5 @@
 import React from 'react';
-import { Config } from '@drystack/core';
+import type { Config } from '@drystack/core';
 import { Keystatic as GenericKeystatic } from '@drystack/core/ui';
 
 const appSlug = {

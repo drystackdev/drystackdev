@@ -1,18 +1,23 @@
-import { config, collection, fields } from '@drystack/core';
+import { config, fields, singleton } from '@drystack/core';
 
 export default config({
   storage: {
     kind: 'local',
   },
-  collections: {
-    posts: collection({
-      label: 'Posts',
-      slugField: 'title',
-      path: 'src/content/posts/*',
-      format: { contentField: 'content' },
+  singletons: {
+    demo: singleton({
+      label: 'Demo',
       schema: {
-        title: fields.slug({ name: { label: 'Title' } }),
-        content: fields.markdoc({ label: 'Content' }),
+        heading: fields.text({
+          label: 'Heading',
+          defaultValue: 'Hello from Drystack',
+        }),
+        description: fields.text({
+          label: 'Description',
+          multiline: true,
+          defaultValue:
+            'Edit this content in the Keystatic admin UI at /drystack.',
+        }),
       },
     }),
   },

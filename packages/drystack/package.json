@@ -5,7 +5,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/Thinkmill/keystatic/",
-    "directory": "packages/keystatic"
+    "directory": "packages/drystack"
   },
   "type": "module",
   "exports": {

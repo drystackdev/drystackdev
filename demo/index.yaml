@@ -1,0 +1,4 @@
+heading: Hello from Drystack
+description: |-
+  This content is managed by the "demo" singleton config. Edit it in the
+  Keystatic admin UI at /drystack.
