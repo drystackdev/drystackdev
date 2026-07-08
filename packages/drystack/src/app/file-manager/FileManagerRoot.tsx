@@ -554,7 +554,7 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
         onOpen: () =>
           setEntriesNav({
             step: "dir",
-            rootDir: `${getCollectionItemPath(config, entriesNav.key, entry.slug)}`,
+            rootDir: `${getCollectionItemPath(config, entriesNav.key, entry.slug)}/assets`,
             subPath: "",
             label: entry.slug,
             parent: {
