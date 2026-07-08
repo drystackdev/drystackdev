@@ -146,9 +146,6 @@ function MediaLibraryAssetButton(props: {
                 repoInfo,
                 basePath,
               );
-        if (props.source === "library") {
-          libraryBytesCache.set(filenameOf(asset.path), content);
-        }
         props.onPick({
           path: `/${asset.path}`,
           filename: filenameOf(asset.path),

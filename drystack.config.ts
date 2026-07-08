@@ -28,6 +28,8 @@ export default config({
     posts: collection({
       label: "Posts",
       slugField: "title",
+      entryLayout: "content",
+      columns: ['title', 'cover'],
       schema: {
         title: fields.slug({ name: { label: "Title" } }),
         description: fields.text({ label: "Description", validation: {} }),
