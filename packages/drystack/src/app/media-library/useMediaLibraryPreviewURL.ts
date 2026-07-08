@@ -5,7 +5,13 @@ import { useRouter } from '../router';
 import { fetchBlob } from '../useItemData';
 import { getTreeNodeAtPath } from '../trees';
 
-export function useMediaLibraryPreviewURL(path: string | null) {
+// `sessionContent` lets a caller that already has the bytes in hand (e.g. a
+// file just uploaded/picked this session, not yet reflected in the tree)
+// skip the tree/sha lookup entirely and preview them immediately.
+export function useMediaLibraryPreviewURL(
+  path: string | null,
+  sessionContent?: Uint8Array | null
+) {
   const config = useConfig();
   const baseCommit = useBaseCommit();
   const repoInfo = useRepoInfo();
@@ -20,6 +26,11 @@ export function useMediaLibraryPreviewURL(path: string | null) {
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
 
   useEffect(() => {
+    if (sessionContent) {
+      const createdUrl = URL.createObjectURL(new Blob([sessionContent]));
+      setObjectUrl(createdUrl);
+      return () => URL.revokeObjectURL(createdUrl);
+    }
     if (!relativePath || !sha) {
       setObjectUrl(null);
       return;
@@ -38,7 +49,7 @@ export function useMediaLibraryPreviewURL(path: string | null) {
       if (createdUrl) URL.revokeObjectURL(createdUrl);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [relativePath, sha, basePath]);
+  }, [relativePath, sha, basePath, sessionContent]);
 
   return objectUrl;
 }

@@ -20,6 +20,10 @@ export type AssetListItemProps = {
   kind: "folder" | "file";
   path?: string;
   isImage?: boolean;
+  // bytes for a file uploaded/picked this session, not yet in the tree —
+  // lets the thumbnail render immediately instead of waiting on a tree
+  // refresh (see useMediaLibraryPreviewURL)
+  previewContent?: Uint8Array;
   childCount?: number;
   size?: number | null;
   selectable?: boolean;
@@ -34,6 +38,7 @@ export type AssetListItemProps = {
 export function AssetListItem(props: AssetListItemProps) {
   const previewUrl = useMediaLibraryPreviewURL(
     props.kind === "file" && props.isImage && props.path ? props.path : null,
+    props.previewContent,
   );
 
   const infoText =

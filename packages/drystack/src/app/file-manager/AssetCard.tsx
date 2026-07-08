@@ -20,6 +20,10 @@ export type AssetCardProps = {
   // real tree path — only required when selectable/deletable
   path?: string;
   isImage?: boolean;
+  // bytes for a file uploaded/picked this session, not yet in the tree —
+  // lets the thumbnail render immediately instead of waiting on a tree
+  // refresh (see useMediaLibraryPreviewURL)
+  previewContent?: Uint8Array;
   childCount?: number;
   size?: number | null;
   selectable?: boolean;
@@ -46,6 +50,7 @@ const overlayButtonStyle = {
 export function AssetCard(props: AssetCardProps) {
   const previewUrl = useMediaLibraryPreviewURL(
     props.kind === "file" && props.isImage && props.path ? props.path : null,
+    props.previewContent,
   );
   const [isHovered, setIsHovered] = useState(false);
 

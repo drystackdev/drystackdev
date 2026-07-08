@@ -244,6 +244,7 @@ function ImageDialog(props: {
     title: string;
     width?: number | null;
     height?: number | null;
+    lockAspectRatio?: boolean;
   }) => void;
 }) {
   const schema = useEditorSchema();
@@ -266,6 +267,9 @@ function ImageDialog(props: {
 
   const [width, setWidth] = useState(props.width);
   const [height, setHeight] = useState(props.height);
+  const [lockAspectRatio, setLockAspectRatio] = useState(
+    props.lockAspectRatio
+  );
   // measures the underlying image's natural size so the width/height fields
   // can keep it locked even before either field has ever been committed
   const objectUrl = useImageObjectUrl(props.node);
@@ -279,14 +283,14 @@ function ImageDialog(props: {
     const w = Math.round(value);
     setWidth(w);
     const ratio = ratioForField();
-    if (props.lockAspectRatio && ratio) setHeight(Math.round(w / ratio));
+    if (lockAspectRatio && ratio) setHeight(Math.round(w / ratio));
   };
   const onHeightField = (value: number) => {
     if (!Number.isFinite(value) || value <= 0) return;
     const h = Math.round(value);
     setHeight(h);
     const ratio = ratioForField();
-    if (props.lockAspectRatio && ratio) setWidth(Math.round(h * ratio));
+    if (lockAspectRatio && ratio) setWidth(Math.round(h * ratio));
   };
 
   let { dismiss } = useDialogContainer();
@@ -309,7 +313,9 @@ function ImageDialog(props: {
               alt: state.alt,
               title: state.title,
               filename: [fileName, filenameExtension].join('.'),
-              ...(props.showLayoutFields ? { width, height } : {}),
+              ...(props.showLayoutFields
+                ? { width, height, lockAspectRatio }
+                : {}),
             });
           }
         }}
@@ -341,7 +347,7 @@ function ImageDialog(props: {
               }
             />
             {props.showLayoutFields && (
-              <Flex gap="regular">
+              <Flex gap="regular" alignItems="end">
                 <NumberField
                   label="Width (px)"
                   minValue={MIN_SIZE}
@@ -358,6 +364,17 @@ function ImageDialog(props: {
                   value={height ?? undefined}
                   onChange={onHeightField}
                 />
+                <TooltipTrigger>
+                  <ToggleButton
+                    prominence="low"
+                    isSelected={lockAspectRatio}
+                    aria-label="Lock aspect ratio"
+                    onPress={() => setLockAspectRatio(v => !v)}
+                  >
+                    <Icon src={lockAspectRatio ? link2Icon : link2OffIcon} />
+                  </ToggleButton>
+                  <Tooltip>Lock aspect ratio</Tooltip>
+                </TooltipTrigger>
               </Flex>
             )}
             <FormValueContentFromPreviewProps

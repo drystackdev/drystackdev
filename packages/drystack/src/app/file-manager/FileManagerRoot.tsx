@@ -373,6 +373,7 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
         kind: isFolder ? "folder" : "file",
         path: child.path,
         isImage: !isFolder && isImagePath(child.path),
+        previewContent: sessionUploads.get(child.path),
         childCount: child.childCount,
         size: child.size,
         disabled,
