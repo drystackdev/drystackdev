@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ActionButton } from '@keystar/ui/button';
 import { Checkbox } from '@keystar/ui/checkbox';
 import { Icon } from '@keystar/ui/icon';
@@ -44,32 +45,58 @@ export type AssetCardProps = {
   disabled?: boolean;
 };
 
+// translucent circular chrome so delete/restore icons stay legible over any
+// thumbnail (light or dark image) instead of relying on ActionButton's
+// default (transparent until hovered) styling
+const overlayButtonStyle = {
+  backgroundColor: 'rgba(0, 0, 0, 0.55)',
+  color: '#fff',
+  borderRadius: 999,
+} as const;
+
 export function AssetCard(props: AssetCardProps) {
   const previewUrl = useMediaLibraryPreviewURL(
     props.kind === 'file' && props.isImage && props.path ? props.path : null
   );
+  const [isHovered, setIsHovered] = useState(false);
+
+  const infoText =
+    props.kind === 'folder'
+      ? `${props.childCount ?? 0} item${props.childCount === 1 ? '' : 's'}`
+      : props.size != null
+        ? formatBytes(props.size)
+        : '—';
+  // truncated filename gets an ellipsis — surface the full name + size as a
+  // native tooltip so it's still discoverable on hover
+  const fullLabel = `${props.name} — ${infoText}`;
 
   return (
     <Flex
       direction="column"
       gap="small"
+      backgroundColor="canvas"
+      border="neutral"
+      borderRadius="regular"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       UNSAFE_style={{
         width: 150,
+        padding: 8,
         position: 'relative',
         opacity: props.disabled ? 0.45 : undefined,
       }}
     >
-      {!props.disabled && (props.onDelete || props.onRestore) && (
+      {!props.disabled && isHovered && (props.onDelete || props.onRestore) && (
         <Flex
           gap="small"
-          UNSAFE_style={{ position: 'absolute', top: 4, right: 4, zIndex: 1 }}
+          UNSAFE_style={{ position: 'absolute', top: 12, right: 12, zIndex: 1 }}
         >
           {props.onRestore && (
             <TooltipTrigger>
               <ActionButton
-                prominence="low"
                 aria-label="Restore"
                 onPress={props.onRestore}
+                UNSAFE_style={overlayButtonStyle}
               >
                 <Icon src={rotateCcwIcon} />
               </ActionButton>
@@ -79,9 +106,9 @@ export function AssetCard(props: AssetCardProps) {
           {props.onDelete && (
             <TooltipTrigger>
               <ActionButton
-                prominence="low"
                 aria-label="Delete"
                 onPress={props.onDelete}
+                UNSAFE_style={overlayButtonStyle}
               >
                 <Icon src={trash2Icon} />
               </ActionButton>
@@ -101,8 +128,6 @@ export function AssetCard(props: AssetCardProps) {
         <Flex
           alignItems="center"
           justifyContent="center"
-          backgroundColor="canvas"
-          border="neutral"
           borderRadius="regular"
           UNSAFE_style={{ width: '100%', height: 110, overflow: 'hidden' }}
         >
@@ -139,24 +164,30 @@ export function AssetCard(props: AssetCardProps) {
             onChange={props.onToggleSelect}
           />
         )}
-        <Flex direction="column" UNSAFE_style={{ minWidth: 0, flex: 1 }}>
+        <Flex
+          direction="column"
+          gap="small"
+          title={fullLabel}
+          onClick={
+            !props.disabled && props.selectable ? props.onToggleSelect : undefined
+          }
+          UNSAFE_style={{
+            minWidth: 0,
+            flex: 1,
+            cursor: !props.disabled && props.selectable ? 'pointer' : undefined,
+          }}
+        >
           <Text
-            size="small"
             UNSAFE_style={{
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
+              lineHeight: '1.5rem',
             }}
           >
             {props.name}
           </Text>
-          <Text size="small" color="neutralTertiary" UNSAFE_style={{ opacity: 0.7 }}>
-            {props.kind === 'folder'
-              ? `${props.childCount ?? 0} item${props.childCount === 1 ? '' : 's'}`
-              : props.size != null
-                ? formatBytes(props.size)
-                : '—'}
-          </Text>
+          <Text color="neutralSecondary">{infoText}</Text>
         </Flex>
       </Flex>
     </Flex>

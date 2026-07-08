@@ -44,6 +44,8 @@ export type TreeEntry = {
   mode: string;
   type: string;
   sha: string;
+  // byte size — only meaningful for blobs
+  size?: number;
 };
 
 type TreeChanges = Map<string, NodeChanges>;
@@ -162,7 +164,7 @@ async function createBlobNodeEntry(
   contents: Uint8Array | { byteLength: number; sha: string }
 ): Promise<TreeEntry> {
   const sha = 'sha' in contents ? contents.sha : await blobSha(contents);
-  return { path, mode: '100644', type: 'blob', sha };
+  return { path, mode: '100644', type: 'blob', sha, size: contents.byteLength };
 }
 
 export async function updateTreeWithChanges(

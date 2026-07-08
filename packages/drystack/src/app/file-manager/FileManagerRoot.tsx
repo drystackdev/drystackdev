@@ -1,5 +1,4 @@
 import { ReactNode, useState } from 'react';
-import { base64Encode } from '#base64';
 import { ActionButton, Button } from '@keystar/ui/button';
 import { AlertDialog, DialogContainer } from '@keystar/ui/dialog';
 import { FileTrigger } from '@keystar/ui/drag-and-drop';
@@ -12,13 +11,7 @@ import { Item, TabList, TabPanels, Tabs } from '@keystar/ui/tabs';
 import { Text } from '@keystar/ui/typography';
 
 import { useConfig } from '../shell/context';
-import {
-  hydrateTreeCacheWithEntries,
-  useBaseCommit,
-  useRepoInfo,
-  useSetTreeSha,
-  useTree,
-} from '../shell/data';
+import { useBaseCommit, useRepoInfo, useSetTreeSha, useTree } from '../shell/data';
 import { useRouter } from '../router';
 import { fetchBlob } from '../useItemData';
 import { getTreeNodeAtPath, treeSha } from '../trees';
@@ -27,18 +20,18 @@ import { getEntriesInCollectionWithTreeKey } from '../utils';
 import { MediaLibraryLocalScope, MediaLibraryPick } from '../media-library/bridge';
 
 import { MEDIA_LIBRARY_DIRECTORY, TRASH_DIRECTORY } from './constants';
+import { isImagePath } from './file-kind';
 import { AssetGrid, AssetGridItem } from './AssetGrid';
 import { FileManagerBreadcrumbs } from './FileManagerBreadcrumbs';
 import { useDirectoryChildren } from './useDirectoryChildren';
 import { useSearchResults } from './useSearch';
 import { useFileManagerUpload } from './useFileManagerUpload';
 import { UploadConflictDialog } from './UploadConflictDialog';
-import { AssetPreviewDialog } from './AssetPreviewDialog';
+import { AssetPreviewOverlay } from './AssetPreviewOverlay';
 import {
   descendantBlobPaths,
   useTrash,
 } from './useTrash';
-import { useMediaLibraryPreviewURL } from '../media-library/useMediaLibraryPreviewURL';
 
 export type FileManagerMode =
   | {
@@ -50,11 +43,6 @@ export type FileManagerMode =
     }
   | { kind: 'page' };
 
-const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif']);
-function isImagePath(path: string) {
-  const ext = path.split('.').pop()?.toLowerCase();
-  return !!ext && IMAGE_EXTENSIONS.has(ext);
-}
 function joinDir(root: string, subPath: string) {
   return subPath ? `${root}/${subPath}` : root;
 }
@@ -62,7 +50,15 @@ function joinDir(root: string, subPath: string) {
 type EntriesNav =
   | { step: 'root' }
   | { step: 'collection'; key: string; label: string }
-  | { step: 'dir'; rootDir: string; subPath: string; label: string };
+  | {
+      step: 'dir';
+      rootDir: string;
+      subPath: string;
+      label: string;
+      // where "back" should return to — a collection's entry list, or
+      // straight to the Entries root (singletons have no entry list)
+      parent: { kind: 'root' } | { kind: 'collection'; key: string; label: string };
+    };
 
 // the real directory currently on screen, plus a bytes-fetching helper — used
 // by both the "Library"/"Trash" tabs (fixed root) and the "Entries" tab (root
@@ -91,7 +87,6 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
   const { readBytes, tree } = useAssetActions();
   const { trashPaths, restorePaths, permanentlyDelete } = useTrash();
   const upload = useFileManagerUpload();
-  const { basePath } = useRouter();
 
   const hasLocalTab = mode.kind === 'picker' && !!mode.local;
   const defaultTab = mode.kind === 'picker' && mode.local ? 'local' : 'library';
@@ -105,6 +100,8 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [previewPath, setPreviewPath] = useState<string | null>(null);
+  const [previewSiblings, setPreviewSiblings] = useState<string[]>([]);
+  const [previewCanDelete, setPreviewCanDelete] = useState(false);
   const [confirmAction, setConfirmAction] = useState<
     | { kind: 'trash' | 'permanent' | 'restore'; paths: string[]; label: string }
     | null
@@ -245,28 +242,12 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
     } else if (kind === 'trash') {
       const result = await trashPaths(expandFolders(paths));
       await afterMutation(result);
+      if (previewPath && paths.includes(previewPath)) setPreviewPath(null);
     } else {
       const result = await restorePaths(expandFolders(paths));
       await afterMutation(result);
     }
     setSelected(new Set());
-  }
-
-  const previewObjectUrl = useMediaLibraryPreviewURL(previewPath);
-
-  async function overwriteFile(path: string, content: Uint8Array) {
-    const res = await fetch(`/api${basePath}/update`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'no-cors': '1' },
-      body: JSON.stringify({
-        additions: [{ path, contents: base64Encode(content) }],
-        deletions: [],
-      }),
-    });
-    if (!res.ok) throw new Error(await res.text());
-    const newTree = await res.json();
-    const result = await hydrateTreeCacheWithEntries(newTree);
-    await afterMutation(result);
   }
 
   function crumbsFor(rootLabel: string, subPath: string, onRoot: () => void, onSub: (p: string) => void) {
@@ -287,6 +268,10 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
     setSubPath: (p: string) => void;
     canDelete: boolean;
     canRestore: boolean;
+    // ancestor crumbs (e.g. "Entries > My Collection") shown before this
+    // directory's own root — lets a nested view like a collection entry's
+    // assets folder navigate back up past its own root
+    extraCrumbs?: { key: string; label: string; onNavigate: () => void }[];
   }) {
     // scoped to *this* tab's own root — deliberately not the shared
     // `currentDir`/`activeDirChildren` above, which only reflect whichever
@@ -307,17 +292,32 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
               !p.slice(dir.length + 1).includes('/') &&
               !dirChildren.some(c => c.path === p)
           )
-          .map(p => ({ path: p, type: 'blob' as const, name: p.split('/').pop()! }))
+          .map(p => ({
+            path: p,
+            type: 'blob' as const,
+            name: p.split('/').pop()!,
+            size: sessionUploads.get(p)?.byteLength,
+          }))
       : [];
 
-    const rows: { path: string; name: string; type: 'blob' | 'tree'; childCount?: number }[] =
-      searchResults
-        ? searchResults.map(e => ({
-            path: e.path,
-            type: 'blob' as const,
-            name: e.path.split('/').pop()!,
-          }))
-        : [...dirChildren, ...sessionRows];
+    const rows: {
+      path: string;
+      name: string;
+      type: 'blob' | 'tree';
+      childCount?: number;
+      size?: number;
+    }[] = searchResults
+      ? searchResults.map(e => ({
+          path: e.path,
+          type: 'blob' as const,
+          name: e.path.split('/').pop()!,
+          size: e.size,
+        }))
+      : [...dirChildren, ...sessionRows];
+
+    const imagePaths = rows
+      .filter(r => r.type === 'blob' && isImagePath(r.path))
+      .map(r => r.path);
 
     const items: AssetGridItem[] = rows.map(child => {
       const disabled = child.type === 'blob' && !isSelectableFile(child.path);
@@ -329,7 +329,7 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
         path: child.path,
         isImage: !isFolder && isImagePath(child.path),
         childCount: child.childCount,
-        size: undefined,
+        size: child.size,
         disabled,
         selectable:
           !disabled &&
@@ -354,6 +354,10 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
           }
           if (mode.kind === 'page') {
             setPreviewPath(child.path);
+            setPreviewSiblings(
+              isImagePath(child.path) ? imagePaths : [child.path]
+            );
+            setPreviewCanDelete(options.canDelete);
           } else if (mode.selection === 'multi') {
             toggleSelect(child.path);
           } else {
@@ -363,12 +367,15 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
       };
     });
 
-    const crumbs = crumbsFor(
-      options.rootLabel,
-      options.subPath,
-      () => options.setSubPath(''),
-      p => options.setSubPath(p)
-    );
+    const crumbs = [
+      ...(options.extraCrumbs ?? []),
+      ...crumbsFor(
+        options.rootLabel,
+        options.subPath,
+        () => options.setSubPath(''),
+        p => options.setSubPath(p)
+      ),
+    ];
 
     return (
       <Flex direction="column" gap="large">
@@ -382,6 +389,23 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
         <AssetGrid items={items} />
       </Flex>
     );
+  }
+
+  function entriesBackCrumbs(
+    parent: { kind: 'root' } | { kind: 'collection'; key: string; label: string }
+  ) {
+    const crumbs = [
+      { key: 'entries', label: 'Entries', onNavigate: () => setEntriesNav({ step: 'root' }) },
+    ];
+    if (parent.kind === 'collection') {
+      crumbs.push({
+        key: 'collection',
+        label: parent.label,
+        onNavigate: () =>
+          setEntriesNav({ step: 'collection', key: parent.key, label: parent.label }),
+      });
+    }
+    return crumbs;
   }
 
   function renderEntriesTab() {
@@ -403,6 +427,7 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
       },
       canDelete: true,
       canRestore: false,
+      extraCrumbs: entriesNav.step === 'dir' ? entriesBackCrumbs(entriesNav.parent) : undefined,
     });
 
     if (entriesNav.step === 'root') {
@@ -430,14 +455,16 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
               rootDir: `${getSingletonPath(config, key)}/assets`,
               subPath: '',
               label: config.singletons![key].label,
+              parent: { kind: 'root' },
             }),
         })),
       ];
       return (
         <Flex direction="column" gap="large">
-          <Text color="neutralTertiary">
-            Choose a collection or singleton to browse its assets.
-          </Text>
+          <FileManagerBreadcrumbs
+            crumbs={[{ key: 'entries', label: 'Entries' }]}
+            onNavigate={() => {}}
+          />
           <AssetGrid items={items} emptyMessage="No collections or singletons configured." />
         </Flex>
       );
@@ -457,6 +484,7 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
             rootDir: `${getCollectionItemPath(config, entriesNav.key, entry.slug)}/assets`,
             subPath: '',
             label: entry.slug,
+            parent: { kind: 'collection', key: entriesNav.key, label: entriesNav.label },
           }),
       }));
       return (
@@ -478,7 +506,7 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
     return dirContent;
   }
 
-  const canUpload = currentDir !== null;
+  const canUpload = currentDir !== null && tab !== 'trash';
 
   // built as a plain array (rather than conditionally including <Item>
   // elements with `&&`) so every Item is unconditional — react-stately's
@@ -539,86 +567,85 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
           setSearch('');
         }}
       >
-        <TabList>
-          {tabs.map(t => (
-            <Item key={t.key}>{t.label}</Item>
-          ))}
-        </TabList>
+        <Flex alignItems="center" justifyContent="space-between" gap="regular">
+          <TabList>
+            {tabs.map(t => (
+              <Item key={t.key}>{t.label}</Item>
+            ))}
+          </TabList>
+          <Flex alignItems="center" gap="regular" wrap>
+            <SearchField
+              aria-label="Search files"
+              placeholder="Search by name…"
+              value={search}
+              onChange={setSearch}
+              width="scale.2400"
+            />
+            {selected.size > 0 && (
+              <>
+                <Text size="small">{selected.size} selected</Text>
+                {tab === 'trash' ? (
+                  <>
+                    <Button
+                      onPress={() =>
+                        requestRestore([...selected], `${selected.size} items`)
+                      }
+                    >
+                      Restore
+                    </Button>
+                    <Button
+                      tone="critical"
+                      onPress={() =>
+                        requestPermanentDelete(
+                          [...selected],
+                          `${selected.size} items`
+                        )
+                      }
+                    >
+                      Delete forever
+                    </Button>
+                  </>
+                ) : mode.kind === 'page' ? (
+                  <Button
+                    tone="critical"
+                    onPress={() => requestDelete([...selected], `${selected.size} items`)}
+                  >
+                    <Icon src={trash2Icon} />
+                    <Text>Delete</Text>
+                  </Button>
+                ) : (
+                  <Button prominence="high" onPress={pickSelected}>
+                    Use {selected.size} file{selected.size === 1 ? '' : 's'}
+                  </Button>
+                )}
+              </>
+            )}
+            {canUpload && (
+              <FileTrigger
+                allowsMultiple
+                acceptedFileTypes={
+                  mode.kind === 'picker' && mode.accept === 'image'
+                    ? ['image/*']
+                    : undefined
+                }
+                onSelect={files => {
+                  if (files) handleUpload(files);
+                }}
+              >
+                <ActionButton isDisabled={upload.isUploading}>
+                  <Icon src={fileUpIcon} />
+                  <Text>{upload.isUploading ? 'Uploading…' : 'Upload'}</Text>
+                </ActionButton>
+              </FileTrigger>
+            )}
+          </Flex>
+        </Flex>
         <TabPanels>
           {tabs.map(t => (
             <Item key={t.key}>{t.content}</Item>
           ))}
         </TabPanels>
       </Tabs>
-
-      <Flex gap="regular" alignItems="center" justifyContent="space-between">
-        <SearchField
-          aria-label="Search files"
-          placeholder="Search by name…"
-          value={search}
-          onChange={setSearch}
-          width="scale.2400"
-        />
-        <Flex gap="regular" alignItems="center">
-          {selected.size > 0 && (
-            <>
-              <Text size="small">{selected.size} selected</Text>
-              {tab === 'trash' ? (
-                <>
-                  <Button
-                    onPress={() =>
-                      requestRestore([...selected], `${selected.size} items`)
-                    }
-                  >
-                    Restore
-                  </Button>
-                  <Button
-                    tone="critical"
-                    onPress={() =>
-                      requestPermanentDelete(
-                        [...selected],
-                        `${selected.size} items`
-                      )
-                    }
-                  >
-                    Delete forever
-                  </Button>
-                </>
-              ) : mode.kind === 'page' ? (
-                <Button
-                  tone="critical"
-                  onPress={() => requestDelete([...selected], `${selected.size} items`)}
-                >
-                  <Icon src={trash2Icon} />
-                  <Text>Delete</Text>
-                </Button>
-              ) : (
-                <Button prominence="high" onPress={pickSelected}>
-                  Use {selected.size} file{selected.size === 1 ? '' : 's'}
-                </Button>
-              )}
-            </>
-          )}
-          {canUpload && (
-            <FileTrigger
-              allowsMultiple
-              acceptedFileTypes={
-                mode.kind === 'picker' && mode.accept === 'image'
-                  ? ['image/*']
-                  : undefined
-              }
-              onSelect={files => {
-                if (files) handleUpload(files);
-              }}
-            >
-              <ActionButton isDisabled={upload.isUploading}>
-                <Icon src={fileUpIcon} />
-                <Text>{upload.isUploading ? 'Uploading…' : 'Upload'}</Text>
-              </ActionButton>
-            </FileTrigger>
-          )}
-        </Flex>
-      </Flex>
 
       <DialogContainer onDismiss={upload.abortUpload}>
         {upload.pendingConflict && (
@@ -632,15 +659,19 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
         )}
       </DialogContainer>
 
-      <DialogContainer onDismiss={() => setPreviewPath(null)}>
-        {previewPath && previewObjectUrl && (
-          <AssetPreviewDialog
-            filename={previewPath.split('/').pop()!}
-            objectUrl={previewObjectUrl}
-            onSave={content => overwriteFile(previewPath, content)}
-          />
-        )}
-      </DialogContainer>
+      {previewPath && (
+        <AssetPreviewOverlay
+          path={previewPath}
+          siblings={previewSiblings}
+          onNavigate={setPreviewPath}
+          onDelete={
+            previewCanDelete
+              ? () => requestDelete([previewPath], previewPath.split('/').pop()!)
+              : undefined
+          }
+          onClose={() => setPreviewPath(null)}
+        />
+      )}
 
       <DialogContainer onDismiss={() => setConfirmAction(null)}>
         {confirmAction && (

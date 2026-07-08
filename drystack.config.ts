@@ -4,7 +4,6 @@ export default config({
   storage: {
     kind: "local",
   },
-  locale: "vi-VN",
   singletons: {
     demo: singleton({
       label: "Demo",
@@ -29,7 +28,7 @@ export default config({
       label: "Posts",
       slugField: "title",
       entryLayout: "content",
-      columns: ['title', 'cover'],
+      columns: ["title", "cover"],
       schema: {
         title: fields.slug({ name: { label: "Title" } }),
         description: fields.text({ label: "Description", validation: {} }),

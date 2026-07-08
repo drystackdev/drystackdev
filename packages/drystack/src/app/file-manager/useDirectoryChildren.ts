@@ -9,6 +9,8 @@ export type DirectoryChild = {
   sha: string;
   // direct child count, only meaningful for `type: 'tree'`
   childCount?: number;
+  // byte size, only meaningful for `type: 'blob'`
+  size?: number;
 };
 
 function childrenOf(path: string, root: Map<string, TreeNode>) {
@@ -31,6 +33,7 @@ export function useDirectoryChildren(path: string): DirectoryChild[] {
         type: node.entry.type as 'blob' | 'tree',
         sha: node.entry.sha,
         childCount: node.children?.size,
+        size: node.entry.size,
       }))
       .sort((a, b) => {
         if (a.type !== b.type) return a.type === 'tree' ? -1 : 1;

@@ -712,21 +712,20 @@ export function fetchGitHubTreeData(
     }
     const auth = await getAuth(config, basePath);
     if (!auth) throw new Error('Not authorized');
-    const { tree }: { tree: (TreeEntry & { url: string; size?: number })[] } =
-      await fetch(
-        config.storage.kind === 'github'
-          ? `https://api.github.com/repos/${serializeRepoConfig(
-              config.storage.repo
-            )}/git/trees/${sha}?recursive=1`
-          : `${KEYSTATIC_CLOUD_API_URL}/v1/github/trees/${sha}`,
-        {
-          headers: {
-            Authorization: `Bearer ${auth.accessToken}`,
-            ...(config.storage.kind === 'cloud' ? KEYSTATIC_CLOUD_HEADERS : {}),
-          },
-        }
-      ).then(x => x.json());
-    const treeEntries = tree.map(({ url, size, ...rest }) => rest as TreeEntry);
+    const { tree }: { tree: (TreeEntry & { url: string })[] } = await fetch(
+      config.storage.kind === 'github'
+        ? `https://api.github.com/repos/${serializeRepoConfig(
+            config.storage.repo
+          )}/git/trees/${sha}?recursive=1`
+        : `${KEYSTATIC_CLOUD_API_URL}/v1/github/trees/${sha}`,
+      {
+        headers: {
+          Authorization: `Bearer ${auth.accessToken}`,
+          ...(config.storage.kind === 'cloud' ? KEYSTATIC_CLOUD_HEADERS : {}),
+        },
+      }
+    ).then(x => x.json());
+    const treeEntries = tree.map(({ url, ...rest }) => rest as TreeEntry);
     await setTreeToPersistedCache(sha, treeEntriesToTreeNodes(treeEntries));
     return hydrateTreeCacheWithEntries(treeEntries);
   })();
