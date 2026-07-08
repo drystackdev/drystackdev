@@ -28,6 +28,7 @@ import { FormatInfo } from './path-utils';
 import { ScrollView } from './shell/primitives';
 import { PageContainer } from './shell/page';
 import { useContentPanelQuery } from './shell/context';
+import { isContentEditorField } from '../form/fields/content/is-content-field';
 
 const emptyArray: ReadonlyPropPath = [];
 const RESPONSIVE_PADDING = {
@@ -92,11 +93,25 @@ export function FormForEntry({
 }) {
   const isAboveMobile = useContentPanelQuery({ above: 'mobile' });
 
-  if (entryLayout === 'content' && formatInfo.contentField && isAboveMobile) {
-    const { contentField } = formatInfo;
+  // the field that fills the main content pane: an explicit `format.contentField`
+  // (a separate-file `formKind: 'content'` field) if configured, otherwise the
+  // entry's inline `fields.content` rich-text field, auto-detected so that
+  // `entryLayout: 'content'` "just works" without extra config.
+  let contentPanePath: readonly string[] | undefined =
+    formatInfo.contentField?.path;
+  if (!contentPanePath && entryLayout === 'content') {
+    for (const [key, child] of Object.entries(props.fields)) {
+      if (isContentEditorField(child.schema)) {
+        contentPanePath = [key];
+        break;
+      }
+    }
+  }
+
+  if (entryLayout === 'content' && contentPanePath && isAboveMobile) {
     let contentFieldProps: GenericPreviewProps<ComponentSchema, unknown> =
       props;
-    for (const key of contentField.path) {
+    for (const key of contentPanePath) {
       if (isPreviewPropsKind(contentFieldProps, 'object')) {
         contentFieldProps = contentFieldProps.fields[key];
         continue;
@@ -127,7 +142,7 @@ export function FormForEntry({
             <SplitPaneSecondary>
               <EntryLayoutSplitPaneContext.Provider value="main">
                 <ScrollView>
-                  <AddToPathProvider part={contentField.path}>
+                  <AddToPathProvider part={contentPanePath as ReadonlyPropPath}>
                     <InnerFormValueContentFromPreviewProps
                       forceValidation={forceValidation}
                       {...contentFieldProps}
@@ -142,7 +157,7 @@ export function FormForEntry({
                   <Box padding={RESPONSIVE_PADDING}>
                     <InnerFormValueContentFromPreviewProps
                       forceValidation={forceValidation}
-                      omitFieldAtPath={contentField.path}
+                      omitFieldAtPath={contentPanePath as ReadonlyPropPath}
                       {...props}
                     />
                   </Box>

@@ -2,6 +2,7 @@ import { Fragment, Mark, Node as ProseMirrorNode } from 'prosemirror-model';
 import { EditorSchema, getEditorSchema } from '../schema';
 import { textblockChildren } from '../serialize-inline';
 import { MEDIA_LIBRARY_DIRECTORY } from '../../../../../app/media-library/constants';
+import { imageLayoutStyleString } from '../image-layout';
 
 type HtmlElementNode = {
   kind: 'element';
@@ -87,7 +88,12 @@ function getLeafContent(
     return { kind: 'element', tag: 'br', children: [] };
   }
   if (node.type === schema.nodes.image) {
-    const { filename, alt, title } = node.attrs;
+    const { filename, alt, title, width, height, align } = node.attrs;
+    const style = imageLayoutStyleString({ width, height, align });
+    const layoutAttrs = {
+      ...(align ? { 'data-align': align } : {}),
+      ...(style ? { style } : {}),
+    };
     if (node.attrs.src.byteLength > 0) {
       // has real bytes in-memory (freshly inserted, or an existing node the
       // user edited this session) — embed them as a sibling file scoped to
@@ -101,6 +107,7 @@ function getLeafContent(
           src: key,
           alt: alt ?? '',
           ...(title ? { title } : {}),
+          ...layoutAttrs,
         },
         children: [],
       };
@@ -115,6 +122,7 @@ function getLeafContent(
         src: `/${MEDIA_LIBRARY_DIRECTORY}/${filename}`,
         alt: alt ?? '',
         ...(title ? { title } : {}),
+        ...layoutAttrs,
       },
       children: [],
     };
@@ -154,6 +162,13 @@ function getWrapperForMark(
   }
 }
 
+function textAlignAttr(
+  node: ProseMirrorNode
+): Record<string, string> | undefined {
+  const textAlign = node.attrs.textAlign;
+  return textAlign ? { style: `text-align:${textAlign}` } : undefined;
+}
+
 function proseMirrorToHtmlNode(
   node: ProseMirrorNode,
   state: SerializationState
@@ -166,7 +181,12 @@ function proseMirrorToHtmlNode(
     return { kind: 'fragment', children: blocks(node.content) };
   }
   if (node.type === schema.nodes.paragraph) {
-    return { kind: 'element', tag: 'p', children: inline(node.content) };
+    return {
+      kind: 'element',
+      tag: 'p',
+      attrs: textAlignAttr(node),
+      children: inline(node.content),
+    };
   }
   if (node.type === schema.nodes.blockquote) {
     return {
@@ -182,6 +202,7 @@ function proseMirrorToHtmlNode(
     return {
       kind: 'element',
       tag: `h${node.attrs.level}`,
+      attrs: textAlignAttr(node),
       children: inline(node.content),
     };
   }

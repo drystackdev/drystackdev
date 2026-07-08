@@ -853,12 +853,16 @@ test('google docs', async () => {
           there is a break before this
         </text>
       </paragraph>
-      <paragraph>
+      <paragraph
+        textAlign="center"
+      >
         <text>
           align center
         </text>
       </paragraph>
-      <paragraph>
+      <paragraph
+        textAlign="right"
+      >
         <text>
           align end
         </text>
@@ -871,6 +875,7 @@ test('google docs', async () => {
             "value": {},
           }
         }
+        textAlign="center"
       >
         <text>
           heading align center
@@ -884,6 +889,7 @@ test('google docs', async () => {
             "value": {},
           }
         }
+        textAlign="right"
       >
         <text>
           heading align end

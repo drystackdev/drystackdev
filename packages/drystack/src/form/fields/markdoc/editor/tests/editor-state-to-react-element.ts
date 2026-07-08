@@ -127,8 +127,15 @@ function nodeToReactElement(
     }
   }
 
+  // omit attrs left at their `null` default (e.g. the HTML-only `textAlign` on
+  // paragraphs/headings and `width`/`height`/`align` on images) so they don't
+  // clutter snapshots of content that doesn't use them.
+  const attrs: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(node.attrs)) {
+    if (value !== null) attrs[key] = value;
+  }
   const element = createElement(node.type.name, {
-    ...node.attrs,
+    ...attrs,
     children,
   });
   if (selection instanceof NodeSelection && selection.node === node) {

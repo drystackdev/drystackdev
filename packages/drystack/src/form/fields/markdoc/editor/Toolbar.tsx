@@ -20,6 +20,10 @@ import {
   EditorToolbarSeparator,
 } from '@keystar/ui/editor';
 import { Icon } from '@keystar/ui/icon';
+import { alignCenterIcon } from '@keystar/ui/icon/icons/alignCenterIcon';
+import { alignJustifyIcon } from '@keystar/ui/icon/icons/alignJustifyIcon';
+import { alignLeftIcon } from '@keystar/ui/icon/icons/alignLeftIcon';
+import { alignRightIcon } from '@keystar/ui/icon/icons/alignRightIcon';
 import { boldIcon } from '@keystar/ui/icon/icons/boldIcon';
 import { chevronDownIcon } from '@keystar/ui/icon/icons/chevronDownIcon';
 import { codeIcon } from '@keystar/ui/icon/icons/codeIcon';
@@ -172,7 +176,7 @@ export const Toolbar = memo(function Toolbar(
   props: HTMLAttributes<HTMLDivElement>
 ) {
   const schema = useEditorSchema();
-  const { nodes, marks } = schema;
+  const { nodes, marks, config } = schema;
   return (
     <ToolbarWrapper {...props}>
       <ToolbarScrollArea>
@@ -183,6 +187,12 @@ export const Toolbar = memo(function Toolbar(
           <EditorToolbarSeparator />
           <ListButtons />
           <EditorToolbarSeparator />
+          {config.htmlLayout && (
+            <>
+              <AlignmentControls />
+              <EditorToolbarSeparator />
+            </>
+          )}
           <EditorToolbarGroup aria-label="Blocks">
             {nodes.divider && (
               <TooltipTrigger>
@@ -717,6 +727,100 @@ function ListButtons() {
 
 function removeFalse<T>(val: T): val is Exclude<T, false> {
   return val !== false;
+}
+
+type TextAlignValue = 'left' | 'center' | 'right' | 'justify';
+
+const TEXT_ALIGN_ITEMS = [
+  { key: 'left', label: 'Align left', icon: alignLeftIcon },
+  { key: 'center', label: 'Align center', icon: alignCenterIcon },
+  { key: 'right', label: 'Align right', icon: alignRightIcon },
+  { key: 'justify', label: 'Justify', icon: alignJustifyIcon },
+] as const;
+
+function nodeSupportsTextAlign(node: { type: NodeType }) {
+  const attrs = node.type.spec.attrs;
+  return !!attrs && 'textAlign' in attrs;
+}
+
+// sets the `textAlign` attr on every alignable block (paragraph, heading) that
+// overlaps the selection; `null` clears alignment (used for the default "left").
+function setTextAlign(align: TextAlignValue | null): Command {
+  return (state, dispatch) => {
+    const { from, to } = state.selection;
+    let tr = state.tr;
+    let applied = false;
+    state.doc.nodesBetween(from, to, (node, pos) => {
+      if (nodeSupportsTextAlign(node)) {
+        applied = true;
+        if (dispatch) {
+          tr = tr.setNodeMarkup(pos, undefined, {
+            ...node.attrs,
+            textAlign: align,
+          });
+        }
+      }
+    });
+    if (!applied) return false;
+    if (dispatch) dispatch(tr.scrollIntoView());
+    return true;
+  };
+}
+
+function getTextAlignState(state: EditorState): {
+  isDisabled: boolean;
+  selected: TextAlignValue | null;
+} {
+  const { from, to } = state.selection;
+  let align: string | null | undefined;
+  let found = false;
+  let mixed = false;
+  state.doc.nodesBetween(from, to, node => {
+    if (nodeSupportsTextAlign(node)) {
+      found = true;
+      const nodeAlign = (node.attrs.textAlign as string | null) ?? null;
+      if (align === undefined) align = nodeAlign;
+      else if (align !== nodeAlign) mixed = true;
+    }
+  });
+  if (!found) return { isDisabled: true, selected: null };
+  if (mixed) return { isDisabled: false, selected: null };
+  return { isDisabled: false, selected: (align ?? 'left') as TextAlignValue };
+}
+
+function AlignmentControls() {
+  const state = useEditorState();
+  const runCommand = useEditorDispatchCommand();
+  const { isDisabled, selected } = getTextAlignState(state);
+
+  return useMemo(
+    () => (
+      <EditorToolbarGroup
+        aria-label="Text alignment"
+        value={selected}
+        onChange={key => {
+          const align = key === 'left' ? null : (key as TextAlignValue);
+          runCommand(setTextAlign(align));
+        }}
+        disabledKeys={
+          isDisabled ? TEXT_ALIGN_ITEMS.map(item => item.key) : undefined
+        }
+        selectionMode="single"
+      >
+        {TEXT_ALIGN_ITEMS.map(item => (
+          <TooltipTrigger key={item.key}>
+            <EditorToolbarItem value={item.key} aria-label={item.label}>
+              <Icon src={item.icon} />
+            </EditorToolbarItem>
+            <Tooltip>
+              <Text>{item.label}</Text>
+            </Tooltip>
+          </TooltipTrigger>
+        ))}
+      </EditorToolbarGroup>
+    ),
+    [isDisabled, runCommand, selected]
+  );
 }
 
 function removeAllMarks(): Command {

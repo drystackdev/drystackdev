@@ -70,6 +70,10 @@ export type EditorConfig = {
   // library directory) rather than always embedding its bytes as a sibling
   // file — only the HTML-backed `content` field supports this today
   supportsMediaLibraryReferences: boolean;
+  // whether this field serializes to HTML and therefore supports block-level
+  // layout that only round-trips through HTML: text alignment on paragraphs/
+  // headings and explicit image width/height/float. false for markdoc/mdx.
+  htmlLayout: boolean;
 };
 
 export type MarkdocEditorOptions = {
@@ -124,10 +128,11 @@ type EditorOptions = MarkdocEditorOptions | MDXEditorOptions;
 
 export function editorOptionsToConfig(
   options: EditorOptions,
-  supportsMediaLibraryReferences = false
+  isHtml = false
 ): EditorConfig {
   return {
-    supportsMediaLibraryReferences,
+    supportsMediaLibraryReferences: isHtml,
+    htmlLayout: isHtml,
     bold: options.bold ?? true,
     italic: options.italic ?? true,
     strikethrough: options.strikethrough ?? true,

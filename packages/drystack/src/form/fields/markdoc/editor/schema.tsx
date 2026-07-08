@@ -1,4 +1,4 @@
-import { classNames, css, tokenSchema, transition } from '@keystar/ui/style';
+import { classNames, css, tokenSchema } from '@keystar/ui/style';
 import { fileCodeIcon } from '@keystar/ui/icon/icons/fileCodeIcon';
 import { heading1Icon } from '@keystar/ui/icon/icons/heading1Icon';
 import { heading2Icon } from '@keystar/ui/icon/icons/heading2Icon';
@@ -36,18 +36,19 @@ import { getCustomMarkSpecs, getCustomNodeSpecs } from './custom-components';
 import { EditorConfig } from '../config';
 import { toSerialized } from './props-serialization';
 import { getInitialPropsValue } from '../../../initial-values';
-import {
-  openMediaLibrary,
-  resolveMediaLibraryBytes,
-} from '../../../../app/media-library/bridge';
+import { openMediaLibrary } from '../../../../app/media-library/bridge';
 import { imageAttrsForPick } from './image-pick';
 import { base64UrlEncode, base64UrlDecode } from '#base64';
+import { ImageNodeView } from './image-node-view';
+import {
+  imageLayoutFromElement,
+  imageLayoutStyleString,
+} from './image-layout';
 
 const blockElementSpacing = css({
   marginBlock: '1em',
 });
 
-const paragraphDOM: DOMOutputSpec = ['p', { class: blockElementSpacing }, 0];
 const blockquoteDOM: DOMOutputSpec = [
   'blockquote',
   {
@@ -85,6 +86,28 @@ export type EditorNodeSpec = NodeSpec &
   WithReactNodeViewSpec;
 
 const inlineContent = `inline*`;
+
+// physical text-align values supported on block nodes (paragraph, heading).
+// stored as the `textAlign` attr and round-tripped through inline
+// `style="text-align:…"` in the HTML serializer/parser.
+export const TEXT_ALIGN_VALUES = new Set(['left', 'center', 'right', 'justify']);
+
+function getTextAlignAttrs(dom: HTMLElement | string) {
+  if (typeof dom === 'string') return { textAlign: null };
+  const textAlign = dom.style.textAlign;
+  return { textAlign: TEXT_ALIGN_VALUES.has(textAlign) ? textAlign : null };
+}
+
+function withTextAlign(
+  attrs: Record<string, string>,
+  textAlign: string | null
+): Record<string, string> {
+  if (!textAlign) return attrs;
+  const style = attrs.style
+    ? `${attrs.style};text-align:${textAlign}`
+    : `text-align:${textAlign}`;
+  return { ...attrs, style };
+}
 
 const levelsMeta = [
   { description: 'Use this for a top level heading', icon: heading1Icon },
@@ -138,9 +161,17 @@ const nodeSpecs = {
   paragraph: {
     content: inlineContent,
     group: 'block',
-    parseDOM: [{ tag: 'p' }, { tag: '[data-ignore-content]', ignore: true }],
-    toDOM() {
-      return paragraphDOM;
+    attrs: { textAlign: { default: null } },
+    parseDOM: [
+      { tag: 'p', getAttrs: getTextAlignAttrs },
+      { tag: '[data-ignore-content]', ignore: true },
+    ],
+    toDOM(node) {
+      return [
+        'p',
+        withTextAlign({ class: blockElementSpacing }, node.attrs.textAlign),
+        0,
+      ];
     },
   },
   text: {
@@ -346,6 +377,9 @@ const nodeSpecs = {
       filename: {},
       alt: { default: '' },
       title: { default: '' },
+      width: { default: null },
+      height: { default: null },
+      align: { default: null },
     },
     insertMenu: {
       label: 'Image',
@@ -374,54 +408,17 @@ const nodeSpecs = {
         };
       },
     },
-    nodeView(node) {
-      const dom = document.createElement('img');
-      dom.alt = node.attrs.alt;
-      dom.title = node.attrs.title;
-      dom.dataset.filename = node.attrs.filename;
-      dom.classList.add(
-        css({
-          boxSizing: 'border-box',
-          borderRadius: tokenSchema.size.radius.regular,
-          display: 'inline-block',
-          maxHeight: tokenSchema.size.scale[3600],
-          maxWidth: '100%',
-          transition: transition('box-shadow'),
-          '&::selection': {
-            backgroundColor: 'transparent',
-          },
-        })
-      );
-      let objectUrl: string | undefined;
-      const setSrcFromBytes = (bytes: Uint8Array) => {
-        const blob = new Blob([bytes], {
-          type: node.attrs.filename.endsWith('.svg')
-            ? 'image/svg+xml'
-            : undefined,
-        });
-        objectUrl = URL.createObjectURL(blob);
-        dom.src = objectUrl;
-      };
-      let cancelled = false;
-      if (node.attrs.src.byteLength > 0) {
-        setSrcFromBytes(node.attrs.src);
-      } else {
-        // parsed from stored HTML without embedded bytes; the media library
-        // directory is the source of truth for the actual file content
-        resolveMediaLibraryBytes(node.attrs.filename).then(bytes => {
-          if (cancelled || !bytes) return;
-          setSrcFromBytes(bytes);
-        });
-      }
-      return {
-        dom,
-        destroy() {
-          cancelled = true;
-          if (objectUrl) URL.revokeObjectURL(objectUrl);
-        },
-      };
+    reactNodeView: {
+      component: ImageNodeView,
+      rendersOwnContent: true,
     },
     toDOM(node) {
+      const layout = {
+        width: node.attrs.width,
+        height: node.attrs.height,
+        align: node.attrs.align,
+      };
+      const style = imageLayoutStyleString(layout);
       return [
         'img',
         {
@@ -433,6 +430,8 @@ const nodeSpecs = {
           alt: node.attrs.alt,
           title: node.attrs.title,
           'data-filename': node.attrs.filename,
+          ...(node.attrs.align ? { 'data-align': node.attrs.align } : {}),
+          ...(style ? { style } : {}),
         },
       ];
     },
@@ -447,11 +446,15 @@ const nodeSpecs = {
           const srcAsUint8Array = base64UrlDecode(
             src.replace(/^data:[a-z/-]+;base64,/, '')
           );
+          const layout = imageLayoutFromElement(node as HTMLElement);
           return {
             src: srcAsUint8Array,
             filename,
             alt: node.getAttribute('alt') ?? '',
             title: node.getAttribute('title') ?? '',
+            width: layout.width,
+            height: layout.height,
+            align: layout.align,
           };
         },
       },
@@ -610,6 +613,7 @@ export function createEditorSchema(
     nodeSpecsWithCustomNodes.heading = {
       attrs: {
         level: { default: config.heading.levels[0] },
+        textAlign: { default: null },
         props: {
           default: toSerialized(
             getInitialPropsValue({
@@ -624,11 +628,17 @@ export function createEditorSchema(
       group: 'block',
       parseDOM: config.heading.levels.map(level => ({
         tag: 'h' + level,
-        attrs: { level },
+        getAttrs(dom: HTMLElement | string) {
+          return { level, ...getTextAlignAttrs(dom) };
+        },
       })),
       defining: true,
       toDOM(node) {
-        return ['h' + node.attrs.level, 0];
+        return [
+          'h' + node.attrs.level,
+          withTextAlign({}, node.attrs.textAlign),
+          0,
+        ];
       },
       insertMenu: config.heading.levels.map((level, index) => ({
         ...levelsMeta[index],

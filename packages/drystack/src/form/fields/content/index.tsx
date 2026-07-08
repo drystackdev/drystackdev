@@ -36,6 +36,7 @@ export function content({
   return {
     kind: 'form',
     formKind: 'assets',
+    htmlContentEditor: true,
     defaultValue() {
       return getDefaultValue(getSchema());
     },

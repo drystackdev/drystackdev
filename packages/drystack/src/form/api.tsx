@@ -137,6 +137,10 @@ export type AssetsFormField<
   kind: 'form';
   formKind: 'assets';
   directories?: string[];
+  // set by `fields.content` (the HTML rich-text editor) so `entryLayout:
+  // 'content'` can auto-detect it as the main content pane. other assets
+  // fields (image/file) leave this unset.
+  htmlContentEditor?: boolean;
 
   Input(props: FormFieldInputProps<ParsedValue>): ReactElement | null;
   defaultValue(): ParsedValue;

@@ -1,6 +1,7 @@
 import { MarkType, Node as ProseMirrorNode } from 'prosemirror-model';
-import { EditorSchema } from '../schema';
+import { EditorSchema, TEXT_ALIGN_VALUES } from '../schema';
 import { MEDIA_LIBRARY_DIRECTORY } from '../../../../../app/media-library/constants';
+import { imageLayoutFromElement } from '../image-layout';
 
 type ParseState = {
   schema: EditorSchema;
@@ -31,6 +32,11 @@ const BLOCK_TAGS = new Set([
 
 function isBlockTag(tag: string) {
   return BLOCK_TAGS.has(tag);
+}
+
+function textAlignFromElement(el: Element): string | null {
+  const textAlign = (el as HTMLElement).style?.textAlign;
+  return textAlign && TEXT_ALIGN_VALUES.has(textAlign) ? textAlign : null;
 }
 
 function inlineNodeToProseMirror(
@@ -67,12 +73,16 @@ function inlineNodeToProseMirror(
     const content = isLegacyLibraryReference
       ? UNHYDRATED_IMAGE_BYTES
       : (state.other.get(filename) ?? UNHYDRATED_IMAGE_BYTES);
+    const layout = imageLayoutFromElement(el as HTMLElement);
     return [
       schema.nodes.image.createChecked({
         src: content,
         filename,
         alt: el.getAttribute('alt') ?? '',
         title: el.getAttribute('title') ?? '',
+        width: layout.width,
+        height: layout.height,
+        align: layout.align,
       }),
     ];
   }
@@ -118,7 +128,10 @@ function elementToBlockNode(
   switch (tag) {
     case 'p':
       return schema.nodes.paragraph
-        ? schema.nodes.paragraph.createAndFill({}, inlineChildren(el, state))
+        ? schema.nodes.paragraph.createAndFill(
+            { textAlign: textAlignFromElement(el) },
+            inlineChildren(el, state)
+          )
         : null;
     case 'h1':
     case 'h2':
@@ -128,7 +141,7 @@ function elementToBlockNode(
     case 'h6':
       return schema.nodes.heading
         ? schema.nodes.heading.createAndFill(
-            { level: Number(tag[1]) },
+            { level: Number(tag[1]), textAlign: textAlignFromElement(el) },
             inlineChildren(el, state)
           )
         : null;
