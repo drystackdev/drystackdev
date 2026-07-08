@@ -26,7 +26,10 @@ export function content({
   };
 }): content.Field {
   let schema: undefined | EditorSchema;
-  const config = editorOptionsToConfig(options, true);
+  const config = editorOptionsToConfig(
+    { strikethrough: false, code: false, codeBlock: false, ...options },
+    true
+  );
   const getSchema = () => {
     if (!schema) {
       schema = createEditorSchema(config, {}, false);

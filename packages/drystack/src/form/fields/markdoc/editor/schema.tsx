@@ -470,6 +470,7 @@ const italicDOM: DOMOutputSpec = ['em', 0];
 const boldDOM: DOMOutputSpec = ['strong', 0];
 const inlineCodeDOM: DOMOutputSpec = ['code', 0];
 const strikethroughDOM: DOMOutputSpec = ['s', 0];
+const underlineDOM: DOMOutputSpec = ['u', 0];
 
 const markSpecs = {
   link: {
@@ -544,6 +545,13 @@ const markSpecs = {
     parseDOM: [{ tag: 's' }],
     toDOM() {
       return strikethroughDOM;
+    },
+  },
+  underline: {
+    shortcuts: ['Mod-u', 'Mod-U'],
+    parseDOM: [{ tag: 'u' }],
+    toDOM() {
+      return underlineDOM;
     },
   },
   code: {
@@ -679,6 +687,9 @@ export function createEditorSchema(
   }
   if (config.bold) {
     markSpecsWithCustomMarks.bold = markSpecs.bold;
+  }
+  if (config.underline) {
+    markSpecsWithCustomMarks.underline = markSpecs.underline;
   }
   if (config.strikethrough) {
     markSpecsWithCustomMarks.strikethrough = markSpecs.strikethrough;

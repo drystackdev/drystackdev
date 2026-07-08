@@ -146,6 +146,9 @@ function getWrapperForMark(
   if (mark.type === schema.marks.strikethrough) {
     return { kind: 'element', tag: 's', children: [] };
   }
+  if (mark.type === schema.marks.underline) {
+    return { kind: 'element', tag: 'u', children: [] };
+  }
   if (mark.type === schema.marks.code) {
     return { kind: 'element', tag: 'code', children: [] };
   }

@@ -36,6 +36,7 @@ import { quoteIcon } from '@keystar/ui/icon/icons/quoteIcon';
 import { removeFormattingIcon } from '@keystar/ui/icon/icons/removeFormattingIcon';
 import { strikethroughIcon } from '@keystar/ui/icon/icons/strikethroughIcon';
 import { tableIcon } from '@keystar/ui/icon/icons/tableIcon';
+import { underlineIcon } from '@keystar/ui/icon/icons/underlineIcon';
 import { MenuTrigger, Menu } from '@keystar/ui/menu';
 import { Picker, Item } from '@keystar/ui/picker';
 import { breakpointQueries, css, tokenSchema } from '@keystar/ui/style';
@@ -558,6 +559,16 @@ function InlineMarks() {
         shortcut: `I`,
         command: toggleMark(schema.marks.italic),
         isSelected: isMarkActive(schema.marks.italic),
+      });
+    }
+    if (schema.marks.underline) {
+      marks.push({
+        key: 'underline',
+        label: 'Underline',
+        icon: underlineIcon,
+        shortcut: `U`,
+        command: toggleMark(schema.marks.underline),
+        isSelected: isMarkActive(schema.marks.underline),
       });
     }
     if (schema.marks.strikethrough) {

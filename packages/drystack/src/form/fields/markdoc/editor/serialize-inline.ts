@@ -142,6 +142,7 @@ function shouldExpelWhitespace(markType: MarkType): boolean {
   return (
     markType === schema.marks.bold ||
     markType === schema.marks.italic ||
+    markType === schema.marks.underline ||
     markType === schema.marks.strikethrough
   );
 }
@@ -151,6 +152,7 @@ function isMarkTypeMixable(markType: MarkType) {
   return (
     markType === schema.marks.bold ||
     markType === schema.marks.italic ||
+    markType === schema.marks.underline ||
     markType === schema.marks.strikethrough ||
     markType === schema.marks.link
   );

@@ -41,6 +41,7 @@ const emptyTitleField: BasicFormField<string> =
 export type EditorConfig = {
   bold: boolean;
   italic: boolean;
+  underline: boolean;
   strikethrough: boolean;
   code: boolean;
   heading: {
@@ -79,6 +80,7 @@ export type EditorConfig = {
 export type MarkdocEditorOptions = {
   bold?: boolean;
   italic?: boolean;
+  underline?: boolean;
   strikethrough?: boolean;
   code?: boolean;
   heading?:
@@ -104,6 +106,7 @@ export type MarkdocEditorOptions = {
 export type MDXEditorOptions = {
   bold?: boolean;
   italic?: boolean;
+  underline?: boolean;
   strikethrough?: boolean;
   code?: boolean;
   heading?: HeadingLevels;
@@ -135,6 +138,9 @@ export function editorOptionsToConfig(
     htmlLayout: isHtml,
     bold: options.bold ?? true,
     italic: options.italic ?? true,
+    // no markdoc/mdx syntax maps to underline, so it only defaults on for
+    // the HTML-backed editor unless a caller opts in explicitly
+    underline: options.underline ?? isHtml,
     strikethrough: options.strikethrough ?? true,
     code: options.code ?? true,
     heading: (() => {

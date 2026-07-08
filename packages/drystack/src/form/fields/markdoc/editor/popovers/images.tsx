@@ -369,7 +369,18 @@ function ImageDialog(props: {
                     prominence="low"
                     isSelected={lockAspectRatio}
                     aria-label="Lock aspect ratio"
-                    onPress={() => setLockAspectRatio(v => !v)}
+                    onPress={() => {
+                      const enabling = !lockAspectRatio;
+                      setLockAspectRatio(enabling);
+                      if (enabling) {
+                        const ratio =
+                          naturalRatioRef.current ??
+                          (width && height ? width / height : null);
+                        if (ratio && width) {
+                          setHeight(Math.round(width / ratio));
+                        }
+                      }
+                    }}
                   >
                     <Icon src={lockAspectRatio ? link2Icon : link2OffIcon} />
                   </ToggleButton>

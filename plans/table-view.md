@@ -3,5 +3,5 @@
 } với value là giá trị tương ứng, row là dữ liệu của cả dòng đó, khi column ko được cài đặt thì hiển thị slug nhưng khi có thì bỏ slug ra thì ko cần thiết nữa
 
 fields.content
-- bỏ strikethrough, code thêm underline
+- bỏ strikethrough và code thêm underline
 - bỏ code block

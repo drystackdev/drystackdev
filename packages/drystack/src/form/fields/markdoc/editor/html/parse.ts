@@ -95,6 +95,8 @@ function inlineNodeToProseMirror(
     markType = schema.marks.italic;
   } else if (tag === 's' && schema.marks.strikethrough) {
     markType = schema.marks.strikethrough;
+  } else if (tag === 'u' && schema.marks.underline) {
+    markType = schema.marks.underline;
   } else if (tag === 'code' && schema.marks.code) {
     markType = schema.marks.code;
   } else if (tag === 'a' && schema.marks.link) {

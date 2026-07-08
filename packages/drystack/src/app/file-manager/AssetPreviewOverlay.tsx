@@ -35,7 +35,7 @@ const zoomInputStyle = {
   height: tokenSchema.size.element.regular,
   paddingInlineStart: tokenSchema.size.space.regular,
   paddingInlineEnd: 22,
-  textAlign: 'right' as const,
+  textAlign: 'center',
   borderRadius: tokenSchema.size.radius.regular,
   border: `${tokenSchema.size.border.regular} solid ${tokenSchema.color.alias.borderIdle}`,
   backgroundColor: tokenSchema.color.alias.backgroundIdle,
