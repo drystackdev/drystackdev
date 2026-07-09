@@ -40,7 +40,7 @@ import { getInitialPropsValue } from '../../../initial-values';
 import { openMediaLibrary } from '../../../../app/media-library/bridge';
 import { imageAttrsForPick } from './image-pick';
 import { base64UrlEncode, base64UrlDecode } from '#base64';
-import { ImageNodeView } from './image-node-view';
+import { ImageNodeView, imageContainerAlignStyle } from './image-node-view';
 import {
   imageLayoutFromElement,
   imageLayoutStyleString,
@@ -436,6 +436,7 @@ const nodeSpecs = {
     reactNodeView: {
       component: ImageNodeView,
       rendersOwnContent: true,
+      containerStyle: node => imageContainerAlignStyle(node.attrs.align),
     },
     toDOM(node) {
       const layout = {

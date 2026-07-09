@@ -25,6 +25,7 @@ import { placeholderPlugin } from './placeholder';
 import { tableCellMenuPlugin } from './popovers/table';
 import { reactNodeViews } from './react-node-views';
 import { getEditorSchema } from './schema';
+import { trailingParagraph } from './trailing-paragraph';
 import { ySyncPlugin, yCursorPlugin, yUndoPlugin } from 'y-prosemirror';
 import { Awareness } from 'y-protocols/awareness.js';
 import * as Y from 'yjs';
@@ -90,6 +91,7 @@ export function createEditorState(
       tableEditing(),
       tableCellMenuPlugin(),
       codeBlockSyntaxHighlighting(),
+      trailingParagraph(doc.type.schema.nodes.paragraph),
     ],
     doc,
   });

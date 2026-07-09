@@ -7,6 +7,7 @@ import {
 } from 'prosemirror-state';
 import { NodeView, NodeViewConstructor } from 'prosemirror-view';
 import {
+  CSSProperties,
   ReactElement,
   ReactNode,
   memo,
@@ -45,6 +46,15 @@ type ReactNodeViewProps = {
 type ReactNodeViewSpec = {
   component: (props: ReactNodeViewProps) => ReactNode;
   rendersOwnContent?: boolean;
+  // Applied directly to the outer, ProseMirror-tracked container (`dom`,
+  // not the React-rendered content nested inside it). Needed for styles
+  // like `float` that remove an element from normal flow: if only the
+  // nested React content floats, this outer container has no in-flow
+  // content left to size itself by and collapses to a zero-size box at
+  // its text position — which breaks anything that measures the node via
+  // `view.nodeDOM` (e.g. popover positioning), since the reported
+  // position never reflects the actually-floated content.
+  containerStyle?: (node: Node) => CSSProperties;
 };
 
 export type WithReactNodeViewSpec = {
@@ -190,6 +200,16 @@ export function reactNodeViews(schema: Schema) {
             const reactNodeViewSpec = getReactNodeViewSpec(type);
 
             const dom = document.createElement(type.isInline ? 'span' : 'div');
+            const applyContainerStyle = (n: Node) => {
+              const style = reactNodeViewSpec?.containerStyle?.(n);
+              if (!style) return;
+              // reset first so a style no longer present after an attr
+              // change (e.g. align going from 'left' back to unset)
+              // doesn't linger from a previous application
+              dom.setAttribute('style', '');
+              Object.assign(dom.style, style);
+            };
+            applyContainerStyle(node);
             const contentDOM =
               reactNodeViewSpec?.rendersOwnContent || type.isLeaf
                 ? undefined
@@ -234,6 +254,7 @@ export function reactNodeViews(schema: Schema) {
               selectNode() {},
               update(node) {
                 if (node.type !== type) return false;
+                applyContainerStyle(node);
                 pluginState.nodeViews.set(key, {
                   ...info,
                   node,

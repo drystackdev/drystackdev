@@ -83,15 +83,29 @@ export function useImageObjectUrl(node: ProseMirrorNode): string | undefined {
   return url;
 }
 
+// `float` (left/right) is applied to the outer, ProseMirror-tracked node
+// view container instead — see `imageContainerAlignStyle` — not here.
+// Floated content is taken out of normal flow, so if it only floated at
+// this inner level, the outer container (which `view.nodeDOM` and popover
+// positioning rely on) would have no in-flow content to size itself by
+// and would collapse to a zero-size box at its text position.
 function wrapperAlignStyle(align: ImageAlign | null): CSSProperties {
+  if (align === 'center') {
+    return { display: 'block', marginInline: 'auto' };
+  }
+  return {};
+}
+
+// Applied to the outer node view container (see react-node-views.tsx's
+// `containerStyle`) so the float itself — and thus the box everything
+// measures the image node by — lives on the element ProseMirror actually
+// tracks, not several layers of React-rendered content deep inside it.
+export function imageContainerAlignStyle(align: ImageAlign | null): CSSProperties {
   if (align === 'left') {
     return { float: 'left', marginInlineEnd: '1em', marginBlockEnd: '0.5em' };
   }
   if (align === 'right') {
     return { float: 'right', marginInlineStart: '1em', marginBlockEnd: '0.5em' };
-  }
-  if (align === 'center') {
-    return { display: 'block', marginInline: 'auto' };
   }
   return {};
 }

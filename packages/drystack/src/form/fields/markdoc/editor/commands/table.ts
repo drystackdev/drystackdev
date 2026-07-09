@@ -4,8 +4,10 @@ import {
   TableMap,
   TableRect,
   addColSpan,
+  rowIsHeader,
   selectedRect,
-  splitCell,
+  splitCellWithType,
+  tableNodeTypes,
 } from 'prosemirror-tables';
 
 // Merge/unmerge is only wired up for the `content` (HTML) field today — the
@@ -97,5 +99,20 @@ export const mergeCellsKeepFirst: Command = (state, dispatch) => {
 
 // `splitCell` already keeps the original merged cell's content only in the
 // top-left resulting cell and leaves the rest empty — exactly the "keep
-// first, discard rest" behavior we want for unmerge too, no wrapper needed.
-export { splitCell as unmergeCell };
+// first, discard rest" behavior we want for unmerge too. But its default
+// `getCellType` copies the *merged* cell's own type onto every resulting
+// cell, which turns entire non-header rows into `th` whenever a header cell
+// was merged into them. Only table row 0 may become `th`, and only when the
+// header row is actually enabled — every other row is always `td`.
+export const unmergeCell: Command = (state, dispatch) => {
+  const types = tableNodeTypes(state.schema);
+  let headerRowEnabled: boolean | undefined;
+  return splitCellWithType(({ row }) => {
+    if (row !== 0) return types.cell;
+    if (headerRowEnabled === undefined) {
+      const rect = selectedRect(state);
+      headerRowEnabled = rowIsHeader(rect.map, rect.table, 0);
+    }
+    return headerRowEnabled ? types.header_cell : types.cell;
+  })(state, dispatch);
+};

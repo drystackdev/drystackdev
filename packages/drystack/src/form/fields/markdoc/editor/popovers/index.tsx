@@ -523,6 +523,15 @@ const CustomMarkPopover: MarkPopoverRenderer = props => {
   );
 };
 
+// Node popovers default to 'stick' so they don't jump above the reference
+// when space runs out. Images are floated (`float: left`/`float: right`),
+// so wrapped paragraph text can leave little room below them — 'stick' would
+// then wedge the toolbar into that cramped space instead of moving it above
+// the image, so images alone get 'flip'.
+function popoverAdaptToBoundary(node: Node): EditorPopoverProps['adaptToBoundary'] & {} {
+  return node.type.name === 'image' ? 'flip' : 'stick';
+}
+
 function getPopoverDecoration(state: EditorState): PopoverDecoration | null {
   if (state.selection instanceof TextSelection) {
     const schema = getEditorSchema(state.schema);
@@ -603,7 +612,7 @@ function getPopoverDecoration(state: EditorState): PopoverDecoration | null {
       (!component.shouldShow || component.shouldShow(editorSchema))
     ) {
       return {
-        adaptToBoundary: 'stick',
+        adaptToBoundary: popoverAdaptToBoundary(node),
         kind: 'node',
         node,
         component,
@@ -626,7 +635,7 @@ function getPopoverDecoration(state: EditorState): PopoverDecoration | null {
       (!component.shouldShow || component.shouldShow(editorSchema))
     ) {
       return {
-        adaptToBoundary: 'stick',
+        adaptToBoundary: popoverAdaptToBoundary(node),
         kind: 'node',
         node,
         component,
