@@ -12,6 +12,7 @@ import {
   deleteColumn,
   deleteRow,
 } from 'prosemirror-tables';
+import { mergeCellsKeepFirst, unmergeCell } from '../commands/table';
 import { useEditorDispatchCommand, useEditorState } from '../editor-view';
 import { Decoration, DecorationSet } from 'prosemirror-view';
 import { ResolvedPos } from 'prosemirror-model';
@@ -22,10 +23,16 @@ const cellActions: Record<string, { label: string; command: Command }> = {
   deleteColumn: { label: 'Delete column', command: deleteColumn },
   insertRowBelow: { label: 'Insert row below', command: addRowAfter },
   insertColumnRight: { label: 'Insert column right', command: addColumnAfter },
+  mergeCells: { label: 'Merge cells', command: mergeCellsKeepFirst },
+  unmergeCell: { label: 'Unmerge cell', command: unmergeCell },
 };
 
 function CellMenu() {
+  const state = useEditorState();
   const runCommand = useEditorDispatchCommand();
+  const disabledKeys = Object.entries(cellActions)
+    .filter(([, action]) => !action.command(state))
+    .map(([key]) => key);
   const gutter = tokenSchema.size.space.small;
   return (
     <div
@@ -58,6 +65,7 @@ function CellMenu() {
             <Icon src={chevronDownIcon} />
           </ActionButton>
           <Menu
+            disabledKeys={disabledKeys}
             onAction={key => {
               if (key in cellActions) {
                 runCommand(cellActions[key].command);

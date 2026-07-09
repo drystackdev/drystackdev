@@ -20,6 +20,7 @@ import {
   NodeType,
   MarkType,
   AttributeSpec,
+  Node as ProsemirrorNode,
 } from 'prosemirror-model';
 import { classes } from './utils';
 import {
@@ -123,6 +124,23 @@ const cellAttrs: Record<string, AttributeSpec> = {
   rowspan: { default: 1 },
 };
 
+function getCellSpanAttrs(dom: HTMLElement | string) {
+  if (typeof dom === 'string') return { colspan: 1, rowspan: 1 };
+  const colspan = parseInt(dom.getAttribute('colspan') ?? '', 10);
+  const rowspan = parseInt(dom.getAttribute('rowspan') ?? '', 10);
+  return {
+    colspan: Number.isInteger(colspan) && colspan > 0 ? colspan : 1,
+    rowspan: Number.isInteger(rowspan) && rowspan > 0 ? rowspan : 1,
+  };
+}
+
+function cellSpanDOMAttrs(node: ProsemirrorNode) {
+  const attrs: Record<string, string> = {};
+  if (node.attrs.colspan > 1) attrs.colspan = String(node.attrs.colspan);
+  if (node.attrs.rowspan > 1) attrs.rowspan = String(node.attrs.rowspan);
+  return attrs;
+}
+
 const tableCellClass = css({
   borderBottom: `1px solid ${tokenSchema.color.alias.borderIdle}`,
   borderInlineEnd: `1px solid ${tokenSchema.color.alias.borderIdle}`,
@@ -147,6 +165,9 @@ const tableCellClass = css({
     content: '""',
     height: '100%',
     width: '100%',
+    // purely decorative — don't let it swallow clicks meant for the cell's
+    // own "..." options button (e.g. merging a multi-cell selection)
+    pointerEvents: 'none',
   },
 });
 const tableHeaderClass = css(tableCellClass, {
@@ -353,9 +374,9 @@ const nodeSpecs = {
     tableRole: 'cell',
     isolating: true,
     attrs: cellAttrs,
-    parseDOM: [{ tag: 'td' }],
-    toDOM() {
-      return ['td', { class: tableCellClass }, 0];
+    parseDOM: [{ tag: 'td', getAttrs: getCellSpanAttrs }],
+    toDOM(node) {
+      return ['td', { class: tableCellClass, ...cellSpanDOMAttrs(node) }, 0];
     },
   },
   table_header: {
@@ -363,9 +384,9 @@ const nodeSpecs = {
     tableRole: 'header_cell',
     attrs: cellAttrs,
     isolating: true,
-    parseDOM: [{ tag: 'th' }],
-    toDOM() {
-      return ['th', { class: tableHeaderClass }, 0];
+    parseDOM: [{ tag: 'th', getAttrs: getCellSpanAttrs }],
+    toDOM(node) {
+      return ['th', { class: tableHeaderClass, ...cellSpanDOMAttrs(node) }, 0];
     },
   },
   image: {

@@ -26,6 +26,13 @@ function escapeAttr(text: string) {
   return escapeHTML(text).replace(/"/g, '&quot;');
 }
 
+function cellSpanAttrs(node: ProseMirrorNode): Record<string, string> | undefined {
+  const attrs: Record<string, string> = {};
+  if (node.attrs.colspan > 1) attrs.colspan = String(node.attrs.colspan);
+  if (node.attrs.rowspan > 1) attrs.rowspan = String(node.attrs.rowspan);
+  return Object.keys(attrs).length ? attrs : undefined;
+}
+
 function renderNode(node: HtmlNode): string {
   if (node.kind === 'text') return escapeHTML(node.text);
   if (node.kind === 'fragment') return node.children.map(renderNode).join('');
@@ -268,10 +275,10 @@ function proseMirrorToHtmlNode(
     return { kind: 'element', tag: 'tr', children: blocks(node.content) };
   }
   if (node.type === schema.nodes.table_header) {
-    return { kind: 'element', tag: 'th', children: blocks(node.content) };
+    return { kind: 'element', tag: 'th', attrs: cellSpanAttrs(node), children: blocks(node.content) };
   }
   if (node.type === schema.nodes.table_cell) {
-    return { kind: 'element', tag: 'td', children: blocks(node.content) };
+    return { kind: 'element', tag: 'td', attrs: cellSpanAttrs(node), children: blocks(node.content) };
   }
 
   throw new Error(`Unhandled node type: ${node.type.name}`);

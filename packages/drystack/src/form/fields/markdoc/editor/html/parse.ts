@@ -198,6 +198,15 @@ function elementToBlockNode(
   }
 }
 
+function cellSpanAttrs(el: Element) {
+  const colspan = parseInt(el.getAttribute('colspan') ?? '', 10);
+  const rowspan = parseInt(el.getAttribute('rowspan') ?? '', 10);
+  return {
+    colspan: Number.isInteger(colspan) && colspan > 0 ? colspan : 1,
+    rowspan: Number.isInteger(rowspan) && rowspan > 0 ? rowspan : 1,
+  };
+}
+
 function tableRow(el: Element, state: ParseState): ProseMirrorNode | null {
   const { schema } = state;
   if (!schema.nodes.table_row) return null;
@@ -206,13 +215,13 @@ function tableRow(el: Element, state: ParseState): ProseMirrorNode | null {
     const cellTag = cellEl.tagName.toLowerCase();
     if (cellTag === 'th' && schema.nodes.table_header) {
       const cell = schema.nodes.table_header.createAndFill(
-        {},
+        cellSpanAttrs(cellEl),
         blockChildren(cellEl, state)
       );
       if (cell) cells.push(cell);
     } else if (cellTag === 'td' && schema.nodes.table_cell) {
       const cell = schema.nodes.table_cell.createAndFill(
-        {},
+        cellSpanAttrs(cellEl),
         blockChildren(cellEl, state)
       );
       if (cell) cells.push(cell);
