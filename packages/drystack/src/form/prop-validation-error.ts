@@ -1,5 +1,5 @@
 import type { ComponentSchema } from './api';
-import type { ReadonlyPropPath } from './fields/document/DocumentEditor/component-blocks/utils';
+import type { ReadonlyPropPath } from './fields/prop-path';
 
 export class PropValidationError extends Error {
   path: ReadonlyPropPath;

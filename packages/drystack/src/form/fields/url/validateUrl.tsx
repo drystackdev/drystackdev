@@ -1,4 +1,4 @@
-import { isValidURL } from '../document/DocumentEditor/isValidURL';
+import { isValidURL } from '../isValidURL';
 
 export function validateUrl(
   validation: { isRequired?: boolean } | undefined,

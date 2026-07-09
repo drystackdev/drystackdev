@@ -16,7 +16,7 @@ import { Config } from '../config';
 import { ComponentSchema, GenericPreviewProps, ObjectField } from '../form/api';
 import { getInitialPropsValue } from '../form/initial-values';
 import { clientSideValidateProp } from '../form/errors';
-import { useEventCallback } from '../form/fields/document/DocumentEditor/ui-utils';
+import { useEventCallback } from '../form/fields/use-event-callback';
 
 import { CreateBranchDuringUpdateDialog } from './ItemPage';
 import l10nMessages from './l10n';

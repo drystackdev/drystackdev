@@ -1,5 +1,15 @@
 import { ReactNode } from 'react';
-import { blockElementSpacing } from '../ui-utils';
+import { css } from '@keystar/ui/style';
+
+const blockElementSpacing = css({
+  marginBlock: '0.75em',
+  '&:first-child': {
+    marginBlockStart: 0,
+  },
+  '&:last-child': {
+    marginBlockEnd: 0,
+  },
+});
 
 type BlockWrapperProps = {
   attributes?: {

@@ -31,7 +31,7 @@ import { previewPropsToValue, valueToUpdater } from '../../get-value';
 import { getInitialPropsValue } from '../../initial-values';
 import { createGetPreviewProps } from '../../preview-props';
 
-import { useEventCallback } from '../document/DocumentEditor/ui-utils';
+import { useEventCallback } from '../use-event-callback';
 
 export function ArrayFieldInput<Element extends ComponentSchema>(
   props: GenericPreviewProps<ArrayField<Element>, unknown> &

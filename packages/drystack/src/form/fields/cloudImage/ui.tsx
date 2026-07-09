@@ -23,8 +23,8 @@ import {
   useImageLibraryURL,
 } from '../../../component-blocks/cloud-image-preview';
 import { useConfig } from '../../../app/shell/context';
-import { isValidURL } from '../document/DocumentEditor/isValidURL';
-import { useEventCallback } from '../document/DocumentEditor/ui-utils';
+import { isValidURL } from '../isValidURL';
+import { useEventCallback } from '../use-event-callback';
 
 function ImageField(props: {
   image: CloudImageProps;

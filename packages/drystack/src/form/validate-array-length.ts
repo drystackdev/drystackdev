@@ -1,5 +1,5 @@
 import { ArrayField, ComponentSchema } from '..';
-import { ReadonlyPropPath } from './fields/document/DocumentEditor/component-blocks/utils';
+import { ReadonlyPropPath } from './fields/prop-path';
 import { FieldDataError } from './fields/error';
 import { PropValidationError } from './prop-validation-error';
 

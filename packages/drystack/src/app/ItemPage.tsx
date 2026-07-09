@@ -43,7 +43,7 @@ import { Heading, Text } from '@keystar/ui/typography';
 import { Config } from '../config';
 import { ComponentSchema, GenericPreviewProps, ObjectField } from '../form/api';
 import { clientSideValidateProp } from '../form/errors';
-import { useEventCallback } from '../form/fields/document/DocumentEditor/ui-utils';
+import { useEventCallback } from '../form/fields/use-event-callback';
 import { getYjsValFromParsedValue } from '../form/yjs-props-value';
 
 import {

@@ -1,6 +1,6 @@
 import { assertNever } from 'emery';
 import { ComponentSchema } from './api';
-import { ReadonlyPropPath } from './fields/document/DocumentEditor/component-blocks/utils';
+import { ReadonlyPropPath } from './fields/prop-path';
 import { FormField, FormFieldStoredValue, JsonYamlValue } from '..';
 import { FieldDataError } from './fields/error';
 import { validateArrayLength } from './validate-array-length';

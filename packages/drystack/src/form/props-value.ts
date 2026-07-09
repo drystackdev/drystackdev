@@ -1,7 +1,7 @@
 import { assertNever, assert } from 'emery/assertions';
 import { ComponentSchema, ParsedValueForComponentSchema } from './api';
 import { setKeysForArrayValue, getKeysForArrayValue } from './initial-values';
-import { ReadonlyPropPath } from './fields/document/DocumentEditor/component-blocks/utils';
+import { ReadonlyPropPath } from './fields/prop-path';
 
 export function getValueAtPropPath(
   value: unknown,

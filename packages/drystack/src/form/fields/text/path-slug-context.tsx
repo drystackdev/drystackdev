@@ -1,5 +1,5 @@
 import { ReactNode, createContext, useContext, useMemo } from 'react';
-import { ReadonlyPropPath } from '../document/DocumentEditor/component-blocks/utils';
+import { ReadonlyPropPath, areArraysEqual } from '../prop-path';
 import { Glob } from '../../..';
 import {
   useAwarenessStates,
@@ -8,7 +8,6 @@ import {
 import { useCloudInfo } from '../../../app/shell/data';
 import { useRouter } from '../../../app/router';
 import { useConfig } from '../../../app/shell/context';
-import { areArraysEqual } from '../document/DocumentEditor/document-features-normalization';
 import { Avatar } from '@keystar/ui/avatar';
 import { css } from '@keystar/ui/style';
 

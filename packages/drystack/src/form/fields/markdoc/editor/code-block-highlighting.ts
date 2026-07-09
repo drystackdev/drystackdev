@@ -1,5 +1,5 @@
 import { Fragment, Node } from 'prosemirror-model';
-import Prism from '../../document/DocumentEditor/prism';
+import Prism from './prism';
 import { Decoration, DecorationAttrs, DecorationSet } from 'prosemirror-view';
 import { css, tokenSchema } from '@keystar/ui/style';
 import { weakMemoize } from './utils';

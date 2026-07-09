@@ -7,7 +7,6 @@ export { conditional } from './conditional';
 export { date } from './date';
 export { datetime } from './datetime';
 export { empty } from './empty';
-export { emptyDocument } from './emptyDocument';
 export { emptyContent } from './emptyContent';
 export { file } from './file';
 export { files } from './files';

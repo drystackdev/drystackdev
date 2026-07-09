@@ -1,6 +1,5 @@
 import { useOverlayTriggerState } from '@react-stately/overlays';
 import { ClipboardEvent, useEffect, useState } from 'react';
-import { useSelected, useSlateStatic } from 'slate-react';
 import * as s from 'superstruct';
 
 import {
@@ -31,19 +30,13 @@ import { Heading, Text } from '@keystar/ui/typography';
 import { useId } from '@keystar/ui/utils';
 
 import { useConfig } from '../app/shell/context';
-import { focusWithPreviousSelection } from '../form/fields/document/DocumentEditor/ui-utils';
 import {
   KEYSTATIC_CLOUD_API_URL,
   KEYSTATIC_CLOUD_HEADERS,
   getSplitCloudProject,
 } from '../app/utils';
-import { NotEditable } from '../form/fields/document/DocumentEditor/primitives';
-import {
-  PreviewProps,
-  ObjectField,
-  Config,
-  ParsedValueForComponentSchema,
-} from '..';
+import { NotEditable } from './primitives';
+import { ObjectField, Config, ParsedValueForComponentSchema } from '..';
 import { getCloudAuth } from '../app/auth';
 import { BaseStyleProps } from '@keystar/ui/style';
 
@@ -620,44 +613,6 @@ function ImagePreview({
         </VStack>
       </NotEditable>
     </>
-  );
-}
-
-export function CloudImagePreview(
-  props: PreviewProps<
-    ObjectField<typeof import('./cloud-image-schema').cloudImageSchema>
-  > & {
-    onRemove(): void;
-  }
-) {
-  const selected = useSelected();
-  const editor = useSlateStatic();
-
-  if (!props.fields.src.value) {
-    return (
-      <Placeholder
-        onChange={props.onChange}
-        onRemove={() => {
-          focusWithPreviousSelection(editor);
-          props.onRemove();
-        }}
-        selected={selected}
-      />
-    );
-  }
-
-  return (
-    <ImagePreview
-      image={{
-        src: props.fields.src.value,
-        alt: props.fields.alt.value,
-        width: props.fields.width.value ?? undefined,
-        height: props.fields.height.value ?? undefined,
-      }}
-      onChange={props.onChange}
-      onRemove={props.onRemove}
-      selected={selected}
-    />
   );
 }
 

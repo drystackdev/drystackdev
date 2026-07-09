@@ -21,7 +21,7 @@ import {
 import { parseProps } from '../form/parse-props';
 import { loadDataFile } from '../app/required-files';
 import { getValueAtPropPath } from '../form/props-value';
-import { ReadonlyPropPath } from '../form/fields/document/DocumentEditor/component-blocks/utils';
+import { ReadonlyPropPath } from '../form/fields/prop-path';
 import { cache } from '#react-cache-in-react-server';
 import { formatFormDataError } from '../form/error-formatting';
 

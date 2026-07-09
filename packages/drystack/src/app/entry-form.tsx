@@ -6,7 +6,7 @@ import {
 } from '@keystar/ui/split-view';
 import { ReactNode, createContext, useContext } from 'react';
 
-import { ReadonlyPropPath } from '../form/fields/document/DocumentEditor/component-blocks/utils';
+import { ReadonlyPropPath } from '../form/fields/prop-path';
 import {
   AddToPathProvider,
   PathContextProvider,

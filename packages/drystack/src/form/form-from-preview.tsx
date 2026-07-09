@@ -1,7 +1,7 @@
 import { MemoExoticComponent, ReactElement, ReactNode, memo } from 'react';
 
 import { ComponentSchema, GenericPreviewProps } from './api';
-import { ReadonlyPropPath } from './fields/document/DocumentEditor/component-blocks/utils';
+import { ReadonlyPropPath } from './fields/prop-path';
 import {
   SlugFieldInfo,
   PathContextProvider,
@@ -10,7 +10,10 @@ import {
 import { ObjectFieldInput } from './fields/object/ui';
 import { ConditionalFieldInput } from './fields/conditional/ui';
 import { ArrayFieldInput } from './fields/array/ui';
-import { ChildFieldInput } from './fields/document/DocumentEditor/component-blocks/child-field-input';
+
+function ChildFieldInput() {
+  return null;
+}
 
 export type ExtraFieldInputProps = {
   autoFocus: boolean;

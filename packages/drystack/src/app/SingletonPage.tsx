@@ -19,7 +19,7 @@ import { Heading, Text } from '@keystar/ui/typography';
 import { Config } from '../config';
 import { clientSideValidateProp } from '../form/errors';
 import { getInitialPropsValue } from '../form/initial-values';
-import { useEventCallback } from '../form/fields/document/DocumentEditor/ui-utils';
+import { useEventCallback } from '../form/fields/use-event-callback';
 import {
   getDataFileExtension,
   getPathPrefix,

@@ -182,10 +182,10 @@
       "default": "./src/form/fields/*/ui.tsx"
     },
     "#component-block-primitives": {
-      "node": "./src/form/fields/document/DocumentEditor/primitives/blank-for-react-server.tsx",
-      "worker": "./src/form/fields/document/DocumentEditor/primitives/blank-for-react-server.tsx",
-      "react-server": "./src/form/fields/document/DocumentEditor/primitives/blank-for-react-server.tsx",
-      "default": "./src/form/fields/document/DocumentEditor/primitives/index.tsx"
+      "node": "./src/component-blocks/primitives/blank-for-react-server.tsx",
+      "worker": "./src/component-blocks/primitives/blank-for-react-server.tsx",
+      "react-server": "./src/component-blocks/primitives/blank-for-react-server.tsx",
+      "default": "./src/component-blocks/primitives/index.tsx"
     },
     "#cloud-image-preview": {
       "node": "./src/component-blocks/blank-for-react-server.tsx",

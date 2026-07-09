@@ -1,5 +1,5 @@
 import { transformProps } from './props-value';
-import { ReadonlyPropPath } from './fields/document/DocumentEditor/component-blocks/utils';
+import { ReadonlyPropPath } from './fields/prop-path';
 import { getSlugFromState } from '../app/utils';
 import { ComponentSchema } from '..';
 
