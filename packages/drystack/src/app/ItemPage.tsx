@@ -720,6 +720,7 @@ function HeaderActions(props: {
       <Button
         form={formID}
         isPending={isLoading}
+        isDisabled={!hasChanged}
         prominence="high"
         type="submit"
       >
