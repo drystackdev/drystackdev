@@ -32,8 +32,10 @@ import { serializeProps } from '../form/serialize-props';
 import { scopeEntriesWithPathPrefix } from './shell/path-prefix';
 import { useRouter } from './router';
 import { base64Encode } from '#base64';
+import { useEntryUploadSession } from './media-library/upload-session';
 
 const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
 
 const frontmatterSplit = textEncoder.encode('---\n');
 
@@ -132,6 +134,7 @@ export function useUpsertItem(args: {
   const appSlug = useContext(AppSlugContext);
   const unscopedTreeData = useCurrentUnscopedTree();
   const { basePath: rootPath } = useRouter();
+  const uploadSession = useEntryUploadSession(args.basePath);
 
   return [
     state,
@@ -182,6 +185,32 @@ export function useUpsertItem(args: {
         );
         for (const file of additions) {
           filesToDelete.delete(file.path);
+        }
+
+        // sweep uploads made this session (via the media library dialog,
+        // for a cover/collection image or a content image) that never made
+        // it into the final saved state — e.g. the user picked a different
+        // image afterwards, or deleted the content node before saving. A
+        // tracked path counts as still referenced if it's one of this
+        // save's own additions (an entry-local *embedded* content image
+        // that's still in the doc becomes its own addition — see
+        // serializeProps's `formKind === 'content'` handling) or appears as
+        // a literal substring of the serialized output (image/images/
+        // file/files field values, and content's *library*-referenced
+        // image `src`s, are always written with a leading '/' — see
+        // FileManagerRoot.resolvePicks and html/serialize.ts's image case).
+        const trackedPaths = uploadSession.paths();
+        if (trackedPaths.length) {
+          const additionPaths = new Set(additions.map(a => a.path));
+          const combinedText = additions
+            .map(a => textDecoder.decode(a.contents))
+            .join('\n');
+          for (const path of trackedPaths) {
+            const prefixed = pathPrefix + path;
+            if (!additionPaths.has(prefixed) && !combinedText.includes(`/${path}`)) {
+              filesToDelete.add(prefixed);
+            }
+          }
         }
 
         additions = additions.filter(addition => {
@@ -299,6 +328,7 @@ export function useUpsertItem(args: {
           }
           const target = result.data?.createCommitOnBranch?.ref?.target;
           if (target) {
+            uploadSession.clear();
             setState({ kind: 'updated' });
             return true;
           }
@@ -324,6 +354,7 @@ export function useUpsertItem(args: {
           const newTree: TreeEntry[] = await res.json();
           const { tree } = await hydrateTreeCacheWithEntries(newTree);
           setTreeSha(await treeSha(tree));
+          uploadSession.clear();
           setState({ kind: 'updated' });
           return true;
         }

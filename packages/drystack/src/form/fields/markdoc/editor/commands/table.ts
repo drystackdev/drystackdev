@@ -1,14 +1,22 @@
-import { Command } from 'prosemirror-state';
+import { Command, Transaction } from 'prosemirror-state';
 import {
   CellSelection,
   TableMap,
   TableRect,
   addColSpan,
+  addColumnAfter,
+  addColumnBefore,
+  cellAround,
   rowIsHeader,
   selectedRect,
   splitCellWithType,
   tableNodeTypes,
 } from 'prosemirror-tables';
+import {
+  rebalanceColumnWidthsForInsert,
+  resolveEffectiveColumnWidths,
+  setAllColumnWidthPercents,
+} from '../table-column-resize';
 
 // Merge/unmerge is only wired up for the `content` (HTML) field today — the
 // underlying editor/schema is shared with the `markdoc`/`mdx` document
@@ -116,3 +124,58 @@ export const unmergeCell: Command = (state, dispatch) => {
     return headerRowEnabled ? types.header_cell : types.cell;
   })(state, dispatch);
 };
+
+// Wraps a column-inserting command so the new column isn't squeezed to
+// nothing (or existing columns pushed past 100% combined): reads the
+// pre-insert table's effective widths (see resolveEffectiveColumnWidths),
+// lets the wrapped command build its own transaction, then rebalances every
+// column's `widthPercent` in that same transaction (see
+// rebalanceColumnWidthsForInsert) before dispatching — one undo step, not
+// two. The inserted column is always a plain cell, so its position in the
+// resulting table matches `rect.left` (insert before) / `rect.right`
+// (insert after) from the *original* selection's rect.
+function withColumnRebalance(command: Command, before: boolean): Command {
+  return (state, dispatch) => {
+    if (!command(state)) return false;
+    if (!dispatch) return true;
+
+    const rect = selectedRect(state);
+    const oldWidths = resolveEffectiveColumnWidths(rect.table);
+    const insertIndex = before ? rect.left : rect.right;
+
+    let tr: Transaction | undefined;
+    command(state, transaction => {
+      tr = transaction;
+    });
+    if (!tr) return false;
+
+    try {
+      // `tr.selection.$anchor` is typically a cursor *inside* the cell's
+      // content (several depths deeper than the cell itself) — `cellAround`
+      // walks up to the position actually depth-aligned with the cell, the
+      // same way `startDrag`/`edgeCellPos` do in table-column-resize.ts, so
+      // that `.node(-1)`/`.start(-1)` resolve to the table, not some node
+      // partway down (e.g. the cell's own paragraph).
+      const $cell = cellAround(tr.selection.$anchor);
+      if (!$cell) throw new RangeError('No cell found around selection');
+      const table = $cell.node(-1);
+      const tableStart = $cell.start(-1);
+      const widths = rebalanceColumnWidthsForInsert(oldWidths, insertIndex);
+      tr = setAllColumnWidthPercents(tr, tableStart, table, widths);
+    } catch {
+      // selection didn't resolve to a cell as expected — fall back to
+      // dispatching the plain insert, unresized
+    }
+    dispatch(tr);
+    return true;
+  };
+}
+
+export const addColumnBeforeWithRebalance: Command = withColumnRebalance(
+  addColumnBefore,
+  true
+);
+export const addColumnAfterWithRebalance: Command = withColumnRebalance(
+  addColumnAfter,
+  false
+);

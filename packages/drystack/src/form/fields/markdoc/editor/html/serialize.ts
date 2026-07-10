@@ -3,6 +3,7 @@ import { EditorSchema, getEditorSchema } from '../schema';
 import { textblockChildren } from '../serialize-inline';
 import { MEDIA_LIBRARY_DIRECTORY } from '../../../../../app/media-library/constants';
 import { imageLayoutStyleString } from '../image-layout';
+import { getColumnWidthPercents } from '../table-column-resize';
 
 type HtmlElementNode = {
   kind: 'element';
@@ -16,7 +17,7 @@ type HtmlNode =
   | { kind: 'fragment'; children: HtmlNode[] }
   | HtmlElementNode;
 
-const VOID_TAGS = new Set(['br', 'hr', 'img']);
+const VOID_TAGS = new Set(['br', 'hr', 'img', 'col']);
 
 function escapeHTML(text: string) {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -258,6 +259,18 @@ function proseMirrorToHtmlNode(
     const theadRows = hasHeaderRow ? [rows[0]] : [];
     const tbodyRows = hasHeaderRow ? rows.slice(1) : rows;
     const children: HtmlNode[] = [];
+    children.push({
+      kind: 'element',
+      tag: 'colgroup',
+      children: getColumnWidthPercents(node).map(
+        (pct): HtmlNode => ({
+          kind: 'element',
+          tag: 'col',
+          attrs: pct != null ? { style: `width:${pct}%` } : undefined,
+          children: [],
+        })
+      ),
+    });
     if (theadRows.length) {
       children.push({
         kind: 'element',

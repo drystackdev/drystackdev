@@ -29,6 +29,7 @@ import {
 } from './autocomplete/insert-menu';
 import { setBlockType, wrapIn } from 'prosemirror-commands';
 import { insertNode, insertTable } from './commands/misc';
+import { getColumnWidthPercents, TableColgroupNodeView } from './table-column-resize';
 import { toggleList } from './lists';
 import { independentForGapCursor } from './gapcursor/gapcursor';
 import { WithReactNodeViewSpec } from './react-node-views';
@@ -156,6 +157,39 @@ function cellSpanDOMAttrs(node: ProsemirrorNode) {
   if (node.attrs.widthPercent) attrs.style = `width:${node.attrs.widthPercent}%`;
   return attrs;
 }
+
+// a `<colgroup>` gives every column a single, canonical width regardless of
+// which row happens to hold a plain (non-merged) cell for it — unlike
+// per-cell `style="width"`, which `table-layout: fixed` only honors on the
+// table's first row (see getColumnWidthPercents).
+function tableColgroupSpec(table: ProsemirrorNode): DOMOutputSpec {
+  const widths = getColumnWidthPercents(table);
+  return [
+    'colgroup',
+    {},
+    ...widths.map(
+      (pct): DOMOutputSpec => ['col', pct != null ? { style: `width:${pct}%` } : {}]
+    ),
+  ];
+}
+
+const tableElementClass = css({
+  width: '100%',
+  tableLayout: 'fixed',
+  position: 'relative',
+  borderSpacing: 0,
+  borderInlineStart: `1px solid ${tokenSchema.color.alias.borderIdle}`,
+  borderTop: `1px solid ${tokenSchema.color.alias.borderIdle}`,
+
+  '&:has(.selectedCell) *::selection': {
+    backgroundColor: 'transparent',
+  },
+
+  // stop content from bouncing around when widgets are added
+  '.ProseMirror-widget + *': {
+    marginTop: 0,
+  },
+});
 
 const tableCellClass = css({
   borderBottom: `1px solid ${tokenSchema.color.alias.borderIdle}`,
@@ -350,28 +384,16 @@ const nodeSpecs = {
     isolating: true,
     group: 'block',
     parseDOM: [{ tag: 'table' }],
-    toDOM() {
+    // the live editor DOM needs `<colgroup>` widths to stay in sync with
+    // per-cell resizes, which `toDOM` alone can't do (see
+    // TableColgroupNodeView) — `toDOM` remains as the static fallback used
+    // by e.g. clipboard serialization, where a snapshot is all that's needed
+    nodeView: node => new TableColgroupNodeView(node, tableElementClass),
+    toDOM(node) {
       return [
         'table',
-        {
-          class: css({
-            width: '100%',
-            tableLayout: 'fixed',
-            position: 'relative',
-            borderSpacing: 0,
-            borderInlineStart: `1px solid ${tokenSchema.color.alias.borderIdle}`,
-            borderTop: `1px solid ${tokenSchema.color.alias.borderIdle}`,
-
-            '&:has(.selectedCell) *::selection': {
-              backgroundColor: 'transparent',
-            },
-
-            // stop content from bouncing around when widgets are added
-            '.ProseMirror-widget + *': {
-              marginTop: 0,
-            },
-          }),
-        },
+        { class: tableElementClass },
+        tableColgroupSpec(node),
         ['tbody', 0],
       ];
     },

@@ -49,9 +49,16 @@ export function insertTable(tableType: NodeType): Command {
   const rowType = tableType.contentMatch.defaultType!;
   const cellType = rowType.contentMatch.defaultType!;
   const headerType = getEditorSchema(tableType.schema).nodes.table_header!;
+  // give every column an explicit, equal share up front rather than
+  // leaving `widthPercent` at its `null` (auto) default — see
+  // resolveEffectiveColumnWidths/rebalanceColumnWidthsForInsert, which rely
+  // on columns already having a real width to redistribute when a new one
+  // is inserted later.
+  const initialColumns = 3;
+  const widthPercent = Math.round((100 / initialColumns) * 10) / 10;
   return (state, dispatch) => {
-    const header = headerType.createAndFill()!;
-    const cell = cellType.createAndFill()!;
+    const header = headerType.createAndFill({ widthPercent })!;
+    const cell = cellType.createAndFill({ widthPercent })!;
     const headerRow = rowType.create(undefined, [header, header, header]);
     const row = rowType.create(undefined, [cell, cell, cell]);
     dispatch?.(

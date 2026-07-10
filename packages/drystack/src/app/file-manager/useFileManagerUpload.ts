@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { base64Encode } from '#base64';
 import { useRouter } from '../router';
 import { hydrateTreeCacheWithEntries } from '../shell/data';
+import { trackFreshUpload } from '../media-library/upload-session';
 
 export type ConflictResolution = 'skip' | 'replace' | 'rename';
 
@@ -44,6 +45,11 @@ export function useFileManagerUpload() {
   const commit = useCallback(
     async (files: PendingUpload[]) => {
       const uploaded: { path: string; content: Uint8Array }[] = [];
+      // paths that didn't overwrite a pre-existing file — candidates for
+      // save-time cleanup if the entry ends up not referencing them (see
+      // trackFreshUpload). A conflict resolved as 'replace' overwrote a file
+      // that already existed before this session, so it's excluded.
+      const freshPaths: string[] = [];
       const additions = files
         .map(f => {
           const resolution = f.conflict
@@ -53,6 +59,9 @@ export function useFileManagerUpload() {
           const path =
             resolution === 'rename' ? renamedWithSuffix(f.targetPath) : f.targetPath;
           uploaded.push({ path, content: f.content });
+          if (!f.conflict || resolution === 'rename') {
+            freshPaths.push(path);
+          }
           return { path, contents: base64Encode(f.content) };
         })
         .filter((x): x is NonNullable<typeof x> => x !== null);
@@ -68,6 +77,7 @@ export function useFileManagerUpload() {
         if (!res.ok) throw new Error(await res.text());
         const newTree = await res.json();
         const tree = await hydrateTreeCacheWithEntries(newTree);
+        freshPaths.forEach(trackFreshUpload);
         return { ...tree, uploaded };
       } finally {
         setIsUploading(false);

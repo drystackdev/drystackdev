@@ -8,13 +8,16 @@ import { Node, ResolvedPos } from 'prosemirror-model';
 import { Command, EditorState, Plugin, TextSelection } from 'prosemirror-state';
 import {
   CellSelection,
-  addColumnAfter,
   addRowAfter,
   deleteColumn,
   deleteRow,
   toggleHeader,
 } from 'prosemirror-tables';
-import { mergeCellsKeepFirst, unmergeCell } from '../commands/table';
+import {
+  addColumnAfterWithRebalance,
+  mergeCellsKeepFirst,
+  unmergeCell,
+} from '../commands/table';
 import { useEditorDispatchCommand, useEditorState } from '../editor-view';
 import { Decoration, DecorationSet } from 'prosemirror-view';
 import { getEditorSchema } from '../schema';
@@ -23,7 +26,10 @@ const cellActions: Record<string, { label: string; command: Command }> = {
   deleteRow: { label: 'Delete row', command: deleteRow },
   deleteColumn: { label: 'Delete column', command: deleteColumn },
   insertRowBelow: { label: 'Insert row below', command: addRowAfter },
-  insertColumnRight: { label: 'Insert column right', command: addColumnAfter },
+  insertColumnRight: {
+    label: 'Insert column right',
+    command: addColumnAfterWithRebalance,
+  },
   mergeCells: { label: 'Merge cells', command: mergeCellsKeepFirst },
   unmergeCell: { label: 'Unmerge cell', command: unmergeCell },
 };

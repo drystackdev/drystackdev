@@ -3,6 +3,7 @@ import { base64Encode } from '#base64';
 import { useRouter } from '../router';
 import { hydrateTreeCacheWithEntries } from '../shell/data';
 import { TreeEntry } from '../trees';
+import { trackFreshUpload } from './upload-session';
 
 function uniquePath(
   directory: string,
@@ -55,6 +56,9 @@ export function useMediaLibraryUpload() {
       }
       const newTree: TreeEntry[] = await res.json();
       await hydrateTreeCacheWithEntries(newTree);
+      // `uniquePath` above always picks a non-colliding path, so this write
+      // never overwrites something pre-existing — always fresh.
+      trackFreshUpload(path);
       return `/${path}`;
     },
     [basePath]
