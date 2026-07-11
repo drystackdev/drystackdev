@@ -25,6 +25,11 @@ export async function createConfiguredReader(config: Config<any, any>) {
     return createGitHubReader(config, {
       repo: repoString as `${string}/${string}`,
       pathPrefix: config.storage.pathPrefix,
+      // Unauthenticated GitHub API requests are capped at 60/hour — enough
+      // to trip during repeated local builds. Set DRYSTACK_GITHUB_TOKEN in
+      // .env (a classic PAT with public_repo/repo read access) to build
+      // against the authenticated 5000/hour limit instead.
+      token: import.meta.env.DRYSTACK_GITHUB_TOKEN,
     });
   }
   throw new Error(

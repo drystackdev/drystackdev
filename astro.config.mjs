@@ -11,5 +11,5 @@ export default defineConfig({
   // routes (prerender: false) — they need a server adapter even though the
   // rest of the site stays statically prerendered.
   adapter: cloudflare(),
-  
+  output: "static"
 });
