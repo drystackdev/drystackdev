@@ -2,7 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Config } from '@drystack/core';
 import { Toolbar } from './Toolbar';
-import { applyPendingEdits } from './bind';
+import { applyPendingEdits, discardEditsIfBuildIsNewer } from './bind';
 
 const ROOT_ID = 'drystack-editor-root';
 
@@ -17,9 +17,13 @@ const OUTLINE_STYLE = `
   }
 `;
 
-export async function mount(config: Config<any, any>): Promise<void> {
+export async function mount(
+  config: Config<any, any>,
+  buildVersion?: number
+): Promise<void> {
   if (document.getElementById(ROOT_ID)) return;
 
+  await discardEditsIfBuildIsNewer(config, buildVersion);
   await applyPendingEdits();
 
   const style = document.createElement('style');

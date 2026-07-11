@@ -166,7 +166,8 @@ async function buildFileChanges(
 }
 
 export async function saveEdits(config: Config<any, any>): Promise<void> {
-  if (config.storage.kind === 'github') {
+  const isGithub = config.storage.kind === 'github';
+  if (isGithub) {
     const token = getGithubToken();
     if (!token) throw new Error('Chưa đăng nhập GitHub');
     const { owner, name } = parseRepo((config.storage as any).repo);
@@ -210,5 +211,11 @@ export async function saveEdits(config: Config<any, any>): Promise<void> {
       `dry(): MVP 1 chưa hỗ trợ storage.kind "${(config.storage as any).kind}"`
     );
   }
-  await clearEdits();
+  // GitHub mode: keep the edits in IndexedDB. The commit still needs to land
+  // in a Cloudflare Pages build before it's visible, so clearing here would
+  // let a reload show a stale DOM in the gap between commit and deploy.
+  // discardEditsIfBuildIsNewer (bind.ts) clears them once that build ships.
+  if (!isGithub) {
+    await clearEdits();
+  }
 }

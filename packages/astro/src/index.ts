@@ -4,8 +4,16 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 const virtualPathModuleId = 'virtual:keystatic-path';
 const resolvedVirtualPathModuleId = '\0' + virtualPathModuleId;
 
+const virtualBuildVersionModuleId = 'virtual:keystatic-build-version';
+const resolvedVirtualBuildVersionModuleId = '\0' + virtualBuildVersionModuleId;
+
 export default function keystatic(options?: { path?: string }): AstroIntegration {
   const path = (options?.path ?? 'drystack').replace(/^\/+|\/+$/g, '');
+  // Captured once per build/dev-server start. Cloudflare Pages runs a fresh
+  // build on every deploy, so this timestamp is monotonically increasing
+  // across deploys — the client compares it against the version it last saw
+  // to detect "a newer build was published" and discard stale IndexedDB edits.
+  const buildVersion = Date.now();
   return {
     name: 'keystatic',
     hooks: {
@@ -23,11 +31,17 @@ export default function keystatic(options?: { path?: string }): AstroIntegration
                   if (id === virtualPathModuleId) {
                     return resolvedVirtualPathModuleId;
                   }
+                  if (id === virtualBuildVersionModuleId) {
+                    return resolvedVirtualBuildVersionModuleId;
+                  }
                   return null;
                 },
                 load(id) {
                   if (id === resolvedVirtualPathModuleId) {
                     return `export default ${JSON.stringify(path)};`;
+                  }
+                  if (id === resolvedVirtualBuildVersionModuleId) {
+                    return `export default ${JSON.stringify(buildVersion)};`;
                   }
                   return null;
                 },
@@ -88,11 +102,12 @@ if (eligible) {
     window.$RefreshSig$ = () => (type) => type;
     window.__vite_plugin_react_preamble_installed__ = true;
   }
-  const [{ default: cfg }, editor] = await Promise.all([
+  const [{ default: cfg }, { default: buildVersion }, editor] = await Promise.all([
     import('virtual:keystatic-config'),
+    import('virtual:keystatic-build-version'),
     import('@drystack/astro/editor'),
   ]);
-  editor.mount(cfg);
+  editor.mount(cfg, buildVersion);
 }`
         );
       },
