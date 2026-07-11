@@ -19,6 +19,14 @@ export function getOriginalValue(key: string): string | undefined {
   return originalValues.get(key);
 }
 
+// Force the diff baseline for `key` to `value`, overwriting any existing
+// baseline. Used after a deploy ships: the value now live on the server *is*
+// `value`, so the next edit to this field should diff against it rather than
+// whatever was on screen before the just-shipped edit.
+export function resetOriginalValue(key: string, value: string) {
+  originalValues.set(key, value);
+}
+
 function handleInput(e: Event) {
   const el = (e.target as HTMLElement)?.closest<HTMLElement>('[data-dry]');
   if (!el) return;

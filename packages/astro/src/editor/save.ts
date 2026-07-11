@@ -198,7 +198,10 @@ export async function getPendingDiffs(
   return collectFileDiffs(config);
 }
 
-export async function saveEdits(config: Config<any, any>): Promise<void> {
+// Returns the new commit's oid in github mode (so the caller can track that
+// commit's Cloudflare build), or undefined when there was nothing to commit
+// or when in local mode (no build to track).
+export async function saveEdits(config: Config<any, any>): Promise<string | undefined> {
   const isGithub = config.storage.kind === 'github';
   if (isGithub) {
     const token = getGithubToken();
@@ -206,8 +209,8 @@ export async function saveEdits(config: Config<any, any>): Promise<void> {
     const { owner, name } = parseRepo((config.storage as any).repo);
     const branch = await getDefaultBranch(token, owner, name);
     const files = await buildFileChanges(config, branch.branchName);
-    if (files.length === 0) return;
-    await githubGraphQL(token, createCommitMutation, {
+    if (files.length === 0) return undefined;
+    const data = await githubGraphQL(token, createCommitMutation, {
       input: {
         branch: {
           branchName: branch.branchName,
@@ -224,6 +227,15 @@ export async function saveEdits(config: Config<any, any>): Promise<void> {
         },
       },
     });
+    const commitOid: string | undefined =
+      data?.createCommitOnBranch?.ref?.target?.oid;
+    // GitHub mode: keep the edits in IndexedDB. The commit still needs to land
+    // in a Cloudflare build before it's visible, so clearing here would let a
+    // reload show a stale DOM in the gap between commit and deploy.
+    // discardEditsIfBuildIsNewer (bind.ts) clears them once that build ships,
+    // and the deploy-status websocket (deploy-status.ts) clears them as soon
+    // as the matching build succeeds without waiting for a reload.
+    return commitOid;
   } else if (config.storage.kind === 'local') {
     const files = await buildFileChanges(config);
     if (files.length === 0) return;
@@ -244,11 +256,8 @@ export async function saveEdits(config: Config<any, any>): Promise<void> {
       `dry(): MVP 1 does not support storage.kind "${(config.storage as any).kind}"`
     );
   }
-  // GitHub mode: keep the edits in IndexedDB. The commit still needs to land
-  // in a Cloudflare Pages build before it's visible, so clearing here would
-  // let a reload show a stale DOM in the gap between commit and deploy.
-  // discardEditsIfBuildIsNewer (bind.ts) clears them once that build ships.
-  if (!isGithub) {
-    await clearEdits();
-  }
+  // Local mode writes straight to disk — visible immediately, no build to
+  // track, so the edit log can be cleared right away.
+  await clearEdits();
+  return undefined;
 }

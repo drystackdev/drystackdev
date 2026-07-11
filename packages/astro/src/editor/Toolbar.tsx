@@ -22,6 +22,8 @@ import { Heading, Text } from '@keystar/ui/typography';
 import { enableEditing, disableEditing, getOriginalValue } from './bind';
 import { getAllEdits, deleteEdit } from './store';
 import { saveEdits } from './save';
+import { watchBuildStatus, type BuildPhase } from './deploy-status';
+import { refreshAfterDeploy } from './dom-refresh';
 
 type Spot = { key: string; name: string; field: string };
 type FieldChange = Spot & { before: string; after: string };
@@ -74,10 +76,16 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
 
   const onSave = async () => {
     setSaving(true);
+    const editedKeys = (await getAllEdits()).map(e => e.key);
     try {
-      await saveEdits(config);
+      const commitOid = await saveEdits(config);
       await refreshCount();
-      toastQueue.positive('Changes saved', { timeout: 4000 });
+      if (!commitOid) {
+        // Local mode, or nothing to commit — already live, nothing to track.
+        toastQueue.positive('Changes saved', { timeout: 4000 });
+        return;
+      }
+      trackDeploy(commitOid, editedKeys, refreshCount);
     } catch (err) {
       toastQueue.critical(err instanceof Error ? err.message : String(err));
     } finally {
@@ -239,6 +247,76 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       </DialogContainer>
     </div>
   );
+}
+
+// Opens a single persistent toast tracking the Cloudflare build for
+// `commitOid`, then reacts to the outcome: on success, morphs the page to the
+// freshly deployed HTML (dom-refresh.ts) instead of a hard reload; on
+// failure/cancel/timeout, leaves the edits in IndexedDB (nothing shipped) and
+// reports the outcome as a separate short-lived toast.
+function trackDeploy(
+  commitOid: string,
+  editedKeys: string[],
+  onSettledRefresh: () => void
+) {
+  const close = toastQueue.neutral(
+    <DeployProgressToastBody
+      commitOid={commitOid}
+      onSettled={async outcome => {
+        close();
+        if (outcome === 'succeeded') {
+          await refreshAfterDeploy(editedKeys);
+          onSettledRefresh();
+          toastQueue.positive('Đã cập nhật trang mới nhất', { timeout: 4000 });
+        } else if (outcome === 'failed' || outcome === 'canceled') {
+          toastQueue.critical(
+            'Build thất bại — các thay đổi vẫn được giữ lại, thử lưu lại sau.',
+            { timeout: 8000 }
+          );
+        } else {
+          toastQueue.info(
+            'Build đang lâu hơn bình thường — tải lại trang để kiểm tra.',
+            { timeout: 8000 }
+          );
+        }
+      }}
+    />
+  );
+}
+
+function DeployProgressToastBody({
+  commitOid,
+  onSettled,
+}: {
+  commitOid: string;
+  onSettled: (outcome: BuildPhase | 'timeout') => void;
+}) {
+  const [label, setLabel] = useState('Đang chờ build…');
+  const settledRef = useRef(false);
+
+  useEffect(() => {
+    settledRef.current = false;
+    return watchBuildStatus(commitOid, update => {
+      if (update.kind === 'label') {
+        setLabel(update.label);
+        return;
+      }
+      if (update.kind === 'phase' && update.phase === 'started') {
+        setLabel('Đang cài đặt dependencies…');
+        return;
+      }
+      if (settledRef.current) return;
+      if (update.kind === 'timeout') {
+        settledRef.current = true;
+        onSettled('timeout');
+      } else if (update.kind === 'phase') {
+        settledRef.current = true;
+        onSettled(update.phase);
+      }
+    });
+  }, [commitOid]);
+
+  return <Text>{label}</Text>;
 }
 
 function ReviewDialog({ onChange }: { onChange: () => void }) {

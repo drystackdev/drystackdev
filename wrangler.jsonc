@@ -2,7 +2,26 @@
   "name": "drystack",
   "compatibility_date": "2025-01-01",
   "compatibility_flags": ["nodejs_compat"],
+  "main": "./src/worker.ts",
   "assets": {
-    "directory": "./dist"
+    "directory": "./dist",
+    "binding": "ASSETS"
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "BUILD_STATUS_HUB", "class_name": "BuildStatusHub" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["BuildStatusHub"] }
+  ],
+  "queues": {
+    "consumers": [
+      {
+        "queue": "drystack-build-events",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5
+      }
+    ]
   }
 }
