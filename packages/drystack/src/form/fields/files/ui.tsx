@@ -10,12 +10,14 @@ import { useId, useReducer } from 'react';
 import { FormFieldInputProps } from '../../api';
 import { openMediaLibraryMulti } from '../../../app/media-library/bridge';
 import { useMediaLibraryPreviewURL } from '../../../app/media-library/useMediaLibraryPreviewURL';
+import { useInView } from '../../../app/file-manager/useInView';
 
 function FileRow(props: { path: string; onRemove: () => void }) {
-  const objectUrl = useMediaLibraryPreviewURL(props.path);
+  const [ref, inView] = useInView<HTMLDivElement>();
+  const objectUrl = useMediaLibraryPreviewURL(props.path, undefined, inView);
   const filename = props.path.split('/').pop()!;
   return (
-    <Flex alignItems="center" gap="regular">
+    <Flex ref={ref} alignItems="center" gap="regular">
       <Icon src={fileCodeIcon} />
       <Text UNSAFE_style={{ flex: 1 }}>{filename}</Text>
       {objectUrl && (

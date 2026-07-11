@@ -10,6 +10,7 @@ import { Text } from "@keystar/ui/typography";
 
 import { ComponentSchema } from "../../form/api";
 import { useMediaLibraryPreviewURL } from "../media-library/useMediaLibraryPreviewURL";
+import { useInView } from "../file-manager/useInView";
 import { ColumnDescriptor } from "./column-model";
 import {
   formatDateValue,
@@ -109,12 +110,13 @@ const thumbnailStyle = css({
 });
 
 export function ImageCell(props: { path: string | null }) {
-  const url = useMediaLibraryPreviewURL(props.path);
+  const [ref, inView] = useInView<HTMLDivElement>();
+  const url = useMediaLibraryPreviewURL(props.path, undefined, inView);
   if (!props.path) return <EmptyCell />;
-  return url ? (
-    <img src={url} alt="" className={thumbnailStyle} />
-  ) : (
-    <div className={thumbnailStyle} />
+  return (
+    <div ref={ref} className={thumbnailStyle}>
+      {url && <img src={url} alt="" className={thumbnailStyle} />}
+    </div>
   );
 }
 

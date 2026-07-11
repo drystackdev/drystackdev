@@ -9,6 +9,7 @@ import { useId, useReducer, useState } from 'react';
 import { FormFieldInputProps } from '../../api';
 import { openMediaLibraryMulti } from '../../../app/media-library/bridge';
 import { useMediaLibraryPreviewURL } from '../../../app/media-library/useMediaLibraryPreviewURL';
+import { useInView } from '../../../app/file-manager/useInView';
 import { useObjectURL } from '../image/ui';
 
 function ImageThumbnail(props: {
@@ -16,11 +17,17 @@ function ImageThumbnail(props: {
   freshContent: Uint8Array | undefined;
   onRemove: () => void;
 }) {
+  const [ref, inView] = useInView<HTMLDivElement>();
   const freshObjectUrl = useObjectURL(props.freshContent ?? null, undefined);
-  const treeObjectUrl = useMediaLibraryPreviewURL(props.path);
+  const treeObjectUrl = useMediaLibraryPreviewURL(
+    props.path,
+    undefined,
+    inView
+  );
   const objectUrl = freshObjectUrl ?? treeObjectUrl;
   return (
     <Flex
+      ref={ref}
       direction="column"
       gap="small"
       backgroundColor="canvas"
