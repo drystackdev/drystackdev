@@ -13,6 +13,7 @@ import { TooltipTrigger, Tooltip } from "@keystar/ui/tooltip";
 
 import { useMediaLibraryPreviewURL } from "../media-library/useMediaLibraryPreviewURL";
 import { formatBytes } from "./file-kind";
+import { useInView } from "./useInView";
 
 
 export type AssetListItemProps = {
@@ -36,9 +37,11 @@ export type AssetListItemProps = {
 };
 
 export function AssetListItem(props: AssetListItemProps) {
+  const [ref, inView] = useInView<HTMLDivElement>();
   const previewUrl = useMediaLibraryPreviewURL(
     props.kind === "file" && props.isImage && props.path ? props.path : null,
     props.previewContent,
+    inView,
   );
 
   const infoText =
@@ -53,6 +56,7 @@ export function AssetListItem(props: AssetListItemProps) {
 
   return (
     <Flex
+      ref={ref}
       alignItems="center"
       gap="small"
       padding="medium"

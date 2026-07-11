@@ -13,6 +13,7 @@ import { TooltipTrigger, Tooltip } from "@keystar/ui/tooltip";
 
 import { useMediaLibraryPreviewURL } from "../media-library/useMediaLibraryPreviewURL";
 import { formatBytes } from "./file-kind";
+import { useInView } from "./useInView";
 
 export type AssetCardProps = {
   name: string;
@@ -48,9 +49,11 @@ const overlayButtonStyle = {
 } as const;
 
 export function AssetCard(props: AssetCardProps) {
+  const [ref, inView] = useInView<HTMLDivElement>();
   const previewUrl = useMediaLibraryPreviewURL(
     props.kind === "file" && props.isImage && props.path ? props.path : null,
     props.previewContent,
+    inView,
   );
   const [isHovered, setIsHovered] = useState(false);
 
@@ -66,6 +69,7 @@ export function AssetCard(props: AssetCardProps) {
 
   return (
     <Flex
+      ref={ref}
       direction="column"
       gap="small"
       backgroundColor="canvas"

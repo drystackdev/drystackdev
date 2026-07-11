@@ -1,5 +1,6 @@
 import { LRUCache } from 'lru-cache';
 import type { Client } from 'urql';
+import { toastQueue } from '@keystar/ui/toast';
 import { useCallback, useMemo } from 'react';
 import { Config } from '../config';
 import {
@@ -19,7 +20,6 @@ import { LOADING, useData } from './useData';
 import {
   FormatInfo,
   getEntryDataFilepath,
-  getPathPrefix,
   KEYSTATIC_CLOUD_API_URL,
   KEYSTATIC_CLOUD_HEADERS,
   MaybePromise,
@@ -330,23 +330,55 @@ export async function hydrateBlobCache(contents: Uint8Array) {
   return sha;
 }
 
+// A blob fetch that's actively being rate-limited by GitHub — surfaced
+// separately from a generic fetch failure so callers can show one shared
+// "try again later" message instead of N per-thumbnail errors.
+export class GitHubRateLimitError extends Error {
+  resetAt: Date | null;
+  constructor(resetAt: Date | null) {
+    super('GitHub API rate limit reached');
+    this.name = 'GitHubRateLimitError';
+    this.resetAt = resetAt;
+  }
+}
+
+function rateLimitResetFromHeaders(headers: Headers): Date | null {
+  const reset = headers.get('x-ratelimit-reset');
+  if (!reset) return null;
+  const seconds = Number(reset);
+  return Number.isFinite(seconds) ? new Date(seconds * 1000) : null;
+}
+
+// A directory of thumbnails can hit the rate limit dozens of times at once —
+// show one toast per 30s window instead of one per failed blob.
+let lastRateLimitToastAt = 0;
+function notifyRateLimit(resetAt: Date | null) {
+  const now = Date.now();
+  if (now - lastRateLimitToastAt < 30_000) return;
+  lastRateLimitToastAt = now;
+  const resetText = resetAt
+    ? ` — try again after ${resetAt.toLocaleTimeString()}`
+    : '';
+  toastQueue.critical(`GitHub API rate limit reached${resetText}`, {
+    timeout: 8000,
+  });
+}
+
+// Raw content is always fetched through an authenticated REST call, even for
+// public repos — an earlier version used unauthenticated
+// raw.githubusercontent.com for public repos, but that endpoint is capped at
+// ~60 requests/hour per browser IP, which a single directory of thumbnails
+// in the File Manager can exhaust immediately. The authenticated
+// `git/blobs/{oid}` endpoint shares the same binary-safe `Accept:
+// application/vnd.github.raw` response shape and gets the much higher
+// authenticated REST rate limit instead.
 async function fetchGitHubBlob(
   config: Config,
   oid: string,
-  filepath: string,
-  commitSha: string,
-  repoInfo: { owner: string; name: string; isPrivate: boolean } | null,
   basePath: string
 ): Promise<Response> {
-  if (repoInfo?.isPrivate === false) {
-    return fetch(
-      `https://raw.githubusercontent.com/${serializeRepoConfig(
-        repoInfo
-      )}/${commitSha}/${getPathPrefix(config.storage) ?? ''}${filepath}`
-    );
-  }
   const auth = await getAuth(config, basePath);
-  return fetch(
+  const res = await fetch(
     config.storage.kind === 'github'
       ? `https://api.github.com/repos/${serializeRepoConfig(
           config.storage.repo
@@ -360,6 +392,38 @@ async function fetchGitHubBlob(
       },
     }
   );
+  if (
+    !res.ok &&
+    (res.status === 429 ||
+      (res.status === 403 && res.headers.get('x-ratelimit-remaining') === '0'))
+  ) {
+    throw new GitHubRateLimitError(rateLimitResetFromHeaders(res.headers));
+  }
+  return res;
+}
+
+// Caps how many blob fetches are in flight at once across the whole app —
+// a File Manager directory of N thumbnails would otherwise fire N requests
+// simultaneously on mount, which is both wasteful and makes hitting a rate
+// limit far more likely.
+const BLOB_FETCH_CONCURRENCY = 6;
+let activeBlobFetches = 0;
+const blobFetchQueue: (() => void)[] = [];
+
+function runBlobFetch<T>(fn: () => Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const run = () => {
+      activeBlobFetches++;
+      fn()
+        .then(resolve, reject)
+        .finally(() => {
+          activeBlobFetches--;
+          blobFetchQueue.shift()?.();
+        });
+    };
+    if (activeBlobFetches < BLOB_FETCH_CONCURRENCY) run();
+    else blobFetchQueue.push(run);
+  });
 }
 
 export function fetchBlob(
@@ -381,12 +445,12 @@ export function fetchBlob(
         return stored;
       }
     }
-    return (
+    return runBlobFetch(() =>
       isLocal
         ? fetch(`/api${basePath}/blob/${oid}/${filepath}`, {
             headers: { 'no-cors': '1' },
           })
-        : fetchGitHubBlob(config, oid, filepath, commitSha, repoInfo, basePath)
+        : fetchGitHubBlob(config, oid, basePath)
     )
       .then(async x => {
         if (!x.ok) {
@@ -408,6 +472,7 @@ export function fetchBlob(
       })
       .catch(err => {
         blobCache.delete(oid);
+        if (err instanceof GitHubRateLimitError) notifyRateLimit(err.resetAt);
         throw err;
       });
   })();

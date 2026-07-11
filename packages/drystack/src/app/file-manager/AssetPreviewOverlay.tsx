@@ -15,6 +15,7 @@ import { useMediaLibraryPreviewURL } from '../media-library/useMediaLibraryPrevi
 import { getHighlightLanguage, isImagePath } from './file-kind';
 import { highlightCode } from './highlightCode';
 import { useFileTextContent } from './useFileTextContent';
+import { useInView } from './useInView';
 
 const MIN_ZOOM = 25;
 const MAX_ZOOM = 400;
@@ -338,11 +339,13 @@ function FilmstripThumb(props: {
   isActive: boolean;
   onSelect: () => void;
 }) {
-  const url = useMediaLibraryPreviewURL(props.path);
+  const [ref, inView] = useInView<HTMLButtonElement>();
+  const url = useMediaLibraryPreviewURL(props.path, undefined, inView);
   const name = props.path.split('/').pop();
 
   return (
     <ActionButton
+      ref={ref}
       aria-label={`Show ${name}`}
       onPress={props.onSelect}
       UNSAFE_style={{

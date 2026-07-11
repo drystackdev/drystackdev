@@ -31,10 +31,14 @@ export function useFileTextContent(path: string | null) {
     let cancelled = false;
     Promise.resolve(
       fetchBlob(config, sha, relativePath, baseCommit, repoInfo, basePath)
-    ).then(bytes => {
-      if (cancelled) return;
-      setText(textDecoder.decode(bytes));
-    });
+    )
+      .then(bytes => {
+        if (cancelled) return;
+        setText(textDecoder.decode(bytes));
+      })
+      .catch(() => {
+        // leave text null — caller keeps showing its existing empty state
+      });
     return () => {
       cancelled = true;
     };

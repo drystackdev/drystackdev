@@ -1,6 +1,14 @@
 ## Project nature
 
-drystack is a customized fork of Keystatic. Any new feature (file manager, uploads, trash/delete, editing, etc.) **must work correctly in GitHub storage mode** (`storage.kind === 'github'`), not just local mode — check `isLocalConfig`/`isGitHubConfig` (`packages/drystack/src/app/utils.ts`) call sites for the feature and wire up the GitHub code path (typically via `useCommitFileChanges` / GraphQL `createCommitOnBranch`, see `packages/drystack/src/app/shell/useCommitFileChanges.ts`) rather than only the local-only `/update` REST API. If GitHub support can't be done in the same change, gate the feature's UI so it doesn't appear for GitHub mode until it does (see `packages/drystack/src/app/shell/sidebar/index.tsx`'s "File management" nav item for the pattern), and leave a comment explaining what's still local-only.
+drystack is a customized fork of Keystatic.
+
+> **⚠️ Standing rule — no exceptions:** every feature (file manager, uploads, trash/delete, editing, media library, etc.) **must work in both `storage.kind === 'local'` and `storage.kind === 'github'`.** This applies to every change, not just new features — if you touch a write path, verify both modes before calling the work done.
+
+Checklist for any change that reads or writes content:
+1. Find the relevant `isLocalConfig`/`isGitHubConfig` (or `config.storage.kind`) call sites in `packages/drystack/src/app/utils.ts` and the feature's own files.
+2. Wire up the GitHub path via `useCommitFileChanges` / GraphQL `createCommitOnBranch` (`packages/drystack/src/app/shell/useCommitFileChanges.ts`) — don't rely solely on the local-only `/update` REST API.
+3. If GitHub support genuinely can't land in the same change, gate the feature's UI so it's hidden for GitHub mode (pattern: `packages/drystack/src/app/shell/sidebar/index.tsx`'s "File management" nav item) and leave a comment explaining what's still local-only.
+4. Prefer implementing the GitHub path over gating when the underlying primitive already supports it (e.g. `useCommitFileChanges` already batches `additions`+`deletions` in one commit) — don't hide a feature just because the first draft only touched local mode.
 
 ## Configuration
 
