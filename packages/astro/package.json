@@ -12,6 +12,7 @@
     "./ui": "./src/ui.tsx",
     "./api": "./src/api.tsx",
     "./dry": "./src/dry.ts",
+    "./reader": "./src/reader.ts",
     "./editor": "./src/editor/index.tsx",
     ".": "./src/index.ts",
     "./package.json": "./package.json",

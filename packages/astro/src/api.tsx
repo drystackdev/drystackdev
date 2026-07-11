@@ -1,5 +1,5 @@
 import {
-  APIRouteConfig,
+  type APIRouteConfig,
   makeGenericAPIRouteHandler,
 } from '@drystack/core/api/generic';
 import type { APIContext } from 'astro';

@@ -1,5 +1,5 @@
 import type { Config, ComponentSchema } from '@drystack/core';
-import { createReader } from '@drystack/core/reader';
+import { createConfiguredReader } from './reader';
 
 export type DryItem = { 'data-dry': string };
 
@@ -18,13 +18,16 @@ export type DrySingleton = Record<string, unknown> & {
 export function dry(config: Config<any, any>): {
   singleton: Record<string, Promise<DrySingleton>>;
 } {
-  const reader = createReader(process.cwd(), config);
+  const readerPromise = createConfiguredReader(config);
   const singleton: Record<string, Promise<DrySingleton>> = {};
   for (const name of Object.keys(config.singletons ?? {})) {
     let promise: Promise<DrySingleton> | undefined;
     Object.defineProperty(singleton, name, {
       enumerable: true,
-      get: () => (promise ??= readSingleton(config, reader, name)),
+      get: () =>
+        (promise ??= readerPromise.then(reader =>
+          readSingleton(config, reader, name)
+        )),
     });
   }
   return { singleton };
@@ -32,7 +35,7 @@ export function dry(config: Config<any, any>): {
 
 async function readSingleton(
   config: Config<any, any>,
-  reader: ReturnType<typeof createReader>,
+  reader: Awaited<ReturnType<typeof createConfiguredReader>>,
   name: string
 ): Promise<DrySingleton> {
   const entry = ((await (reader.singletons as any)[name]?.read({

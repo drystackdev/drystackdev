@@ -1,8 +1,11 @@
 import { collection, config, fields, singleton } from "@drystack/core";
 
 export default config({
-  storage: {
+  storage: import.meta.env.DEV ? {
     kind: "local",
+  }: {
+    kind: "github",
+    repo: "khancoder282/drystack"
   },
   singletons: {
     home: singleton({

@@ -1,9 +1,9 @@
 ---
-import { createReader } from "@drystack/core/reader";
+import { createConfiguredReader } from "@drystack/astro/reader";
 import config from "../../../drystack.config";
 
 export async function getStaticPaths() {
-  const reader = createReader(process.cwd(), config);
+  const reader = await createConfiguredReader(config);
   const posts = await reader.collections.posts.all({ resolveLinkedFiles: true });
   return posts
     .filter(({ entry }) => entry.publish)

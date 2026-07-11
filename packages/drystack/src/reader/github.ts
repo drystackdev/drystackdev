@@ -46,7 +46,10 @@ export function createGitHubReader<
     const res = await fetch(
       `https://api.github.com/repos/${opts.repo}/git/trees/${ref}?recursive=1`,
       {
-        headers: opts.token ? { Authorization: `Bearer ${opts.token}` } : {},
+        headers: {
+          'User-Agent': 'drystack',
+          ...(opts.token ? { Authorization: `Bearer ${opts.token}` } : {}),
+        },
         cache: 'no-store',
       }
     );
@@ -83,7 +86,12 @@ export function createGitHubReader<
       const { sha } = await getTree();
       const res = await fetch(
         `https://raw.githubusercontent.com/${opts.repo}/${sha}/${pathPrefix}${path}`,
-        { headers: opts.token ? { Authorization: `Bearer ${opts.token}` } : {} }
+        {
+          headers: {
+            'User-Agent': 'drystack',
+            ...(opts.token ? { Authorization: `Bearer ${opts.token}` } : {}),
+          },
+        }
       );
       if (res.status === 404) return null;
       if (!res.ok) {
