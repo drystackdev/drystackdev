@@ -32,7 +32,7 @@ const posts = allPosts
             <h1>{home.heading}</h1>
             {home.description && <p>{home.description}</p>}
             {home.image && (
-              <img src={home.image.startsWith("/") ? home.image : `/${home.image}`} alt="" style="width: 300px;" />
+              <img src={home.image.startsWith("/") ? home.image : `/${home.image}`} alt="" style="max-width: 100%; height: auto;" />
             )}
             {home.body && <Fragment set:html={home.body} />}
           </>

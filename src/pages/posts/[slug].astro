@@ -29,7 +29,7 @@ const { entry: post } = Astro.props;
       <h1>{post.title}</h1>
       {post.description && <p>{post.description}</p>}
       {post.cover && (
-        <img style="width: 300px;" src={post.cover.startsWith("/") ? post.cover : `/${post.cover}`} alt="" />
+        <img style="max-width: 100%; height: auto;" src={post.cover.startsWith("/") ? post.cover : `/${post.cover}`} alt="" />
       )}
       {post.body && <Fragment set:html={post.body} />}
     </main>
