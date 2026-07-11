@@ -54,6 +54,7 @@ export function AssetCard(props: AssetCardProps) {
     props.kind === "file" && props.isImage && props.path ? props.path : null,
     props.previewContent,
     inView,
+    true, // grid card — a downscaled thumbnail is plenty
   );
   const [isHovered, setIsHovered] = useState(false);
 

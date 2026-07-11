@@ -321,7 +321,21 @@ export function useItemData(args: UseItemDataArgs) {
   );
 }
 
-const blobCache = new LRUCache<string, MaybePromise<Uint8Array>>({ max: 200 });
+// Budget the in-memory blob cache by bytes rather than entry count: image
+// blobs vary enormously in size, so a fixed 200-entry cap either wastes memory
+// on many tiny files or evicts recently-viewed large images far too eagerly.
+// Pending-promise entries count as 1 byte and are re-set with their real size
+// once resolved (see the `blobCache.set(oid, array)` calls below).
+const BLOB_CACHE_MAX_BYTES = 64 * 1024 * 1024;
+const blobCache = new LRUCache<string, MaybePromise<Uint8Array>>({
+  maxSize: BLOB_CACHE_MAX_BYTES,
+  // Clamp so a single oversized blob can't exceed maxSize (which would make
+  // lru-cache throw) — it just evicts everything else and stays resident.
+  sizeCalculation: value =>
+    value instanceof Uint8Array
+      ? Math.min(BLOB_CACHE_MAX_BYTES, Math.max(1, value.byteLength))
+      : 1,
+});
 
 export async function hydrateBlobCache(contents: Uint8Array) {
   const sha = await blobSha(contents);

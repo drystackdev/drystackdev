@@ -46,6 +46,29 @@ export async function getBlobFromPersistedCache(sha: string) {
     return stored;
   }
 }
+
+let _thumbStore: UseStore;
+
+function getThumbStore() {
+  if (!_thumbStore) {
+    _thumbStore = createStore('drystack-thumbs', 'thumbs');
+  }
+  return _thumbStore;
+}
+
+// Downscaled preview bytes, keyed `${blobSha}@${maxDim}` — see
+// `image-preview-cache.ts`. Cheap to regenerate, so this store is a pure
+// optimization: it's fine for it to be empty or garbage-collected.
+export function setThumbToPersistedCache(key: string, val: Uint8Array) {
+  return set(key, val, getThumbStore());
+}
+
+export async function getThumbFromPersistedCache(key: string) {
+  const stored = await get(key, getThumbStore());
+  if (stored instanceof Uint8Array) {
+    return stored;
+  }
+}
 let _storedTreeCache: Map<string, StoredTreeEntry[]> | undefined;
 
 const treeSchema = s.array(
@@ -144,6 +167,7 @@ export async function garbageCollectGitObjects(roots: string[]) {
   }
 
   const allBlobs = (await keys(getBlobStore())) as string[];
+  const allThumbs = (await keys(getThumbStore())) as string[];
   const blobsToDelete = new Set<string>(allBlobs);
   const queue = new Set<string>(roots);
   for (const sha of queue) {
@@ -161,9 +185,15 @@ export async function garbageCollectGitObjects(roots: string[]) {
     }
   }
   const treeKeysToDelete = [...treesToDelete.keys(), ...invalidTrees];
+  // A thumbnail's lifetime tracks its source blob: drop it exactly when the
+  // blob it was derived from is being collected (thumb keys are `${sha}@${dim}`).
+  const thumbsToDelete = allThumbs.filter(key =>
+    blobsToDelete.has(key.split('@')[0])
+  );
   await Promise.all([
     delMany([...blobsToDelete], getBlobStore()),
     delMany([...treesToDelete.keys(), ...invalidTrees], getTreeStore()),
+    delMany(thumbsToDelete, getThumbStore()),
   ]);
   for (const key of treeKeysToDelete) {
     _storedTreeCache?.delete(key as string);
@@ -199,5 +229,9 @@ function collectTrees(
 }
 
 export async function clearObjectCache() {
-  await Promise.all([clear(getBlobStore()), clear(getTreeStore())]);
+  await Promise.all([
+    clear(getBlobStore()),
+    clear(getTreeStore()),
+    clear(getThumbStore()),
+  ]);
 }

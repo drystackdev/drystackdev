@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 // defer expensive work (e.g. fetching a thumbnail's blob content) until the
 // item is actually about to be seen instead of doing it for every item in a
 // long, unvirtualized list on mount.
-export function useInView<T extends HTMLElement>(rootMargin = '200px') {
+export function useInView<T extends HTMLElement>(rootMargin = '400px') {
   const ref = useRef<T | null>(null);
   const [inView, setInView] = useState(false);
 

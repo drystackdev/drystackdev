@@ -42,6 +42,7 @@ export function AssetListItem(props: AssetListItemProps) {
     props.kind === "file" && props.isImage && props.path ? props.path : null,
     props.previewContent,
     inView,
+    true, // list thumbnail — a downscaled preview is plenty
   );
 
   const infoText =

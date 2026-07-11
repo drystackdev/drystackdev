@@ -11,7 +11,10 @@ import { Flex } from '@keystar/ui/layout';
 import { tokenSchema } from '@keystar/ui/style';
 import { Text } from '@keystar/ui/typography';
 
-import { useMediaLibraryPreviewURL } from '../media-library/useMediaLibraryPreviewURL';
+import {
+  useMediaLibraryPrefetch,
+  useMediaLibraryPreviewURL,
+} from '../media-library/useMediaLibraryPreviewURL';
 import { getHighlightLanguage, isImagePath } from './file-kind';
 import { highlightCode } from './highlightCode';
 import { useFileTextContent } from './useFileTextContent';
@@ -69,6 +72,17 @@ export function AssetPreviewOverlay(props: {
   const canLoop = siblings.length > 1;
   const canPrev = canLoop;
   const canNext = canLoop;
+
+  // Warm the full-res blobs on either side so left/right navigation is
+  // instant. Siblings passed to the overlay are already filtered to images.
+  useMediaLibraryPrefetch(
+    isImage && canLoop && index >= 0
+      ? [
+          siblings[(index - 1 + siblings.length) % siblings.length],
+          siblings[(index + 1) % siblings.length],
+        ]
+      : []
+  );
 
   function prevPath() {
     if (index < 0) return undefined;
@@ -340,7 +354,7 @@ function FilmstripThumb(props: {
   onSelect: () => void;
 }) {
   const [ref, inView] = useInView<HTMLButtonElement>();
-  const url = useMediaLibraryPreviewURL(props.path, undefined, inView);
+  const url = useMediaLibraryPreviewURL(props.path, undefined, inView, true);
   const name = props.path.split('/').pop();
 
   return (
