@@ -37,8 +37,9 @@ import { pluralize } from '../../pluralize';
 
 import { useBrand } from '../common';
 import { SIDE_PANEL_ID } from '../constants';
-import { GitMenu, ThemeMenu, UserActions } from './components';
-import { BranchPicker } from '../../branch-selection';
+import { ThemeMenu, UserActions } from './components';
+import { CurrentBrandChip } from '../../deploy/CurrentBrandChip';
+import { DeployButton } from '../../deploy/DeployButton';
 import { useAppState, useConfig } from '../context';
 
 const SidebarContext = createContext<OverlayTriggerState | null>(null);
@@ -145,7 +146,7 @@ function SidebarFooter() {
   );
 }
 
-// no git actions in local mode
+// no brand/deploy in local mode — brand is a github-only concept (plan/brand.md §12)
 function SidebarGitActions() {
   let config = useConfig();
   if (isLocalConfig(config)) {
@@ -153,8 +154,8 @@ function SidebarGitActions() {
   }
   return (
     <HStack gap="regular" paddingY="regular" paddingX="medium">
-      <BranchPicker />
-      <GitMenu />
+      <CurrentBrandChip />
+      <DeployButton />
     </HStack>
   );
 }

@@ -19,23 +19,28 @@ import { SidebarProvider } from './sidebar';
 import { MainPanelLayout } from './panels';
 import { EmptyState } from './empty-state';
 import { FileManagerHost } from '../file-manager/FileManagerHost';
+import { useBrandGuard } from '../brand';
 
-function BranchNotFound(props: { children: ReactNode }) {
+function BranchNotFound(props: { config: Config; children: ReactNode }) {
   const branches = useBranches();
   const currentBranch = useCurrentBranch();
   const appShellDataContext = useContext(GitHubAppShellDataContext);
+
+  // self-heals a brand branch that vanished outside the app (deleted on
+  // GitHub, or a fresh page load that never went through RedirectToBranch) —
+  // see plan/brand.md §5/§16. No-ops for local mode and once in sync.
+  useBrandGuard(props.config);
+
   if (
     appShellDataContext?.data?.repository?.refs?.pageInfo.hasNextPage ===
       false &&
     !branches.has(currentBranch)
   ) {
-    return (
-      <EmptyState
-        icon={alertCircleIcon}
-        title="Branch not found"
-        message={`The branch ${currentBranch} does not exist in this repository.`}
-      />
-    );
+    // only reachable in github mode (GitHubAppShellDataContext is never
+    // provided in local mode) — useBrandGuard is already recreating the
+    // brand and will redirect shortly, so show a neutral loading state
+    // rather than a dead-end error.
+    return null;
   }
   return props.children;
 }
@@ -70,7 +75,7 @@ export const AppShell = (props: {
       <AppStateContext.Provider value={{ basePath: props.basePath }}>
         <SidebarProvider>
           <MainPanelLayout>
-            <BranchNotFound>{content}</BranchNotFound>
+            <BranchNotFound config={props.config}>{content}</BranchNotFound>
           </MainPanelLayout>
           <FileManagerHost />
         </SidebarProvider>

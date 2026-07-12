@@ -287,3 +287,15 @@ export function useCreateBranchMutation() {
     ` as import('../../__generated__/ts-gql/CreateBranch').type
   );
 }
+
+export function useDeleteBranchMutation() {
+  return useMutation(
+    gql`
+      mutation DeleteBranch($refId: ID!) {
+        deleteRef(input: { refId: $refId }) {
+          __typename
+        }
+      }
+    ` as import('../../__generated__/ts-gql/DeleteBranch').type
+  );
+}

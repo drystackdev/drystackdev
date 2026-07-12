@@ -69,7 +69,6 @@ import { clipboardPasteIcon } from '@keystar/ui/icon/icons/clipboardPasteIcon';
 import { clipboardCopyIcon } from '@keystar/ui/icon/icons/clipboardCopyIcon';
 import { setValueToPreviewProps } from '../form/get-value';
 import { toastQueue } from '@keystar/ui/toast';
-import { useDeployProgressToast } from './DeployProgressToast';
 
 type SingletonPageProps = {
   singleton: string;
@@ -175,11 +174,10 @@ function SingletonPageInner(
 
   const baseCommit = useBaseCommit();
 
-  useDeployProgressToast(
-    props.updateResult.kind === 'updated'
-      ? props.updateResult.commitOid
-      : undefined
-  );
+  // build tracking now lives on the Deploy button (deploy/DeployButton.tsx):
+  // saves commit to the editor's brand branch, which never triggers a
+  // Cloudflare build on its own — only merging a brand into the default
+  // branch does. See plan/brand.md §11.
 
   const isCreating = props.initialState === null;
 

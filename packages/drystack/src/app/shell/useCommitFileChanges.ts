@@ -23,7 +23,7 @@ export const createCommitMutation = gql`
       }
     }
   }
-` as import('../../__generated__/ts-gql/CreateCommit').type;
+` as import('../../../__generated__/ts-gql/CreateCommit').type;
 
 // Shared "commit straight to GitHub" primitive for 'github' storage, used by
 // file-manager write actions (upload, trash, restore, permanent delete) —

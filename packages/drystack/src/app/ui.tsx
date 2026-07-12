@@ -38,6 +38,7 @@ import {
 import { getAuth } from './auth';
 import { assertValidRepoConfig } from './repo-config';
 import { NotFoundBoundary, notFound } from './not-found';
+import { BrandProvider, useEnsureBrandAtRoot } from './brand';
 
 function parseParamsWithoutBranch(params: string[]) {
   if (params.length === 0) {
@@ -65,19 +66,17 @@ function parseParamsWithoutBranch(params: string[]) {
 }
 
 function RedirectToBranch(props: { config: GitHubConfig }) {
-  const { push, basePath } = useRouter();
+  const { basePath } = useRouter();
   const apiBasePath = `/api${basePath}`;
   const { data, error } = useContext(GitHubAppShellDataContext)!;
+
+  // navigates to the editor's personal brand (creating it off the default
+  // branch on first visit, or reusing it if one already exists) — see brand.ts
+  useEnsureBrandAtRoot(props.config);
+
   useEffect(() => {
     if (error?.response?.status === 401) {
       window.location.href = `${apiBasePath}/github/login`;
-    }
-    if (data?.repository?.defaultBranchRef) {
-      push(
-        `${basePath}/branch/${encodeURIComponent(
-          data.repository.defaultBranchRef.name
-        )}`
-      );
     }
     if (
       (!data?.repository?.id &&
@@ -87,7 +86,7 @@ function RedirectToBranch(props: { config: GitHubConfig }) {
     ) {
       window.location.href = `${apiBasePath}/github/repo-not-found`;
     }
-  }, [data, error, push, props.config, basePath, apiBasePath]);
+  }, [data, error, props.config, apiBasePath]);
   return null;
 }
 
@@ -101,7 +100,9 @@ function PageInner({ config }: { config: Config }) {
     wrapper = element => (
       <AuthWrapper config={config}>
         <GitHubAppShellDataProvider config={config}>
-          {element}
+          {/* stable position across the RedirectToBranch <-> AppShell swap
+          below, so the brand created/adopted in one persists into the other */}
+          <BrandProvider>{element}</BrandProvider>
         </GitHubAppShellDataProvider>
       </AuthWrapper>
     );

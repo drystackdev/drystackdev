@@ -1,43 +1,25 @@
-import { useLocalizedStringFormatter } from '@react-aria/i18n';
 import { PressProps } from '@react-aria/interactions';
-import { Section, Item } from '@react-stately/collections';
-import { gql } from '@ts-gql/tag/no-transform';
-import {
-  ForwardedRef,
-  ReactElement,
-  forwardRef,
-  useMemo,
-  useReducer,
-} from 'react';
-import { useMutation, useQuery } from 'urql';
+import { Item } from '@react-stately/collections';
+import { ForwardedRef, ReactElement, forwardRef, useMemo } from 'react';
 
 import { Avatar } from '@keystar/ui/avatar';
 import { ActionButton } from '@keystar/ui/button';
-import { AlertDialog, DialogContainer } from '@keystar/ui/dialog';
 import { Icon } from '@keystar/ui/icon';
 import { logOutIcon } from '@keystar/ui/icon/icons/logOutIcon';
-import { gitPullRequestIcon } from '@keystar/ui/icon/icons/gitPullRequestIcon';
-import { gitBranchPlusIcon } from '@keystar/ui/icon/icons/gitBranchPlusIcon';
-import { githubIcon } from '@keystar/ui/icon/icons/githubIcon';
-import { gitForkIcon } from '@keystar/ui/icon/icons/gitForkIcon';
 import { monitorIcon } from '@keystar/ui/icon/icons/monitorIcon';
 import { moonIcon } from '@keystar/ui/icon/icons/moonIcon';
 import { sunIcon } from '@keystar/ui/icon/icons/sunIcon';
-import { trash2Icon } from '@keystar/ui/icon/icons/trash2Icon';
 import { Flex } from '@keystar/ui/layout';
-import { ActionMenu, Menu, MenuTrigger } from '@keystar/ui/menu';
+import { Menu, MenuTrigger } from '@keystar/ui/menu';
 import { ClearSlots } from '@keystar/ui/slots';
 import { css, useMediaQuery } from '@keystar/ui/style';
 import { ColorScheme } from '@keystar/ui/types';
 import { Text } from '@keystar/ui/typography';
 
-import { CreateBranchDialog } from '../../branch-selection';
 import { useRouter } from '../../router';
-import l10nMessages from '../../l10n';
-import { getRepoUrl, isGitHubConfig } from '../../utils';
+import { isGitHubConfig } from '../../utils';
 
 import { useConfig } from '../context';
-import { useBranches, useCurrentBranch, useRepoInfo } from '../data';
 import { useViewer } from '../viewer-data';
 import { useThemeContext } from '../theme';
 import { clearObjectCache } from '../../object-cache';
@@ -52,7 +34,6 @@ type MenuItem = {
   target?: string;
   rel?: string;
 };
-type MenuSection = { key: string; label: string; children: MenuItem[] };
 
 // Theme controls
 // -----------------------------------------------------------------------------
@@ -206,234 +187,6 @@ const UserDetailsButton = forwardRef(function UserDetailsButton(
     </ActionButton>
   );
 });
-
-// Git controls
-// -----------------------------------------------------------------------------
-
-export function useAssociatedPullRequest() {
-  const branches = useBranches();
-  const repoInfo = useRepoInfo();
-  const currentBranch = useCurrentBranch();
-  const currentBranchId = branches.get(currentBranch)?.id;
-
-  const [prResult] = useQuery({
-    query: gql`
-      query PullRequestForBranch($refId: ID!) {
-        node(id: $refId) {
-          __typename
-          id
-          ... on Ref {
-            associatedPullRequests(states: [OPEN], first: 1) {
-              nodes {
-                id
-                number
-              }
-            }
-          }
-        }
-      }
-    ` as import('../../../../__generated__/ts-gql/PullRequestForBranch').type,
-    pause: !currentBranchId || currentBranch === repoInfo?.defaultBranch,
-    variables: { refId: currentBranchId! },
-  });
-  return prResult.data?.node && prResult.data.node.__typename === 'Ref'
-    ? prResult.data.node.associatedPullRequests?.nodes?.[0]?.number ?? false
-    : undefined;
-}
-
-export function GitMenu() {
-  const branches = useBranches();
-  const currentBranch = useCurrentBranch();
-  const repoInfo = useRepoInfo();
-  const prNumber = useAssociatedPullRequest();
-  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
-  const [newBranchDialogVisible, toggleNewBranchDialog] = useReducer(
-    v => !v,
-    false
-  );
-  const [deleteBranchDialogVisible, toggleDeleteBranchDialog] = useReducer(
-    v => !v,
-    false
-  );
-  const [, deleteBranch] = useMutation(
-    gql`
-      mutation DeleteBranch($refId: ID!) {
-        deleteRef(input: { refId: $refId }) {
-          __typename
-        }
-      }
-    ` as import('../../../../__generated__/ts-gql/DeleteBranch').type
-  );
-
-  const gitMenuItems = useMemo(() => {
-    const repoURL = repoInfo ? getRepoUrl(repoInfo.upstream) : '';
-    let isDefaultBranch = currentBranch === repoInfo?.defaultBranch;
-    let items: MenuSection[] = [];
-    let branchSection: MenuItem[] = [
-      {
-        key: 'new-branch',
-        icon: gitBranchPlusIcon,
-        label: stringFormatter.format('newBranch'),
-      },
-    ];
-    let prSection: MenuItem[] = [];
-    let repoSection: MenuItem[] = [
-      {
-        key: 'repo',
-        icon: githubIcon,
-        href: repoURL,
-        target: '_blank',
-        rel: 'noopener noreferrer',
-        label: 'Github repo', // TODO: l10n
-      },
-    ];
-
-    if (!isDefaultBranch && prNumber !== undefined) {
-      if (prNumber === false) {
-        prSection.push({
-          key: 'create-pull-request',
-          icon: gitPullRequestIcon,
-          href: `${repoURL}/pull/new/${currentBranch}`,
-          target: '_blank',
-          rel: 'noopener noreferrer',
-          label: stringFormatter.format('createPullRequest'),
-        });
-        branchSection.push({
-          key: 'delete-branch',
-          icon: trash2Icon,
-          label: stringFormatter.format('deleteBranch'),
-        });
-      } else {
-        prSection.push({
-          key: 'view-pull-request',
-          icon: gitPullRequestIcon,
-          href: `${repoURL}/pull/${prNumber}`,
-          target: '_blank',
-          rel: 'noopener noreferrer',
-          label: `Pull Request #${prNumber}`,
-        });
-      }
-    }
-    const forkRepoUrl = repoInfo ? getRepoUrl(repoInfo) : '';
-    if (forkRepoUrl !== repoURL) {
-      repoSection.push({
-        key: 'fork',
-        icon: gitForkIcon,
-        href: forkRepoUrl,
-        target: '_blank',
-        rel: 'noopener noreferrer',
-        label: 'View fork', // TODO: l10n
-      });
-    }
-
-    if (branchSection.length) {
-      items.push({
-        key: 'branch-section',
-        label: stringFormatter.format('branches'),
-        children: branchSection,
-      });
-    }
-    if (prSection.length) {
-      items.push({
-        key: 'pr-section',
-        label: stringFormatter.format('pullRequests'),
-        children: prSection,
-      });
-    }
-    if (repoSection.length) {
-      items.push({
-        key: 'repo-section',
-        label: 'Repository', // TODO: l10n
-        children: repoSection,
-      });
-    }
-
-    return items;
-  }, [currentBranch, repoInfo, stringFormatter, prNumber]);
-  const router = useRouter();
-  return (
-    <>
-      <ActionMenu
-        aria-label="git actions"
-        align="end"
-        items={gitMenuItems}
-        onAction={key => {
-          switch (key) {
-            case 'new-branch':
-              toggleNewBranchDialog();
-              break;
-            case 'delete-branch': {
-              toggleDeleteBranchDialog();
-              break;
-            }
-          }
-        }}
-      >
-        {item => (
-          <Section key={item.key} items={item.children} aria-label={item.label}>
-            {item => (
-              <Item
-                key={item.key}
-                textValue={item.label}
-                href={item.href}
-                rel={item.rel}
-                target={item.target}
-              >
-                <Icon src={item.icon} />
-                <Text>{item.label}</Text>
-              </Item>
-            )}
-          </Section>
-        )}
-      </ActionMenu>
-
-      <DialogContainer onDismiss={toggleNewBranchDialog}>
-        {newBranchDialogVisible && (
-          <CreateBranchDialog
-            onDismiss={toggleNewBranchDialog}
-            onCreate={branchName => {
-              toggleNewBranchDialog();
-              router.push(
-                router.href.replace(
-                  /\/branch\/[^/]+/,
-                  '/branch/' + encodeURIComponent(branchName)
-                )
-              );
-            }}
-          />
-        )}
-      </DialogContainer>
-
-      <DialogContainer onDismiss={toggleDeleteBranchDialog}>
-        {deleteBranchDialogVisible && (
-          <AlertDialog
-            title="Delete branch"
-            tone="critical"
-            cancelLabel="Cancel"
-            primaryActionLabel="Yes, delete"
-            autoFocusButton="cancel"
-            onPrimaryAction={async () => {
-              if (repoInfo) {
-                await deleteBranch({
-                  refId: branches.get(currentBranch)!.id,
-                });
-                router.push(
-                  router.href.replace(
-                    /\/branch\/[^/]+/,
-                    '/branch/' + encodeURIComponent(repoInfo.defaultBranch)
-                  )
-                );
-              }
-            }}
-          >
-            Are you sure you want to delete the "{currentBranch}" branch? This
-            cannot be undone.
-          </AlertDialog>
-        )}
-      </DialogContainer>
-    </>
-  );
-}
 
 // Utils
 // -----------------------------------------------------------------------------
