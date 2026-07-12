@@ -78,7 +78,7 @@ export const AppShell = (props: {
     </ConfigContext.Provider>
   );
 
-  if (isGitHubConfig(props.config) || props.config.storage.kind === 'cloud') {
+  if (isGitHubConfig(props.config)) {
     return (
       <GitHubAppShellProvider
         currentBranch={props.currentBranch}

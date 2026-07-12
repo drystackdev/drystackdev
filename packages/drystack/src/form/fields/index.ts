@@ -2,7 +2,6 @@ export { array } from './array';
 export { blocks } from './blocks';
 export { checkbox } from './checkbox';
 export { child } from './child';
-export { cloudImage } from './cloudImage';
 export { conditional } from './conditional';
 export { date } from './date';
 export { datetime } from './datetime';

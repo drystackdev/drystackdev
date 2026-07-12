@@ -12,7 +12,6 @@ import {
   useMemo,
   useState,
 } from 'react';
-import * as Y from 'yjs';
 import * as s from 'superstruct';
 
 import { ActionGroup, Item } from '@keystar/ui/action-group';
@@ -45,7 +44,6 @@ import { Config } from '../config';
 import { ComponentSchema, GenericPreviewProps, ObjectField } from '../form/api';
 import { clientSideValidateProp } from '../form/errors';
 import { useEventCallback } from '../form/fields/use-event-callback';
-import { getYjsValFromParsedValue } from '../form/yjs-props-value';
 
 import {
   prettyErrorForCreateBranchMutation,
@@ -62,13 +60,11 @@ import { NotFoundBoundary, notFound } from './not-found';
 import { getDataFileExtension, getPathPrefix } from './path-utils';
 import { useRouter } from './router';
 import { HeaderBreadcrumbs } from './shell/HeaderBreadcrumbs';
-import { useYjsIfAvailable } from './shell/collab';
 import { useConfig } from './shell/context';
 import { useBaseCommit, useCurrentBranch, useRepoInfo } from './shell/data';
 import { PageBody, PageHeader, PageRoot } from './shell/page';
 import { useSlugFieldInfo } from './slugs';
 import { delDraft, getDraft, setDraft } from './persistence';
-import { PresenceAvatars } from './presence';
 import {
   serializeEntryToFiles,
   useDeleteItem,
@@ -86,13 +82,8 @@ import {
   isGitHubConfig,
   useShowRestoredDraftMessage,
 } from './utils';
-import { DataState, LOADING, useData, suspendOnData } from './useData';
-import { useYJsValue } from './useYJsValue';
-import {
-  useCollection,
-  usePreviewProps,
-  usePreviewPropsFromY,
-} from './preview-props';
+import { DataState, useData, suspendOnData } from './useData';
+import { useCollection, usePreviewProps } from './preview-props';
 import { ErrorBoundary } from './error-boundary';
 import { copyEntryToClipboard, getPastedEntry } from './entry-clipboard';
 import { setValueToPreviewProps } from '../form/get-value';
@@ -499,61 +490,6 @@ function LocalItemPage(
   );
 }
 
-function CollabItemPage(props: ItemPageProps & { map: Y.Map<any> }) {
-  const { collection, config, initialFiles, initialState, localTreeKey } =
-    props;
-  const { collectionConfig, schema } = useCollection(collection);
-  const state = useYJsValue(schema, props.map) as Record<string, unknown>;
-
-  const previewProps = usePreviewPropsFromY(schema, props.map, state);
-
-  const slug = getSlugFromState(collectionConfig, state);
-
-  const formatInfo = getCollectionFormat(props.config, props.collection);
-
-  const hasChanged = useHasChanged({
-    initialState,
-    schema,
-    state,
-    slugField: collectionConfig.slugField,
-  });
-
-  const futureBasePath = getCollectionItemPath(config, collection, slug);
-  const [updateResult, _update, resetUpdateItem] = useUpsertItem({
-    state,
-    initialFiles,
-    config,
-    schema: collectionConfig.schema,
-    basePath: futureBasePath,
-    format: formatInfo,
-    currentLocalTreeKey: localTreeKey,
-    slug: { field: collectionConfig.slugField, value: slug },
-  });
-
-  const update = useEventCallback(_update);
-
-  const onReset = () => {
-    props.map.doc?.transact(() => {
-      for (const [key, value] of Object.entries(collectionConfig.schema)) {
-        const val = getYjsValFromParsedValue(value, props.initialState[key]);
-        props.map.set(key, val);
-      }
-    });
-  };
-  return (
-    <ItemPageInner
-      {...props}
-      onUpdate={update}
-      onReset={onReset}
-      updateResult={updateResult}
-      onResetUpdateItem={resetUpdateItem}
-      previewProps={previewProps}
-      state={state}
-      hasChanged={hasChanged}
-    />
-  );
-}
-
 function HeaderActions(props: {
   formID: string;
   hasChanged: boolean;
@@ -675,7 +611,6 @@ function HeaderActions(props: {
 
   return (
     <Flex alignItems="center" gap={{ mobile: 'small', tablet: 'regular' }}>
-      <PresenceAvatars />
       {indicatorElement}
       <ActionGroup
         buttonLabelBehavior="hide"
@@ -904,38 +839,6 @@ function ItemPageOuterWrapper(props: ItemPageWrapperProps) {
     slug: slugInfo,
   });
 
-  const currentBranch = useCurrentBranch();
-
-  const key = `${currentBranch}/${props.collection}/item/${props.itemSlug}`;
-
-  const yjsInfo = useYjsIfAvailable();
-
-  const isItemDataLoading = itemData.kind !== 'loaded';
-  const isItemNotFound = !isItemDataLoading && itemData.data === 'not-found';
-  const mapData = useData(
-    useCallback(() => {
-      if (!yjsInfo) return;
-      if (yjsInfo === 'loading') return LOADING;
-      if (isItemDataLoading) return LOADING;
-      if (isItemNotFound) return;
-      return (async () => {
-        await yjsInfo.doc.whenSynced;
-        let doc = yjsInfo.data.get(key);
-        if (doc instanceof Y.Doc) {
-          const promise = doc.whenLoaded;
-          doc.load();
-          await promise;
-        } else {
-          doc = new Y.Doc();
-          yjsInfo.data.set(key, doc);
-        }
-        const data = doc.getMap('data');
-
-        return data;
-      })();
-    }, [isItemDataLoading, isItemNotFound, key, yjsInfo])
-  );
-
   return (
     <NotFoundBoundary
       fallback={
@@ -972,12 +875,7 @@ function ItemPageOuterWrapper(props: ItemPageWrapperProps) {
             </ItemPageShell>
           }
         >
-          <ItemPageWrapper
-            mapData={mapData}
-            draftData={draftData}
-            itemData={itemData}
-            {...props}
-          />
+          <ItemPageWrapper draftData={draftData} itemData={itemData} {...props} />
         </Suspense>
       </ErrorBoundary>
     </NotFoundBoundary>
@@ -989,7 +887,6 @@ function ItemPageWrapper(
     draftData: DataState<
       { state: any; savedAt: Date; treeKey: string } | undefined
     >;
-    mapData: DataState<Y.Map<any> | undefined>;
     itemData: DataState<
       | 'not-found'
       | {
@@ -1000,41 +897,11 @@ function ItemPageWrapper(
     >;
   }
 ) {
-  const collectionConfig = getCollection(props.config, props.collection);
   const deferredDraftData = useDeferredValue(props.draftData);
   const itemData = suspendOnData(props.itemData);
   if (itemData === 'not-found') notFound();
-  const mapData = suspendOnData(props.mapData);
-
-  useMemo(() => {
-    if (!mapData || mapData.size) {
-      return;
-    }
-
-    const { initialState } = itemData;
-    mapData.doc?.transact(() => {
-      for (const [key, value] of Object.entries(collectionConfig.schema)) {
-        const val = getYjsValFromParsedValue(value, initialState[key]);
-        mapData.set(key, val);
-      }
-    });
-  }, [collectionConfig.schema, itemData, mapData]);
 
   const loadedDraft = suspendOnData(deferredDraftData);
-  if (mapData) {
-    return (
-      <CollabItemPage
-        collection={props.collection}
-        basePath={props.basePath}
-        config={props.config}
-        itemSlug={props.itemSlug}
-        initialState={itemData.initialState}
-        initialFiles={itemData.initialFiles}
-        localTreeKey={itemData.localTreeKey}
-        map={mapData}
-      />
-    );
-  }
   return (
     <LocalItemPage
       collection={props.collection}

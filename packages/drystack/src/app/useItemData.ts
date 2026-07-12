@@ -17,13 +17,7 @@ import { useBaseCommit, useRepoInfo, useTree } from './shell/data';
 import { getDirectoriesForTreeKey, getTreeKey } from './tree-key';
 import { TreeNode, getTreeNodeAtPath, TreeEntry, blobSha } from './trees';
 import { LOADING, useData } from './useData';
-import {
-  FormatInfo,
-  getEntryDataFilepath,
-  KEYSTATIC_CLOUD_API_URL,
-  KEYSTATIC_CLOUD_HEADERS,
-  MaybePromise,
-} from './utils';
+import { FormatInfo, getEntryDataFilepath, MaybePromise } from './utils';
 import { toFormattedFormDataError } from '../form/error-formatting';
 import { parseRepoConfig, serializeRepoConfig } from './repo-config';
 import {
@@ -392,17 +386,17 @@ async function fetchGitHubBlob(
   basePath: string
 ): Promise<Response> {
   const auth = await getAuth(config, basePath);
+  if (config.storage.kind !== 'github') {
+    throw new Error('fetchGitHubBlob requires GitHub storage');
+  }
   const res = await fetch(
-    config.storage.kind === 'github'
-      ? `https://api.github.com/repos/${serializeRepoConfig(
-          config.storage.repo
-        )}/git/blobs/${oid}`
-      : `${KEYSTATIC_CLOUD_API_URL}/v1/github/blob/${oid}`,
+    `https://api.github.com/repos/${serializeRepoConfig(
+      config.storage.repo
+    )}/git/blobs/${oid}`,
     {
       headers: {
         Authorization: `Bearer ${auth!.accessToken}`,
         Accept: 'application/vnd.github.raw',
-        ...(config.storage.kind === 'cloud' ? KEYSTATIC_CLOUD_HEADERS : {}),
       },
     }
   );
@@ -510,12 +504,8 @@ const BATCH_BLOB_CHUNK_SIZE = 100;
 // way to fold N blob reads into one request). This query is intentionally
 // built as a raw string rather than a `ts-gql` document — the number of
 // aliases varies per call, which a statically codegen'd operation can't
-// express. `storage.kind === 'cloud'` keeps the old one-request-per-blob
-// path because its urql client runs `persistedExchange({
-// enforcePersistedQueries: true })` (see provider.tsx), which rejects any
-// query that isn't a pre-registered persisted operation — a dynamically
-// shaped query can't be persisted ahead of time. `local` mode has no
-// GraphQL endpoint at all.
+// express. `local` mode has no GraphQL endpoint at all, so it falls back to
+// one request per blob via `fetchBlob`.
 export async function fetchBlobsBatch(
   config: Config,
   client: Client,

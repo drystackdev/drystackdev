@@ -14,15 +14,10 @@ import {
 import { cacheExchange } from '@urql/exchange-graphcache';
 import { authExchange } from '@urql/exchange-auth';
 import { getAuth, getSyncAuth } from './auth';
-import { CloudAppShellQuery, GitHubAppShellQuery } from './shell/data';
+import { GitHubAppShellQuery } from './shell/data';
 import { persistedExchange } from '@urql/exchange-persisted';
 import { relayPagination } from '@urql/exchange-graphcache/extras';
 
-import {
-  KEYSTATIC_CLOUD_API_URL,
-  KEYSTATIC_CLOUD_HEADERS,
-  redirectToCloudAuth,
-} from './utils';
 import { Config } from '../config';
 import { ThemeProvider, useTheme } from './shell/theme';
 import { parseRepoConfig } from './repo-config';
@@ -37,10 +32,7 @@ export function createUrqlClient(config: Config, basePath: string): Client {
       ? parseRepoConfig(config.storage.repo)
       : { owner: 'repo-owner', name: 'repo-name' };
   return createClient({
-    url:
-      config.storage.kind === 'github'
-        ? 'https://api.github.com/graphql'
-        : `${KEYSTATIC_CLOUD_API_URL}/v1/github/graphql`,
+    url: config.storage.kind === 'github' ? 'https://api.github.com/graphql' : '',
     requestPolicy: 'cache-and-network',
     exchanges: [
       authExchange(async utils => {
@@ -53,9 +45,6 @@ export function createUrqlClient(config: Config, basePath: string): Client {
             }
             return utils.appendHeaders(operation, {
               Authorization: `Bearer ${authState.accessToken}`,
-              ...(config.storage.kind === 'cloud'
-                ? KEYSTATIC_CLOUD_HEADERS
-                : {}),
             });
           },
           didAuthError() {
@@ -70,8 +59,6 @@ export function createUrqlClient(config: Config, basePath: string): Client {
             ) {
               if (config.storage.kind === 'github') {
                 window.location.href = `/api${basePath}/github/login`;
-              } else {
-                redirectToCloudAuth('', config, basePath);
               }
               return true;
             }
@@ -96,10 +83,7 @@ export function createUrqlClient(config: Config, basePath: string): Client {
             createRef(result, args, cache, _info) {
               cache.updateQuery(
                 {
-                  query:
-                    config.storage.kind === 'github'
-                      ? GitHubAppShellQuery
-                      : CloudAppShellQuery,
+                  query: GitHubAppShellQuery,
                   variables: repo,
                 },
                 data => {
@@ -130,10 +114,7 @@ export function createUrqlClient(config: Config, basePath: string): Client {
             deleteRef(result, args, cache, _info) {
               cache.updateQuery(
                 {
-                  query:
-                    config.storage.kind === 'github'
-                      ? GitHubAppShellQuery
-                      : CloudAppShellQuery,
+                  query: GitHubAppShellQuery,
                   variables: repo,
                 },
                 data => {

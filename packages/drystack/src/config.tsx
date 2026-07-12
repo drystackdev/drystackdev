@@ -39,7 +39,6 @@ export type Singleton<Schema extends Record<string, ComponentSchema>> = {
 
 type CommonConfig<Collections, Singletons> = {
   locale?: Locale;
-  cloud?: { project: string };
   ui?: UserInterface<Collections, Singletons>;
 };
 
@@ -113,26 +112,6 @@ export type LocalConfig<
   singletons?: Singletons;
 } & CommonConfig<Collections, Singletons>;
 
-type CloudStorageConfig = { kind: 'cloud' } & CommonRemoteStorageConfig;
-
-export type CloudConfig<
-  Collections extends {
-    [key: string]: Collection<Record<string, ComponentSchema>, string>;
-  } = {
-    [key: string]: Collection<Record<string, ComponentSchema>, string>;
-  },
-  Singletons extends {
-    [key: string]: Singleton<Record<string, ComponentSchema>>;
-  } = {
-    [key: string]: Singleton<Record<string, ComponentSchema>>;
-  },
-> = {
-  storage: CloudStorageConfig;
-  cloud: { project: string };
-  collections?: Collections;
-  singletons?: Singletons;
-} & CommonConfig<Collections, Singletons>;
-
 export type Config<
   Collections extends {
     [key: string]: Collection<Record<string, ComponentSchema>, string>;
@@ -145,7 +124,7 @@ export type Config<
     [key: string]: Singleton<Record<string, ComponentSchema>>;
   },
 > = {
-  storage: LocalStorageConfig | GitHubStorageConfig | CloudStorageConfig;
+  storage: LocalStorageConfig | GitHubStorageConfig;
   collections?: Collections;
   singletons?: Singletons;
 } & ({} extends Collections ? {} : { collections: Collections }) &

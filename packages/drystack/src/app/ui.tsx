@@ -14,7 +14,7 @@ import { githubIcon } from '@keystar/ui/icon/icons/githubIcon';
 import { Flex } from '@keystar/ui/layout';
 import { Text } from '@keystar/ui/typography';
 
-import { CloudConfig, Config, GitHubConfig } from '../config';
+import { Config, GitHubConfig } from '../config';
 import { CollectionPage } from './CollectionPage';
 import { CreateItem } from './create-item';
 import { DashboardPage } from './dashboard';
@@ -30,18 +30,11 @@ import { KeystaticSetup } from './onboarding/setup';
 import { RepoNotFound } from './onboarding/repo-not-found';
 import { AppSlugProvider } from './onboarding/install-app';
 import { useRouter, RouterProvider } from './router';
+import { isGitHubConfig } from './utils';
 import {
-  isCloudConfig,
-  isGitHubConfig,
-  isLocalConfig,
-  redirectToCloudAuth,
-} from './utils';
-import {
-  CloudInfoProvider,
   GitHubAppShellDataContext,
   GitHubAppShellDataProvider,
 } from './shell/data';
-import { KeystaticCloudAuthCallback } from './cloud-auth-callback';
 import { getAuth } from './auth';
 import { assertValidRepoConfig } from './repo-config';
 import { NotFoundBoundary, notFound } from './not-found';
@@ -71,17 +64,13 @@ function parseParamsWithoutBranch(params: string[]) {
   return null;
 }
 
-function RedirectToBranch(props: { config: Config }) {
+function RedirectToBranch(props: { config: GitHubConfig }) {
   const { push, basePath } = useRouter();
   const apiBasePath = `/api${basePath}`;
   const { data, error } = useContext(GitHubAppShellDataContext)!;
   useEffect(() => {
     if (error?.response?.status === 401) {
-      if (props.config.storage.kind === 'github') {
-        window.location.href = `${apiBasePath}/github/login`;
-      } else {
-        redirectToCloudAuth('', props.config, basePath);
-      }
+      window.location.href = `${apiBasePath}/github/login`;
     }
     if (data?.repository?.defaultBranchRef) {
       push(
@@ -91,8 +80,7 @@ function RedirectToBranch(props: { config: Config }) {
       );
     }
     if (
-      (props.config.storage.kind === 'github' &&
-        !data?.repository?.id &&
+      (!data?.repository?.id &&
         (error?.graphQLErrors?.[0]?.originalError as any)?.type ===
           'NOT_FOUND') ||
       (error?.graphQLErrors?.[0]?.originalError as any)?.type === 'FORBIDDEN'
@@ -108,24 +96,12 @@ function PageInner({ config }: { config: Config }) {
   let branch = null,
     parsedParams,
     basePath: string;
-  if (params.join('/') === 'cloud/oauth/callback') {
-    return <KeystaticCloudAuthCallback config={config} />;
-  }
   let wrapper: (element: ReactElement) => ReactElement = x => x;
-  if (
-    isCloudConfig(config) ||
-    (isLocalConfig(config) && config.cloud?.project)
-  ) {
-    wrapper = element => (
-      <CloudInfoProvider config={config}>{element}</CloudInfoProvider>
-    );
-  }
-  if (isGitHubConfig(config) || isCloudConfig(config)) {
-    const origWrapper = wrapper;
+  if (isGitHubConfig(config)) {
     wrapper = element => (
       <AuthWrapper config={config}>
         <GitHubAppShellDataProvider config={config}>
-          {origWrapper(element)}
+          {element}
         </GitHubAppShellDataProvider>
       </AuthWrapper>
     );
@@ -216,7 +192,7 @@ function AlwaysNotFound(): never {
 }
 
 function AuthWrapper(props: {
-  config: GitHubConfig | CloudConfig;
+  config: GitHubConfig;
   children: ReactElement;
 }) {
   const [state, setState] = useState<'unknown' | 'valid' | 'explicit-auth'>(
@@ -236,44 +212,25 @@ function AuthWrapper(props: {
     return props.children;
   }
   if (state === 'explicit-auth') {
-    if (props.config.storage.kind === 'github') {
-      return (
-        <Flex justifyContent="center" alignItems="center" height="100vh">
-          <Button
-            href={`/api${router.basePath}/github/login${
-              router.params.length
-                ? `?${new URLSearchParams({
-                    from: router.params.map(encodeURIComponent).join('/'),
-                  })}`
-                : ''
-            }`}
-            // even though we'll never be in an iframe, so this isn't really distinct from _self
-            // it makes react-aria avoid using client-side routing which we need here
-            target="_top"
-          >
-            <Icon src={githubIcon} />
-            <Text>Log in with GitHub</Text>
-          </Button>
-        </Flex>
-      );
-    }
-    if (props.config.storage.kind === 'cloud') {
-      return (
-        <Flex justifyContent="center" alignItems="center" height="100vh">
-          <Button
-            onPress={() => {
-              redirectToCloudAuth(
-                router.params.map(encodeURIComponent).join('/'),
-                props.config,
-                router.basePath
-              );
-            }}
-          >
-            <Text>Log in with Keystatic Cloud</Text>
-          </Button>
-        </Flex>
-      );
-    }
+    return (
+      <Flex justifyContent="center" alignItems="center" height="100vh">
+        <Button
+          href={`/api${router.basePath}/github/login${
+            router.params.length
+              ? `?${new URLSearchParams({
+                  from: router.params.map(encodeURIComponent).join('/'),
+                })}`
+              : ''
+          }`}
+          // even though we'll never be in an iframe, so this isn't really distinct from _self
+          // it makes react-aria avoid using client-side routing which we need here
+          target="_top"
+        >
+          <Icon src={githubIcon} />
+          <Text>Log in with GitHub</Text>
+        </Button>
+      </Flex>
+    );
   }
   return null;
 }

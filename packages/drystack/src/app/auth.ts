@@ -1,12 +1,5 @@
 import { parse } from 'cookie';
-import * as s from 'superstruct';
 import { Config } from '../config';
-
-const storedTokenSchema = s.object({
-  token: s.string(),
-  project: s.string(),
-  validUntil: s.coerce(s.date(), s.number(), val => new Date(val)),
-});
 
 export function getSyncAuth(config: Config) {
   if (typeof document === 'undefined') {
@@ -20,31 +13,7 @@ export function getSyncAuth(config: Config) {
     }
     return { accessToken };
   }
-  if (config.storage.kind === 'cloud') {
-    return getCloudAuth(config);
-  }
   return null;
-}
-
-export function getCloudAuth(config: Config) {
-  if (!config.cloud?.project) return null;
-  const unparsedTokenData = localStorage.getItem(
-    'drystack-cloud-access-token'
-  );
-  let tokenData;
-  try {
-    tokenData = storedTokenSchema.create(JSON.parse(unparsedTokenData!));
-  } catch (err) {
-    return null;
-  }
-  if (
-    !tokenData ||
-    tokenData.validUntil < new Date() ||
-    tokenData.project !== config.cloud.project
-  ) {
-    return null;
-  }
-  return { accessToken: tokenData.token };
 }
 
 let _refreshTokenPromise: Promise<{ accessToken: string } | null> | undefined;

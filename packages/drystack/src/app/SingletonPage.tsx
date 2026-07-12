@@ -26,7 +26,6 @@ import {
   getRepoUrl,
   getSingletonFormat,
   getSingletonPath,
-  isCloudConfig,
   isGitHubConfig,
   useShowRestoredDraftMessage,
 } from './utils';
@@ -47,22 +46,13 @@ import {
 import { notFound } from './not-found';
 import { delDraft, getDraft, setDraft } from './persistence';
 import * as s from 'superstruct';
-import { LOADING, useData } from './useData';
+import { useData } from './useData';
 import { ActionGroup, Item } from '@keystar/ui/action-group';
 import { useMediaQuery, breakpointQueries } from '@keystar/ui/style';
 import { githubIcon } from '@keystar/ui/icon/icons/githubIcon';
 import { externalLinkIcon } from '@keystar/ui/icon/icons/externalLinkIcon';
 import { historyIcon } from '@keystar/ui/icon/icons/historyIcon';
-import { getYjsValFromParsedValue } from '../form/yjs-props-value';
-import * as Y from 'yjs';
-import { useYjsIfAvailable } from './shell/collab';
-import { useYJsValue } from './useYJsValue';
-import { PresenceAvatars } from './presence';
-import {
-  usePreviewProps,
-  usePreviewPropsFromY,
-  useSingleton,
-} from './preview-props';
+import { usePreviewProps, useSingleton } from './preview-props';
 import { ComponentSchema, GenericPreviewProps } from '..';
 import { copyEntryToClipboard, getPastedEntry } from './entry-clipboard';
 import { clipboardPasteIcon } from '@keystar/ui/icon/icons/clipboardPasteIcon';
@@ -103,7 +93,7 @@ function SingletonPageInner(
     if (!singletonConfig.previewUrl) return undefined;
     return singletonConfig.previewUrl.replace('{branch}', currentBranch);
   }, [currentBranch, singletonConfig.previewUrl]);
-  const isGitHub = isGitHubConfig(props.config) || isCloudConfig(props.config);
+  const isGitHub = isGitHubConfig(props.config);
   const formatInfo = getSingletonFormat(props.config, props.singleton);
   const singletonExists = !!props.initialState;
   const singletonPath = getSingletonPath(props.config, props.singleton);
@@ -237,7 +227,6 @@ function SingletonPageInner(
             props.hasChanged && <Badge tone="pending">Unsaved</Badge>
           )}
         </Flex>
-        <PresenceAvatars />
         <ActionGroup
           buttonLabelBehavior="hide"
           overflowMode="collapse"
@@ -472,65 +461,6 @@ function LocalSingletonPage(
   );
 }
 
-function CollabSingletonPage(
-  props: SingletonPageProps & {
-    map: Y.Map<unknown>;
-  }
-) {
-  const { singleton, initialFiles, initialState, localTreeKey, config } = props;
-  const { schema, singletonConfig } = useSingleton(props.singleton);
-  const singletonPath = getSingletonPath(config, singleton);
-
-  const state = useYJsValue(schema, props.map) as Record<string, unknown>;
-  const previewProps = usePreviewPropsFromY(
-    schema,
-    props.map,
-    state as Record<string, unknown>
-  );
-
-  const isCreating = initialState === null;
-  const hasChanged =
-    useHasChanged({ initialState, state, schema, slugField: undefined }) ||
-    isCreating;
-
-  const formatInfo = getSingletonFormat(config, singleton);
-  const [updateResult, _update, resetUpdateItem] = useUpsertItem({
-    state,
-    initialFiles,
-    config,
-    schema: singletonConfig.schema,
-    basePath: singletonPath,
-    format: formatInfo,
-    currentLocalTreeKey: localTreeKey,
-    slug: undefined,
-  });
-  const update = useEventCallback(_update);
-
-  const onReset = () => {
-    props.map.doc!.transact(() => {
-      for (const [key, value] of Object.entries(singletonConfig.schema)) {
-        const val = getYjsValFromParsedValue(
-          value,
-          props.initialState?.[key] ?? getInitialPropsValue(value)
-        );
-        props.map.set(key, val);
-      }
-    });
-  };
-  return (
-    <SingletonPageInner
-      {...props}
-      hasChanged={hasChanged}
-      onReset={onReset}
-      onUpdate={update}
-      onResetUpdateItem={resetUpdateItem}
-      updateResult={updateResult}
-      state={state}
-      previewProps={previewProps}
-    />
-  );
-}
-
 const storedValSchema = s.type({
   version: s.literal(1),
   savedAt: s.date(),
@@ -584,55 +514,6 @@ function SingletonPageWrapper(props: { singleton: string; config: Config }) {
     format,
     slug: undefined,
   });
-  const currentBranch = useCurrentBranch();
-
-  const key = `${currentBranch}/${props.singleton}`;
-
-  const yjsInfo = useYjsIfAvailable();
-
-  const isItemDataLoading = itemData.kind === 'loading';
-
-  const mapData = useData(
-    useCallback(async () => {
-      if (!yjsInfo) return;
-      if (yjsInfo === 'loading') return LOADING;
-      await yjsInfo.doc.whenSynced;
-      if (isItemDataLoading) return LOADING;
-      let doc = yjsInfo.data.get(key);
-      if (doc instanceof Y.Doc) {
-        const promise = doc.whenLoaded;
-        doc.load();
-        await promise;
-      } else {
-        doc = new Y.Doc();
-        yjsInfo.data.set(key, doc);
-      }
-      return doc.getMap('data');
-    }, [yjsInfo, isItemDataLoading, key])
-  );
-
-  useMemo(() => {
-    if (
-      mapData.kind !== 'loaded' ||
-      itemData.kind !== 'loaded' ||
-      !mapData.data ||
-      mapData.data.size
-    ) {
-      return;
-    }
-    const data = mapData.data;
-    data.doc!.transact(() => {
-      for (const [key, value] of Object.entries(singletonConfig.schema)) {
-        const val = getYjsValFromParsedValue(
-          value,
-          itemData.data === 'not-found'
-            ? getInitialPropsValue(value)
-            : itemData.data.initialState[key]
-        );
-        data.set(key, val);
-      }
-    });
-  }, [itemData, mapData, singletonConfig]);
   if (itemData.kind === 'error') {
     return (
       <PageRoot>
@@ -646,24 +527,7 @@ function SingletonPageWrapper(props: { singleton: string; config: Config }) {
     );
   }
 
-  if (mapData.kind === 'error') {
-    return (
-      <PageRoot>
-        {header}
-        <PageBody>
-          <Notice margin="xxlarge" tone="critical">
-            {mapData.error.message}
-          </Notice>
-        </PageBody>
-      </PageRoot>
-    );
-  }
-
-  if (
-    itemData.kind === 'loading' ||
-    draftData.kind === 'loading' ||
-    mapData.kind === 'loading'
-  ) {
+  if (itemData.kind === 'loading' || draftData.kind === 'loading') {
     return (
       <PageRoot>
         {header}
@@ -681,25 +545,6 @@ function SingletonPageWrapper(props: { singleton: string; config: Config }) {
           </Flex>
         </PageBody>
       </PageRoot>
-    );
-  }
-
-  if (mapData.data) {
-    return (
-      <CollabSingletonPage
-        singleton={props.singleton}
-        config={props.config}
-        initialState={
-          itemData.data === 'not-found' ? null : itemData.data.initialState
-        }
-        initialFiles={
-          itemData.data === 'not-found' ? [] : itemData.data.initialFiles
-        }
-        localTreeKey={
-          itemData.data === 'not-found' ? undefined : itemData.data.localTreeKey
-        }
-        map={mapData.data}
-      />
     );
   }
 

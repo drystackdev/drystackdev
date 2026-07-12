@@ -20,12 +20,10 @@ import { gitPullRequestIcon } from '@keystar/ui/icon/icons/gitPullRequestIcon';
 import { gitBranchPlusIcon } from '@keystar/ui/icon/icons/gitBranchPlusIcon';
 import { githubIcon } from '@keystar/ui/icon/icons/githubIcon';
 import { gitForkIcon } from '@keystar/ui/icon/icons/gitForkIcon';
-import { imageIcon } from '@keystar/ui/icon/icons/imageIcon';
 import { monitorIcon } from '@keystar/ui/icon/icons/monitorIcon';
 import { moonIcon } from '@keystar/ui/icon/icons/moonIcon';
 import { sunIcon } from '@keystar/ui/icon/icons/sunIcon';
 import { trash2Icon } from '@keystar/ui/icon/icons/trash2Icon';
-import { userIcon } from '@keystar/ui/icon/icons/userIcon';
 import { Flex } from '@keystar/ui/layout';
 import { ActionMenu, Menu, MenuTrigger } from '@keystar/ui/menu';
 import { ClearSlots } from '@keystar/ui/slots';
@@ -36,28 +34,14 @@ import { Text } from '@keystar/ui/typography';
 import { CreateBranchDialog } from '../../branch-selection';
 import { useRouter } from '../../router';
 import l10nMessages from '../../l10n';
-import {
-  KEYSTATIC_CLOUD_API_URL,
-  KEYSTATIC_CLOUD_HEADERS,
-  getRepoUrl,
-  isGitHubConfig,
-  redirectToCloudAuth,
-} from '../../utils';
+import { getRepoUrl, isGitHubConfig } from '../../utils';
 
 import { useConfig } from '../context';
-import {
-  useBranches,
-  useCloudInfo,
-  useCurrentBranch,
-  useRawCloudInfo,
-  useRepoInfo,
-} from '../data';
+import { useBranches, useCurrentBranch, useRepoInfo } from '../data';
 import { useViewer } from '../viewer-data';
 import { useThemeContext } from '../theme';
-import { useImageLibraryURL } from '../../../component-blocks/cloud-image-preview';
 import { clearObjectCache } from '../../object-cache';
 import { clearDrafts } from '../../persistence';
-import { getCloudAuth } from '../../auth';
 
 type MenuItem = {
   icon: ReactElement;
@@ -125,29 +109,10 @@ type UserData = {
 };
 
 export function UserActions() {
-  let config = useConfig();
   let userData = useUserData();
-  let router = useRouter();
 
   if (!userData) {
     return null;
-  }
-
-  if (userData === 'unauthorized') {
-    return (
-      <ActionButton
-        onPress={() => {
-          redirectToCloudAuth(
-            router.params.map(encodeURIComponent).join('/'),
-            config,
-            router.basePath
-          );
-        }}
-        flex
-      >
-        Sign into Cloud
-      </ActionButton>
-    );
   }
 
   return <UserMenu {...userData} />;
@@ -159,8 +124,6 @@ export function UserMenu(user: {
   login: string;
 }) {
   let config = useConfig();
-  const cloudInfo = useCloudInfo();
-  const imageLibraryUrl = useImageLibraryURL();
   const { basePath } = useRouter();
 
   const menuItems = useMemo(() => {
@@ -175,28 +138,8 @@ export function UserMenu(user: {
         icon: logOutIcon,
       },
     ];
-    if (config.cloud?.project) {
-      items.unshift({
-        key: 'manage',
-        label: 'Account',
-        icon: userIcon,
-        href: 'https://keystatic.cloud/account',
-        target: '_blank',
-        rel: 'noopener noreferrer',
-      });
-    }
-    if (cloudInfo?.team.images) {
-      items.unshift({
-        key: 'image-library',
-        label: 'Image library',
-        icon: imageIcon,
-        href: imageLibraryUrl,
-        target: '_blank',
-        rel: 'noopener noreferrer',
-      });
-    }
     return items;
-  }, [cloudInfo, config, imageLibraryUrl, basePath]);
+  }, [config, basePath]);
 
   if (!user) {
     return null;
@@ -209,30 +152,8 @@ export function UserMenu(user: {
         <Menu
           items={menuItems}
           minWidth="scale.2400"
-          onAction={async key => {
+          onAction={async () => {
             await Promise.all([clearObjectCache(), clearDrafts()]);
-            switch (key) {
-              case 'logout':
-                switch (config.storage.kind) {
-                  case 'cloud':
-                  case 'local': {
-                    const token = getCloudAuth(config)?.accessToken;
-                    if (token) {
-                      await fetch(`${KEYSTATIC_CLOUD_API_URL}/oauth/revoke`, {
-                        method: 'POST',
-                        body: new URLSearchParams({ token }).toString(),
-                        headers: {
-                          'Content-Type': 'application/x-www-form-urlencoded',
-                          ...KEYSTATIC_CLOUD_HEADERS,
-                        },
-                      });
-                    }
-                    localStorage.removeItem('drystack-cloud-access-token');
-                    window.location.reload();
-                    break;
-                  }
-                }
-            }
           }}
         >
           {item => (
@@ -517,22 +438,9 @@ export function GitMenu() {
 // Utils
 // -----------------------------------------------------------------------------
 
-function useUserData(): UserData | 'unauthorized' | undefined {
+function useUserData(): UserData | undefined {
   const config = useConfig();
   const user = useViewer();
-  const rawCloudInfo = useRawCloudInfo();
-
-  if (rawCloudInfo) {
-    if (rawCloudInfo === 'unauthorized') {
-      return rawCloudInfo;
-    }
-
-    return {
-      avatarUrl: rawCloudInfo.user.avatarUrl,
-      login: rawCloudInfo.user.email,
-      name: rawCloudInfo.user.name,
-    };
-  }
 
   if (isGitHubConfig(config) && user) {
     return {

@@ -1,7 +1,7 @@
 import { OperationData, OperationVariables, FragmentData } from '@ts-gql/tag';
 import { gql } from '@ts-gql/tag/no-transform';
 import { useRouter } from '../router';
-import { Config, LocalConfig } from '../../config';
+import { Config, GitHubConfig, LocalConfig } from '../../config';
 import {
   useMemo,
   useEffect,
@@ -28,27 +28,18 @@ import {
   mergeDataStates,
   useData,
 } from '../useData';
-import {
-  getEntriesInCollectionWithTreeKey,
-  isGitHubConfig,
-  KEYSTATIC_CLOUD_API_URL,
-  KEYSTATIC_CLOUD_HEADERS,
-  MaybePromise,
-  redirectToCloudAuth,
-} from '../utils';
+import { getEntriesInCollectionWithTreeKey, MaybePromise } from '../utils';
 import { LRUCache as LRU } from 'lru-cache';
 import { isDefined } from 'emery';
-import { getAuth, getCloudAuth } from '../auth';
+import { getAuth } from '../auth';
 import { ViewerContext, SidebarFooter_viewer } from './viewer-data';
 import { parseRepoConfig, serializeRepoConfig } from '../repo-config';
-import * as s from 'superstruct';
 import { scopeEntriesWithPathPrefix } from './path-prefix';
 import {
   garbageCollectGitObjects,
   getTreeFromPersistedCache,
   setTreeToPersistedCache,
 } from '../object-cache';
-import { CollabProvider } from './collab';
 import { EmptyRepo } from './empty-repo';
 
 export function fetchLocalTree(sha: string, basePath: string) {
@@ -124,86 +115,22 @@ export function LocalAppShellProvider(props: {
   );
 }
 
-const cloudInfoSchema = s.type({
-  user: s.type({
-    id: s.string(),
-    name: s.string(),
-    email: s.string(),
-    avatarUrl: s.optional(s.string()),
-  }),
-  project: s.type({
-    name: s.string(),
-  }),
-  team: s.object({
-    name: s.string(),
-    slug: s.string(),
-    images: s.boolean(),
-    multiplayer: s.boolean(),
-  }),
-});
-
-const CloudInfo = createContext<
-  null | s.Infer<typeof cloudInfoSchema> | 'unauthorized'
->(null);
-
-export function useCloudInfo() {
-  const context = useContext(CloudInfo);
-  return context === 'unauthorized' ? null : context;
-}
-
-export function useRawCloudInfo() {
-  return useContext(CloudInfo);
-}
-
-export function CloudInfoProvider(props: {
-  children: ReactNode;
-  config: Config;
-}) {
-  const data = useData(
-    useCallback(async () => {
-      if (!props.config.cloud?.project) throw new Error('no cloud project set');
-      const token = getCloudAuth(props.config)?.accessToken;
-      if (!token) {
-        return 'unauthorized' as const;
-      }
-      const res = await fetch(`${KEYSTATIC_CLOUD_API_URL}/v1/info`, {
-        headers: {
-          ...KEYSTATIC_CLOUD_HEADERS,
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (res.status === 401) return 'unauthorized' as const;
-      return cloudInfoSchema.create(await res.json());
-    }, [props.config])
-  );
-  return (
-    <CloudInfo.Provider value={data.kind === 'loaded' ? data.data : null}>
-      {props.children}
-    </CloudInfo.Provider>
-  );
-}
-
-export const GitHubAppShellDataContext = createContext<null | UseQueryState<
-  OperationData<typeof GitHubAppShellQuery | typeof CloudAppShellQuery>,
-  OperationVariables<typeof GitHubAppShellQuery | typeof CloudAppShellQuery>
->>(null);
+export const GitHubAppShellDataContext =
+  createContext<null | UseQueryState<
+    OperationData<typeof GitHubAppShellQuery>,
+    OperationVariables<typeof GitHubAppShellQuery>
+  >>(null);
 
 export function GitHubAppShellDataProvider(props: {
-  config: Config;
+  config: GitHubConfig;
   children: ReactNode;
 }) {
-  const repo =
-    props.config.storage.kind === 'github'
-      ? parseRepoConfig(props.config.storage.repo)
-      : { name: 'repo-name', owner: 'repo-owner' };
+  const repo = parseRepoConfig(props.config.storage.repo);
   const [state] = useQuery<
-    OperationData<typeof GitHubAppShellQuery | typeof CloudAppShellQuery>,
-    OperationVariables<typeof GitHubAppShellQuery | typeof CloudAppShellQuery>
+    OperationData<typeof GitHubAppShellQuery>,
+    OperationVariables<typeof GitHubAppShellQuery>
   >({
-    query:
-      props.config.storage.kind === 'github'
-        ? GitHubAppShellQuery
-        : CloudAppShellQuery,
+    query: GitHubAppShellQuery,
     variables: repo,
   });
 
@@ -275,7 +202,7 @@ const writePermissions = new Set(['WRITE', 'ADMIN', 'MAINTAIN']);
 
 export function GitHubAppShellProvider(props: {
   currentBranch: string;
-  config: Config;
+  config: GitHubConfig;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -371,19 +298,9 @@ export function GitHubAppShellProvider(props: {
 
   useEffect(() => {
     if (error?.response?.status === 401) {
-      if (isGitHubConfig(props.config)) {
-        window.location.href = `/api${
-          router.basePath
-        }/github/login?from=${router.params
-          .map(encodeURIComponent)
-          .join('/')}`;
-      } else {
-        redirectToCloudAuth(
-          router.params.map(encodeURIComponent).join('/'),
-          props.config,
-          router.basePath
-        );
-      }
+      window.location.href = `/api${
+        router.basePath
+      }/github/login?from=${router.params.map(encodeURIComponent).join('/')}`;
     }
     if (
       !repo?.id &&
@@ -418,10 +335,9 @@ export function GitHubAppShellProvider(props: {
 
   const hasWritePermission =
     !!repo &&
-    (props.config.storage.kind === 'cloud' ||
-      ('viewerPermission' in repo &&
-        !!repo?.viewerPermission &&
-        writePermissions.has(repo.viewerPermission)));
+    'viewerPermission' in repo &&
+    !!repo?.viewerPermission &&
+    writePermissions.has(repo.viewerPermission);
 
   const repoInfo = useMemo((): RepoInfo | null => {
     if (!data?.repository || !repo?.defaultBranchRef?.name) return null;
@@ -454,13 +370,7 @@ export function GitHubAppShellProvider(props: {
           <RepoInfoContext.Provider value={repoInfo}>
             <ChangedContext.Provider value={changedData}>
               <TreeContext.Provider value={allTreeData}>
-                {props.config.storage.kind === 'cloud' ? (
-                  <CollabProvider config={props.config}>
-                    {props.children}
-                  </CollabProvider>
-                ) : (
-                  props.children
-                )}
+                {props.children}
               </TreeContext.Provider>
             </ChangedContext.Provider>
           </RepoInfoContext.Provider>
@@ -614,16 +524,6 @@ const BaseRepo = gql`
   ${Ref_base}
 ` as import('../../../__generated__/ts-gql/Repo_base').type;
 
-export const CloudAppShellQuery = gql`
-  query CloudAppShell($name: String!, $owner: String!) {
-    repository(owner: $owner, name: $name) {
-      id
-      ...Repo_base
-    }
-  }
-  ${BaseRepo}
-` as import('../../../__generated__/ts-gql/CloudAppShell').type;
-
 const Repo_ghDirect = gql`
   fragment Repo_ghDirect on Repository {
     id
@@ -712,16 +612,16 @@ export function fetchGitHubTreeData(
     }
     const auth = await getAuth(config, basePath);
     if (!auth) throw new Error('Not authorized');
+    if (config.storage.kind !== 'github') {
+      throw new Error('fetchGitHubTreeData requires GitHub storage');
+    }
     const { tree }: { tree: (TreeEntry & { url: string })[] } = await fetch(
-      config.storage.kind === 'github'
-        ? `https://api.github.com/repos/${serializeRepoConfig(
-            config.storage.repo
-          )}/git/trees/${sha}?recursive=1`
-        : `${KEYSTATIC_CLOUD_API_URL}/v1/github/trees/${sha}`,
+      `https://api.github.com/repos/${serializeRepoConfig(
+        config.storage.repo
+      )}/git/trees/${sha}?recursive=1`,
       {
         headers: {
           Authorization: `Bearer ${auth.accessToken}`,
-          ...(config.storage.kind === 'cloud' ? KEYSTATIC_CLOUD_HEADERS : {}),
         },
       }
     ).then(x => x.json());

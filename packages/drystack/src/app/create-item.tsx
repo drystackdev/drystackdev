@@ -1,6 +1,5 @@
 import { useLocalizedStringFormatter } from '@react-aria/i18n';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import * as Y from 'yjs';
 import * as s from 'superstruct';
 
 import { Button } from '@keystar/ui/button';
@@ -20,7 +19,7 @@ import { useEventCallback } from '../form/fields/use-event-callback';
 
 import { CreateBranchDuringUpdateDialog } from './ItemPage';
 import l10nMessages from './l10n';
-import { useBaseCommit, useCurrentBranch } from './shell/data';
+import { useBaseCommit } from './shell/data';
 import { PageRoot, PageHeader, PageBody } from './shell/page';
 import { ForkRepoDialog } from './fork-repo';
 import {
@@ -30,17 +29,14 @@ import {
 } from './entry-form';
 import { notFound } from './not-found';
 import { delDraft, getDraft, setDraft } from './persistence';
-import { PresenceAvatars } from './presence';
 import { useRouter } from './router';
 import { HeaderBreadcrumbs } from './shell/HeaderBreadcrumbs';
-import { useYjsIfAvailable } from './shell/collab';
 import { useConfig } from './shell/context';
 import { useSlugFieldInfo } from './slugs';
-import { LOADING, useData } from './useData';
+import { useData } from './useData';
 import { serializeEntryToFiles, useUpsertItem } from './updating';
 import { parseEntry, useItemData } from './useItemData';
 import { useHasChanged } from './useHasChanged';
-import { useYJsValue } from './useYJsValue';
 import {
   getCollectionFormat,
   getCollectionItemPath,
@@ -48,13 +44,8 @@ import {
   isGitHubConfig,
   useShowRestoredDraftMessage,
 } from './utils';
-import {
-  useCollection,
-  usePreviewProps,
-  usePreviewPropsFromY,
-} from './preview-props';
+import { useCollection, usePreviewProps } from './preview-props';
 import { useDuplicateSlug } from './duplicate-slug';
-import { getYjsValFromParsedValue } from '../form/yjs-props-value';
 import { setValueToPreviewProps } from '../form/get-value';
 import { copyEntryToClipboard, getPastedEntry } from './entry-clipboard';
 import { clipboardCopyIcon } from '@keystar/ui/icon/icons/clipboardCopyIcon';
@@ -151,43 +142,6 @@ function CreateItemWrapper(props: {
     collectionConfig
   );
 
-  const currentBranch = useCurrentBranch();
-  const yjsInfo = useYjsIfAvailable();
-  const key = `${currentBranch}/${props.collection}/create${
-    duplicateSlug?.length ? `?duplicate=${duplicateSlug}` : ''
-  }`;
-
-  const mapData = useData(
-    useCallback(async () => {
-      if (!yjsInfo) return;
-      if (yjsInfo === 'loading') return LOADING;
-      await yjsInfo.doc.whenSynced;
-      if (isFromTemplate && !duplicateInitalState) return LOADING;
-      let doc = yjsInfo.data.get(key);
-      if (doc instanceof Y.Doc) {
-        const promise = doc.whenLoaded;
-        doc.load();
-        await promise;
-      } else {
-        doc = new Y.Doc();
-        yjsInfo.data.set(key, doc);
-      }
-      const data = doc.getMap('data');
-      if (!data.size) {
-        doc.transact(() => {
-          for (const [key, value] of Object.entries(collectionConfig.schema)) {
-            const val = getYjsValFromParsedValue(
-              value,
-              duplicateInitalState?.[key] ?? getInitialPropsValue(value)
-            );
-            data.set(key, val);
-          }
-        });
-      }
-      return data;
-    }, [collectionConfig, duplicateInitalState, isFromTemplate, key, yjsInfo])
-  );
-
   if (isFromTemplate && itemData.kind === 'error') {
     return (
       <PageBody>
@@ -195,18 +149,9 @@ function CreateItemWrapper(props: {
       </PageBody>
     );
   }
-  if (mapData.kind === 'error') {
-    console.log(mapData.error);
-    return (
-      <PageBody>
-        <Notice tone="critical">{mapData.error.message}</Notice>
-      </PageBody>
-    );
-  }
   if (
     (isFromTemplate && itemData.kind === 'loading') ||
-    draftData.kind === 'loading' ||
-    mapData.kind === 'loading'
+    draftData.kind === 'loading'
   ) {
     return (
       <Flex alignItems="center" justifyContent="center" minHeight="scale.3000">
@@ -230,26 +175,14 @@ function CreateItemWrapper(props: {
     );
   }
 
-  if (!mapData.data) {
-    return (
-      <CreateItemLocal
-        collection={props.collection}
-        config={props.config}
-        basePath={props.basePath}
-        draft={draftData.kind === 'loaded' ? draftData.data : undefined}
-        duplicateSlug={duplicateSlug}
-        initialState={duplicateInitalStateWithUpdatedSlug}
-      />
-    );
-  }
   return (
-    <CreateItemCollab
+    <CreateItemLocal
       collection={props.collection}
       config={props.config}
       basePath={props.basePath}
+      draft={draftData.kind === 'loaded' ? draftData.data : undefined}
       duplicateSlug={duplicateSlug}
       initialState={duplicateInitalStateWithUpdatedSlug}
-      map={mapData.data}
     />
   );
 }
@@ -361,61 +294,6 @@ function CreateItemLocal(props: {
   );
 }
 
-function CreateItemCollab(props: {
-  collection: string;
-  config: Config;
-  basePath: string;
-  duplicateSlug: string | null;
-  initialState: Record<string, unknown> | undefined;
-  map: Y.Map<unknown>;
-}) {
-  const { collectionConfig, schema } = useCollection(props.collection);
-  const state = useYJsValue(schema, props.map) as Record<string, unknown>;
-  const previewProps = usePreviewPropsFromY(schema, props.map, state);
-
-  const slug = getSlugFromState(collectionConfig, state);
-
-  const formatInfo = getCollectionFormat(props.config, props.collection);
-
-  const basePath = getCollectionItemPath(props.config, props.collection, slug);
-  const [createResult, _createItem, resetCreateItemState] = useUpsertItem({
-    state,
-    basePath,
-    initialFiles: undefined,
-    config: props.config,
-    schema: collectionConfig.schema,
-    format: formatInfo,
-    currentLocalTreeKey: undefined,
-    slug: { field: collectionConfig.slugField, value: slug },
-  });
-  const createItem = useEventCallback(_createItem);
-
-  return (
-    <CreateItemInner
-      basePath={props.basePath}
-      entryDirectory={basePath}
-      collection={props.collection}
-      createResult={createResult}
-      createItem={createItem}
-      resetCreateItemState={resetCreateItemState}
-      state={state}
-      slug={slug}
-      previewProps={previewProps}
-      onReset={() => {
-        props.map.doc?.transact(() => {
-          for (const [key, value] of Object.entries(collectionConfig.schema)) {
-            const val = getYjsValFromParsedValue(
-              value,
-              props.initialState?.[key] ?? getInitialPropsValue(value)
-            );
-            props.map.set(key, val);
-          }
-        });
-      }}
-    />
-  );
-}
-
 function CreateItemInner(props: {
   basePath: string;
   entryDirectory: string;
@@ -517,7 +395,6 @@ function CreateItemInner(props: {
       <PageRoot containerWidth={containerWidthForEntryLayout(collectionConfig)}>
         <PageHeader>
           <HeaderBreadcrumbs items={breadcrumbItems} />
-          <PresenceAvatars />
           {isLoading && (
             <ProgressCircle
               aria-label="Creating entry"

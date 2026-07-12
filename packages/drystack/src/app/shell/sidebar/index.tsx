@@ -88,7 +88,8 @@ export function SidebarPanel() {
 }
 
 function SidebarHeader() {
-  let isLocalNoCloud = useIsLocalNoCloud();
+  let config = useConfig();
+  let isLocal = isLocalConfig(config);
   let { brandMark, brandName } = useBrand();
 
   return (
@@ -119,16 +120,16 @@ function SidebarHeader() {
           {brandName}
         </Text>
       </HStack>
-      {isLocalNoCloud && <ThemeMenu />}
+      {isLocal && <ThemeMenu />}
     </HStack>
   );
 }
 
-// when local mode w/o cloud there's no user actions, so we hide the footer and
+// in local mode there's no user actions, so we hide the footer and
 // move the theme menu to the header
 function SidebarFooter() {
-  let isLocalNoCloud = useIsLocalNoCloud();
-  if (isLocalNoCloud) {
+  let config = useConfig();
+  if (isLocalConfig(config)) {
     return null;
   }
   return (
@@ -252,12 +253,10 @@ export function SidebarNav() {
         </NavItem>
 
         {/* upload and trash/restore/permanent-delete all commit straight to
-        the branch for github/cloud storage (see useFileManagerUpload and
+        the branch for github storage (see useFileManagerUpload and
         useTrash), same as the local-only `/update` API does for local
         storage, so the File Manager works for every storage kind */}
-        {(isLocalConfig(config) ||
-          isGitHubConfig(config) ||
-          config.storage.kind === 'cloud') && (
+        {(isLocalConfig(config) || isGitHubConfig(config)) && (
           <NavItem
             href={`${basePath}/files`}
             aria-current={isCurrent(`${basePath}/files`)}
@@ -276,11 +275,6 @@ export function SidebarNav() {
 
 // Utils
 // ----------------------------------------------------------------------------
-
-function useIsLocalNoCloud() {
-  const config = useConfig();
-  return isLocalConfig(config) && !config.cloud;
-}
 
 function useIsCurrent() {
   const router = useRouter();
