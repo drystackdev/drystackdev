@@ -15,6 +15,7 @@
     "./api/generic": "./src/api/generic.ts",
     "./renderer": "./src/renderer.tsx",
     "./path-utils": "./src/app/path-utils.ts",
+    "./edit-sync": "./src/app/edit-sync.ts",
     "./required-files": "./src/app/required-files.ts",
     "./build-status": "./src/app/build-status.ts",
     "./deploy-progress-toast": "./src/app/DeployProgressToast.tsx",

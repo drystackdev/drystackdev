@@ -27,7 +27,7 @@ import {
   refreshFromLatestSource,
   resetPendingEdits,
 } from './bind';
-import { getAllEdits, deleteEdit } from './store';
+import { getAllEdits, publishDelete, subscribeEdits } from './store';
 import { saveEdits, getCurrentBranchName } from './save';
 
 type Spot = { key: string; name: string; field: string };
@@ -96,6 +96,9 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   useEffect(() => {
     refreshCount();
     setSpots(readSpots());
+    // Keep the badge/review-dialog count accurate when edits arrive from
+    // another tab (admin or another visual-editor tab), not just this one.
+    return subscribeEdits(() => refreshCount());
   }, []);
 
   const toggleEdit = () => {
@@ -327,7 +330,7 @@ function ReviewDialog({ onChange }: { onChange: () => void }) {
   // Discard a single field's edit: drop it from the store, revert the live DOM
   // back to its original value, and refresh the toolbar's pending count.
   const handleDelete = async (key: string) => {
-    await deleteEdit(key);
+    await publishDelete(key);
     const els = document.querySelectorAll<HTMLElement>(
       `[data-dry="${CSS.escape(key)}"]`
     );

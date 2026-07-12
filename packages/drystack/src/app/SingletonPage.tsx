@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -45,6 +46,14 @@ import {
 } from './entry-form';
 import { notFound } from './not-found';
 import { delDraft, getDraft, setDraft } from './persistence';
+import {
+  editKey,
+  isSyncableTextField,
+  parseEditKey,
+  publishDelete,
+  publishEdit,
+  subscribeEdits,
+} from './edit-sync';
 import * as s from 'superstruct';
 import { useData } from './useData';
 import { ActionGroup, Item } from '@keystar/ui/action-group';
@@ -422,6 +431,63 @@ function LocalSingletonPage(
     []
   );
 
+  // --- Cross-tab / visual-editor sync (fields.text only; MVP 1 scope) ---
+  //
+  // `lastSyncedRef` tracks, per field, the value already reflected on the
+  // shared edit-sync bus — set either right before we publish it (below) or
+  // right after we apply an incoming remote value. Diffing against it
+  // (instead of the previous render's `state`) is what stops an incoming
+  // remote update from immediately bouncing back out as if it were a local
+  // edit.
+  const lastSyncedRef = useRef<Record<string, string> | undefined>(undefined);
+  if (!lastSyncedRef.current) {
+    lastSyncedRef.current = {};
+    for (const [field, fieldSchema] of Object.entries(singletonConfig.schema)) {
+      const value = (state as Record<string, unknown>)[field];
+      if (isSyncableTextField(fieldSchema) && typeof value === 'string') {
+        lastSyncedRef.current[field] = value;
+      }
+    }
+  }
+
+  useEffect(() => {
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    for (const [field, fieldSchema] of Object.entries(singletonConfig.schema)) {
+      if (!isSyncableTextField(fieldSchema)) continue;
+      const value = (state as Record<string, unknown>)[field];
+      if (typeof value !== 'string') continue;
+      if (lastSyncedRef.current![field] === value) continue;
+      lastSyncedRef.current![field] = value;
+      // Debounced so fast typing doesn't flood other tabs with a broadcast
+      // per keystroke — still "live" at ~200ms (plan.md open question 3).
+      timers.push(
+        setTimeout(() => {
+          publishEdit(editKey('singleton', singleton, field), value);
+        }, 200)
+      );
+    }
+    return () => timers.forEach(clearTimeout);
+  }, [state, singleton, singletonConfig.schema]);
+
+  useEffect(() => {
+    return subscribeEdits(msg => {
+      if (msg.type !== 'set') return;
+      const { type, name, field } = parseEditKey(msg.key);
+      if (type !== 'singleton' || name !== singleton) return;
+      if (!isSyncableTextField(singletonConfig.schema[field])) return;
+      // Don't stomp on what the user is actively typing — the field's
+      // wrapper div carries data-field (object/ui.tsx) for exactly this
+      // check. Last-write-wins once they move on: either their own next
+      // edit publishes over this, or a later message applies here.
+      const fieldEl = document.querySelector(
+        `[data-field="${CSS.escape(field)}"]`
+      );
+      if (fieldEl?.contains(document.activeElement)) return;
+      lastSyncedRef.current![field] = msg.value;
+      onPreviewPropsChange(s => ({ ...s, [field]: msg.value }));
+    });
+  }, [singleton, singletonConfig.schema, onPreviewPropsChange]);
+
   const previewProps = usePreviewProps(
     schema,
     onPreviewPropsChange,
@@ -440,6 +506,19 @@ function LocalSingletonPage(
     slug: undefined,
   });
   const update = useEventCallback(_update);
+
+  // A successful save means this singleton's fields.text values now match
+  // what's pending — drop those keys from the shared edit-sync bus so a
+  // visual-editor tab that had them queued (from live-typed edits it
+  // received earlier) stops treating already-saved content as unreviewed.
+  useEffect(() => {
+    if (updateResult.kind !== 'updated') return;
+    for (const [field, fieldSchema] of Object.entries(singletonConfig.schema)) {
+      if (isSyncableTextField(fieldSchema)) {
+        publishDelete(editKey('singleton', singleton, field));
+      }
+    }
+  }, [updateResult, singleton, singletonConfig.schema]);
 
   const onReset = () =>
     setState({

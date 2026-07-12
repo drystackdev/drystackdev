@@ -4,7 +4,11 @@ import { KeystarProvider } from '@keystar/ui/core';
 import { Toaster } from '@keystar/ui/toast';
 import type { Config } from '@drystack/core';
 import { Toolbar } from './Toolbar';
-import { applyPendingEdits, discardEditsIfBuildIsNewer } from './bind';
+import {
+  applyPendingEdits,
+  discardEditsIfBuildIsNewer,
+  subscribeToRemoteEdits,
+} from './bind';
 // Raw CSS string (Vite ?inline) — injected into the host page's <head> below.
 import editorStyles from './editor.css?inline';
 
@@ -43,6 +47,9 @@ export async function mount(
 
   await discardEditsIfBuildIsNewer(config, buildVersion);
   await applyPendingEdits();
+  // Live-sync this page's DOM with edits published from the admin panel or
+  // another visual-editor tab — kept active regardless of edit-mode state.
+  subscribeToRemoteEdits();
 
   const style = document.createElement('style');
   style.textContent = editorStyles;

@@ -8,7 +8,7 @@ import { loadDataFile } from '@drystack/core/required-files';
 import { dump } from '@drystack/core/yaml';
 // @ts-expect-error — provided by the drystack Astro integration's Vite plugin
 import apiPath from 'virtual:drystack-path';
-import { getAllEdits, clearEdits } from './store';
+import { getAllEdits, publishClear } from './store';
 
 const textEncoder = new TextEncoder();
 
@@ -376,6 +376,6 @@ export async function saveEdits(config: Config<any, any>): Promise<string | unde
       `dry(): MVP 1 does not support storage.kind "${(config.storage as any).kind}"`
     );
   }
-  await clearEdits();
+  await publishClear();
   return commitOid;
 }

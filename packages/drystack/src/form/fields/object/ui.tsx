@@ -34,6 +34,11 @@ function ObjectFieldInputEntry({
   return (
     <FieldContextProvider value={span}>
       <div
+        // Lets edit-sync (packages/drystack/src/app/edit-sync.ts) find "is
+        // this top-level field currently focused" via
+        // `document.querySelector('[data-field="x"]')?.contains(activeElement)`
+        // without adding per-field-kind DOM plumbing.
+        data-field={fieldKey}
         className={css({
           gridColumn: `span ${span}`,
 

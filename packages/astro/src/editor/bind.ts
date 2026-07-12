@@ -1,5 +1,13 @@
 import type { Config } from '@drystack/core';
-import { getAllEdits, setEdit, clearEdits, getMeta, setMeta } from './store';
+import {
+  getAllEdits,
+  publishEdit,
+  publishClear,
+  getMeta,
+  setMeta,
+  subscribeEdits,
+  type EditBusMessage,
+} from './store';
 import { getLatestFieldValues } from './save';
 
 const BUILD_VERSION_KEY = 'buildVersion';
@@ -33,7 +41,7 @@ function handleInput(e: Event) {
   if (!el) return;
   const key = el.getAttribute('data-dry');
   if (!key) return;
-  setEdit(key, el.textContent ?? '').then(() => onChangeCallback?.());
+  publishEdit(key, el.textContent ?? '').then(() => onChangeCallback?.());
 }
 
 export function isEditing() {
@@ -88,7 +96,7 @@ export async function discardEditsIfBuildIsNewer(
     return;
   }
   if (buildVersion > lastSeen) {
-    await clearEdits();
+    await publishClear();
     await setMeta(BUILD_VERSION_KEY, buildVersion);
   }
 }
@@ -147,7 +155,36 @@ export async function resetPendingEdits(): Promise<void> {
     const original = key ? getOriginalValue(key) : undefined;
     if (original !== undefined) el.textContent = original;
   });
-  await clearEdits();
+  await publishClear();
+}
+
+// Paints one pending edit onto every DOM element carrying its key — a field
+// can be rendered more than once on a page (e.g. a site title in both the
+// header and footer), so every matching element must get it, not just the
+// first in document order. Shared by the bulk on-load apply below and the
+// live cross-tab subscription, which paints one key at a time as edits
+// arrive from other tabs.
+function applyEdit(key: string, value: string): void {
+  const els = document.querySelectorAll<HTMLElement>(
+    `[data-dry="${CSS.escape(key)}"]`
+  );
+  els.forEach(el => {
+    // Capture the on-disk value before overwriting it with the pending edit.
+    rememberOriginal(key, el.textContent ?? '');
+    el.textContent = value;
+  });
+}
+
+// Repaints every element for `key` back to its captured baseline — used when
+// a remote tab deletes/clears an edit this page had already painted.
+function restoreOriginal(key: string): void {
+  const original = getOriginalValue(key);
+  if (original === undefined) return;
+  document
+    .querySelectorAll<HTMLElement>(`[data-dry="${CSS.escape(key)}"]`)
+    .forEach(el => {
+      el.textContent = original;
+    });
 }
 
 // Applies edits saved in IndexedDB on top of the server-rendered DOM — runs
@@ -155,18 +192,28 @@ export async function resetPendingEdits(): Promise<void> {
 // survives a reload, per plan.md's "chưa lưu thì reload phải lấy IndexDB".
 export async function applyPendingEdits(): Promise<number> {
   const edits = await getAllEdits();
-  for (const edit of edits) {
-    // A field can be rendered more than once on a page (e.g. a site title in
-    // both the header and footer) — every element sharing this key must get
-    // the pending edit, not just the first match in document order.
-    const els = document.querySelectorAll<HTMLElement>(
-      `[data-dry="${CSS.escape(edit.key)}"]`
-    );
-    els.forEach(el => {
-      // Capture the on-disk value before overwriting it with the pending edit.
-      rememberOriginal(edit.key, el.textContent ?? '');
-      el.textContent = edit.value;
-    });
-  }
+  for (const edit of edits) applyEdit(edit.key, edit.value);
   return edits.length;
+}
+
+// Keeps this page's DOM live-synced with edits published from other tabs
+// (admin or another visual-editor tab) — not just on load, per plan.md's
+// cross-tab requirement. Returns an unsubscribe function; the editor mounts
+// once per page load and is never torn down, so callers are free to ignore it.
+export function subscribeToRemoteEdits(
+  onChange?: () => void
+): () => void {
+  return subscribeEdits((msg: EditBusMessage) => {
+    if (msg.type === 'set') {
+      applyEdit(msg.key, msg.value);
+    } else if (msg.type === 'delete') {
+      restoreOriginal(msg.key);
+    } else {
+      document.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
+        const key = el.getAttribute('data-dry');
+        if (key) restoreOriginal(key);
+      });
+    }
+    onChange?.();
+  });
 }

@@ -32,7 +32,11 @@ export function createUrqlClient(config: Config, basePath: string): Client {
       ? parseRepoConfig(config.storage.repo)
       : { owner: 'repo-owner', name: 'repo-name' };
   return createClient({
-    url: config.storage.kind === 'github' ? 'https://api.github.com/graphql' : '',
+    // urql's Client throws synchronously if `url` is falsy — local mode never
+    // actually issues a GraphQL request (all local reads/writes go through
+    // the REST /api/*/tree,blob,update endpoints), so this just needs to be
+    // *some* non-empty string, not a real GraphQL endpoint.
+    url: config.storage.kind === 'github' ? 'https://api.github.com/graphql' : 'about:blank',
     requestPolicy: 'cache-and-network',
     exchanges: [
       authExchange(async utils => {
