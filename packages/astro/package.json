@@ -1,6 +1,6 @@
 {
   "name": "@drystack/astro",
-  "version": "5.1.0",
+  "version": "0.0.1",
   "description": "Astro integration for drystack, a git-backed CMS for Astro inspired by Keystatic.",
   "license": "MIT",
   "homepage": "https://github.com/khancoder282/drystack",
@@ -62,7 +62,7 @@
   },
   "peerDependencies": {
     "@astrojs/cloudflare": "^14.0.0",
-    "@drystack/core": "*",
+    "@drystack/core": ">=0.0.1 <1.0.0",
     "astro": "2 || 3 || 4 || 5 || 6 || 7",
     "react": "^18.2.0 || ^19.0.0",
     "react-dom": "^18.2.0 || ^19.0.0",

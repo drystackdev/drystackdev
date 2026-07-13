@@ -1,6 +1,6 @@
 {
   "name": "@drystack/core",
-  "version": "0.5.50",
+  "version": "0.0.1",
   "description": "Core engine for drystack, a git-backed CMS for Astro inspired by Keystatic.",
   "license": "MIT",
   "homepage": "https://github.com/khancoder282/drystack",

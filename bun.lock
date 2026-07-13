@@ -26,7 +26,7 @@
     },
     "packages/astro": {
       "name": "@drystack/astro",
-      "version": "5.1.0",
+      "version": "0.0.1",
       "dependencies": {
         "@babel/runtime": "^7.18.3",
         "@keystar/ui": "^0.7.21",
@@ -47,7 +47,7 @@
       },
       "peerDependencies": {
         "@astrojs/cloudflare": "^14.0.0",
-        "@drystack/core": "*",
+        "@drystack/core": ">=0.0.1 <1.0.0",
         "astro": "2 || 3 || 4 || 5 || 6 || 7",
         "react": "^18.2.0 || ^19.0.0",
         "react-dom": "^18.2.0 || ^19.0.0",
@@ -59,7 +59,7 @@
     },
     "packages/drystack": {
       "name": "@drystack/core",
-      "version": "0.5.50",
+      "version": "0.0.1",
       "dependencies": {
         "@babel/runtime": "^7.18.3",
         "@braintree/sanitize-url": "^6.0.2",
