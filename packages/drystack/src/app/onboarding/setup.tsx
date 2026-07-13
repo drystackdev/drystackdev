@@ -1,19 +1,28 @@
-import { useState } from 'react';
+import { useState } from "react";
 
-import { Button } from '@keystar/ui/button';
-import { Box, Flex } from '@keystar/ui/layout';
-import { css } from '@keystar/ui/style';
-import { TextField } from '@keystar/ui/text-field';
-import { Heading, Text } from '@keystar/ui/typography';
-import { GitHubConfig } from '../..';
-import { parseRepoConfig } from '../repo-config';
-import { useRouter } from '../router';
+import { Button } from "@keystar/ui/button";
+import { Box, Flex } from "@keystar/ui/layout";
+import { css } from "@keystar/ui/style";
+import { TextField } from "@keystar/ui/text-field";
+import { Heading, Text } from "@keystar/ui/typography";
+import { GitHubConfig } from "../..";
+import { parseRepoConfig } from "../repo-config";
+import { useRouter } from "../router";
+import { DrystackLogo } from "../shell/common";
+
+function tryAbsoluteURL(path: string, base: string) {
+  try {
+    return new URL(path, base).toString();
+  } catch {
+    return undefined;
+  }
+}
 
 export function DrystackSetup(props: { config: GitHubConfig }) {
   const { basePath } = useRouter();
   const apiBasePath = `/api${basePath}`;
-  const [deployedURL, setDeployedURL] = useState('');
-  const [organization, setOrganization] = useState('');
+  const [deployedURL, setDeployedURL] = useState("");
+  const [organization, setOrganization] = useState("");
   return (
     <Flex alignItems="center" justifyContent="center" margin="xxlarge">
       <Flex
@@ -27,12 +36,15 @@ export function DrystackSetup(props: { config: GitHubConfig }) {
         maxWidth="scale.4600"
         elementType="form"
         action={`https://github.com${
-          organization ? `/organizations/${organization}` : ''
+          organization ? `/organizations/${organization}` : ""
         }/settings/apps/new`}
         method="post"
       >
         <Flex justifyContent="center">
-          <Heading>drystack Setup</Heading>
+          <DrystackLogo />
+        </Flex>
+        <Flex justifyContent="center">
+          <Heading>Drystack Setup</Heading>
         </Flex>
         <Text>drystack doesn't have the required config.</Text>
         <Text>
@@ -68,20 +80,20 @@ export function DrystackSetup(props: { config: GitHubConfig }) {
         />
         <Text>
           After visiting GitHub to create the GitHub app, you'll be redirected
-          back here and secrets generated from GitHub will be written to your{' '}
+          back here and secrets generated from GitHub will be written to your{" "}
           <code>.env</code> file.
         </Text>
         <input
           type="text"
           name="manifest"
-          className={css({ display: 'none' })}
+          className={css({ display: "none" })}
           value={JSON.stringify({
             name: `${
               parseRepoConfig(props.config.storage.repo).owner
             } Drystack`,
-            url: deployedURL
-              ? new URL(basePath, deployedURL).toString()
-              : `${window.location.origin}${basePath}`,
+            url:
+              (deployedURL && tryAbsoluteURL(basePath, deployedURL)) ||
+              `${window.location.origin}${basePath}`,
             public: true,
             redirect_url: `${window.location.origin}${apiBasePath}/github/created-app`,
             callback_urls: [
@@ -89,18 +101,18 @@ export function DrystackSetup(props: { config: GitHubConfig }) {
               `http://127.0.0.1${apiBasePath}/github/oauth/callback`,
               ...(deployedURL
                 ? [
-                    new URL(
+                    tryAbsoluteURL(
                       `${apiBasePath}/github/oauth/callback`,
-                      deployedURL
-                    ).toString(),
-                  ]
+                      deployedURL,
+                    ),
+                  ].filter((url): url is string => url != null)
                 : []),
             ],
             request_oauth_on_install: true,
             default_permissions: {
-              contents: 'write',
-              metadata: 'read',
-              pull_requests: 'read',
+              contents: "write",
+              metadata: "read",
+              pull_requests: "read",
             },
           })}
         />
