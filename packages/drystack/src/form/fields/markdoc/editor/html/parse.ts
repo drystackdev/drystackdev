@@ -63,13 +63,8 @@ function inlineNodeToProseMirror(
     const src = el.getAttribute('src') ?? '';
     const prefix = `/${MEDIA_LIBRARY_DIRECTORY}/`;
     const isLegacyLibraryReference = src.startsWith(prefix);
-    // co-located images serialize to an absolute `/<basePath>/assets/<file>`
-    // src (older ones to a bare `<file>`); either way the sibling-file key is
-    // just the final path segment, which is what `state.other` is keyed by.
     const filename = decodeURIComponent(
-      isLegacyLibraryReference
-        ? src.slice(prefix.length)
-        : (src.split('/').pop() ?? '')
+      isLegacyLibraryReference ? src.slice(prefix.length) : src
     );
     if (!filename) return [];
     // legacy images keep resolving lazily via `resolveMediaLibraryBytes`

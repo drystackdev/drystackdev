@@ -13,7 +13,6 @@ export interface Service {
 	process: { step: string; desc: string }[];
 	metaTitle: string;
 	metaDescription: string;
-	keywords: string;
 	ogImage: string;
 }
 
@@ -32,7 +31,6 @@ export async function getServices(): Promise<Service[]> {
 		process: entry.process.map((p) => ({ step: p.step, desc: p.desc })),
 		metaTitle: entry.metaTitle ?? "",
 		metaDescription: entry.metaDescription ?? "",
-		keywords: entry.keywords ?? "",
 		ogImage: entry.ogImage ?? "",
 	}));
 }

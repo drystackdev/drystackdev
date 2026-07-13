@@ -11,7 +11,7 @@ import { parseHeadingLine } from "../lib/heading";
 import heroImage from "../assets/hero.png";
 
 const [
-  { metaTitle, metaDescription, keywords, ogImage, hero, intro, values, timeline },
+  { metaTitle, metaDescription, ogImage, hero, intro, values, timeline },
   { brand },
 ] = await Promise.all([getGioiThieuPage(), getHomepage()]);
 const { before: brandName, emphasis: brandHighlight } = parseHeadingLine(
@@ -28,7 +28,7 @@ const breadcrumbSchema = {
 };
 ---
 
-<Main title={metaTitle} description={metaDescription} keywords={keywords} image={ogImage || undefined}>
+<Main title={metaTitle} description={metaDescription} image={ogImage || undefined}>
   <JsonLd schema={breadcrumbSchema} />
   <Header />
 

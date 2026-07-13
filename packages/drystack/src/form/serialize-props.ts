@@ -9,12 +9,7 @@ export function serializeProps(
   // note you might have a slug without a slug field when serializing props inside a component block or etc. in the editor
   slugField: string | undefined,
   slug: string | undefined,
-  shouldSuggestFilenamePrefix: boolean,
-  // repo-relative dir of the entry being serialized (e.g. `blog/my-post`).
-  // Forwarded to content/assets fields so they can emit absolute, deploy-safe
-  // URLs for co-located assets. Omitted where there's no concrete entry (e.g.
-  // change detection in `useHasChanged`), where asset URLs don't matter.
-  basePath?: string
+  shouldSuggestFilenamePrefix: boolean
 ) {
   const extraFiles: {
     path: string;
@@ -47,7 +42,7 @@ export function serializeProps(
           return forYaml;
         }
         if (schema.formKind === 'content' || schema.formKind === 'assets') {
-          const out = schema.serialize(value, { slug, basePath });
+          const out = schema.serialize(value, { slug });
           if (out.content !== undefined && schema.contentExtension) {
             extraFiles.push({
               path:

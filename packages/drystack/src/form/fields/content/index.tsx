@@ -35,17 +35,7 @@ export function content({
 }): content.Field {
   let schema: undefined | EditorSchema;
   const config = editorOptionsToConfig(
-    {
-      strikethrough: false,
-      code: false,
-      codeBlock: false,
-      // H1 is reserved for the entry title, so the body content editor never
-      // offers it (toolbar dropdown, insert menu, `# ` input rule and the
-      // Shift-Ctrl-1 shortcut all derive from these levels). Callers can still
-      // override by passing their own `heading` option.
-      heading: [2, 3, 4, 5, 6],
-      ...options,
-    },
+    { strikethrough: false, code: false, codeBlock: false, ...options },
     true
   );
   const getSchema = () => {
@@ -83,8 +73,8 @@ export function content({
     validate(value) {
       return value;
     },
-    serialize(value, { basePath }) {
-      const out = serializeFromEditorStateHTML(value, basePath);
+    serialize(value) {
+      const out = serializeFromEditorStateHTML(value);
       const summary: ContentSummary = countWordsAndChars(
         stripHtmlForPreview(out.value)
       );

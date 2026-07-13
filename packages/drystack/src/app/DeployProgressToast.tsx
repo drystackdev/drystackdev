@@ -10,7 +10,7 @@ function DeployProgressToastBody({
   commitOid: string;
   onSettled: (outcome: BuildPhase | 'timeout') => void;
 }) {
-  const [label, setLabel] = useState('Waiting for build…');
+  const [label, setLabel] = useState('Đang chờ build…');
   const settledRef = useRef(false);
 
   useEffect(() => {
@@ -21,7 +21,7 @@ function DeployProgressToastBody({
         return;
       }
       if (update.kind === 'phase' && update.phase === 'started') {
-        setLabel('Installing dependencies…');
+        setLabel('Đang cài đặt dependencies…');
         return;
       }
       if (settledRef.current) return;
@@ -68,15 +68,15 @@ export function useDeployProgressToast(commitOid: string | undefined) {
     trackedRef.current = commitOid;
     showDeployProgressToast(commitOid, outcome => {
       if (outcome === 'succeeded') {
-        toastQueue.positive('Content published', { timeout: 4000 });
+        toastQueue.positive('Nội dung đã được publish', { timeout: 4000 });
       } else if (outcome === 'failed' || outcome === 'canceled') {
         toastQueue.critical(
-          'Build failed — your changes are still saved on GitHub, try again later.',
+          'Build thất bại — thay đổi vẫn được lưu trên GitHub, thử lưu lại sau.',
           { timeout: 8000 }
         );
       } else {
         toastQueue.info(
-          'Build is taking longer than usual — check back later.',
+          'Build đang lâu hơn bình thường — kiểm tra lại sau.',
           { timeout: 8000 }
         );
       }

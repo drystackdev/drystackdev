@@ -8,9 +8,9 @@ import {
 // column visibility/widths for a collection's entries table, persisted to
 // IndexedDB (see persistence.tsx) so it survives reloads. new schema fields
 // show up by default since we track *hidden* columns, not visible ones —
-// except `defaultHiddenColumns` (everything past the first few columns, see
-// CollectionPage), which stay hidden until the user has ever saved an
-// explicit choice for this collection.
+// except `defaultHiddenColumns` (image/content fields, see CollectionPage),
+// which stay hidden until the user has ever saved an explicit choice for
+// this collection.
 export function useCollectionViewState(
   collection: string,
   defaultHiddenColumns: readonly string[] = []

@@ -58,14 +58,14 @@ async function fetchTreeEntries(
     token,
     `/repos/${owner}/${name}/git/trees/${treeSha}?recursive=1`
   );
-  if (!res.ok) throw new Error('Failed to read the file tree from GitHub.');
+  if (!res.ok) throw new Error('Không đọc được cây file từ GitHub.');
   const json = (await res.json()) as {
     truncated?: boolean;
     tree?: Array<{ path: string; mode: string; type: string; sha: string }>;
   };
   if (json.truncated) {
     throw new Error(
-      'Repo is too large to deploy from the inline editor — deploy from the admin instead.'
+      'Repo quá lớn để deploy từ trình sửa trực tiếp — hãy deploy từ trang admin.'
     );
   }
   const entries = new Map<string, TreeEntry>();
@@ -87,7 +87,7 @@ async function fetchBlobBytes(
   sha: string
 ): Promise<Uint8Array> {
   const res = await ghFetch(token, `/repos/${owner}/${name}/git/blobs/${sha}`);
-  if (!res.ok) throw new Error('Failed to read file contents from GitHub.');
+  if (!res.ok) throw new Error('Không đọc được nội dung file từ GitHub.');
   const json = (await res.json()) as { content: string };
   return decodeBase64ToBytes(json.content);
 }
@@ -157,17 +157,17 @@ async function runDeploy(
   setLabel: (label: string) => void
 ): Promise<DeployOutcome> {
   const token = getGithubToken();
-  if (!token) throw new Error('Not signed in to GitHub.');
+  if (!token) throw new Error('Chưa đăng nhập GitHub.');
   const storage = config.storage as {
     repo: string | { owner: string; name: string };
     branchPrefix?: string;
   };
   const brand = await readBrandRecord(config as any);
-  if (!brand) throw new Error('No brand to deploy — open the admin to create one.');
+  if (!brand) throw new Error('Chưa có brand để deploy — mở admin để khởi tạo.');
   const { owner, name } = parseRepo(storage.repo);
 
   async function attempt(): Promise<DeployOutcome | 'retry'> {
-    setLabel('Loading changes…');
+    setLabel('Đang tải thay đổi…');
     const data = await githubGraphQL(token!, RefsQuery, {
       owner,
       name,
@@ -179,12 +179,12 @@ async function runDeploy(
     const mainRef = repo?.defaultBranchRef;
     const brandRefNode = repo?.brand;
     if (!repo?.id || !mainRef?.target?.oid || !mainRef?.target?.tree?.oid) {
-      throw new Error('Default branch not found.');
+      throw new Error('Không tìm thấy nhánh mặc định.');
     }
     if (!brandRefNode?.id || !brandRefNode?.target?.oid || !brandRefNode?.target?.tree?.oid) {
-      throw new Error('The current brand no longer exists — please reload the page.');
+      throw new Error('Brand hiện tại không còn tồn tại — vui lòng tải lại trang.');
     }
-    if (!login) throw new Error('Could not determine the GitHub user.');
+    if (!login) throw new Error('Không xác định được người dùng GitHub.');
 
     const defaultBranchName: string = mainRef.name;
     const mainCommit: string = mainRef.target.oid;
@@ -205,7 +205,7 @@ async function runDeploy(
       path,
     }));
 
-    setLabel('Loading changed content…');
+    setLabel('Đang tải nội dung thay đổi…');
     await Promise.all(
       cls.takeOursAdditions.map(async path => {
         const entry = oursEntries.get(path)!;
@@ -217,7 +217,7 @@ async function runDeploy(
     );
 
     if (cls.conflictEligible.length > 0) {
-      setLabel('Checking for conflicts…');
+      setLabel('Đang kiểm tra xung đột…');
       for (const path of cls.conflictEligible) {
         const [baseText, oursText, theirsText] = await Promise.all([
           readTextIfPresent(token!, owner, name, baseEntries.get(path)),
@@ -238,7 +238,7 @@ async function runDeploy(
       return { status: 'nothing' };
     }
 
-    setLabel('Deploying…');
+    setLabel('Đang deploy…');
     let commitData;
     try {
       commitData = await githubGraphQL(token!, CreateCommitMutation, {
@@ -269,7 +269,7 @@ async function runDeploy(
     const newCommitOid: string | undefined = target?.oid;
     const newTreeOid: string | undefined = target?.tree?.oid;
     if (!newCommitOid || !newTreeOid) {
-      throw new Error('Deploy failed — no new commit was returned.');
+      throw new Error('Deploy thất bại — không nhận được commit mới.');
     }
 
     // Rotate the brand like the admin does: drop the merged branch, create a
@@ -311,7 +311,7 @@ async function runDeploy(
     const result = await attempt();
     if (result !== 'retry') return result;
   }
-  throw new Error('The default branch keeps changing — please try again.');
+  throw new Error('Nhánh mặc định thay đổi liên tục — vui lòng thử lại.');
 }
 
 export type VeiDeployState =
@@ -348,7 +348,7 @@ export function useVeiDeploy(config: Config<any, any>) {
 
   const deploy = useCallback(async () => {
     if (!isGithub || state.kind !== 'idle') return;
-    setState({ kind: 'loading', label: 'Loading changes…' });
+    setState({ kind: 'loading', label: 'Đang tải thay đổi…' });
     let outcome: DeployOutcome;
     try {
       outcome = await runDeploy(config, label =>
@@ -356,7 +356,7 @@ export function useVeiDeploy(config: Config<any, any>) {
       );
     } catch (err) {
       setState({ kind: 'idle' });
-      toastQueue.critical(err instanceof Error ? err.message : 'Deploy failed.', {
+      toastQueue.critical(err instanceof Error ? err.message : 'Deploy thất bại.', {
         timeout: 6000,
       });
       return;
@@ -365,20 +365,20 @@ export function useVeiDeploy(config: Config<any, any>) {
     if (outcome.status === 'conflict') {
       setState({ kind: 'idle' });
       toastQueue.info(
-        'The brand conflicts with the main branch — open the admin to resolve and deploy.',
+        'Có xung đột giữa brand và nhánh chính — hãy mở admin để xử lý và deploy.',
         { timeout: 8000 }
       );
       return;
     }
     if (outcome.status === 'nothing') {
       setState({ kind: 'idle' });
-      toastQueue.info('No changes to deploy.', { timeout: 4000 });
+      toastQueue.info('Không có thay đổi nào để deploy.', { timeout: 4000 });
       return;
     }
 
     // Committed — reflect the rotated brand immediately, then track the build.
     setBrand(outcome.newBrand);
-    setState({ kind: 'building', label: 'Waiting for build…' });
+    setState({ kind: 'building', label: 'Đang chờ build…' });
     const finish = (toast: () => void) => {
       buildStopRef.current = null;
       setState({ kind: 'idle' });
@@ -391,12 +391,12 @@ export function useVeiDeploy(config: Config<any, any>) {
         return;
       }
       if (update.kind === 'phase' && update.phase === 'started') {
-        setState({ kind: 'building', label: 'Installing dependencies…' });
+        setState({ kind: 'building', label: 'Đang cài đặt dependencies…' });
         return;
       }
       if (update.kind === 'timeout') {
         finish(() =>
-          toastQueue.info('Build is taking longer than usual — check back later.', {
+          toastQueue.info('Build đang lâu hơn bình thường — kiểm tra lại sau.', {
             timeout: 8000,
           })
         );
@@ -405,10 +405,10 @@ export function useVeiDeploy(config: Config<any, any>) {
       if (update.kind === 'phase') {
         finish(() => {
           if (update.phase === 'succeeded') {
-            toastQueue.positive('Content published', { timeout: 4000 });
+            toastQueue.positive('Nội dung đã được publish', { timeout: 4000 });
           } else {
             toastQueue.critical(
-              'Build failed — your changes are still saved on GitHub, try again later.',
+              'Build thất bại — thay đổi vẫn được lưu trên GitHub, thử lại sau.',
               { timeout: 8000 }
             );
           }

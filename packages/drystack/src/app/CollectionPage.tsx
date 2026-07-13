@@ -47,7 +47,7 @@ import {
   columnValueToSearchText,
   getDisplayKind,
 } from './collection-table/column-model';
-import { ColumnsMenu, MAX_VISIBLE_COLUMNS } from './collection-table/ColumnsMenu';
+import { ColumnsMenu } from './collection-table/ColumnsMenu';
 import {
   PendingCheckboxEdit,
   QuickEditCheckboxDialog,
@@ -134,24 +134,15 @@ export function CollectionPage(props: CollectionPageProps) {
     });
   }, [collectionConfig]);
 
-  // show the first few columns by default (name field is always index 0),
-  // skipping image/file/content fields — they're heavy (media previews, long
-  // text) and clutter the table. Everything else starts hidden so the table
-  // stays readable; users opt in via the columns menu, which caps the visible
-  // count at MAX_VISIBLE_COLUMNS.
-  const defaultHiddenColumns = useMemo(() => {
-    const isHeavy = (c: ColumnDescriptor) =>
-      c.displayKind === 'image' ||
-      c.displayKind === 'file' ||
-      c.displayKind === 'content';
-    const shown = new Set(
+  // image/content fields tend to be heavy (media previews, long text) and
+  // clutter the table, so they start out hidden until the user opts in
+  const defaultHiddenColumns = useMemo(
+    () =>
       columnDescriptors
-        .filter(c => !isHeavy(c))
-        .slice(0, MAX_VISIBLE_COLUMNS)
-        .map(c => c.key)
-    );
-    return columnDescriptors.filter(c => !shown.has(c.key)).map(c => c.key);
-  }, [columnDescriptors]);
+        .filter(c => c.displayKind === 'image' || c.displayKind === 'content')
+        .map(c => c.key),
+    [columnDescriptors]
+  );
 
   const { hiddenColumns, setHiddenColumns, columnWidths, setColumnWidths } =
     useCollectionViewState(collection, defaultHiddenColumns);

@@ -5,7 +5,6 @@ import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
 import Icon from "../components/Icon.astro";
 import JsonLd from "./JsonLd.astro";
-import Breadcrumb from "./Breadcrumb.astro";
 import { getHomepage } from "../data/site";
 import { parseHeadingLine } from "../lib/heading";
 import type { BlogPost } from "../data/blog";
@@ -20,34 +19,17 @@ interface Props {
 
 const { post, related, basePath, eyebrowLabel, backLabel } = Astro.props;
 
-const { brand, socialLinks } = (await getHomepage()) as any;
+const { brand } = await getHomepage();
 const { before: brandName, emphasis: brandHighlight } = parseHeadingLine(
 	brand.name,
 );
 const siteName = `${brandName}${brandHighlight}`;
-
-// sameAs cho tác giả: các hồ sơ MXH chính thức (bỏ qua link chưa nhập như "#").
-const authorSameAs = (socialLinks ?? [])
-	.map((s: { href?: string }) => s.href?.trim())
-	.filter(
-		(href: string | undefined): href is string =>
-			!!href && /^https?:\/\//.test(href),
-	);
 
 function formatDate(d: string) {
 	return new Date(d).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 const postUrl = new URL(`${basePath}/${post.slug}`, Astro.site).toString();
-
-// Nếu bài chưa được sửa lại, dateModified = ngày đăng.
-const modifiedDate = post.updated || post.date;
-
-const breadcrumbItems = [
-	{ name: "Trang chủ", href: "/" },
-	{ name: eyebrowLabel, href: basePath },
-	{ name: post.title, href: `${basePath}/${post.slug}` },
-];
 
 const articleSchema = {
 	"@context": "https://schema.org",
@@ -56,26 +38,29 @@ const articleSchema = {
 	description: post.excerpt,
 	image: new URL(post.cover, Astro.site).toString(),
 	datePublished: post.date,
-	dateModified: modifiedDate,
+	dateModified: post.date,
 	mainEntityOfPage: { "@type": "WebPage", "@id": postUrl },
-	// Tác giả là Person (E-E-A-T): Google ưu tiên nội dung có tác giả rõ ràng.
-	author: {
-		"@type": "Person",
-		name: brand.personName || siteName,
-		...(brand.role ? { jobTitle: brand.role } : {}),
-		url: new URL("/gioi-thieu", Astro.site).toString(),
-		...(authorSameAs.length ? { sameAs: authorSameAs } : {}),
-	},
+	author: { "@type": "Organization", name: siteName },
 	publisher: { "@type": "Organization", name: siteName },
+};
+
+const breadcrumbSchema = {
+	"@context": "https://schema.org",
+	"@type": "BreadcrumbList",
+	itemListElement: [
+		{ "@type": "ListItem", position: 1, name: "Trang chủ", item: new URL("/", Astro.site).toString() },
+		{ "@type": "ListItem", position: 2, name: eyebrowLabel, item: new URL(basePath, Astro.site).toString() },
+		{ "@type": "ListItem", position: 3, name: post.title, item: postUrl },
+	],
 };
 ---
 
 <Main title={`${post.title} | ${siteName}`} description={post.excerpt} keywords={post.keywords} image={post.cover} type="article">
 	<Fragment slot="head">
 		<meta property="article:published_time" content={new Date(post.date).toISOString()} />
-		<meta property="article:modified_time" content={new Date(modifiedDate).toISOString()} />
+		<meta property="article:modified_time" content={new Date(post.date).toISOString()} />
 	</Fragment>
-	<JsonLd schema={articleSchema} />
+	<JsonLd schema={[articleSchema, breadcrumbSchema]} />
 	<Header />
 
 	<section class="post-hero section--dark" id="top">
@@ -84,21 +69,17 @@ const articleSchema = {
 		</div>
 		<div class="container post-hero__inner">
 			<a href={basePath} class="back-link reveal"><Icon name="arrow-left" size={16} /> {backLabel}</a>
-			<Breadcrumb items={breadcrumbItems} />
 			<p class="eyebrow reveal">{eyebrowLabel}</p>
 			<h1 class="section-title reveal">{post.title}</h1>
 			<div class="post-hero__meta reveal">
-				<span><Icon name="calendar" size={14} /> Đăng: {formatDate(post.date)}</span>
-				{post.updated && post.updated !== post.date && (
-					<span><Icon name="calendar" size={14} /> Cập nhật: {formatDate(post.updated)}</span>
-				)}
+				<span><Icon name="calendar" size={14} /> {formatDate(post.date)}</span>
 			</div>
 		</div>
 	</section>
 
 	<div class="container" >
 		<div class="post-cover reveal">
-			<Image src={post.cover} alt={post.title} width={1200} height={675} loading="eager" fetchpriority="high" />
+			<Image src={post.cover} alt={post.title} width={1200} height={675} />
 		</div>
 	</div>
 

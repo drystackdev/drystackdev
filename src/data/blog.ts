@@ -7,7 +7,6 @@ export interface BlogPost {
 	keywords: string;
 	cover: string;
 	date: string;
-	updated: string;
 	contentHtml: string;
 }
 
@@ -26,7 +25,6 @@ async function readPosts(
 			keywords: entry.keywords ?? "",
 			cover: entry.cover ?? "",
 			date: entry.date ?? "",
-			updated: entry.updated ?? "",
 			contentHtml: entry.body,
 		}));
 }

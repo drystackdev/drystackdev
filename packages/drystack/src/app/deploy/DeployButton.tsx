@@ -68,7 +68,7 @@ export function DeployButton() {
       }
       if (update.kind === 'timeout') {
         settle(() =>
-          toastQueue.info('Build is taking longer than usual — check back later.', {
+          toastQueue.info('Build đang lâu hơn bình thường — kiểm tra lại sau.', {
             timeout: 8000,
           })
         );
@@ -77,10 +77,10 @@ export function DeployButton() {
       if (update.kind === 'phase') {
         settle(() => {
           if (update.phase === 'succeeded') {
-            toastQueue.positive('Content published', { timeout: 4000 });
+            toastQueue.positive('Nội dung đã được publish', { timeout: 4000 });
           } else {
             toastQueue.critical(
-              'Build failed — your changes are still saved on GitHub, try again later.',
+              'Build thất bại — thay đổi vẫn được lưu trên GitHub, thử lưu lại sau.',
               { timeout: 8000 }
             );
           }

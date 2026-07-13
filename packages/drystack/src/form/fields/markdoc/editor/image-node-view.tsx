@@ -102,10 +102,10 @@ function wrapperAlignStyle(align: ImageAlign | null): CSSProperties {
 // tracks, not several layers of React-rendered content deep inside it.
 export function imageContainerAlignStyle(align: ImageAlign | null): CSSProperties {
   if (align === 'left') {
-    return { float: 'left', marginInlineEnd: '1em', marginBlock: '0.5em' };
+    return { float: 'left', marginInlineEnd: '1em', marginBlockEnd: '0.5em' };
   }
   if (align === 'right') {
-    return { float: 'right', marginInlineStart: '1em', marginBlock: '0.5em' };
+    return { float: 'right', marginInlineStart: '1em', marginBlockEnd: '0.5em' };
   }
   return {};
 }

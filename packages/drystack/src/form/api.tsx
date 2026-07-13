@@ -68,11 +68,6 @@ export type BasicFormField<
     parse(value: FormFieldStoredValue): ReaderValue;
   };
   label?: string;
-  // when set, this field's value is auto-stamped by the save pipeline
-  // (stampTimestamps in app/updating.tsx), not edited by the user:
-  //   'created' → stamped once, only when the stored value is empty
-  //   'updated' → re-stamped on every save
-  timestamp?: 'created' | 'updated';
 };
 
 export type SlugFormField<
@@ -189,10 +184,6 @@ export type AssetsFormField<
     value: ParsedValue,
     extra: {
       slug: string | undefined;
-      // repo-relative dir of the entry (e.g. `blog/my-post`), used to build
-      // absolute, deploy-safe URLs for co-located assets. Undefined outside a
-      // concrete entry (e.g. change detection).
-      basePath?: string;
     }
   ): {
     value: FormFieldStoredValue;
@@ -239,10 +230,6 @@ export type ContentFormField<
     value: ParsedValue,
     extra: {
       slug: string | undefined;
-      // repo-relative dir of the entry (e.g. `blog/my-post`), used to build
-      // absolute, deploy-safe URLs for co-located assets. Undefined outside a
-      // concrete entry (e.g. change detection).
-      basePath?: string;
     }
   ): {
     value: FormFieldStoredValue;

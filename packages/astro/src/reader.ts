@@ -49,6 +49,6 @@ export async function createConfiguredReader(config: Config<any, any>) {
     });
   }
   throw new Error(
-    `createConfiguredReader(): MVP 1 does not support storage.kind "${(config.storage as any).kind}"`
+    `createConfiguredReader(): MVP 1 chưa hỗ trợ storage.kind "${(config.storage as any).kind}"`
   );
 }

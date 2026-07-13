@@ -32,12 +32,12 @@ export function ConflictDialog(props: {
   const allResolved = totalHunks > 0 && resolvedHunks === totalHunks;
 
   return (
-    <Dialog aria-label="Resolve conflicts before deploying">
-      <Heading>Resolve conflicts before deploying</Heading>
+    <Dialog aria-label="Giải quyết xung đột trước khi deploy">
+      <Heading>Giải quyết xung đột trước khi deploy</Heading>
       <Content>
         <Flex direction="column" height="100%" gap="regular">
           <Tabs
-            aria-label="Conflicting files"
+            aria-label="File xung đột"
             selectedKey={selected}
             onSelectionChange={setSelected}
             flex
@@ -77,11 +77,11 @@ export function ConflictDialog(props: {
       </Content>
       <ButtonGroup>
         <Text color="neutralSecondary" marginEnd="auto">
-          Resolved {resolvedHunks}/{totalHunks}
+          Đã giải quyết {resolvedHunks}/{totalHunks}
         </Text>
-        <Button onPress={props.onCancel}>Cancel</Button>
+        <Button onPress={props.onCancel}>Huỷ</Button>
         <Button prominence="high" isDisabled={!allResolved} onPress={props.onSubmit}>
-          Finish &amp; Deploy
+          Hoàn tất &amp; Deploy
         </Button>
       </ButtonGroup>
     </Dialog>
@@ -126,7 +126,7 @@ function FileHunks(props: {
             padding="regular"
           >
             <ActionGroup
-              aria-label={`Choose a version for conflict #${hunkIndex + 1}`}
+              aria-label={`Chọn phiên bản cho xung đột #${hunkIndex + 1}`}
               selectionMode="single"
               selectedKeys={choice ? [choice] : []}
               onSelectionChange={keys => {
@@ -136,8 +136,8 @@ function FileHunks(props: {
                 }
               }}
             >
-              <Item key="ours">Brand (yours)</Item>
-              <Item key="theirs">Main (current)</Item>
+              <Item key="ours">Brand (của bạn)</Item>
+              <Item key="theirs">Main (hiện tại)</Item>
             </ActionGroup>
             <Grid columns="1fr 1fr" gap="regular">
               <Flex direction="column" gap="xsmall">
@@ -149,7 +149,7 @@ function FileHunks(props: {
                   Brand
                 </Text>
                 <Text UNSAFE_className={codeBlock}>
-                  {hunk.ours.join('') || '(empty — file deleted)'}
+                  {hunk.ours.join('') || '(trống — file bị xoá)'}
                 </Text>
               </Flex>
               <Flex direction="column" gap="xsmall">
@@ -161,7 +161,7 @@ function FileHunks(props: {
                   Main
                 </Text>
                 <Text UNSAFE_className={codeBlock}>
-                  {hunk.theirs.join('') || '(empty — file deleted)'}
+                  {hunk.theirs.join('') || '(trống — file bị xoá)'}
                 </Text>
               </Flex>
             </Grid>

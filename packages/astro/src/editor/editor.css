@@ -40,11 +40,9 @@ body.editing [data-dry]:hover {
   gap: 12px;
 }
 
-/* The always-visible toggle at the head of the pill — a Keystar Button forced
-   into a round FAB. Collapsed it's the whole visible control (edit / deploy);
-   open, it sits at the pill's left as the close (✕) button. The icon morphs
-   (rotate + scale + fade) as it swaps between edit/deploy and ✕. No own shadow:
-   the wrapping pill provides the float. */
+/* Single edit affordance — a Keystar Button forced into a round FAB. The icon
+   morphs (rotate + scale + fade) but the button keeps one constant background:
+   no colour change on toggle. */
 .dry-fab {
   position: relative !important;
   width: 44px !important;
@@ -56,9 +54,26 @@ body.editing [data-dry]:hover {
   border-radius: 50% !important;
   color: #fff !important;
   background: #2563eb !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28) !important;
   transition: transform 0.2s ease;
 }
 .dry-fab:hover { transform: scale(1.06); background: #2563eb !important; }
+
+/* Round icon buttons inside the menu (Keystar Buttons, square + 50% radius). */
+.dry-iconbtn {
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  flex: none;
+}
+
+/* Brand-name chip in the deploy pill — reads as a button but bounded so a long
+   brand label truncates instead of stretching the bar off-screen. */
+.dry-brandchip {
+  max-width: 220px !important;
+}
 
 .dry-fab-icon {
   position: absolute;
@@ -69,63 +84,37 @@ body.editing [data-dry]:hover {
   transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 /* The two icons spin in opposite directions as they swap. */
-.dry-fab-icon.is-hidden { opacity: 0; pointer-events: none; }
+.dry-fab-icon.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
 .dry-fab-icon--edit.is-hidden { transform: rotate(-90deg) scale(0.3); }
 .dry-fab-icon--x.is-hidden { transform: rotate(90deg) scale(0.3); }
 
-/* Hairline separator between the toggle and the rest of the row. Its left margin
-   is the toggle↔row gap; both are clipped to nothing while the row is collapsed.
-   Inherited text colour so it reads in both light and dark. */
-.dry-divider {
-  flex: none;
-  width: 1px;
-  height: 24px;
-  margin-left: 8px;
-  background: currentColor;
-  opacity: 0.18;
-}
-
-/* Round icon buttons inside the pill (Keystar Buttons, square + 50% radius). */
-.dry-iconbtn {
-  width: 40px !important;
-  height: 40px !important;
-  min-width: 0 !important;
-  padding: 0 !important;
-  border-radius: 50% !important;
-  flex: none;
-}
-
-/* Brand-name chip in the deploy pill — bounded so a long brand label truncates
-   instead of stretching the bar off-screen. Fully rounded to match the round
-   icon buttons flanking it. */
-.dry-brandchip {
-  max-width: 220px !important;
-  border-radius: 999px !important;
-}
-
-/* The single pill wrapping the whole button row (surface/border/radius/padding
-   come from the Keystar HStack it's applied to). Always visible: collapsed it
-   hugs just the toggle; open it stretches to wrap every button in one rounded
-   row. overflow:hidden clips the collapsing region mid-animation; once open we
-   flip to visible (delayed past the animation) so the review badge and shadow
-   aren't cut off. Closing reverts to hidden instantly. */
-.dry-pill { overflow: hidden; }
-.dry-pill.is-open { overflow: visible; transition: overflow 0s 0.3s; }
-
-/* Everything except the always-visible toggle lives here and collapses to zero
-   width via animatable grid columns, so the pill shrinks back to just the
-   toggle. */
-.dry-collapse {
+/* Menu reveal — a true width collapse via animatable grid columns. */
+.dry-menu {
   display: grid;
   grid-template-columns: 0fr;
-  transition: grid-template-columns 0.3s ease;
+  opacity: 0;
+  transform: translateX(-6px);
+  pointer-events: none;
+  transition: grid-template-columns 0.3s ease, opacity 0.25s ease,
+    transform 0.25s ease;
 }
-.dry-collapse.is-open { grid-template-columns: 1fr; }
-.dry-collapse-inner {
+.dry-menu.is-open {
+  grid-template-columns: 1fr;
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.dry-menu-inner {
   min-width: 0;
+  /* Clip during the width collapse. Once open, flip to visible so the pill's
+     drop shadow isn't cut off — delayed past the animation via a 0s/delay
+     transition on this discrete property (closing reverts instantly). */
   overflow: hidden;
 }
-.dry-collapse.is-open .dry-collapse-inner {
+.dry-menu.is-open .dry-menu-inner {
   overflow: visible;
   transition: overflow 0s 0.3s;
 }

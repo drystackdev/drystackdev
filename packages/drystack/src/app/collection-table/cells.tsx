@@ -26,7 +26,7 @@ const lineClampStyle = css({
   WebkitBoxOrient: "vertical",
   overflow: "hidden",
   wordBreak: "break-word",
-  // a tight line-height clips Vietnamese diacritics above/below the
+  // a tight line-height clips Vietnamese diacritics (dấu) above/below the
   // glyph, since -webkit-line-clamp cuts off exactly at line-height × 2
   lineHeight: 2,
 });

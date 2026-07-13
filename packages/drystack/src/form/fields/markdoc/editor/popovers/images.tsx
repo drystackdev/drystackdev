@@ -23,7 +23,6 @@ import { editIcon } from '@keystar/ui/icon/icons/editIcon';
 import { fileUpIcon } from '@keystar/ui/icon/icons/fileUpIcon';
 import { link2Icon } from '@keystar/ui/icon/icons/link2Icon';
 import { link2OffIcon } from '@keystar/ui/icon/icons/link2OffIcon';
-import { rotateCcwIcon } from '@keystar/ui/icon/icons/rotateCcwIcon';
 import { trash2Icon } from '@keystar/ui/icon/icons/trash2Icon';
 import { TooltipTrigger, Tooltip } from '@keystar/ui/tooltip';
 import { ToggleButton } from '@keystar/ui/button';
@@ -321,13 +320,6 @@ function ImageDialog(props: {
     }
   }, [lockAspectRatio, width, syncHeightFromWidth]);
 
-  // clears the explicit dimensions so the image falls back to its intrinsic
-  // size on save (width/height attrs become null)
-  const onResetSize = useCallback(() => {
-    setWidth(null);
-    setHeight(null);
-  }, []);
-
   let { dismiss } = useDialogContainer();
   let stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
@@ -409,17 +401,6 @@ function ImageDialog(props: {
                     <Icon src={lockAspectRatio ? link2Icon : link2OffIcon} />
                   </ToggleButton>
                   <Tooltip>Lock aspect ratio</Tooltip>
-                </TooltipTrigger>
-                <TooltipTrigger>
-                  <ActionButton
-                    prominence="low"
-                    aria-label="Reset size"
-                    isDisabled={width == null && height == null}
-                    onPress={onResetSize}
-                  >
-                    <Icon src={rotateCcwIcon} />
-                  </ActionButton>
-                  <Tooltip>Reset size</Tooltip>
                 </TooltipTrigger>
               </Flex>
             )}

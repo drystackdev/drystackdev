@@ -13,7 +13,6 @@ interface Props {
   basePath: string;
   metaTitle: string;
   metaDescription: string;
-  keywords?: string;
   ogImage?: string;
   eyebrow: string;
   heading: string;
@@ -25,7 +24,6 @@ const {
   basePath,
   metaTitle,
   metaDescription,
-  keywords,
   ogImage,
   eyebrow,
   heading,
@@ -52,7 +50,7 @@ const breadcrumbSchema = {
 };
 ---
 
-<Main title={metaTitle} description={metaDescription} keywords={keywords} image={ogImage || undefined}>
+<Main title={metaTitle} description={metaDescription} image={ogImage || undefined}>
   <JsonLd schema={breadcrumbSchema} />
   <Header />
 

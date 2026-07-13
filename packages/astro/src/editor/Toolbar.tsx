@@ -243,19 +243,10 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   return (
     <div className="dry-bar">
       {isGithub && (
-        <HStack
-          alignItems="center"
-          backgroundColor="surface"
-          border="muted"
-          borderRadius="full"
-          padding="regular"
-          elementType="section"
-          UNSAFE_className={`dry-pill${deployOpen ? ' is-open' : ''}`}
-          UNSAFE_style={{ boxShadow: '0 6px 20px rgba(0,0,0,0.18)' }}
-        >
+        <>
           <Button
             prominence="high"
-            aria-label={deployOpen ? 'Close deploy menu' : 'Open deploy menu'}
+            aria-label={deployOpen ? 'Đóng menu deploy' : 'Mở menu deploy'}
             onPress={toggleDeploy}
             UNSAFE_className="dry-fab"
           >
@@ -271,26 +262,38 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
             </span>
           </Button>
 
-          <div className={`dry-collapse${deployOpen ? ' is-open' : ''}`}>
-            <div className="dry-collapse-inner">
-              <HStack gap="regular" alignItems="center">
-                <div className="dry-divider" aria-hidden="true" />
+          <div className={`dry-menu${deployOpen ? ' is-open' : ''}`}>
+            <div className="dry-menu-inner">
+              <HStack
+                gap="regular"
+                alignItems="center"
+                backgroundColor="surface"
+                border="muted"
+                borderRadius="full"
+                paddingX="medium"
+                paddingY="regular"
+                elementType="section"
+                UNSAFE_style={{
+                  boxShadow: '0 6px 20px rgba(0,0,0,0.18)',
+                  overflow: 'hidden',
+                }}
+              >
                 <ActionButton
                   isDisabled={!brand}
                   flex
                   minWidth={0}
-                  aria-label="Copy brand name"
+                  aria-label="Copy tên brand"
                   UNSAFE_className="dry-brandchip"
                   onPress={() => {
                     if (!brand) return;
                     // Display drops the date; copying keeps the full label.
                     navigator.clipboard.writeText(brand.label);
-                    toastQueue.positive('Brand name copied', { timeout: 2000 });
+                    toastQueue.positive('Đã copy tên brand', { timeout: 2000 });
                   }}
                 >
                   <Icon src={gitBranchIcon} />
                   <Text truncate flex minWidth={0} title={brandLabel}>
-                    {brand ? brandLabel : 'No brand yet'}
+                    {brand ? brandLabel : 'Chưa có brand'}
                   </Text>
                 </ActionButton>
 
@@ -309,99 +312,97 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
               </HStack>
             </div>
           </div>
-        </HStack>
+        </>
       )}
 
-      <HStack
-        alignItems="center"
-        backgroundColor="surface"
-        border="muted"
-        borderRadius="full"
-        padding="regular"
-        elementType="section"
-        UNSAFE_className={`dry-pill${editing ? ' is-open' : ''}`}
-        UNSAFE_style={{ boxShadow: '0 6px 20px rgba(0,0,0,0.18)' }}
+      <Button
+        prominence="high"
+        aria-label={editing ? 'Exit edit mode' : 'Edit page'}
+        onPress={toggleEdit}
+        UNSAFE_className="dry-fab"
       >
-        <Button
-          prominence="high"
-          aria-label={editing ? 'Exit edit mode' : 'Edit page'}
-          onPress={toggleEdit}
-          UNSAFE_className="dry-fab"
-        >
-          <span className={`dry-fab-icon dry-fab-icon--edit${editing ? ' is-hidden' : ''}`}>
-            <Icon src={editIcon} />
-          </span>
-          <span className={`dry-fab-icon dry-fab-icon--x${editing ? '' : ' is-hidden'}`}>
-            <Icon src={xIcon} />
-          </span>
-        </Button>
+        <span className={`dry-fab-icon dry-fab-icon--edit${editing ? ' is-hidden' : ''}`}>
+          <Icon src={editIcon} />
+        </span>
+        <span className={`dry-fab-icon dry-fab-icon--x${editing ? '' : ' is-hidden'}`}>
+          <Icon src={xIcon} />
+        </span>
+      </Button>
 
-        <div className={`dry-collapse${editing ? ' is-open' : ''}`}>
-          <div className="dry-collapse-inner">
-            <HStack gap="regular" alignItems="center">
-              <div className="dry-divider" aria-hidden="true" />
-              <div
-                className="dry-ref"
-                ref={refWrapRef}
-                onMouseEnter={openRefMenu}
-                onMouseLeave={scheduleCloseRefMenu}
+      <div className={`dry-menu${editing ? ' is-open' : ''}`}>
+        <div className="dry-menu-inner">
+          <HStack
+            gap="regular"
+            alignItems="center"
+            backgroundColor="surface"
+            border="muted"
+            borderRadius="full"
+            paddingX="medium"
+            paddingY="regular"
+            elementType="section"
+            UNSAFE_style={{ boxShadow: '0 6px 20px rgba(0,0,0,0.18)', overflow: 'hidden' }}
+          >
+            <div
+              className="dry-ref"
+              ref={refWrapRef}
+              onMouseEnter={openRefMenu}
+              onMouseLeave={scheduleCloseRefMenu}
+            >
+              <ActionButton
+                aria-label="Open in drystack admin"
+                onPress={openAdminHome}
+                UNSAFE_className="dry-iconbtn"
               >
+                <Icon src={externalLinkIcon} />
+              </ActionButton>
+            </div>
+
+            <TooltipTrigger>
+              <div className="dry-review">
                 <ActionButton
-                  aria-label="Open in drystack admin"
-                  onPress={openAdminHome}
+                  aria-label="Review changes"
+                  onPress={() => setReviewOpen(true)}
+                  isDisabled={nothingToSave}
                   UNSAFE_className="dry-iconbtn"
                 >
-                  <Icon src={externalLinkIcon} />
+                  <Icon src={eyeIcon} />
                 </ActionButton>
+                {!nothingToSave && (
+                  <span className="dry-badge">
+                    <Badge tone="accent">{pendingCount}</Badge>
+                  </span>
+                )}
               </div>
+              <Tooltip>Review changes</Tooltip>
+            </TooltipTrigger>
 
-              <TooltipTrigger>
-                <div className="dry-review">
-                  <ActionButton
-                    aria-label="Review changes"
-                    onPress={() => setReviewOpen(true)}
-                    isDisabled={nothingToSave}
-                    UNSAFE_className="dry-iconbtn"
-                  >
-                    <Icon src={eyeIcon} />
-                  </ActionButton>
-                  {!nothingToSave && (
-                    <span className="dry-badge">
-                      <Badge tone="accent">{pendingCount}</Badge>
-                    </span>
-                  )}
-                </div>
-                <Tooltip>Review changes</Tooltip>
-              </TooltipTrigger>
+            <TooltipTrigger>
+              <ActionButton
+                aria-label="Reset changes"
+                onPress={onReset}
+                isDisabled={nothingToSave || saving}
+                UNSAFE_className="dry-iconbtn"
+              >
+                <Icon src={rotateCcwIcon} />
+              </ActionButton>
+              <Tooltip>Reset changes</Tooltip>
+            </TooltipTrigger>
 
-              <TooltipTrigger>
-                <ActionButton
-                  aria-label="Reset changes"
-                  onPress={onReset}
-                  isDisabled={nothingToSave || saving}
-                  UNSAFE_className="dry-iconbtn"
-                >
-                  <Icon src={rotateCcwIcon} />
-                </ActionButton>
-                <Tooltip>Reset changes</Tooltip>
-              </TooltipTrigger>
-
-              <TooltipTrigger>
-                <Button
-                  aria-label="Save changes"
-                  prominence="high"
-                  onPress={onSave}
-                  isDisabled={nothingToSave || saving}
-                  UNSAFE_className="dry-iconbtn"
-                >
-                  <Icon src={saveIcon} />
-                </Button>
-                <Tooltip>{saving ? 'Saving…' : 'Save changes'}</Tooltip>
-              </TooltipTrigger>
-            </HStack>
-          </div>
+            <TooltipTrigger>
+              <Button
+                aria-label="Save changes"
+                prominence="high"
+                onPress={onSave}
+                isDisabled={nothingToSave || saving}
+                UNSAFE_className="dry-iconbtn"
+              >
+                <Icon src={saveIcon} />
+              </Button>
+              <Tooltip>{saving ? 'Saving…' : 'Save changes'}</Tooltip>
+            </TooltipTrigger>
+          </HStack>
         </div>
-      </HStack>
+      </div>
 
       {refOpen &&
         singletonList.length > 0 &&

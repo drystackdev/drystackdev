@@ -42,18 +42,11 @@ function postCollection(label: string, previewUrl: string) {
         defaultValue: { kind: "today" },
         validation: { isRequired: true },
       }),
-      updated: fields.date({
-        label: "Ngày cập nhật",
-        description:
-          "Để trống nếu chưa sửa lại. Khi có, Google hiểu nội dung được làm mới (dateModified).",
-      }),
       publish: fields.checkbox({
         label: "Xuất bản",
         defaultValue: false,
       }),
       body: fields.content({ label: "Nội dung" }),
-      createdAt: fields.timestamp({ mode: "created", label: "Tạo lúc" }),
-      updatedAt: fields.timestamp({ mode: "updated", label: "Sửa lúc" }),
     },
   });
 }
@@ -84,10 +77,6 @@ export default config({
           label: "Meta description (SEO)",
           multiline: true,
           description: "Để trống sẽ dùng mô tả ngắn",
-        }),
-        keywords: fields.text({
-          label: "Từ khóa SEO",
-          description: "Cách nhau bởi dấu phẩy, VD: từ khoá 1, từ khoá 2",
         }),
         ogImage: fields.image({ label: "Ảnh chia sẻ (OG image)" }),
         icon: fields.select({
@@ -163,11 +152,6 @@ export default config({
               label: "Trạng thái nhận dự án",
             }),
             favicon: fields.image({ label: "Favicon" }),
-            logo: fields.image({
-              label: "Logo (kết quả tìm kiếm)",
-              description:
-                "Ảnh PNG/JPG, tối thiểu 112×112px. Google dùng cho rich results; để trống sẽ tạm dùng favicon.",
-            }),
           },
           { label: "Thương hiệu" },
         ),
@@ -177,11 +161,6 @@ export default config({
             description: fields.text({
               label: "Mô tả mặc định (meta description)",
               multiline: true,
-            }),
-            keywords: fields.text({
-              label: "Từ khóa SEO mặc định",
-              description:
-                "Dùng cho các trang chưa nhập từ khóa riêng. Cách nhau bởi dấu phẩy, VD: từ khoá 1, từ khoá 2",
             }),
             ogImage: fields.image({ label: "Ảnh chia sẻ mặc định (OG image)" }),
           },
@@ -335,10 +314,6 @@ export default config({
           label: "Meta description",
           multiline: true,
         }),
-        keywords: fields.text({
-          label: "Từ khóa SEO",
-          description: "Cách nhau bởi dấu phẩy, VD: từ khoá 1, từ khoá 2",
-        }),
         ogImage: fields.image({ label: "Ảnh chia sẻ (OG image)" }),
         hero: fields.object(
           {
@@ -427,10 +402,6 @@ export default config({
           label: "Meta description",
           multiline: true,
         }),
-        keywords: fields.text({
-          label: "Từ khóa SEO",
-          description: "Cách nhau bởi dấu phẩy, VD: từ khoá 1, từ khoá 2",
-        }),
         ogImage: fields.image({ label: "Ảnh chia sẻ (OG image)" }),
         eyebrow: fields.text({ label: "Eyebrow" }),
         heading: fields.text({
@@ -448,10 +419,6 @@ export default config({
           label: "Meta description",
           multiline: true,
         }),
-        keywords: fields.text({
-          label: "Từ khóa SEO",
-          description: "Cách nhau bởi dấu phẩy, VD: từ khoá 1, từ khoá 2",
-        }),
         ogImage: fields.image({ label: "Ảnh chia sẻ (OG image)" }),
         eyebrow: fields.text({ label: "Eyebrow" }),
         heading: fields.text({
@@ -468,10 +435,6 @@ export default config({
         metaDescription: fields.text({
           label: "Meta description",
           multiline: true,
-        }),
-        keywords: fields.text({
-          label: "Từ khóa SEO",
-          description: "Cách nhau bởi dấu phẩy, VD: từ khoá 1, từ khoá 2",
         }),
         ogImage: fields.image({ label: "Ảnh chia sẻ (OG image)" }),
         eyebrow: fields.text({ label: "Eyebrow" }),

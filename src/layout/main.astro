@@ -13,29 +13,18 @@ interface Props {
   keywords?: string;
   image?: string;
   type?: "website" | "article";
-  // Trang tĩnh (404, trang cảm ơn...) không có phần tử reveal/parallax và
-  // không cần nút liên hệ nổi — cho phép tắt để bớt JS và DOM thừa.
-  floatingContact?: boolean;
-  animations?: boolean;
 }
 
-const { seoDefaults, brand, contact, socialLinks } =
-  (await getHomepage()) as any;
+const { seoDefaults, brand, contact } = await getHomepage();
 const defaultOgImage = await getImage({ src: heroImage, width: 1200 });
 
 const {
   title = seoDefaults.title,
   description = seoDefaults.description,
-  keywords: keywordsProp,
+  keywords,
   image = seoDefaults.ogImage || defaultOgImage.src,
   type = "website",
-  floatingContact = true,
-  animations = true,
-} = Astro.props as Props;
-
-// Mỗi trang có thể nhập từ khóa riêng; nếu bỏ trống thì dùng
-// từ khóa SEO mặc định của toàn site.
-const keywords = keywordsProp || seoDefaults.keywords;
+} = Astro.props;
 
 const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
 const ogImageUrl = new URL(image, Astro.site);
@@ -48,26 +37,16 @@ const { before: brandName, emphasis: brandHighlight } = parseHeadingLine(
 );
 const siteName = `${brandName}${brandHighlight}`;
 const faviconUrl = brand.favicon || "/favicon.svg";
-// Logo cho rich results nên là ảnh raster (PNG/JPG); nếu chưa upload thì
-// tạm dùng favicon để schema không thiếu trường logo.
-const logoUrl = brand.logo || faviconUrl;
-
-// sameAs = các hồ sơ mạng xã hội chính thức. Giúp Google liên kết website
-// với thực thể thương hiệu trong Knowledge Graph (Facebook, Zalo, TikTok...).
-const sameAs = (socialLinks ?? [])
-  .map((s: { href?: string }) => s.href?.trim())
-  .filter((href): href is string => !!href && /^https?:\/\//.test(href));
 
 const organizationSchema = {
   "@context": "https://schema.org",
   "@type": "Organization",
   name: siteName,
   url: Astro.site,
-  logo: new URL(logoUrl, Astro.site).toString(),
+  logo: new URL(faviconUrl, Astro.site).toString(),
   telephone: contact.phoneDisplay,
   email: contact.email,
   areaServed: contact.region,
-  ...(sameAs.length ? { sameAs } : {}),
 };
 
 const websiteSchema = {
@@ -97,7 +76,6 @@ const websiteSchema = {
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonicalUrl} />
     <meta property="og:image" content={ogImageUrl} />
-    <meta property="og:image:alt" content={title} />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
@@ -126,8 +104,7 @@ const websiteSchema = {
   </head>
   <body>
     <slot />
-    {floatingContact && <FloatingContact />}
-    {animations && (
+    <FloatingContact />
     <script>
       // Stagger: các phần tử .reveal trong container [data-stagger]
       // sẽ xuất hiện lần lượt (delay tăng dần), tạo hiệu ứng đổ dây.
@@ -210,6 +187,5 @@ const websiteSchema = {
         updateParallax();
       }
     </script>
-    )}
   </body>
 </html>

@@ -3,12 +3,7 @@ import { ActionButton } from '@keystar/ui/button';
 import { Icon } from '@keystar/ui/icon';
 import { tablePropertiesIcon } from '@keystar/ui/icon/icons/tablePropertiesIcon';
 import { Item, Menu, MenuTrigger } from '@keystar/ui/menu';
-import { toastQueue } from '@keystar/ui/toast';
 import { Text } from '@keystar/ui/typography';
-
-// the entries table gets cramped past a handful of columns, so cap how many
-// can be shown at once. Also drives the default visible set in CollectionPage.
-export const MAX_VISIBLE_COLUMNS = 5;
 
 export function ColumnsMenu(props: {
   columns: { key: string; label: string }[];
@@ -34,16 +29,6 @@ export function ColumnsMenu(props: {
         onSelectionChange={keys => {
           const visible: Set<Key> =
             keys === 'all' ? new Set(columns.map(c => c.key)) : keys;
-          // reject (rather than silently drop) so the checkbox stays put and
-          // the user gets told why — controlled selection means not calling
-          // onHiddenColumnsChange leaves the 6th column unchecked
-          if (visible.size > MAX_VISIBLE_COLUMNS) {
-            toastQueue.info(
-              `You can show at most ${MAX_VISIBLE_COLUMNS} columns.`,
-              { timeout: 4000 }
-            );
-            return;
-          }
           onHiddenColumnsChange(
             new Set(
               columns.filter(c => !visible.has(c.key)).map(c => c.key)

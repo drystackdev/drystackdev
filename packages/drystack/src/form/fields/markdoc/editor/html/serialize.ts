@@ -52,15 +52,6 @@ function renderNode(node: HtmlNode): string {
 type SerializationState = {
   schema: EditorSchema;
   other: Map<string, Uint8Array>;
-  // repo-relative directory of the entry being serialized (e.g.
-  // `blog/my-post`). Co-located image bytes are written to
-  // `<basePath>/assets/<file>` and `astro:build:done`'s `copyDrystackAssets`
-  // mirrors that dir verbatim into the client output, so the file is served at
-  // `/<basePath>/assets/<file>`. We emit that absolute URL as the `src` so it
-  // resolves on the deployed site regardless of the page's own URL/trailing
-  // slash. Undefined in contexts without an entry (e.g. change detection),
-  // where the exact `src` string doesn't matter.
-  basePath?: string;
 };
 
 function uniqueFilename(
@@ -118,18 +109,11 @@ function getLeafContent(
       // this entry instead of the shared media library directory
       const key = uniqueFilename(state.other, filename);
       state.other.set(key, node.attrs.src);
-      // point `src` at where the file actually gets served: the co-located
-      // `<basePath>/assets/<key>` mirrored to `/<basePath>/assets/<key>`. A
-      // bare `key` (the old behaviour) 404s once deployed because the browser
-      // resolves it relative to the page URL, not the entry's on-disk dir.
-      const src = state.basePath
-        ? `/${state.basePath}/${MEDIA_LIBRARY_DIRECTORY}/${key}`
-        : key;
       return {
         kind: 'element',
         tag: 'img',
         attrs: {
-          src,
+          src: key,
           alt: alt ?? '',
           ...(title ? { title } : {}),
           ...layoutAttrs,
@@ -316,13 +300,11 @@ function proseMirrorToHtmlNode(
 
 export function serializeFromEditorStateToHTML(
   node: ProseMirrorNode,
-  other: Map<string, Uint8Array>,
-  basePath?: string
+  other: Map<string, Uint8Array>
 ): string {
   const state: SerializationState = {
     schema: getEditorSchema(node.type.schema),
     other,
-    basePath,
   };
   return renderNode(proseMirrorToHtmlNode(node, state));
 }

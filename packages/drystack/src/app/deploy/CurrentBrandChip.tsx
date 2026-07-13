@@ -27,7 +27,7 @@ export function CurrentBrandChip() {
       onPress={() => {
         if (!brand) return;
         navigator.clipboard.writeText(brand.label);
-        toastQueue.positive('Brand name copied', { timeout: 2000 });
+        toastQueue.positive('Đã copy tên brand', { timeout: 2000 });
       }}
     >
       <Icon src={gitBranchIcon} />
