@@ -60,7 +60,7 @@ export default config({
       }
     : {
         kind: "github",
-        repo: "khancoder282/drystack",
+        repo: "drystackdev/drystackdev",
       },
   collections: {
     blog: postCollection("Bài viết", "/blog/{slug}"),

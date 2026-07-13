@@ -20,7 +20,7 @@ export default defineConfig({
 });
 ```
 
-See the [drystack repository](https://github.com/khancoder282/drystack) for full configuration (`drystack.config.ts`), storage modes (local/GitHub), and deployment notes (Cloudflare Workers).
+See the [drystack repository](https://github.com/drystackdev/drystackdev) for full configuration (`drystack.config.ts`), storage modes (local/GitHub), and deployment notes (Cloudflare Workers).
 
 ## Credits
 

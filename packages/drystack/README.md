@@ -12,7 +12,7 @@ This package is normally installed as a dependency of a framework integration pa
 
 ## Documentation
 
-See the [drystack repository](https://github.com/khancoder282/drystack) for configuration and usage.
+See the [drystack repository](https://github.com/drystackdev/drystackdev) for configuration and usage.
 
 ## Credits
 

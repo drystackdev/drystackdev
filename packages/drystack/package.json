@@ -3,10 +3,10 @@
   "version": "0.0.1",
   "description": "Core engine for drystack, a git-backed CMS for Astro inspired by Keystatic.",
   "license": "MIT",
-  "homepage": "https://github.com/khancoder282/drystack",
+  "homepage": "https://github.com/drystackdev/drystackdev",
   "repository": {
     "type": "git",
-    "url": "https://github.com/khancoder282/drystack/",
+    "url": "https://github.com/drystackdev/drystackdev",
     "directory": "packages/drystack"
   },
   "type": "module",
