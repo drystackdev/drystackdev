@@ -11,13 +11,34 @@
   },
   "type": "module",
   "exports": {
-    "./ui": "./dist/ui.js",
-    "./api": "./dist/api.js",
-    "./dry": "./dist/dry.js",
-    "./reader": "./dist/reader.js",
-    "./editor": "./dist/editor/index.js",
-    "./worker": "./dist/worker/index.js",
-    ".": "./dist/index.js",
+    "./ui": {
+      "drystack-src": "./src/ui.tsx",
+      "default": "./dist/ui.js"
+    },
+    "./api": {
+      "drystack-src": "./src/api.tsx",
+      "default": "./dist/api.js"
+    },
+    "./dry": {
+      "drystack-src": "./src/dry.ts",
+      "default": "./dist/dry.js"
+    },
+    "./reader": {
+      "drystack-src": "./src/reader.ts",
+      "default": "./dist/reader.js"
+    },
+    "./editor": {
+      "drystack-src": "./src/editor/index.tsx",
+      "default": "./dist/editor/index.js"
+    },
+    "./worker": {
+      "drystack-src": "./src/worker/index.ts",
+      "default": "./dist/worker/index.js"
+    },
+    ".": {
+      "drystack-src": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
     "./package.json": "./package.json",
     "./internal/drystack-api.js": "./internal/drystack-api.js",
     "./internal/drystack-astro-page.astro": "./internal/drystack-astro-page.astro"

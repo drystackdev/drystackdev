@@ -20,28 +20,90 @@
     "headless-cms",
     "content-management"
   ],
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "exports": {
-    ".": "./dist/index.js",
-    "./ui": "./dist/ui.js",
-    "./api/utils": "./dist/api/utils.js",
-    "./api/generic": "./dist/api/generic.js",
-    "./renderer": "./dist/renderer.js",
-    "./path-utils": "./dist/app/path-utils.js",
-    "./redirects": "./dist/app/redirects.js",
-    "./edit-sync": "./dist/app/edit-sync.js",
-    "./required-files": "./dist/app/required-files.js",
-    "./build-status": "./dist/app/build-status.js",
-    "./build-status-protocol": "./dist/app/build-status-protocol.js",
-    "./brand-store": "./dist/app/brand-store.js",
-    "./brand-label": "./dist/app/brand-label.js",
-    "./deploy-merge": "./dist/app/deploy/merge3.js",
-    "./deploy-merge-base": "./dist/app/deploy/merge-base.js",
-    "./deploy-progress-toast": "./dist/app/DeployProgressToast.js",
-    "./yaml": "./dist/yaml.js",
-    "./reader": "./dist/reader/index.js",
-    "./reader/github": "./dist/reader/github.js",
-    "./content-components": "./dist/content-components.js",
+    ".": {
+      "drystack-src": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./ui": {
+      "drystack-src": "./src/ui.tsx",
+      "default": "./dist/ui.js"
+    },
+    "./api/utils": {
+      "drystack-src": "./src/api/utils.ts",
+      "default": "./dist/api/utils.js"
+    },
+    "./api/generic": {
+      "drystack-src": "./src/api/generic.ts",
+      "default": "./dist/api/generic.js"
+    },
+    "./renderer": {
+      "drystack-src": "./src/renderer.tsx",
+      "default": "./dist/renderer.js"
+    },
+    "./path-utils": {
+      "drystack-src": "./src/app/path-utils.ts",
+      "default": "./dist/app/path-utils.js"
+    },
+    "./redirects": {
+      "drystack-src": "./src/app/redirects.ts",
+      "default": "./dist/app/redirects.js"
+    },
+    "./edit-sync": {
+      "drystack-src": "./src/app/edit-sync.ts",
+      "default": "./dist/app/edit-sync.js"
+    },
+    "./required-files": {
+      "drystack-src": "./src/app/required-files.ts",
+      "default": "./dist/app/required-files.js"
+    },
+    "./build-status": {
+      "drystack-src": "./src/app/build-status.ts",
+      "default": "./dist/app/build-status.js"
+    },
+    "./build-status-protocol": {
+      "drystack-src": "./src/app/build-status-protocol.ts",
+      "default": "./dist/app/build-status-protocol.js"
+    },
+    "./brand-store": {
+      "drystack-src": "./src/app/brand-store.ts",
+      "default": "./dist/app/brand-store.js"
+    },
+    "./brand-label": {
+      "drystack-src": "./src/app/brand-label.ts",
+      "default": "./dist/app/brand-label.js"
+    },
+    "./deploy-merge": {
+      "drystack-src": "./src/app/deploy/merge3.ts",
+      "default": "./dist/app/deploy/merge3.js"
+    },
+    "./deploy-merge-base": {
+      "drystack-src": "./src/app/deploy/merge-base.ts",
+      "default": "./dist/app/deploy/merge-base.js"
+    },
+    "./deploy-progress-toast": {
+      "drystack-src": "./src/app/DeployProgressToast.tsx",
+      "default": "./dist/app/DeployProgressToast.js"
+    },
+    "./yaml": {
+      "drystack-src": "./src/yaml.ts",
+      "default": "./dist/yaml.js"
+    },
+    "./reader": {
+      "drystack-src": "./src/reader/index.ts",
+      "default": "./dist/reader/index.js"
+    },
+    "./reader/github": {
+      "drystack-src": "./src/reader/github.ts",
+      "default": "./dist/reader/github.js"
+    },
+    "./content-components": {
+      "drystack-src": "./src/content-components.ts",
+      "default": "./dist/content-components.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -165,45 +227,120 @@
   },
   "imports": {
     "#react-cache-in-react-server": {
-      "react-server": "./dist/reader/react-server-cache.js",
-      "default": "./dist/reader/noop-cache.js"
+      "react-server": {
+        "drystack-src": "./src/reader/react-server-cache.ts",
+        "default": "./dist/reader/react-server-cache.js"
+      },
+      "default": {
+        "drystack-src": "./src/reader/noop-cache.ts",
+        "default": "./dist/reader/noop-cache.js"
+      }
     },
     "#sha1": {
-      "node": "./dist/sha1/node.js",
-      "default": "./dist/sha1/webcrypto.js"
+      "node": {
+        "drystack-src": "./src/sha1/node.ts",
+        "default": "./dist/sha1/node.js"
+      },
+      "default": {
+        "drystack-src": "./src/sha1/webcrypto.ts",
+        "default": "./dist/sha1/webcrypto.js"
+      }
     },
     "#webcrypto": {
-      "node": "./dist/api/webcrypto/node.js",
-      "default": "./dist/api/webcrypto/default.js"
+      "node": {
+        "drystack-src": "./src/api/webcrypto/node.ts",
+        "default": "./dist/api/webcrypto/node.js"
+      },
+      "default": {
+        "drystack-src": "./src/api/webcrypto/default.ts",
+        "default": "./dist/api/webcrypto/default.js"
+      }
     },
     "#api-handler": {
-      "node": "./dist/api/api-node.js",
-      "default": "./dist/api/api-noop.js"
+      "node": {
+        "drystack-src": "./src/api/api-node.ts",
+        "default": "./dist/api/api-node.js"
+      },
+      "default": {
+        "drystack-src": "./src/api/api-noop.ts",
+        "default": "./dist/api/api-noop.js"
+      }
     },
     "#ui": {
-      "node": "./dist/app/ui-empty.js",
-      "worker": "./dist/app/ui-empty.js",
-      "react-server": "./dist/app/ui-empty.js",
-      "default": "./dist/app/ui.js"
+      "node": {
+        "drystack-src": "./src/app/ui-empty.tsx",
+        "default": "./dist/app/ui-empty.js"
+      },
+      "worker": {
+        "drystack-src": "./src/app/ui-empty.tsx",
+        "default": "./dist/app/ui-empty.js"
+      },
+      "react-server": {
+        "drystack-src": "./src/app/ui-empty.tsx",
+        "default": "./dist/app/ui-empty.js"
+      },
+      "default": {
+        "drystack-src": "./src/app/ui.tsx",
+        "default": "./dist/app/ui.js"
+      }
     },
     "#field-ui/*": {
-      "node": "./dist/form/fields/empty-field-ui.js",
-      "worker": "./dist/form/fields/empty-field-ui.js",
-      "react-server": "./dist/form/fields/empty-field-ui.js",
-      "default": "./dist/form/fields/*/ui.js"
+      "node": {
+        "drystack-src": "./src/form/fields/empty-field-ui.tsx",
+        "default": "./dist/form/fields/empty-field-ui.js"
+      },
+      "worker": {
+        "drystack-src": "./src/form/fields/empty-field-ui.tsx",
+        "default": "./dist/form/fields/empty-field-ui.js"
+      },
+      "react-server": {
+        "drystack-src": "./src/form/fields/empty-field-ui.tsx",
+        "default": "./dist/form/fields/empty-field-ui.js"
+      },
+      "default": {
+        "drystack-src": "./src/form/fields/*/ui.tsx",
+        "default": "./dist/form/fields/*/ui.js"
+      }
     },
-    "#icons/*": "./dist/app/icons/*.js",
+    "#icons/*": {
+      "drystack-src": "./src/app/icons/*.tsx",
+      "default": "./dist/app/icons/*.js"
+    },
     "#component-block-primitives": {
-      "node": "./dist/component-blocks/primitives/blank-for-react-server.js",
-      "worker": "./dist/component-blocks/primitives/blank-for-react-server.js",
-      "react-server": "./dist/component-blocks/primitives/blank-for-react-server.js",
-      "default": "./dist/component-blocks/primitives/index.js"
+      "node": {
+        "drystack-src": "./src/component-blocks/primitives/blank-for-react-server.tsx",
+        "default": "./dist/component-blocks/primitives/blank-for-react-server.js"
+      },
+      "worker": {
+        "drystack-src": "./src/component-blocks/primitives/blank-for-react-server.tsx",
+        "default": "./dist/component-blocks/primitives/blank-for-react-server.js"
+      },
+      "react-server": {
+        "drystack-src": "./src/component-blocks/primitives/blank-for-react-server.tsx",
+        "default": "./dist/component-blocks/primitives/blank-for-react-server.js"
+      },
+      "default": {
+        "drystack-src": "./src/component-blocks/primitives/index.tsx",
+        "default": "./dist/component-blocks/primitives/index.js"
+      }
     },
-    "#markdoc": "./dist/markdoc.js",
-    "#base64": "./dist/base64.js",
+    "#markdoc": {
+      "drystack-src": "./src/markdoc.js",
+      "default": "./dist/markdoc.js"
+    },
+    "#base64": {
+      "drystack-src": "./src/base64.ts",
+      "default": "./dist/base64.js"
+    },
     "#react-compiler-runtime": {
-      "react-server": "./dist/react-compiler-runtime-react-server.js",
-      "default": "./dist/react-compiler-runtime.js"
+      "react-server": {
+        "drystack-src": "./src/react-compiler-runtime-react-server.ts",
+        "default": "./dist/react-compiler-runtime-react-server.js"
+      },
+      "default": {
+        "drystack-src": "./src/react-compiler-runtime.ts",
+        "default": "./dist/react-compiler-runtime.js"
+      }
     }
   }
 }
