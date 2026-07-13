@@ -11,9 +11,10 @@ publish_package() {
   echo "==> Building $name..."
   (cd "$ROOT/$dir" && bun run build)
 
-  read -rp "Enter current npm OTP to publish $name: " otp
+  # Auth comes from the npm automation token in ~/.npmrc
+  # (//registry.npmjs.org/:_authToken=...), which bypasses 2FA/OTP.
   echo "==> Publishing $name..."
-  (cd "$ROOT/$dir" && bun publish --access public --otp="$otp")
+  (cd "$ROOT/$dir" && bun publish --access public)
 }
 
 publish_package "packages/drystack" "@drystack/core"
