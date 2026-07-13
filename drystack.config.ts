@@ -54,7 +54,7 @@ function postCollection(label: string, previewUrl: string) {
 }
 
 export default config({
-  storage: !import.meta.env.DEV
+  storage: import.meta.env.DEV
     ? {
         kind: "local",
       }
