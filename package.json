@@ -15,7 +15,8 @@
     "prebuild": "bunx tsx packages/drystack/scripts/build-prism.ts",
     "build": "astro build",
     "preview": "wrangler dev",
-    "astro": "astro"
+    "astro": "astro",
+    "publish:packages": "bash scripts/publish.sh"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.1.2",
