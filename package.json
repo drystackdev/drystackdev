@@ -10,9 +10,9 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "predev": "bunx tsx packages/drystack/scripts/build-prism.ts",
+    "predev": "bun run --filter '@drystack/core' build && bun run --filter '@drystack/astro' build",
     "dev": "astro dev",
-    "prebuild": "bunx tsx packages/drystack/scripts/build-prism.ts",
+    "prebuild": "bun run --filter '@drystack/core' build && bun run --filter '@drystack/astro' build",
     "build": "astro build",
     "preview": "wrangler dev",
     "astro": "astro",
