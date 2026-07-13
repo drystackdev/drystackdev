@@ -33,5 +33,4 @@
       "invocation_logs": true
     }
   }
-  // test: diagnostic commit to trace realtime deploy-status timing, safe to ignore
 }
