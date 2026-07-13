@@ -1,6 +1,13 @@
 // The wire contract between the build-status client (`build-status.ts`, runs in
 // the browser) and the Durable Object hub that serves it (`@drystack/astro/worker`).
 // Both sides import from here so the paths and the event shape can't drift apart.
+//
+// One global hub for the whole site, not one per commit/branch. Per-(branch,
+// commit) hubs required the client to know in advance exactly which build it
+// was about to watch and to connect inside that build's short lifecycle window
+// — fragile, and it still doesn't answer what people actually want to see:
+// "what is Cloudflare doing right now". A single always-on hub sidesteps the
+// whole class of "wrong/late hub" bugs by not having a key to get wrong.
 
 // A build's lifecycle as Cloudflare Workers Builds reports it. There is no
 // install/build/deploy sub-step event — only these four — so clients show a
@@ -15,20 +22,13 @@ export type BuildEvent = {
   receivedAt: number;
 };
 
-// Client-facing: the WebSocket a browser opens to watch one (branch, commit)
-// build.
-export const WS_PATH_PREFIX = '/__drystack/ws/build-status/';
+// Client-facing: the one WebSocket every browser opens to watch build status.
+export const WS_PATH = '/__drystack/ws/build-status';
 
 // Worker-internal: how the queue consumer hands an event to the hub. Never
 // reached from outside the worker — the DO is not routable from the internet.
-export const PUBLISH_PATH_PREFIX = '/__drystack/internal/build-status/';
+export const PUBLISH_PATH = '/__drystack/internal/build-status';
 
-// Branch is part of the path (not just the event payload) because a commit
-// can be live on more than one branch at once — e.g. drystack rotates the
-// brand branch to a fresh ref pointing at the same commit it just merged to
-// the default branch, so that commit gets its own build on two branches.
-// Keying purely by commit would let one branch's lifecycle clobber the
-// other's in the hub; see BuildStatusHub.
-export function buildStatusSocketPath(branch: string, commitOid: string): string {
-  return `${WS_PATH_PREFIX}${encodeURIComponent(branch)}/${encodeURIComponent(commitOid)}`;
-}
+// The fixed name every caller resolves the hub through (`idFromName`) — a
+// named singleton, not one instance per commit/branch.
+export const HUB_NAME = 'build-status';

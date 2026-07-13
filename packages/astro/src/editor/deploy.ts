@@ -1,18 +1,19 @@
 // VEI-native Deploy — the visual editor's port of the admin's useDeploy
 // (packages/drystack/src/app/deploy/useDeploy.ts). Merges the current brand
 // branch into the repo's default branch with the same client-side 3-way merge,
-// commits once, rotates to a fresh brand, then tracks the Cloudflare build.
+// commits once, then rotates to a fresh brand. That's it — whether Cloudflare
+// actually builds it is shown separately by the toolbar's own status icon
+// (Toolbar.tsx, via useLatestBuildStatus), not tracked here.
 //
 // The editor is a standalone React tree with no admin context, so this talks to
 // GitHub directly using the raw helpers already in save.ts (token/parse/gql/
 // base64) and the pure, shared modules from @drystack/core (merge logic, brand
-// store/label, build status). Unlike the admin, there is NO conflict-resolution
-// UI here: on a real merge conflict we stop and tell the user to deploy from the
-// admin panel instead (a deliberate scope choice).
-import { useCallback, useEffect, useRef, useState } from 'react';
+// store/label). Unlike the admin, there is NO conflict-resolution UI here: on a
+// real merge conflict we stop and tell the user to deploy from the admin panel
+// instead (a deliberate scope choice).
+import { useCallback, useEffect, useState } from 'react';
 import type { Config } from '@drystack/core';
 import { toastQueue } from '@keystar/ui/toast';
-import { watchBuildStatus } from '@drystack/core/build-status';
 import { classifyChanges, merge3Text } from '@drystack/core/deploy-merge';
 import { fetchMergeBase } from '@drystack/core/deploy-merge-base';
 import {
@@ -324,16 +325,16 @@ async function runDeploy(
 
 export type VeiDeployState =
   | { kind: 'idle' }
-  | { kind: 'loading'; label: string }
-  | { kind: 'building'; label: string };
+  | { kind: 'loading'; label: string };
 
 // Editor-local controller for the deploy pill: exposes the current brand (for
-// the date-stripped label), a busy label for the button, and deploy().
+// the date-stripped label), a busy label for the button, and deploy(). Only
+// covers the merge itself — Cloudflare build progress is a separate concern,
+// shown by the toolbar's own status icon (useLatestBuildStatus).
 export function useVeiDeploy(config: Config<any, any>) {
   const isGithub = config.storage.kind === 'github';
   const [brand, setBrand] = useState<BrandRecord | null>(null);
   const [state, setState] = useState<VeiDeployState>({ kind: 'idle' });
-  const buildStopRef = useRef<(() => void) | null>(null);
 
   const refreshBrand = useCallback(async () => {
     if (!isGithub) {
@@ -350,9 +351,6 @@ export function useVeiDeploy(config: Config<any, any>) {
   useEffect(() => {
     refreshBrand();
   }, [refreshBrand]);
-
-  // Stop tracking a build if the editor unmounts mid-deploy.
-  useEffect(() => () => buildStopRef.current?.(), []);
 
   const deploy = useCallback(async () => {
     if (!isGithub || state.kind !== 'idle') return;
@@ -384,40 +382,12 @@ export function useVeiDeploy(config: Config<any, any>) {
       return;
     }
 
-    // Committed — reflect the rotated brand immediately, then track the build.
+    // Committed — reflect the rotated brand and go straight back to idle; the
+    // toolbar's status icon takes over showing what Cloudflare does with it.
     setBrand(outcome.newBrand);
-    setState({ kind: 'building', label: 'Đang chờ build…' });
-    const finish = (toast: () => void) => {
-      buildStopRef.current = null;
-      setState({ kind: 'idle' });
-      toast();
-    };
-    buildStopRef.current?.();
-    buildStopRef.current = watchBuildStatus(outcome.branch, outcome.commitOid, update => {
-      if (update.kind === 'phase' && update.phase === 'started') {
-        setState({ kind: 'building', label: 'Đang build…' });
-        return;
-      }
-      if (update.kind === 'timeout') {
-        finish(() =>
-          toastQueue.info('Build đang lâu hơn bình thường — kiểm tra lại sau.', {
-            timeout: 8000,
-          })
-        );
-        return;
-      }
-      if (update.kind === 'phase') {
-        finish(() => {
-          if (update.phase === 'succeeded') {
-            toastQueue.positive('Nội dung đã được publish', { timeout: 4000 });
-          } else {
-            toastQueue.critical(
-              'Build thất bại — thay đổi vẫn được lưu trên GitHub, thử lại sau.',
-              { timeout: 8000 }
-            );
-          }
-        });
-      }
+    setState({ kind: 'idle' });
+    toastQueue.positive('Đã gộp vào main — theo dõi build ở biểu tượng Cloudflare', {
+      timeout: 4000,
     });
   }, [config, isGithub, state.kind]);
 

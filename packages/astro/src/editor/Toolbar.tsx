@@ -31,6 +31,7 @@ import {
 import { getAllEdits, publishDelete, subscribeEdits } from './store';
 import { saveEdits, getCurrentBranchName } from './save';
 import { brandDisplayLabel } from '@drystack/core/brand-label';
+import { CloudflareStatus } from '@drystack/core/deploy-cloudflare-status';
 import { useVeiDeploy } from './deploy';
 
 type Spot = { key: string; name: string; field: string };
@@ -376,6 +377,13 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
                     {brand ? brandLabel : 'Chưa có brand'}
                   </Text>
                 </ActionButton>
+
+                <div
+                  className="dry-iconbtn"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <CloudflareStatus />
+                </div>
 
                 <TooltipTrigger>
                   <Button

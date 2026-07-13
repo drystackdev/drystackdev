@@ -22,8 +22,9 @@
 import { handle } from '@astrojs/cloudflare/handler';
 import { DurableObject } from 'cloudflare:workers';
 import {
-  PUBLISH_PATH_PREFIX,
-  WS_PATH_PREFIX,
+  HUB_NAME,
+  PUBLISH_PATH,
+  WS_PATH,
   type BuildEvent,
   type BuildPhase,
 } from '@drystack/core/build-status-protocol';
@@ -37,16 +38,12 @@ export type DrystackWorkerEnv = {
   BUILD_STATUS_HUB: DurableObjectNamespace;
 };
 
-// How long a terminal event (succeeded/failed/canceled) is kept so a client
-// that connects slightly late still sees the outcome, before the hub tears
-// itself down.
-const RETENTION_MS = 10 * 60 * 1000;
-
-// One instance per (branch, commit) pair (see hubFor below) — every socket
-// accepted by a given instance is watching the same build, so broadcast ==
-// "everyone connected here". Branch is part of the key because the same
-// commit can be live on two branches at once (see buildStatusSocketPath),
-// each with its own independent build lifecycle.
+// A single named-singleton instance for the whole site: every build event
+// (any branch, any commit) is published here, and every client connects here
+// — nobody needs to know which commit or branch is currently building. It
+// just always holds the most recent event and broadcasts to whoever's
+// listening, indefinitely — there's no per-build lifecycle to retire, so
+// unlike a per-commit hub it never schedules an alarm to evict itself.
 //
 // The class name is load-bearing: it is referenced by `class_name` in the app's
 // `durable_objects` binding and by the `new_sqlite_classes` migration. Renaming
@@ -55,22 +52,12 @@ export class BuildStatusHub extends DurableObject<DrystackWorkerEnv> {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
-    if (url.pathname.startsWith(PUBLISH_PATH_PREFIX)) {
+    if (url.pathname === PUBLISH_PATH) {
       const event = (await request.json()) as BuildEvent;
-      const existing = await this.ctx.storage.get<BuildEvent>('latest');
-      // Belt-and-braces against queue redelivery/reordering: once this
-      // (branch, commit) has reached a terminal phase, don't let a
-      // late/duplicate 'started' reopen it.
-      if (existing && existing.phase !== 'started') {
-        return new Response(null, { status: 204 });
-      }
       await this.ctx.storage.put('latest', event);
       const message = JSON.stringify(event);
       for (const ws of this.ctx.getWebSockets()) {
         ws.send(message);
-      }
-      if (event.phase !== 'started') {
-        await this.ctx.storage.setAlarm(Date.now() + RETENTION_MS);
       }
       return new Response(null, { status: 204 });
     }
@@ -97,13 +84,6 @@ export class BuildStatusHub extends DurableObject<DrystackWorkerEnv> {
   ): Promise<void> {
     ws.close(code, reason);
   }
-
-  async alarm(): Promise<void> {
-    for (const ws of this.ctx.getWebSockets()) {
-      ws.close(1000, 'build status retention expired');
-    }
-    await this.ctx.storage.deleteAll();
-  }
 }
 
 function commitFromQueueEvent(body: any): string | undefined {
@@ -123,11 +103,8 @@ function phaseFromEventType(type: string | undefined): BuildPhase | undefined {
   return undefined;
 }
 
-// Keyed by branch+commit, not commit alone — see the comment on
-// buildStatusSocketPath for why the same commit can have two independent
-// build lifecycles that must not share a hub.
-function hubFor(env: DrystackWorkerEnv, branch: string, commit: string) {
-  return env.BUILD_STATUS_HUB.get(env.BUILD_STATUS_HUB.idFromName(`${branch}:${commit}`));
+function hub(env: DrystackWorkerEnv) {
+  return env.BUILD_STATUS_HUB.get(env.BUILD_STATUS_HUB.idFromName(HUB_NAME));
 }
 
 /**
@@ -140,24 +117,14 @@ export function handleBuildStatusRequest(
   env: DrystackWorkerEnv
 ): Promise<Response> | undefined {
   const url = new URL(request.url);
-  if (!url.pathname.startsWith(WS_PATH_PREFIX)) return undefined;
-  const rest = url.pathname.slice(WS_PATH_PREFIX.length);
-  const slash = rest.indexOf('/');
-  if (slash === -1) {
-    return Promise.resolve(new Response('Missing commit', { status: 400 }));
-  }
-  const branch = decodeURIComponent(rest.slice(0, slash));
-  const commit = decodeURIComponent(rest.slice(slash + 1));
-  if (!branch || !commit) {
-    return Promise.resolve(new Response('Missing commit', { status: 400 }));
-  }
-  return hubFor(env, branch, commit).fetch(request);
+  if (url.pathname !== WS_PATH) return undefined;
+  return hub(env).fetch(request);
 }
 
 /**
  * Consumes one batch of Cloudflare Workers Builds events off the queue and
- * fans each one out to the hub for its commit. Exposed for the same reason as
- * {@link handleBuildStatusRequest}.
+ * fans each one out to the single build-status hub. Exposed for the same
+ * reason as {@link handleBuildStatusRequest}.
  */
 export async function handleBuildEventBatch(
   batch: MessageBatch<unknown>,
@@ -174,10 +141,10 @@ export async function handleBuildEventBatch(
       continue;
     }
     const event: BuildEvent = { phase, commit, branch, receivedAt: Date.now() };
-    await hubFor(env, branch, commit).fetch(
-      `https://build-status-hub${PUBLISH_PATH_PREFIX}${branch}/${commit}`,
-      { method: 'POST', body: JSON.stringify(event) }
-    );
+    await hub(env).fetch(`https://build-status-hub${PUBLISH_PATH}`, {
+      method: 'POST',
+      body: JSON.stringify(event),
+    });
     message.ack();
   }
 }

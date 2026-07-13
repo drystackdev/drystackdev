@@ -1,4 +1,4 @@
-import { ReactElement, useEffect, useRef, useState } from 'react';
+import { ReactElement, useEffect } from 'react';
 
 import { ActionButton } from '@keystar/ui/button';
 import { DialogContainer } from '@keystar/ui/dialog';
@@ -11,7 +11,6 @@ import { css, keyframes } from '@keystar/ui/style';
 import { toastQueue } from '@keystar/ui/toast';
 import { Text } from '@keystar/ui/typography';
 
-import { watchBuildStatus } from '../build-status';
 import { useCurrentBrand } from '../brand';
 import { ConflictDialog } from './ConflictDialog';
 import { useDeploy } from './useDeploy';
@@ -22,67 +21,31 @@ const spin = keyframes({
 });
 const spinningIconClassName = css({ animation: `${spin} 0.8s linear infinite` });
 
-type DeployStatus = 'idle' | 'error' | 'loading' | 'conflicts' | 'building';
+type DeployStatus = 'idle' | 'error' | 'loading' | 'conflicts';
 
 const statusIcons: Record<DeployStatus, ReactElement> = {
   idle: rocketIcon,
   error: alertCircleIcon,
   loading: loader2Icon,
   conflicts: alertTriangleIcon,
-  building: loader2Icon,
 };
 
-// Merges the current brand into the default branch, then tracks the
-// resulting Cloudflare build — see plan/brand.md §8. Progress lives on the
-// button label itself (not a toast) the whole way through; the button stays
-// disabled until the build settles. Only mounted in github mode (its call
-// sites — SidebarGitActions, dashboard BranchSection — already gate that).
+// Merges the current brand into the default branch — nothing more. Whether
+// Cloudflare actually builds it successfully is tracked separately by
+// CloudflareStatus (deploy/CloudflareStatus.tsx), which listens for build
+// events regardless of who triggered them or when — this button doesn't wait
+// around for that, it just reports the merge and goes back to idle.
 export function DeployButton() {
   const brand = useCurrentBrand();
   const { state, deploy, setHunkChoice, submitConflicts, cancelConflicts, reset } =
     useDeploy();
-  const [buildLabel, setBuildLabel] = useState<string | null>(null);
-  const trackedCommitRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (state.kind !== 'merged') return;
-    if (trackedCommitRef.current === state.commitOid) return;
-    trackedCommitRef.current = state.commitOid;
-    setBuildLabel('Waiting for build…');
-
-    const settle = (toast: () => void) => {
-      trackedCommitRef.current = null;
-      setBuildLabel(null);
-      reset();
-      toast();
-    };
-
-    return watchBuildStatus(state.branch, state.commitOid, update => {
-      if (update.kind === 'phase' && update.phase === 'started') {
-        setBuildLabel('Building…');
-        return;
-      }
-      if (update.kind === 'timeout') {
-        settle(() =>
-          toastQueue.info('Build đang lâu hơn bình thường — kiểm tra lại sau.', {
-            timeout: 8000,
-          })
-        );
-        return;
-      }
-      if (update.kind === 'phase') {
-        settle(() => {
-          if (update.phase === 'succeeded') {
-            toastQueue.positive('Nội dung đã được publish', { timeout: 4000 });
-          } else {
-            toastQueue.critical(
-              'Build thất bại — thay đổi vẫn được lưu trên GitHub, thử lưu lại sau.',
-              { timeout: 8000 }
-            );
-          }
-        });
-      }
+    toastQueue.positive('Đã gộp vào main — theo dõi build ở biểu tượng Cloudflare', {
+      timeout: 4000,
     });
+    reset();
   }, [state, reset]);
 
   useEffect(() => {
@@ -91,26 +54,23 @@ export function DeployButton() {
     }
   }, [state]);
 
-  const isBuilding = buildLabel !== null;
-  const isBusy = state.kind === 'loading' || state.kind === 'conflicts' || isBuilding;
-  const label = isBuilding
-    ? buildLabel
-    : state.kind === 'loading'
+  const isBusy = state.kind === 'loading' || state.kind === 'conflicts';
+  const label =
+    state.kind === 'loading'
       ? state.label
       : state.kind === 'conflicts'
         ? 'Waiting for conflict resolution…'
         : 'Deploy';
 
-  const status: DeployStatus = isBuilding
-    ? 'building'
-    : state.kind === 'loading'
+  const status: DeployStatus =
+    state.kind === 'loading'
       ? 'loading'
       : state.kind === 'conflicts'
         ? 'conflicts'
         : state.kind === 'idle' && state.error
           ? 'error'
           : 'idle';
-  const isSpinning = status === 'loading' || status === 'building';
+  const isSpinning = status === 'loading';
 
   return (
     <>

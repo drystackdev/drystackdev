@@ -38,6 +38,7 @@ import { pluralize } from '../../pluralize';
 import { useBrand } from '../common';
 import { SIDE_PANEL_ID } from '../constants';
 import { ThemeMenu, UserActions } from './components';
+import { CloudflareStatus } from '../../deploy/CloudflareStatus';
 import { CurrentBrandChip } from '../../deploy/CurrentBrandChip';
 import { DeployButton } from '../../deploy/DeployButton';
 import { useAppState, useConfig } from '../context';
@@ -152,7 +153,10 @@ function SidebarGitActions() {
   }
   return (
     <VStack gap="regular" paddingY="regular" paddingX="medium">
-      <CurrentBrandChip />
+      <HStack gap="regular" alignItems="center">
+        <CurrentBrandChip />
+        <CloudflareStatus />
+      </HStack>
       <DeployButton />
     </VStack>
   );

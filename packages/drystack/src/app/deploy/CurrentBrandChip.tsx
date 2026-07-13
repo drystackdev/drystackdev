@@ -13,6 +13,8 @@ import { brandDisplayLabel } from '../brand-label';
 // brand's label, truncated, as a single ActionButton (press = copy) so it
 // reads as a button next to DeployButton rather than plain text — there's
 // nothing to pick anymore since every editor only ever has one brand at a time.
+// Renders alongside CloudflareStatus (SidebarGitActions), so it grows to fill
+// the row instead of claiming the full width itself.
 export function CurrentBrandChip() {
   const brand = useCurrentBrand();
   // Display drops the leading date/time (see brandDisplayLabel); the press
@@ -22,7 +24,7 @@ export function CurrentBrandChip() {
   return (
     <ActionButton
       isDisabled={!brand}
-      width="100%"
+      flex
       minWidth={0}
       onPress={() => {
         if (!brand) return;

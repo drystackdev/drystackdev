@@ -84,9 +84,9 @@
       "drystack-src": "./src/app/deploy/merge-base.ts",
       "default": "./dist/app/deploy/merge-base.js"
     },
-    "./deploy-progress-toast": {
-      "drystack-src": "./src/app/DeployProgressToast.tsx",
-      "default": "./dist/app/DeployProgressToast.js"
+    "./deploy-cloudflare-status": {
+      "drystack-src": "./src/app/deploy/CloudflareStatus.tsx",
+      "default": "./dist/app/deploy/CloudflareStatus.js"
     },
     "./yaml": {
       "drystack-src": "./src/yaml.ts",
