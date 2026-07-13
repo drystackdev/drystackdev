@@ -42,9 +42,11 @@ export type DrystackWorkerEnv = {
 // itself down.
 const RETENTION_MS = 10 * 60 * 1000;
 
-// One instance per commit sha (see idFromName below) — every socket accepted
-// by a given instance is watching the same build, so broadcast == "everyone
-// connected here".
+// One instance per (branch, commit) pair (see hubFor below) — every socket
+// accepted by a given instance is watching the same build, so broadcast ==
+// "everyone connected here". Branch is part of the key because the same
+// commit can be live on two branches at once (see buildStatusSocketPath),
+// each with its own independent build lifecycle.
 //
 // The class name is load-bearing: it is referenced by `class_name` in the app's
 // `durable_objects` binding and by the `new_sqlite_classes` migration. Renaming
@@ -55,6 +57,13 @@ export class BuildStatusHub extends DurableObject<DrystackWorkerEnv> {
 
     if (url.pathname.startsWith(PUBLISH_PATH_PREFIX)) {
       const event = (await request.json()) as BuildEvent;
+      const existing = await this.ctx.storage.get<BuildEvent>('latest');
+      // Belt-and-braces against queue redelivery/reordering: once this
+      // (branch, commit) has reached a terminal phase, don't let a
+      // late/duplicate 'started' reopen it.
+      if (existing && existing.phase !== 'started') {
+        return new Response(null, { status: 204 });
+      }
       await this.ctx.storage.put('latest', event);
       const message = JSON.stringify(event);
       for (const ws of this.ctx.getWebSockets()) {
@@ -114,8 +123,11 @@ function phaseFromEventType(type: string | undefined): BuildPhase | undefined {
   return undefined;
 }
 
-function hubFor(env: DrystackWorkerEnv, commit: string) {
-  return env.BUILD_STATUS_HUB.get(env.BUILD_STATUS_HUB.idFromName(commit));
+// Keyed by branch+commit, not commit alone — see the comment on
+// buildStatusSocketPath for why the same commit can have two independent
+// build lifecycles that must not share a hub.
+function hubFor(env: DrystackWorkerEnv, branch: string, commit: string) {
+  return env.BUILD_STATUS_HUB.get(env.BUILD_STATUS_HUB.idFromName(`${branch}:${commit}`));
 }
 
 /**
@@ -129,9 +141,17 @@ export function handleBuildStatusRequest(
 ): Promise<Response> | undefined {
   const url = new URL(request.url);
   if (!url.pathname.startsWith(WS_PATH_PREFIX)) return undefined;
-  const commit = url.pathname.slice(WS_PATH_PREFIX.length);
-  if (!commit) return Promise.resolve(new Response('Missing commit', { status: 400 }));
-  return hubFor(env, commit).fetch(request);
+  const rest = url.pathname.slice(WS_PATH_PREFIX.length);
+  const slash = rest.indexOf('/');
+  if (slash === -1) {
+    return Promise.resolve(new Response('Missing commit', { status: 400 }));
+  }
+  const branch = decodeURIComponent(rest.slice(0, slash));
+  const commit = decodeURIComponent(rest.slice(slash + 1));
+  if (!branch || !commit) {
+    return Promise.resolve(new Response('Missing commit', { status: 400 }));
+  }
+  return hubFor(env, branch, commit).fetch(request);
 }
 
 /**
@@ -147,19 +167,15 @@ export async function handleBuildEventBatch(
     const body = message.body as any;
     const phase = phaseFromEventType(body?.type);
     const commit = commitFromQueueEvent(body);
-    if (!phase || !commit) {
+    const branch = branchFromQueueEvent(body);
+    if (!phase || !commit || !branch) {
       console.warn('drystack: unrecognised build event, skipping', body?.type);
       message.ack();
       continue;
     }
-    const event: BuildEvent = {
-      phase,
-      commit,
-      branch: branchFromQueueEvent(body),
-      receivedAt: Date.now(),
-    };
-    await hubFor(env, commit).fetch(
-      `https://build-status-hub${PUBLISH_PATH_PREFIX}${commit}`,
+    const event: BuildEvent = { phase, commit, branch, receivedAt: Date.now() };
+    await hubFor(env, branch, commit).fetch(
+      `https://build-status-hub${PUBLISH_PATH_PREFIX}${branch}/${commit}`,
       { method: 'POST', body: JSON.stringify(event) }
     );
     message.ack();

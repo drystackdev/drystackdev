@@ -144,7 +144,7 @@ const CreateRefMutation = `
 `;
 
 export type DeployOutcome =
-  | { status: 'committed'; commitOid: string; newBrand: BrandRecord | null }
+  | { status: 'committed'; commitOid: string; branch: string; newBrand: BrandRecord | null }
   | { status: 'conflict' }
   | { status: 'nothing' };
 
@@ -312,7 +312,7 @@ async function runDeploy(
       newBrand = null;
     }
 
-    return { status: 'committed', commitOid: newCommitOid, newBrand };
+    return { status: 'committed', commitOid: newCommitOid, branch: defaultBranchName, newBrand };
   }
 
   for (let i = 0; i < MAX_STALE_DATA_RETRIES; i++) {
@@ -393,7 +393,7 @@ export function useVeiDeploy(config: Config<any, any>) {
       toast();
     };
     buildStopRef.current?.();
-    buildStopRef.current = watchBuildStatus(outcome.commitOid, update => {
+    buildStopRef.current = watchBuildStatus(outcome.branch, outcome.commitOid, update => {
       if (update.kind === 'phase' && update.phase === 'started') {
         setState({ kind: 'building', label: 'Đang build…' });
         return;

@@ -57,7 +57,7 @@ export function DeployButton() {
       toast();
     };
 
-    return watchBuildStatus(state.commitOid, update => {
+    return watchBuildStatus(state.branch, state.commitOid, update => {
       if (update.kind === 'phase' && update.phase === 'started') {
         setBuildLabel('Building…');
         return;

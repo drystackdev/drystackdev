@@ -23,6 +23,7 @@ const RECONNECT_MAX_MS = 8000;
 const OVERALL_TIMEOUT_MS = 5 * 60 * 1000;
 
 export function watchBuildStatus(
+  branch: string,
   commitOid: string,
   onUpdate: (update: BuildStatusUpdate) => void
 ): () => void {
@@ -48,7 +49,7 @@ export function watchBuildStatus(
     if (closed) return;
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const socket = new WebSocket(
-      `${protocol}//${location.host}${buildStatusSocketPath(commitOid)}`
+      `${protocol}//${location.host}${buildStatusSocketPath(branch, commitOid)}`
     );
     ws = socket;
     onUpdate({ kind: 'connecting' });

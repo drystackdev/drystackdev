@@ -48,7 +48,7 @@ export type DeployState =
   | { kind: 'idle'; error?: string }
   | { kind: 'loading'; label: string }
   | { kind: 'conflicts'; files: ConflictFileState[] }
-  | { kind: 'merged'; commitOid: string };
+  | { kind: 'merged'; commitOid: string; branch: string };
 
 type ConflictResolution =
   | { action: 'submit'; files: ConflictFileState[] }
@@ -353,7 +353,7 @@ export function useDeploy() {
         push(`${basePath}/branch/${encodeURIComponent(newRecord.ref)}`);
       }
 
-      setState({ kind: 'merged', commitOid: newCommitOid });
+      setState({ kind: 'merged', commitOid: newCommitOid, branch: repoInfo!.defaultBranch });
       return 'done';
     }
 

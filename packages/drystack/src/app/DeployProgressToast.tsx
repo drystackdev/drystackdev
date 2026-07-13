@@ -4,9 +4,11 @@ import { Text } from '@keystar/ui/typography';
 import { BuildPhase, watchBuildStatus } from './build-status';
 
 function DeployProgressToastBody({
+  branch,
   commitOid,
   onSettled,
 }: {
+  branch: string;
   commitOid: string;
   onSettled: (outcome: BuildPhase | 'timeout') => void;
 }) {
@@ -15,7 +17,7 @@ function DeployProgressToastBody({
 
   useEffect(() => {
     settledRef.current = false;
-    return watchBuildStatus(commitOid, update => {
+    return watchBuildStatus(branch, commitOid, update => {
       if (update.kind === 'phase' && update.phase === 'started') {
         setLabel('Đang build…');
         return;
@@ -39,11 +41,13 @@ function DeployProgressToastBody({
 // (`succeeded`/`failed`/`canceled`/`timeout`) so the caller can show its own
 // follow-up toast.
 export function showDeployProgressToast(
+  branch: string,
   commitOid: string,
   onSettled: (outcome: BuildPhase | 'timeout') => void
 ): void {
   const close = toastQueue.neutral(
     <DeployProgressToastBody
+      branch={branch}
       commitOid={commitOid}
       onSettled={outcome => {
         close();
@@ -56,13 +60,13 @@ export function showDeployProgressToast(
 // Tracks a commit's Cloudflare build as soon as `commitOid` is set, showing a
 // deploy-progress toast followed by a success/failure toast. Guards against
 // re-tracking the same commit across re-renders.
-export function useDeployProgressToast(commitOid: string | undefined) {
+export function useDeployProgressToast(branch: string, commitOid: string | undefined) {
   const trackedRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!commitOid || trackedRef.current === commitOid) return;
     trackedRef.current = commitOid;
-    showDeployProgressToast(commitOid, outcome => {
+    showDeployProgressToast(branch, commitOid, outcome => {
       if (outcome === 'succeeded') {
         toastQueue.positive('Nội dung đã được publish', { timeout: 4000 });
       } else if (outcome === 'failed' || outcome === 'canceled') {
