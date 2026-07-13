@@ -5,7 +5,6 @@ import { checkCircle2Icon } from '@keystar/ui/icon/icons/checkCircle2Icon';
 import { cloudIcon } from '@keystar/ui/icon/icons/cloudIcon';
 import { loader2Icon } from '@keystar/ui/icon/icons/loader2Icon';
 import { css, keyframes } from '@keystar/ui/style';
-import { toastQueue } from '@keystar/ui/toast';
 import { Tooltip, TooltipTrigger } from '@keystar/ui/tooltip';
 import { Text } from '@keystar/ui/typography';
 import type { ReactElement } from 'react';
@@ -95,22 +94,15 @@ function useCloudflareStatusView(): {
 
 // Admin sidebar — its own row, styled as the same outlined ActionButton as
 // CurrentBrandChip (deploy/CurrentBrandChip.tsx) so the status/brand/deploy
-// stack reads as one consistent set of rows. Always on, independent of
-// DeployButton: reflects whatever the most recent build on the site is
-// doing, whoever triggered it, not just "the build I just started" — see
-// build-status.ts. Press-to-copy mirrors the brand chip's own affordance.
+// stack reads as one consistent set of rows. Purely a display — no onPress,
+// it's not an action, just borrowing ActionButton's chrome for the matching
+// outline/border-radius. Always on, independent of DeployButton: reflects
+// whatever the most recent build on the site is doing, whoever triggered it,
+// not just "the build I just started" — see build-status.ts.
 export function CloudflareStatus() {
   const view = useCloudflareStatusView();
   return (
-    <ActionButton
-      isDisabled={!view.hasEvent}
-      width="100%"
-      minWidth={0}
-      onPress={() => {
-        navigator.clipboard.writeText(view.fullLabel);
-        toastQueue.positive('Đã copy trạng thái build', { timeout: 2000 });
-      }}
-    >
+    <ActionButton isDisabled={!view.hasEvent} width="100%" minWidth={0} aria-label={view.fullLabel}>
       <Icon
         src={view.icon}
         color={toneColor[view.tone]}
@@ -128,10 +120,10 @@ export function CloudflareStatus() {
 // Reuses the brand chip's own ActionButton + "dry-brandchip" class (same
 // 40px height, same border-radius, same outlined Keystar chrome as the
 // Deploy button next to it) rather than a bare div, so it actually looks
-// like a matching control instead of flat text floating in the pill. The
-// label is always one of a handful of short, similar-length strings so the
-// pill doesn't jump around as the status changes; the full sentence is
-// still one hover away.
+// like a matching control instead of flat text floating in the pill. No
+// onPress here either — purely a display. The label is always one of a
+// handful of short, similar-length strings so the pill doesn't jump around
+// as the status changes; the full sentence is still one hover away.
 export function CloudflareStatusCompact() {
   const view = useCloudflareStatusView();
   return (
@@ -139,11 +131,7 @@ export function CloudflareStatusCompact() {
       <ActionButton
         isDisabled={!view.hasEvent}
         UNSAFE_className="dry-brandchip"
-        aria-label="Cloudflare build status"
-        onPress={() => {
-          navigator.clipboard.writeText(view.fullLabel);
-          toastQueue.positive('Đã copy trạng thái build', { timeout: 2000 });
-        }}
+        aria-label={view.fullLabel}
       >
         <Icon
           src={view.icon}
