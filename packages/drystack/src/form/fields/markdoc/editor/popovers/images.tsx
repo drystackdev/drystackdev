@@ -20,7 +20,7 @@ import { alignCenterIcon } from '@keystar/ui/icon/icons/alignCenterIcon';
 import { alignLeftIcon } from '@keystar/ui/icon/icons/alignLeftIcon';
 import { alignRightIcon } from '@keystar/ui/icon/icons/alignRightIcon';
 import { editIcon } from '@keystar/ui/icon/icons/editIcon';
-import { fileUpIcon } from '@keystar/ui/icon/icons/fileUpIcon';
+import { fileUpIcon } from '#icons/fileUpIcon';
 import { link2Icon } from '@keystar/ui/icon/icons/link2Icon';
 import { link2OffIcon } from '@keystar/ui/icon/icons/link2OffIcon';
 import { trash2Icon } from '@keystar/ui/icon/icons/trash2Icon';

@@ -3,7 +3,7 @@ import { Button, ButtonGroup, ActionButton } from '@keystar/ui/button';
 import { Dialog } from '@keystar/ui/dialog';
 import { FileTrigger } from '@keystar/ui/drag-and-drop';
 import { Icon } from '@keystar/ui/icon';
-import { fileUpIcon } from '@keystar/ui/icon/icons/fileUpIcon';
+import { fileUpIcon } from '#icons/fileUpIcon';
 import { Flex } from '@keystar/ui/layout';
 import { Content } from '@keystar/ui/slots';
 import { Heading, Text } from '@keystar/ui/typography';

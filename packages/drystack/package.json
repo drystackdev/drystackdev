@@ -108,6 +108,8 @@
     "yjs": "^13.6.11"
   },
   "devDependencies": {
+    "@iconify-json/solar": "^1.2.5",
+    "@iconify/utils": "^3.1.4",
     "@internationalized/string-compiler": "^3.2.6",
     "@jest/expect": "^29.7.0",
     "@jest/globals": "^29.7.0",
@@ -189,6 +191,7 @@
       "react-server": "./src/form/fields/empty-field-ui.tsx",
       "default": "./src/form/fields/*/ui.tsx"
     },
+    "#icons/*": "./src/app/icons/*.tsx",
     "#component-block-primitives": {
       "node": "./src/component-blocks/primitives/blank-for-react-server.tsx",
       "worker": "./src/component-blocks/primitives/blank-for-react-server.tsx",

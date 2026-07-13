@@ -3,7 +3,7 @@ import { Plugin } from 'prosemirror-state';
 import { dropPoint } from 'prosemirror-transform';
 
 import { Icon } from '@keystar/ui/icon';
-import { imageIcon } from '@keystar/ui/icon/icons/imageIcon';
+import { imageIcon } from '#icons/imageIcon';
 import { Tooltip, TooltipTrigger } from '@keystar/ui/tooltip';
 import { Text } from '@keystar/ui/typography';
 

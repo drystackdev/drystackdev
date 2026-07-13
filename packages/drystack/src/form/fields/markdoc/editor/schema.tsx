@@ -6,7 +6,7 @@ import { heading3Icon } from '@keystar/ui/icon/icons/heading3Icon';
 import { heading4Icon } from '@keystar/ui/icon/icons/heading4Icon';
 import { heading5Icon } from '@keystar/ui/icon/icons/heading5Icon';
 import { heading6Icon } from '@keystar/ui/icon/icons/heading6Icon';
-import { imageIcon } from '@keystar/ui/icon/icons/imageIcon';
+import { imageIcon } from '#icons/imageIcon';
 import { listIcon } from '@keystar/ui/icon/icons/listIcon';
 import { listOrderedIcon } from '@keystar/ui/icon/icons/listOrderedIcon';
 import { quoteIcon } from '@keystar/ui/icon/icons/quoteIcon';
