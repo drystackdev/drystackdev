@@ -1,13 +1,16 @@
 // Watches a Cloudflare Workers Build for one specific commit over WebSocket,
-// server side in `src/worker.ts` (BuildStatusHub Durable Object). Cloudflare
-// only reports four lifecycle events for a build — `started`, `succeeded`,
-// `failed`, `canceled` — there is no native "installing deps" / "building" /
-// "deploying" sub-step signal, so callers just show one accurate "building"
-// state between `started` and the terminal phase rather than fabricating
-// sub-step timing (real builds run ~20-25s end to end, too fast and too
-// variable for a fake staged countdown to track).
+// served by the BuildStatusHub Durable Object in `@drystack/astro/worker`.
+// Cloudflare only reports four lifecycle events for a build — `started`,
+// `succeeded`, `failed`, `canceled` — there is no native "installing deps" /
+// "building" / "deploying" sub-step signal, so callers just show one accurate
+// "building" state between `started` and the terminal phase rather than
+// fabricating sub-step timing (real builds run ~20-25s end to end, too fast and
+// too variable for a fake staged countdown to track).
 
-export type BuildPhase = 'started' | 'succeeded' | 'failed' | 'canceled';
+import { buildStatusSocketPath } from './build-status-protocol';
+
+export type { BuildPhase } from './build-status-protocol';
+import type { BuildPhase } from './build-status-protocol';
 
 export type BuildStatusUpdate =
   | { kind: 'connecting' }
@@ -45,7 +48,7 @@ export function watchBuildStatus(
     if (closed) return;
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const socket = new WebSocket(
-      `${protocol}//${location.host}/__drystack/ws/build-status/${encodeURIComponent(commitOid)}`
+      `${protocol}//${location.host}${buildStatusSocketPath(commitOid)}`
     );
     ws = socket;
     onUpdate({ kind: 'connecting' });

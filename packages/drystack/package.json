@@ -19,6 +19,7 @@
     "./edit-sync": "./src/app/edit-sync.ts",
     "./required-files": "./src/app/required-files.ts",
     "./build-status": "./src/app/build-status.ts",
+    "./build-status-protocol": "./src/app/build-status-protocol.ts",
     "./brand-store": "./src/app/brand-store.ts",
     "./brand-label": "./src/app/brand-label.ts",
     "./deploy-merge": "./src/app/deploy/merge3.ts",
