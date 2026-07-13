@@ -3,13 +3,21 @@
 //
 // This lives in the package (not in the consuming app) because it is one half
 // of a contract whose other half — `watchBuildStatus` in
-// `@drystack/core/build-status` — already ships here. An app wires it up with:
+// `@drystack/core/build-status` — already ships here. An app uses it as its
+// worker entry directly, no source file of its own:
 //
-//   // src/worker.ts
-//   export { BuildStatusHub, default } from '@drystack/astro/worker';
+//   // wrangler.jsonc
+//   "main": "@drystack/astro/worker",
+//   "durable_objects": {
+//     "bindings": [{ "name": "BUILD_STATUS_HUB", "class_name": "BuildStatusHub" }]
+//   },
+//   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["BuildStatusHub"] }],
+//   "queues": { "consumers": [{ "queue": "<your-build-events-queue>" }] }
 //
-// and points `main` at that file in `wrangler.jsonc`. See ./README.md for the
-// bindings the app still has to declare (Durable Object, migration, queue).
+// The Astro Cloudflare adapter resolves `main` and bundles it into
+// dist/server/entry.mjs, from which Cloudflare picks up the Durable Object
+// class. An app that needs its own routes on top swaps `main` back to a local
+// file and re-exports {@link createDrystackWorker} with handlers of its own.
 
 import { handle } from '@astrojs/cloudflare/handler';
 import { DurableObject } from 'cloudflare:workers';

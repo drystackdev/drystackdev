@@ -2,7 +2,10 @@
   "name": "drystack",
   "compatibility_date": "2025-01-01",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "./src/worker.ts",
+  // The worker itself is drystack's — the Astro handler plus the BuildStatusHub
+  // Durable Object behind the deploy progress UI. The bindings below are what it
+  // needs; the code is in @drystack/astro/worker.
+  "main": "@drystack/astro/worker",
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS"
