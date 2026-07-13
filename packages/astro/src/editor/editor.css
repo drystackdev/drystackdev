@@ -98,6 +98,7 @@ body > .kui-scheme--auto {
   max-width: 220px !important;
   padding: 0 14px !important;
   border-radius: 999px !important;
+  outline: 1px solid var(--kui-color-alias-border-idle);
 }
 
 .dry-fab-icon {
