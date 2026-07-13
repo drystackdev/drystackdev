@@ -1,10 +1,11 @@
+import { ActionButton } from '@keystar/ui/button';
 import { Icon } from '@keystar/ui/icon';
 import { alertCircleIcon } from '@keystar/ui/icon/icons/alertCircleIcon';
 import { checkCircle2Icon } from '@keystar/ui/icon/icons/checkCircle2Icon';
 import { cloudIcon } from '@keystar/ui/icon/icons/cloudIcon';
 import { loader2Icon } from '@keystar/ui/icon/icons/loader2Icon';
-import { HStack } from '@keystar/ui/layout';
 import { css, keyframes } from '@keystar/ui/style';
+import { toastQueue } from '@keystar/ui/toast';
 import { Tooltip, TooltipTrigger } from '@keystar/ui/tooltip';
 import { Text } from '@keystar/ui/typography';
 import type { ReactElement } from 'react';
@@ -28,13 +29,16 @@ const toneColor: Record<Tone, 'neutralSecondary' | 'accent' | 'positive' | 'crit
 
 // Shared read of "what's Cloudflare doing right now" — both the admin sidebar
 // row and the VEI pill's compact indicator render off the same event, they
-// just differ in how much of the label they show at once.
+// just differ in how much of the label they show at once. English labels:
+// this is a system/status string, not site content — see CLAUDE.md language
+// convention (deploy toasts elsewhere stay Vietnamese; this doesn't).
 function useCloudflareStatusView(): {
   icon: ReactElement;
   tone: Tone;
   spinning: boolean;
   shortLabel: string;
   fullLabel: string;
+  hasEvent: boolean;
 } {
   const { event } = useLatestBuildStatus();
 
@@ -43,61 +47,79 @@ function useCloudflareStatusView(): {
       icon: cloudIcon,
       tone: 'neutral',
       spinning: false,
-      shortLabel: 'Chưa build',
-      fullLabel: 'Chưa có thông tin build',
+      shortLabel: 'No build',
+      fullLabel: 'No build info yet',
+      hasEvent: false,
     };
   }
+  const base = { hasEvent: true } as const;
   switch (event.phase) {
     case 'started':
       return {
+        ...base,
         icon: loader2Icon,
         tone: 'notice',
         spinning: true,
-        shortLabel: 'Đang build',
-        fullLabel: 'Đang build trên Cloudflare…',
+        shortLabel: 'Building',
+        fullLabel: 'Building on Cloudflare…',
       };
     case 'succeeded':
       return {
+        ...base,
         icon: checkCircle2Icon,
         tone: 'positive',
         spinning: false,
-        shortLabel: 'Thành công',
-        fullLabel: 'Build thành công',
+        shortLabel: 'Success',
+        fullLabel: 'Build succeeded',
       };
     case 'failed':
       return {
+        ...base,
         icon: alertCircleIcon,
         tone: 'critical',
         spinning: false,
-        shortLabel: 'Thất bại',
-        fullLabel: 'Build thất bại',
+        shortLabel: 'Failed',
+        fullLabel: 'Build failed',
       };
     case 'canceled':
       return {
+        ...base,
         icon: alertCircleIcon,
         tone: 'critical',
         spinning: false,
-        shortLabel: 'Đã huỷ',
-        fullLabel: 'Build đã huỷ',
+        shortLabel: 'Canceled',
+        fullLabel: 'Build canceled',
       };
   }
 }
 
-// Admin sidebar — its own row, icon plus the full descriptive label. Always
-// on, independent of DeployButton: reflects whatever the most recent build on
-// the site is doing, whoever triggered it, not just "the build I just
-// started". See build-status.ts.
+// Admin sidebar — its own row, styled as the same outlined ActionButton as
+// CurrentBrandChip (deploy/CurrentBrandChip.tsx) so the status/brand/deploy
+// stack reads as one consistent set of rows. Always on, independent of
+// DeployButton: reflects whatever the most recent build on the site is
+// doing, whoever triggered it, not just "the build I just started" — see
+// build-status.ts. Press-to-copy mirrors the brand chip's own affordance.
 export function CloudflareStatus() {
   const view = useCloudflareStatusView();
   return (
-    <HStack gap="small" alignItems="center" paddingY="small">
+    <ActionButton
+      isDisabled={!view.hasEvent}
+      width="100%"
+      minWidth={0}
+      onPress={() => {
+        navigator.clipboard.writeText(view.fullLabel);
+        toastQueue.positive('Đã copy trạng thái build', { timeout: 2000 });
+      }}
+    >
       <Icon
         src={view.icon}
         color={toneColor[view.tone]}
         UNSAFE_className={view.spinning ? spinningIconClassName : undefined}
       />
-      <Text color={toneColor[view.tone]}>{view.fullLabel}</Text>
-    </HStack>
+      <Text truncate flex minWidth={0}>
+        {view.fullLabel}
+      </Text>
+    </ActionButton>
   );
 }
 
