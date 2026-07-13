@@ -15,7 +15,8 @@ interface Props {
   type?: "website" | "article";
 }
 
-const { seoDefaults, brand, contact } = await getHomepage();
+const { seoDefaults, brand, contact, socialLinks } =
+  (await getHomepage()) as any;
 const defaultOgImage = await getImage({ src: heroImage, width: 1200 });
 
 const {
@@ -42,6 +43,12 @@ const { before: brandName, emphasis: brandHighlight } = parseHeadingLine(
 const siteName = `${brandName}${brandHighlight}`;
 const faviconUrl = brand.favicon || "/favicon.svg";
 
+// sameAs = các hồ sơ mạng xã hội chính thức. Giúp Google liên kết website
+// với thực thể thương hiệu trong Knowledge Graph (Facebook, Zalo, TikTok...).
+const sameAs = (socialLinks ?? [])
+  .map((s: { href?: string }) => s.href?.trim())
+  .filter((href): href is string => !!href && /^https?:\/\//.test(href));
+
 const organizationSchema = {
   "@context": "https://schema.org",
   "@type": "Organization",
@@ -51,6 +58,7 @@ const organizationSchema = {
   telephone: contact.phoneDisplay,
   email: contact.email,
   areaServed: contact.region,
+  ...(sameAs.length ? { sameAs } : {}),
 };
 
 const websiteSchema = {
@@ -80,6 +88,7 @@ const websiteSchema = {
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonicalUrl} />
     <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:image:alt" content={title} />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />

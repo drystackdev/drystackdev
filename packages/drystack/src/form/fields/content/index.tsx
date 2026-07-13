@@ -35,7 +35,17 @@ export function content({
 }): content.Field {
   let schema: undefined | EditorSchema;
   const config = editorOptionsToConfig(
-    { strikethrough: false, code: false, codeBlock: false, ...options },
+    {
+      strikethrough: false,
+      code: false,
+      codeBlock: false,
+      // H1 is reserved for the entry title, so the body content editor never
+      // offers it (toolbar dropdown, insert menu, `# ` input rule and the
+      // Shift-Ctrl-1 shortcut all derive from these levels). Callers can still
+      // override by passing their own `heading` option.
+      heading: [2, 3, 4, 5, 6],
+      ...options,
+    },
     true
   );
   const getSchema = () => {

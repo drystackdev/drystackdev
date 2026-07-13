@@ -1,7 +1,7 @@
 ---
 import { getHomepage } from "../data/site";
 
-const { contact } = await getHomepage();
+const { contact } = await getHomepage() as any;
 const phoneDisplay = contact.phoneDisplay;
 const phone = phoneDisplay.replace(/\D/g, "");
 const zaloHref = `https://zalo.me/${contact.zaloPhone.replace(/\D/g, "")}`;
