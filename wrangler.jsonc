@@ -33,5 +33,4 @@
       "invocation_logs": true
     }
   }
-  // test2: verify branch-scoped build-status fix end-to-end, safe to ignore
 }
