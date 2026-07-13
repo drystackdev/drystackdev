@@ -38,7 +38,7 @@ const articleSchema = {
 	description: post.excerpt,
 	image: new URL(post.cover, Astro.site).toString(),
 	datePublished: post.date,
-	dateModified: post.date,
+	dateModified: post.updatedAt,
 	mainEntityOfPage: { "@type": "WebPage", "@id": postUrl },
 	author: { "@type": "Organization", name: siteName },
 	publisher: { "@type": "Organization", name: siteName },
@@ -58,7 +58,7 @@ const breadcrumbSchema = {
 <Main title={`${post.title} | ${siteName}`} description={post.excerpt} keywords={post.keywords} image={post.cover} type="article">
 	<Fragment slot="head">
 		<meta property="article:published_time" content={new Date(post.date).toISOString()} />
-		<meta property="article:modified_time" content={new Date(post.date).toISOString()} />
+		<meta property="article:modified_time" content={new Date(post.updatedAt).toISOString()} />
 	</Fragment>
 	<JsonLd schema={[articleSchema, breadcrumbSchema]} />
 	<Header />
@@ -73,6 +73,9 @@ const breadcrumbSchema = {
 			<h1 class="section-title reveal">{post.title}</h1>
 			<div class="post-hero__meta reveal">
 				<span><Icon name="calendar" size={14} /> {formatDate(post.date)}</span>
+				{formatDate(post.updatedAt) !== formatDate(post.date) && (
+					<span>Cập nhật: {formatDate(post.updatedAt)}</span>
+				)}
 			</div>
 		</div>
 	</section>

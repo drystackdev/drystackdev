@@ -21,6 +21,7 @@ export { relationship } from './relationship';
 export { select } from './select';
 export { slug } from './slug';
 export { text } from './text';
+export { timestamp } from './timestamp';
 export { url } from './url';
 export { ignored } from './ignored';
 

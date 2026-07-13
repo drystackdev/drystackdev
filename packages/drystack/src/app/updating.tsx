@@ -146,6 +146,35 @@ async function buildRedirectAddition(args: {
   return { path, contents };
 }
 
+// stamps `fields.timestamp()` values into entry state right before it's
+// serialized for a real save (both local and github share this call site in
+// useUpsertItem below) — deliberately NOT done inside the field's own
+// serialize(), since serializeEntryToFiles/serializeProps also run for
+// draft autosave and useHasChanged's change-detection diff, where a
+// self-updating `now` would make the form always look dirty.
+function stampTimestamps(
+  schema: Record<string, ComponentSchema>,
+  state: unknown
+): unknown {
+  if (typeof state !== 'object' || state === null || Array.isArray(state)) {
+    return state;
+  }
+  const nowIso = new Date().toISOString();
+  const src = state as Record<string, unknown>;
+  let next = src;
+  for (const [key, field] of Object.entries(schema)) {
+    if (field.kind !== 'form' || field.formKind !== undefined || !field.timestamp)
+      continue;
+    const current = src[key];
+    const isEmpty = current == null || current === '';
+    if (field.timestamp === 'updated' || isEmpty) {
+      if (next === src) next = { ...src };
+      next[key] = nowIso;
+    }
+  }
+  return next;
+}
+
 export function useUpsertItem(args: {
   state: unknown;
   initialFiles: string[] | undefined;
@@ -205,7 +234,7 @@ export function useUpsertItem(args: {
           basePath: args.basePath,
           schema: args.schema,
           format: args.format,
-          state: args.state,
+          state: stampTimestamps(args.schema, args.state),
           slug: args.slug,
         }).map(addition => ({
           ...addition,
