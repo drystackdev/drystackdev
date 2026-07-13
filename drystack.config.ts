@@ -52,6 +52,8 @@ function postCollection(label: string, previewUrl: string) {
         defaultValue: false,
       }),
       body: fields.content({ label: "Nội dung" }),
+      createdAt: fields.timestamp({ mode: "created", label: "Tạo lúc" }),
+      updatedAt: fields.timestamp({ mode: "updated", label: "Sửa lúc" }),
     },
   });
 }
