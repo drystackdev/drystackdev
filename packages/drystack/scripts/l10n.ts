@@ -40,10 +40,11 @@ const localesDir = 'src/app/l10n';
     )
   );
   let out = 'const strings = {\n';
-  for (const [lang, translations] of Object.entries(locales)) {
+  for (const lang of Object.keys(locales).sort()) {
     out += `  ${JSON.stringify(lang)}: {\n`;
-    for (const [key, value] of Object.entries(translations)) {
-      out += `    ${JSON.stringify(key)}: ${compileString(value)},\n`;
+    const translations = locales[lang];
+    for (const key of Object.keys(translations).sort()) {
+      out += `    ${JSON.stringify(key)}: ${compileString(translations[key])},\n`;
     }
     out += '  },\n';
   }

@@ -1,7 +1,5 @@
 import { useProvider } from "@keystar/ui/core";
 import { tokenSchema, useMediaQuery } from "@keystar/ui/style";
-
-import { serializeRepoConfig } from "../repo-config";
 import { useConfig } from "./context";
 
 export function useBrand() {
@@ -65,14 +63,14 @@ export function DrystackLogo() {
       <text
         x="42"
         y="22"
-        font-family="'Segoe UI', system-ui, sans-serif"
-        font-size="18"
-        font-weight="800"
-        letter-spacing="-0.5"
+        fontFamily="'Segoe UI', system-ui, sans-serif"
+        fontSize="18"
+        fontWeight="800"
+        letterSpacing="-0.5"
       >
         <tspan fill={accent}>Dry</tspan>
         <tspan fill={neutral}>Stack</tspan>
-        <tspan fill={neutral} fill-opacity="0.45">
+        <tspan fill={neutral} fillOpacity="0.45">
           .dev
         </tspan>
       </text>

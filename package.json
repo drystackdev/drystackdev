@@ -10,9 +10,7 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "predev": "bun run --filter '@drystack/core' build && bun run --filter '@drystack/astro' build",
     "dev": "astro dev",
-    "prebuild": "bun run --filter '@drystack/core' build && bun run --filter '@drystack/astro' build",
     "build": "astro build",
     "preview": "wrangler dev",
     "astro": "astro",

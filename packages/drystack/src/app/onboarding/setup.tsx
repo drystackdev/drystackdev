@@ -43,10 +43,7 @@ export function DrystackSetup(props: { config: GitHubConfig }) {
         <Flex justifyContent="center">
           <DrystackLogo />
         </Flex>
-        <Flex justifyContent="center">
-          <Heading>Drystack Setup</Heading>
-        </Flex>
-        <Text>drystack doesn't have the required config.</Text>
+        <Text>Drystack doesn't have the required config.</Text>
         <Text>
           If you've already created your GitHub app, make sure to add the
           following environment variables:
@@ -87,7 +84,7 @@ export function DrystackSetup(props: { config: GitHubConfig }) {
           type="text"
           name="manifest"
           className={css({ display: "none" })}
-          value={JSON.stringify({
+          defaultValue={JSON.stringify({
             name: `${
               parseRepoConfig(props.config.storage.repo).owner
             } Drystack`,

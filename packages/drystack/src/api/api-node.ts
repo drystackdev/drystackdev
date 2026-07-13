@@ -13,6 +13,7 @@ import {
 import { readToDirEntries, getAllowedDirectories } from './read-local';
 import { blobSha } from '../app/trees';
 import { base64UrlDecode } from '#base64';
+import { exchangeGitHubAppManifestCode } from './github-app-manifest';
 
 const { randomBytes } = realCrypto;
 
@@ -28,12 +29,6 @@ function _typeTest() {
   let _d: typeof b = a;
 }
 
-const ghAppSchema = s.type({
-  slug: s.string(),
-  client_id: s.string(),
-  client_secret: s.string(),
-});
-
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function handleGitHubAppCreation(
@@ -41,36 +36,9 @@ export async function handleGitHubAppCreation(
   slugEnvVarName: string | undefined,
   uiBasePath: string
 ): Promise<DrystackResponse> {
-  const searchParams = new URL(req.url, 'https://localhost').searchParams;
-  const code = searchParams.get('code');
-  if (typeof code !== 'string' || !/^[a-zA-Z0-9]+$/.test(code)) {
-    return { status: 400, body: 'Bad Request' };
-  }
-  const ghAppRes = await fetch(
-    `https://api.github.com/app-manifests/${code}/conversions`,
-    {
-      method: 'POST',
-      headers: { Accept: 'application/json' },
-    }
-  );
-  if (!ghAppRes.ok) {
-    console.log(ghAppRes);
-    return {
-      status: 500,
-      body: 'An error occurred while creating the GitHub App',
-    };
-  }
-  const ghAppDataRaw = await ghAppRes.json();
-  let ghAppDataResult;
-  try {
-    ghAppDataResult = s.create(ghAppDataRaw, ghAppSchema);
-  } catch {
-    console.log(ghAppDataRaw);
-    return {
-      status: 500,
-      body: 'An unexpected response was received from GitHub',
-    };
-  }
+  const result = await exchangeGitHubAppManifestCode(req);
+  if (!result.ok) return result.response;
+  const ghAppDataResult = result.data;
   const toAddToEnv = `# drystack
 DRYSTACK_GITHUB_CLIENT_ID=${ghAppDataResult.client_id}
 DRYSTACK_GITHUB_CLIENT_SECRET=${ghAppDataResult.client_secret}
@@ -91,7 +59,7 @@ ${
   await fs.writeFile('.env', newEnv);
   await wait(200);
   return redirect(
-    `${uiBasePath}/created-github-app?slug=${ghAppDataResult.slug}`
+    `${uiBasePath}/created-github-app?slug=${encodeURIComponent(ghAppDataResult.slug)}`
   );
 }
 

@@ -107,7 +107,8 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "setup": "tsx scripts/l10n.ts && tsx scripts/build-prism.ts",
+    "l10n": "tsx scripts/l10n.ts",
+    "setup": "tsx scripts/build-prism.ts",
     "build": "bun run setup && node scripts/build.mjs",
     "dev": "astro dev"
   },

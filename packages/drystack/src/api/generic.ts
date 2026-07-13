@@ -40,12 +40,6 @@ type InnerAPIRouteConfig = {
 const drystackRouteRegex =
   /^branch\/[^]+(\/collection\/[^/]+(|\/(create|item\/[^/]+))|\/singleton\/[^/]+)?$/;
 
-const keyToEnvVar = {
-  clientId: 'DRYSTACK_GITHUB_CLIENT_ID',
-  clientSecret: 'DRYSTACK_GITHUB_CLIENT_SECRET',
-  secret: 'DRYSTACK_SECRET',
-};
-
 function tryOrUndefined<T>(fn: () => T) {
   try {
     return fn();
@@ -106,27 +100,13 @@ export function makeGenericAPIRouteHandler(
     };
   }
   if (!_config2.clientId || !_config2.clientSecret || !_config2.secret) {
-    if (process.env.NODE_ENV !== 'development') {
-      const missingKeys = (
-        ['clientId', 'clientSecret', 'secret'] as const
-      ).filter(x => !_config2[x]);
-      throw new Error(
-        `Missing required config in drystack API setup when using the 'github' storage mode:\n${missingKeys
-          .map(
-            key => `- ${key} (can be provided via ${keyToEnvVar[key]} env var)`
-          )
-          .join(
-            '\n'
-          )}\n\nIf you've created your GitHub app locally, make sure to copy the environment variables from your local env file to your deployed environment`
-      );
-    }
     return async function drystackAPIRoute(
       req: DrystackRequest
     ): Promise<DrystackResponse> {
       const params = getParams(req);
       const joined = params.join('/');
       if (joined === 'github/created-app') {
-        return createdGithubApp(req, options?.slugEnvName, uiBasePath);
+        return handleGitHubAppCreation(req, options?.slugEnvName, uiBasePath);
       }
       if (
         joined === 'github/login' ||
@@ -404,17 +384,6 @@ async function githubLogin(
       }),
     ],
   ]);
-}
-
-async function createdGithubApp(
-  req: DrystackRequest,
-  slugEnvVarName: string | undefined,
-  uiBasePath: string
-): Promise<DrystackResponse> {
-  if (process.env.NODE_ENV !== 'development') {
-    return { status: 400, body: 'App setup only allowed in development' };
-  }
-  return handleGitHubAppCreation(req, slugEnvVarName, uiBasePath);
 }
 
 function immediatelyExpiringCookie(name: string) {
