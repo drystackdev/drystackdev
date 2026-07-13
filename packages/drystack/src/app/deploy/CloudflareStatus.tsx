@@ -125,26 +125,33 @@ export function CloudflareStatus() {
 
 // VEI pill — space is tight, so this sits where the brand chip used to
 // (Toolbar.tsx moved the brand name into the Deploy button's own tooltip).
-// The label is always one of a handful of short, similar-length strings so
-// the pill doesn't jump around as the status changes; the full sentence is
+// Reuses the brand chip's own ActionButton + "dry-brandchip" class (same
+// 40px height, same border-radius, same outlined Keystar chrome as the
+// Deploy button next to it) rather than a bare div, so it actually looks
+// like a matching control instead of flat text floating in the pill. The
+// label is always one of a handful of short, similar-length strings so the
+// pill doesn't jump around as the status changes; the full sentence is
 // still one hover away.
 export function CloudflareStatusCompact() {
   const view = useCloudflareStatusView();
   return (
     <TooltipTrigger>
-      <div
-        className="dry-brandchip"
-        style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}
+      <ActionButton
+        isDisabled={!view.hasEvent}
+        UNSAFE_className="dry-brandchip"
+        aria-label="Cloudflare build status"
+        onPress={() => {
+          navigator.clipboard.writeText(view.fullLabel);
+          toastQueue.positive('Đã copy trạng thái build', { timeout: 2000 });
+        }}
       >
         <Icon
           src={view.icon}
           color={toneColor[view.tone]}
           UNSAFE_className={view.spinning ? spinningIconClassName : undefined}
         />
-        <span style={{ minWidth: '6ch', textAlign: 'left' }}>
-          <Text color={toneColor[view.tone]}>{view.shortLabel}</Text>
-        </span>
-      </div>
+        <Text>{view.shortLabel}</Text>
+      </ActionButton>
       <Tooltip>{view.fullLabel}</Tooltip>
     </TooltipTrigger>
   );
