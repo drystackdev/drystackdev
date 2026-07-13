@@ -153,10 +153,8 @@ function SidebarGitActions() {
   }
   return (
     <VStack gap="regular" paddingY="regular" paddingX="medium">
-      <HStack gap="regular" alignItems="center">
-        <CurrentBrandChip />
-        <CloudflareStatus />
-      </HStack>
+      <CloudflareStatus />
+      <CurrentBrandChip />
       <DeployButton />
     </VStack>
   );

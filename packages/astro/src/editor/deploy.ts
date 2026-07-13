@@ -124,6 +124,42 @@ const RefsQuery = `
   }
 `;
 
+// Cheap enough to run every time the deploy pill opens: two oids, no tree
+// walk. Used only to decide whether the Deploy button should be clickable —
+// the real merge (runDeploy above) always re-fetches fresh refs of its own,
+// so a stale answer here just means a wasted click, never a bad merge.
+const HasChangesQuery = `
+  query VeiDeployHasChanges($owner: String!, $name: String!, $brandRef: String!) {
+    repository(owner: $owner, name: $name) {
+      defaultBranchRef { target { oid } }
+      brand: ref(qualifiedName: $brandRef) { target { oid } }
+    }
+  }
+`;
+
+async function checkHasChanges(
+  config: Config<any, any>,
+  brand: BrandRecord
+): Promise<boolean> {
+  const token = getGithubToken();
+  if (!token) return true; // can't tell — don't block the button on it
+  const storage = config.storage as { repo: string | { owner: string; name: string } };
+  const { owner, name } = parseRepo(storage.repo);
+  try {
+    const data = await githubGraphQL(token, HasChangesQuery, {
+      owner,
+      name,
+      brandRef: `refs/heads/${brand.ref}`,
+    });
+    const mainOid = data?.repository?.defaultBranchRef?.target?.oid;
+    const brandOid = data?.repository?.brand?.target?.oid;
+    if (!mainOid || !brandOid) return true;
+    return mainOid !== brandOid;
+  } catch {
+    return true; // fail open — a broken check shouldn't block a real deploy
+  }
+}
+
 const CreateCommitMutation = `
   mutation VeiCreateCommit($input: CreateCommitOnBranchInput!) {
     createCommitOnBranch(input: $input) {
@@ -335,6 +371,9 @@ export function useVeiDeploy(config: Config<any, any>) {
   const isGithub = config.storage.kind === 'github';
   const [brand, setBrand] = useState<BrandRecord | null>(null);
   const [state, setState] = useState<VeiDeployState>({ kind: 'idle' });
+  // Fails open (true) while unknown so the button isn't disabled on a flash
+  // of missing data — checkHasChanges re-settles it moments later.
+  const [hasChanges, setHasChanges] = useState(true);
 
   const refreshBrand = useCallback(async () => {
     if (!isGithub) {
@@ -351,6 +390,20 @@ export function useVeiDeploy(config: Config<any, any>) {
   useEffect(() => {
     refreshBrand();
   }, [refreshBrand]);
+
+  // Re-runs whenever `brand` changes — on mount, after refreshBrand() picks
+  // up a different record (e.g. the deploy pill reopening), and after a
+  // deploy rotates to a fresh brand (which trivially has nothing to merge).
+  useEffect(() => {
+    if (!isGithub || !brand) return;
+    let cancelled = false;
+    checkHasChanges(config, brand).then(result => {
+      if (!cancelled) setHasChanges(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [config, isGithub, brand]);
 
   const deploy = useCallback(async () => {
     if (!isGithub || state.kind !== 'idle') return;
@@ -394,5 +447,5 @@ export function useVeiDeploy(config: Config<any, any>) {
   const isBusy = state.kind !== 'idle';
   const label = state.kind === 'idle' ? 'Deploy' : state.label;
 
-  return { brand, state, deploy, refreshBrand, isBusy, label };
+  return { brand, state, deploy, refreshBrand, isBusy, label, hasChanges };
 }

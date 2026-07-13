@@ -16,7 +16,6 @@ import { chevronRightIcon } from '@keystar/ui/icon/icons/chevronRightIcon';
 import { trash2Icon } from '@keystar/ui/icon/icons/trash2Icon';
 import { rotateCcwIcon } from '@keystar/ui/icon/icons/rotateCcwIcon';
 import { rocketIcon } from '@keystar/ui/icon/icons/rocketIcon';
-import { gitBranchIcon } from '@keystar/ui/icon/icons/gitBranchIcon';
 import { Content } from '@keystar/ui/slots';
 import { toastQueue } from '@keystar/ui/toast';
 import { Tooltip, TooltipTrigger } from '@keystar/ui/tooltip';
@@ -31,7 +30,7 @@ import {
 import { getAllEdits, publishDelete, subscribeEdits } from './store';
 import { saveEdits, getCurrentBranchName } from './save';
 import { brandDisplayLabel } from '@drystack/core/brand-label';
-import { CloudflareStatus } from '@drystack/core/deploy-cloudflare-status';
+import { CloudflareStatusCompact } from '@drystack/core/deploy-cloudflare-status';
 import { useVeiDeploy } from './deploy';
 
 type Spot = { key: string; name: string; field: string };
@@ -97,6 +96,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     refreshBrand,
     isBusy: deployBusy,
     label: deployLabel,
+    hasChanges: deployHasChanges,
   } = useVeiDeploy(config);
 
   // Hover dropdown state — the menu itself is portaled to <body>.
@@ -334,8 +334,10 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       </div>
 
       {/* Deploy menu — same unified pill as the edit menu above, sitting to its
-          right: collapsed it's just the rocket FAB; opening it expands the brand
-          chip + deploy action out to the right and morphs the rocket into an ✕. */}
+          right: collapsed it's just the rocket FAB; opening it expands the
+          Cloudflare status indicator + deploy action out to the right and
+          morphs the rocket into an ✕. The brand name isn't shown here (no
+          room for its variable length) — it's the Deploy button's tooltip. */}
       {isGithub && (
         <div className={`dry-menu${deployOpen ? ' is-open' : ''}`}>
           <div className="dry-menu-pill">
@@ -359,43 +361,19 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
 
             <div className="dry-menu-actions">
               <div className="dry-menu-actions-inner">
-                <ActionButton
-                  isDisabled={!brand}
-                  flex
-                  minWidth={0}
-                  aria-label="Copy tên brand"
-                  UNSAFE_className="dry-brandchip"
-                  onPress={() => {
-                    if (!brand) return;
-                    // Display drops the date; copying keeps the full label.
-                    navigator.clipboard.writeText(brand.label);
-                    toastQueue.positive('Đã copy tên brand', { timeout: 2000 });
-                  }}
-                >
-                  <Icon src={gitBranchIcon} />
-                  <Text truncate flex minWidth={0} title={brandLabel}>
-                    {brand ? brandLabel : 'Chưa có brand'}
-                  </Text>
-                </ActionButton>
-
-                <div
-                  className="dry-iconbtn"
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <CloudflareStatus />
-                </div>
+                <CloudflareStatusCompact />
 
                 <TooltipTrigger>
                   <Button
                     aria-label="Deploy"
                     prominence="high"
                     onPress={deploy}
-                    isDisabled={deployBusy || !brand}
+                    isDisabled={deployBusy || !brand || !deployHasChanges}
                     UNSAFE_className="dry-iconbtn"
                   >
                     <Icon src={rocketIcon} />
                   </Button>
-                  <Tooltip>{deployLabel}</Tooltip>
+                  <Tooltip>{deployBusy ? deployLabel : brand ? brandLabel : 'Chưa có brand'}</Tooltip>
                 </TooltipTrigger>
               </div>
             </div>
