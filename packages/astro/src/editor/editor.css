@@ -57,7 +57,7 @@ body > .kui-scheme--auto {
   bottom: 16px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 4px;
 }
 
 /* Single edit affordance — a Keystar Button forced into a round FAB. The icon
