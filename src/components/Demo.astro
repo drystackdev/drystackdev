@@ -10,7 +10,13 @@ const dry = await createDry(config).singleton.demo;
   <h1 {...dry.item("text")}>{dry.text}</h1>
   {
     dry.image && (
-      <Image width={200} height={200} alt="hình ảnh demo" src={dry.image} />
+      <Image
+        width={200}
+        height={200}
+        alt="hình ảnh demo"
+        src={dry.image}
+        {...dry.item("image")}
+      />
     )
   }
 </main>
@@ -23,7 +29,7 @@ const dry = await createDry(config).singleton.demo;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 2rem
+    gap: 2rem;
   }
   img {
     object-fit: contain;
