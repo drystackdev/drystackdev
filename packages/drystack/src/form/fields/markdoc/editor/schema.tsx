@@ -11,6 +11,7 @@ import { listIcon } from '@keystar/ui/icon/icons/listIcon';
 import { listOrderedIcon } from '@keystar/ui/icon/icons/listOrderedIcon';
 import { quoteIcon } from '@keystar/ui/icon/icons/quoteIcon';
 import { tableIcon } from '@keystar/ui/icon/icons/tableIcon';
+import { columnsIcon } from '@keystar/ui/icon/icons/columnsIcon';
 import { separatorHorizontalIcon } from '@keystar/ui/icon/icons/separatorHorizontalIcon';
 import {
   DOMOutputSpec,
@@ -42,6 +43,15 @@ import { openMediaLibrary } from '../../../../app/media-library/bridge';
 import { imageAttrsForPick } from './image-pick';
 import { base64UrlEncode, base64UrlDecode } from '#base64';
 import { ImageNodeView, imageContainerAlignStyle } from './image-node-view';
+import { GridNodeView, GridCellView } from './grid-node-view';
+import {
+  insertGrid,
+  cellStyleString,
+  parseGridColumnSpan,
+  parsePlaceContent,
+  GRID_CONTAINER_STYLE,
+  GRID_DEFAULT_SPAN,
+} from './grid';
 import {
   imageLayoutFromElement,
   imageLayoutStyleString,
@@ -524,6 +534,68 @@ const nodeSpecs = {
       },
     ],
   },
+  grid: {
+    content: 'grid_cell+',
+    group: 'block',
+    isolating: true,
+    defining: true,
+    insertMenu: {
+      label: 'Grid',
+      description: 'Insert a multi-column layout',
+      icon: columnsIcon,
+      command: insertGrid,
+    },
+    reactNodeView: {
+      component: GridNodeView,
+    },
+    parseDOM: [{ tag: 'div[data-dry-grid]' }],
+    toDOM() {
+      return ['div', { 'data-dry-grid': '', style: GRID_CONTAINER_STYLE }, 0];
+    },
+  },
+  grid_cell: {
+    content: 'block+',
+    isolating: true,
+    attrs: {
+      span: { default: GRID_DEFAULT_SPAN },
+      place: { default: null },
+    },
+    reactNodeView: {
+      component: GridCellView,
+      // the `grid-column` span must live on the ProseMirror-tracked container
+      // (the actual grid item), not several layers of React content deep
+      // inside it — same reasoning as the image node's `containerStyle`
+      containerStyle: node => ({ gridColumn: `span ${node.attrs.span}` }),
+    },
+    parseDOM: [
+      {
+        tag: 'div[data-dry-cell]',
+        getAttrs(dom) {
+          if (typeof dom === 'string') {
+            return { span: GRID_DEFAULT_SPAN, place: null };
+          }
+          const style = dom.getAttribute('style') ?? '';
+          return {
+            span: parseGridColumnSpan(style),
+            place: parsePlaceContent(style),
+          };
+        },
+      },
+    ],
+    toDOM(node) {
+      return [
+        'div',
+        {
+          'data-dry-cell': '',
+          style: cellStyleString({
+            span: node.attrs.span,
+            place: node.attrs.place,
+          }),
+        },
+        0,
+      ];
+    },
+  },
 } satisfies Record<string, EditorNodeSpec>;
 
 const italicDOM: DOMOutputSpec = ['em', 0];
@@ -731,6 +803,10 @@ export function createEditorSchema(
       nodeSpecsWithCustomNodes.table_cell = nodeSpecs.table_cell;
     }
     nodeSpecsWithCustomNodes.table_header = nodeSpecs.table_header;
+  }
+  if (config.grid) {
+    nodeSpecsWithCustomNodes.grid = nodeSpecs.grid;
+    nodeSpecsWithCustomNodes.grid_cell = nodeSpecs.grid_cell;
   }
   if (config.image) {
     nodeSpecsWithCustomNodes.image = nodeSpecs.image;

@@ -19,6 +19,7 @@ import { LinkToolbar } from './link-toolbar';
 import { useEditorReferenceElement } from './reference';
 import { ImagePopover } from './images';
 import { CellOptionsMenu, isSelectionInTableCell } from './table';
+import { GridPopover } from './grid';
 import { Dialog, DialogContainer } from '@keystar/ui/dialog';
 import { FormValue } from '../FormValue';
 import { Heading } from '@keystar/ui/typography';
@@ -150,6 +151,7 @@ const popoverComponents: Record<
     );
   },
   image: ImagePopover,
+  grid: GridPopover,
   table: function TablePopover(props) {
     const dispatchCommand = useEditorDispatchCommand();
 

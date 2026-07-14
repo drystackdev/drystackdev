@@ -52,6 +52,9 @@ export type EditorConfig = {
   orderedList: boolean;
   unorderedList: boolean;
   table: boolean;
+  // multi-column layout block (div + CSS grid, 24 tracks). HTML-only — it
+  // only round-trips through the HTML `content` field, never markdoc/mdx.
+  grid: boolean;
   link: boolean;
   image:
     | {
@@ -90,6 +93,7 @@ export type MarkdocEditorOptions = {
   orderedList?: boolean;
   unorderedList?: boolean;
   table?: boolean;
+  grid?: boolean;
   link?: boolean;
   image?:
     | boolean
@@ -169,6 +173,9 @@ export function editorOptionsToConfig(
     orderedList: options.orderedList ?? true,
     unorderedList: options.unorderedList ?? true,
     table: options.table ?? true,
+    // grid is HTML-only: default on for the HTML `content` field, always off
+    // for markdoc/mdx (which can't serialize the div+style layout)
+    grid: isHtml ? ((options as MarkdocEditorOptions).grid ?? true) : false,
     link: options.link ?? true,
     image:
       options.image !== false

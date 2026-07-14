@@ -2,6 +2,7 @@ import { MarkType, Node as ProseMirrorNode } from 'prosemirror-model';
 import { EditorSchema, TEXT_ALIGN_VALUES } from '../schema';
 import { MEDIA_LIBRARY_DIRECTORY } from '../../../../../app/media-library/constants';
 import { imageLayoutFromElement } from '../image-layout';
+import { parseGridColumnSpan, parsePlaceContent } from '../grid';
 
 type ParseState = {
   schema: EditorSchema;
@@ -238,6 +239,31 @@ function tableRow(el: Element, state: ParseState): ProseMirrorNode | null {
   return schema.nodes.table_row.createAndFill({}, cells);
 }
 
+function gridFromElement(
+  el: Element,
+  state: ParseState
+): ProseMirrorNode | null {
+  const { schema } = state;
+  if (!schema.nodes.grid || !schema.nodes.grid_cell) return null;
+  const cells: ProseMirrorNode[] = [];
+  for (const child of Array.from(el.children)) {
+    if (
+      child.tagName.toLowerCase() !== 'div' ||
+      !child.hasAttribute('data-dry-cell')
+    ) {
+      continue;
+    }
+    const style = child.getAttribute('style') ?? '';
+    const cell = schema.nodes.grid_cell.createAndFill(
+      { span: parseGridColumnSpan(style), place: parsePlaceContent(style) },
+      blockChildren(child, state)
+    );
+    if (cell) cells.push(cell);
+  }
+  if (!cells.length) return null;
+  return schema.nodes.grid.createAndFill({}, cells);
+}
+
 function blocksFromChildNodes(
   nodes: ChildNode[],
   state: ParseState
@@ -252,21 +278,36 @@ function blocksFromChildNodes(
     pendingInline = [];
   };
   for (const node of nodes) {
-    if (
-      node.nodeType === Node.ELEMENT_NODE &&
-      isBlockTag((node as Element).tagName.toLowerCase())
-    ) {
-      flush();
-      const block = elementToBlockNode(node as Element, state);
-      if (block) result.push(block);
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as Element;
+      const tag = el.tagName.toLowerCase();
+      // never let stylesheet/script text leak into content — the grid's
+      // responsive rule rides along as a sibling <style> (see the serializer)
+      if (tag === 'style' || tag === 'script') continue;
+      if (tag === 'div' && el.hasAttribute('data-dry-grid')) {
+        flush();
+        if (state.schema.nodes.grid && state.schema.nodes.grid_cell) {
+          const grid = gridFromElement(el, state);
+          if (grid) result.push(grid);
+        } else {
+          // grid disabled in this config — unwrap rather than drop content
+          result.push(...blockChildren(el, state));
+        }
+        continue;
+      }
+      if (isBlockTag(tag)) {
+        flush();
+        const block = elementToBlockNode(el, state);
+        if (block) result.push(block);
+        continue;
+      }
     } else if (
       node.nodeType === Node.TEXT_NODE &&
       !(node.textContent ?? '').trim()
     ) {
       continue;
-    } else {
-      pendingInline.push(...inlineNodeToProseMirror(node, state, []));
     }
+    pendingInline.push(...inlineNodeToProseMirror(node, state, []));
   }
   flush();
   return result;

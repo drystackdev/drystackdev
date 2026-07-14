@@ -46,7 +46,10 @@ function postCollection(label: string, previewUrl: string) {
         label: "Xuất bản",
         defaultValue: false,
       }),
-      body: fields.content({ label: "Nội dung" }),
+      body: fields.content({
+        label: "Nội dung",
+        options: { heading: [2, 3, 4, 5, 6] },
+      }),
       createdAt: fields.timestamp({ mode: "created", label: "Tạo lúc" }),
       updatedAt: fields.timestamp({ mode: "updated", label: "Sửa lúc" }),
     },

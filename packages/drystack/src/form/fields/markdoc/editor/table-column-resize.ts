@@ -235,7 +235,7 @@ export class TableColgroupNodeView implements NodeView {
     return true;
   }
 
-  ignoreMutation(record: MutationRecord | { type: 'selection'; target: Element }): boolean {
+  ignoreMutation(record: MutationRecord | { type: 'selection'; target: Node }): boolean {
     return (
       record.type === 'attributes' &&
       (record.target === this.dom || this.colgroup.contains(record.target as Node))

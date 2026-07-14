@@ -4,6 +4,11 @@ import { textblockChildren } from '../serialize-inline';
 import { MEDIA_LIBRARY_DIRECTORY } from '../../../../../app/media-library/constants';
 import { imageLayoutStyleString } from '../image-layout';
 import { getColumnWidthPercents } from '../table-column-resize';
+import {
+  cellStyleString,
+  GRID_CONTAINER_STYLE,
+  GRID_RESPONSIVE_CSS,
+} from '../grid';
 
 type HtmlElementNode = {
   kind: 'element';
@@ -52,6 +57,9 @@ function renderNode(node: HtmlNode): string {
 type SerializationState = {
   schema: EditorSchema;
   other: Map<string, Uint8Array>;
+  // the responsive media rule for grids is emitted once per document (on the
+  // first grid encountered) — see the `grid` case in `proseMirrorToHtmlNode`
+  gridStyleEmitted: boolean;
 };
 
 function uniqueFilename(
@@ -294,6 +302,43 @@ function proseMirrorToHtmlNode(
   if (node.type === schema.nodes.table_cell) {
     return { kind: 'element', tag: 'td', attrs: cellSpanAttrs(node), children: blocks(node.content) };
   }
+  if (node.type === schema.nodes.grid) {
+    // grab-then-set before serializing children so a nested grid sees the
+    // flag already set and doesn't emit a second copy of the media rule
+    const emitStyle = !state.gridStyleEmitted;
+    state.gridStyleEmitted = true;
+    const gridDiv: HtmlNode = {
+      kind: 'element',
+      tag: 'div',
+      attrs: { 'data-dry-grid': '', style: GRID_CONTAINER_STYLE },
+      children: blocks(node.content),
+    };
+    if (!emitStyle) return gridDiv;
+    // `<style>` in the body is `display:none` and inert layout-wise, so it's
+    // safe to sit next to the grid; it carries the mobile "1 column" rule
+    return {
+      kind: 'fragment',
+      children: [
+        {
+          kind: 'element',
+          tag: 'style',
+          children: [{ kind: 'text', text: GRID_RESPONSIVE_CSS }],
+        },
+        gridDiv,
+      ],
+    };
+  }
+  if (node.type === schema.nodes.grid_cell) {
+    return {
+      kind: 'element',
+      tag: 'div',
+      attrs: {
+        'data-dry-cell': '',
+        style: cellStyleString({ span: node.attrs.span, place: node.attrs.place }),
+      },
+      children: blocks(node.content),
+    };
+  }
 
   throw new Error(`Unhandled node type: ${node.type.name}`);
 }
@@ -305,6 +350,7 @@ export function serializeFromEditorStateToHTML(
   const state: SerializationState = {
     schema: getEditorSchema(node.type.schema),
     other,
+    gridStyleEmitted: false,
   };
   return renderNode(proseMirrorToHtmlNode(node, state));
 }
