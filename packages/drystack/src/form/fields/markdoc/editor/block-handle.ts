@@ -1,23 +1,26 @@
-import { NodeSelection, Plugin, PluginKey } from 'prosemirror-state';
+import { NodeSelection, Selection, TextSelection, Plugin, PluginKey } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { css, tokenSchema } from '@keystar/ui/style';
 
 // Press-and-hold drag-to-reorder. Pressing directly on a top-level block (p,
 // h2, li, ...) and holding for HOLD_DELAY without moving arms a native HTML5
 // drag: once armed, a transient `contenteditable="false"` proxy is placed
-// over the block so the browser's drag-vs-text-selection disambiguation sees
-// a draggable target instead of editable text on the very next pointer move.
-// A quick press-drag — the ordinary gesture for selecting text — never stays
-// still long enough to arm, so mouse text selection is unaffected. The drag
-// payload is handed to `view.dragging`, so prosemirror-view's own `drop`
-// handling performs the move and the existing `dropCursor()` plugin shows
-// where it will land (same mechanism the previous gutter-icon handle used;
-// see `dropcursor.ts` for the sibling technique).
+// over the block(s) so the browser's drag-vs-text-selection disambiguation
+// sees a draggable target instead of editable text on the very next pointer
+// move. A quick press-drag — the ordinary gesture for selecting text — never
+// stays still long enough to arm, so mouse text selection is unaffected. If
+// the press lands inside an existing selection that already spans more than
+// one block, the whole spanned range is picked up together instead of just
+// the block under the pointer. The drag payload is handed to `view.dragging`,
+// so prosemirror-view's own `drop` handling performs the move and the
+// existing `dropCursor()` plugin shows where it will land (same mechanism
+// the previous gutter-icon handle used; see `dropcursor.ts` for the sibling
+// technique).
 
 const HOLD_DELAY = 200; // ms — how long a press must be held still before it arms
 const MOVE_CANCEL_THRESHOLD = 4; // px — movement before arming cancels the hold
 
-// Subtle highlight on the block itself while a drag is armed/in-flight, since
+// Subtle highlight on the block(s) while a drag is armed/in-flight, since
 // there's no separate icon anymore to signal "this is what you're dragging".
 const armedClass = css({
   backgroundColor: tokenSchema.color.alias.backgroundHovered,
@@ -27,7 +30,10 @@ const armedClass = css({
 
 const LIST_TYPES = new Set(['ordered_list', 'unordered_list', 'list_item']);
 
-type HandleTarget = { pos: number; isListItem: boolean };
+// A span of one or more sibling blocks at the same depth: `[from, to)`
+// bounds the run of nodes to pick up (a single block, a run of list items,
+// or a run of top-level/grid-cell blocks spanned by an existing selection).
+type HandleTarget = { from: number; to: number; isListItem: boolean };
 
 // Shared between the plugin view (which sets it on dragstart) and the plugin's
 // `handleDrop` prop (which reads it to enforce reorder-only lists). One object
@@ -40,7 +46,7 @@ class BlockHandleView {
   private view: EditorView;
   private dragState: DragState;
   private target: HandleTarget | null = null;
-  private targetDom: HTMLElement | null = null;
+  private targetDoms: HTMLElement[] = [];
   private startPointer: { x: number; y: number } | null = null;
   private holdTimer: number | null = null;
   private proxy: HTMLDivElement | null = null;
@@ -101,8 +107,10 @@ class BlockHandleView {
   private arm = () => {
     this.holdTimer = null;
     if (!this.target) return;
-    const dom = this.view.nodeDOM(this.target.pos);
-    if (!(dom instanceof HTMLElement)) {
+    const doms = this.blocksInRange(this.target.from, this.target.to)
+      .map(pos => this.view.nodeDOM(pos))
+      .filter((dom): dom is HTMLElement => dom instanceof HTMLElement);
+    if (doms.length === 0) {
       this.cancel();
       return;
     }
@@ -111,14 +119,14 @@ class BlockHandleView {
     // (released without ever actually dragging) remains armed.
     window.removeEventListener('mousemove', this.onEarlyMouseMove);
 
-    this.targetDom = dom;
-    dom.classList.add(...armedClass.split(' '));
+    this.targetDoms = doms;
+    for (const dom of doms) dom.classList.add(...armedClass.split(' '));
 
     // A dedicated, non-editable draggable proxy sitting exactly over the
-    // block: the next mousemove hit-tests against this instead of the
+    // block(s): the next mousemove hit-tests against this instead of the
     // contenteditable text underneath, so the browser reliably starts a
     // native drag rather than extending a text selection.
-    const rect = dom.getBoundingClientRect();
+    const rect = this.unionRect(doms);
     const proxy = document.createElement('div');
     proxy.draggable = true;
     proxy.setAttribute('contenteditable', 'false');
@@ -130,8 +138,9 @@ class BlockHandleView {
     proxy.style.height = `${rect.height}px`;
     proxy.style.zIndex = '50';
     proxy.style.background = 'transparent';
-    // the proxy sits on top of the block, so it — not the block underneath —
-    // is what the pointer is actually over; the cursor must be set here
+    // the proxy sits on top of the block(s), so it — not the content
+    // underneath — is what the pointer is actually over; the cursor must be
+    // set here
     proxy.style.cursor = 'grabbing';
     proxy.addEventListener('dragstart', this.onDragStart);
     proxy.addEventListener('dragend', this.onDragEnd);
@@ -139,14 +148,41 @@ class BlockHandleView {
     this.proxy = proxy;
   };
 
-  // Find the block that should be armed for a pointer position: the top-level
-  // block (direct child of `doc`), except inside a top-level list where we
-  // retarget to the specific `list_item` under the pointer so each `li` can
-  // be picked up independently. A `grid_cell` shares `doc`'s `block+` content
-  // model, so the same logic re-applies relative to the nearest enclosing
-  // cell — blocks nested inside a grid can be picked up and dragged out
-  // individually too. Any other nested container (table cell, blockquote)
-  // still resolves to its own top-level ancestor block, unchanged.
+  private unionRect(doms: HTMLElement[]) {
+    const rects = doms.map(dom => dom.getBoundingClientRect());
+    const left = Math.min(...rects.map(r => r.left));
+    const top = Math.min(...rects.map(r => r.top));
+    const right = Math.max(...rects.map(r => r.right));
+    const bottom = Math.max(...rects.map(r => r.bottom));
+    return { left, top, width: right - left, height: bottom - top };
+  }
+
+  // Walk the direct siblings spanned by [from, to) — `from` must sit exactly
+  // on a child boundary (as produced by resolveTarget).
+  private blocksInRange(from: number, to: number): number[] {
+    const positions: number[] = [];
+    const doc = this.view.state.doc;
+    let pos = from;
+    while (pos < to) {
+      const node = doc.nodeAt(pos);
+      if (!node) break;
+      positions.push(pos);
+      pos += node.nodeSize;
+    }
+    return positions;
+  }
+
+  // Find the span that should be armed for a pointer position: normally just
+  // the single top-level block under the pointer (direct child of `doc`), or
+  // the specific `list_item` when inside a top-level list. A `grid_cell`
+  // shares `doc`'s `block+` content model, so the same logic re-applies
+  // relative to the nearest enclosing cell — blocks nested inside a grid can
+  // be picked up and dragged out individually too. Any other nested
+  // container (table cell, blockquote) still resolves to its own top-level
+  // ancestor block, unchanged. If the press lands inside an existing
+  // selection spanning more than one sibling at that level, the whole
+  // spanned range is returned instead — selecting across (even partially
+  // into) 2-3 blocks and dragging moves all of them together.
   private resolveTarget(clientX: number, clientY: number): HandleTarget | null {
     const view = this.view;
     if (!view.editable) return null;
@@ -178,14 +214,35 @@ class BlockHandleView {
     const childDepth = rootDepth + 1;
     if ($pos.depth < childDepth) return null;
     const childNode = $pos.node(childDepth);
-    if (
-      $pos.depth > childDepth &&
-      (childNode.type.name === 'ordered_list' ||
-        childNode.type.name === 'unordered_list')
-    ) {
-      return { pos: $pos.before(childDepth + 1), isListItem: true };
-    }
-    return { pos: $pos.before(childDepth), isListItem: false };
+    const isListChild =
+      childNode.type.name === 'ordered_list' || childNode.type.name === 'unordered_list';
+    const itemDepth = $pos.depth > childDepth && isListChild ? childDepth + 1 : childDepth;
+    const isListItem = itemDepth === childDepth + 1;
+
+    const range = this.rangeForSelection(view.state.selection, found.pos, itemDepth);
+    if (range) return { ...range, isListItem };
+
+    return { from: $pos.before(itemDepth), to: $pos.after(itemDepth), isListItem };
+  }
+
+  // When the press falls inside a non-empty selection, and that selection's
+  // two ends are siblings at `itemDepth` spanning more than one of them,
+  // return the whole spanned range. Returns null for a collapsed selection,
+  // one entirely inside a single sibling, or one whose ends aren't
+  // comparable siblings at that depth — those fall back to the plain
+  // single-block pick-up.
+  private rangeForSelection(
+    selection: EditorView['state']['selection'],
+    pointerPos: number,
+    itemDepth: number
+  ): { from: number; to: number } | null {
+    if (selection.empty) return null;
+    if (pointerPos < selection.from || pointerPos > selection.to) return null;
+    const { $from, $to } = selection;
+    if ($from.depth < itemDepth || $to.depth < itemDepth) return null;
+    if ($from.node(itemDepth - 1) !== $to.node(itemDepth - 1)) return null; // not siblings
+    if ($from.before(itemDepth) === $to.before(itemDepth)) return null; // single sibling
+    return { from: $from.before(itemDepth), to: $to.after(itemDepth) };
   }
 
   private onDragStart = (event: DragEvent) => {
@@ -194,24 +251,30 @@ class BlockHandleView {
       event.preventDefault();
       return;
     }
-    const { pos, isListItem } = this.target;
-    if (!view.state.doc.nodeAt(pos)) {
+    const { from, to, isListItem } = this.target;
+    const soleNode = view.state.doc.nodeAt(from);
+    if (!soleNode) {
       event.preventDefault();
       return;
     }
     this.isDragging = true;
     // Build the drag payload without dispatching a transaction: mutating the
     // doc/selection synchronously inside `dragstart` can abort the native drag
-    // in Chromium. `NodeSelection.content()` yields the slice directly, and
+    // in Chromium. A single block uses `NodeSelection`; a multi-block span
+    // (from an existing cross-block selection) uses a plain range instead,
+    // since `NodeSelection` only ever wraps exactly one node. Either way,
     // passing the selection as `node` lets prosemirror-view's drop handler
     // delete the source precisely on a move.
-    const selection = NodeSelection.create(view.state.doc, pos);
+    const isSole = from + soleNode.nodeSize === to;
+    const selection: Selection = isSole
+      ? NodeSelection.create(view.state.doc, from)
+      : new TextSelection(view.state.doc.resolve(from), view.state.doc.resolve(to));
     const slice = selection.content();
     event.dataTransfer.clearData();
     // browsers only start a drag when *some* data is set
     event.dataTransfer.setData('text/plain', ' ');
     event.dataTransfer.effectAllowed = 'copyMove';
-    const dom = view.nodeDOM(pos);
+    const dom = view.nodeDOM(from);
     if (dom instanceof HTMLElement) {
       event.dataTransfer.setDragImage(dom, 0, 0);
     }
@@ -240,10 +303,8 @@ class BlockHandleView {
     }
     window.removeEventListener('mousemove', this.onEarlyMouseMove);
     window.removeEventListener('mouseup', this.onEarlyMouseUp);
-    if (this.targetDom) {
-      this.targetDom.classList.remove(...armedClass.split(' '));
-      this.targetDom = null;
-    }
+    for (const dom of this.targetDoms) dom.classList.remove(...armedClass.split(' '));
+    this.targetDoms = [];
     if (this.proxy) {
       this.proxy.removeEventListener('dragstart', this.onDragStart);
       this.proxy.removeEventListener('dragend', this.onDragEnd);

@@ -460,7 +460,7 @@ const HeadingMenu = (props: { headingType: NodeType }) => {
         isDisabled={menuState === 'disabled'}
         selectedKey={menuState === 'disabled' ? 'normal' : menuState.toString()}
         onSelectionChange={selected => {
-          let key = headingMenuVals.get(selected);
+          let key = headingMenuVals.get(selected!);
           if (key === 'normal') {
             runCommand(setBlockType(nodes.paragraph));
           } else if (key) {
@@ -814,38 +814,51 @@ function getTextAlignState(state: EditorState): {
   return { isDisabled: false, selected: (align ?? 'left') as TextAlignValue };
 }
 
+// a single icon button (mirroring the active block's current alignment,
+// defaulting to left) that opens a dropdown of the same icon+label options
+// the old 4-button group used — collapses what used to be 4 toolbar slots
+// into 1.
 function AlignmentControls() {
   const state = useEditorState();
   const runCommand = useEditorDispatchCommand();
   const { isDisabled, selected } = getTextAlignState(state);
+  const current = selected ?? 'left';
+  const currentItem =
+    TEXT_ALIGN_ITEMS.find(item => item.key === current) ?? TEXT_ALIGN_ITEMS[0];
 
   return useMemo(
     () => (
-      <EditorToolbarGroup
-        aria-label="Text alignment"
-        value={selected}
-        onChange={key => {
-          const align = key === 'left' ? null : (key as TextAlignValue);
-          runCommand(setTextAlign(align));
-        }}
-        disabledKeys={
-          isDisabled ? TEXT_ALIGN_ITEMS.map(item => item.key) : undefined
-        }
-        selectionMode="single"
-      >
-        {TEXT_ALIGN_ITEMS.map(item => (
-          <TooltipTrigger key={item.key}>
-            <EditorToolbarItem value={item.key} aria-label={item.label}>
-              <Icon src={item.icon} />
-            </EditorToolbarItem>
-            <Tooltip>
-              <Text>{item.label}</Text>
-            </Tooltip>
-          </TooltipTrigger>
-        ))}
-      </EditorToolbarGroup>
+      <TooltipTrigger>
+        <MenuTrigger>
+          <ActionButton
+            prominence="low"
+            isDisabled={isDisabled}
+            aria-label="Text alignment"
+          >
+            <Icon src={currentItem.icon} />
+          </ActionButton>
+          <Menu
+            selectionMode="single"
+            disallowEmptySelection
+            selectedKeys={[current]}
+            onAction={key => {
+              runCommand(setTextAlign(key === 'left' ? null : (key as TextAlignValue)));
+            }}
+          >
+            {TEXT_ALIGN_ITEMS.map(item => (
+              <Item key={item.key} textValue={item.label}>
+                <Icon src={item.icon} />
+                <Text>{item.label}</Text>
+              </Item>
+            ))}
+          </Menu>
+        </MenuTrigger>
+        <Tooltip>
+          <Text>{currentItem.label}</Text>
+        </Tooltip>
+      </TooltipTrigger>
     ),
-    [isDisabled, runCommand, selected]
+    [isDisabled, current, currentItem, runCommand]
   );
 }
 

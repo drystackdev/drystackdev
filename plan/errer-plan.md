@@ -1,0 +1,2 @@
+- drap drop tranh nội dung trong `<p></p>`, drap drop nhận diện loại bỏ các thẻ p trống không có chủ đích
+- 

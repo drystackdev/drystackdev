@@ -25,9 +25,6 @@ const accordionItem = css({
 });
 const accordionHead = css({
   display: 'flex',
-  alignItems: 'center',
-  gap: 4,
-  paddingRight: 6,
 });
 const accordionSummary = css({
   flex: 1,
