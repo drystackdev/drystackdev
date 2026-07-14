@@ -13,17 +13,19 @@ const DB_NAME = 'drystack-edits';
 const STORE_NAME = 'edits';
 const META_STORE_NAME = 'meta';
 const SOURCE_STORE_NAME = 'source';
+const BLOB_STORE_NAME = 'blobs';
 
 export type PendingEdit = { key: string; value: string; updatedAt: number };
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 3);
+    const req = indexedDB.open(DB_NAME, 4);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
       if (!db.objectStoreNames.contains(META_STORE_NAME)) db.createObjectStore(META_STORE_NAME);
       if (!db.objectStoreNames.contains(SOURCE_STORE_NAME)) db.createObjectStore(SOURCE_STORE_NAME);
+      if (!db.objectStoreNames.contains(BLOB_STORE_NAME)) db.createObjectStore(BLOB_STORE_NAME);
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -150,6 +152,57 @@ export async function clearSourceCache(): Promise<void> {
   });
 }
 
+// --- Pending blobs -------------------------------------------------------
+//
+// Bytes for a `fields.image` value picked/uploaded through the visual
+// editor, keyed by the repo path the media library wrote them to (e.g.
+// `/assets/foo.png`). A freshly-uploaded image isn't guaranteed to be
+// servable at that path yet — local dev serves it immediately, but github
+// mode only gets a real URL once the next Cloudflare build ships it (see
+// `astro:build:done`'s assets mirror). Caching the bytes here lets the field
+// preview instantly from the blob and survive a reload during that gap,
+// mirroring the source cache above. Cleared once a newer buildVersion
+// confirms the static build has caught up (discardEditsIfBuildIsNewer).
+export async function putPendingBlob(path: string, content: Uint8Array): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(BLOB_STORE_NAME, 'readwrite');
+    tx.objectStore(BLOB_STORE_NAME).put(content, path);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function getPendingBlob(path: string): Promise<Uint8Array | undefined> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(BLOB_STORE_NAME, 'readonly');
+    const req = tx.objectStore(BLOB_STORE_NAME).get(path);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function deletePendingBlob(path: string): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(BLOB_STORE_NAME, 'readwrite');
+    tx.objectStore(BLOB_STORE_NAME).delete(path);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function clearPendingBlobs(): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(BLOB_STORE_NAME, 'readwrite');
+    tx.objectStore(BLOB_STORE_NAME).clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 // --- Edit key helpers -------------------------------------------------
 //
 // A key identifies one editable field: `${type}::${name}::${field}`, e.g.
@@ -168,19 +221,22 @@ export function parseEditKey(
   return { type, name, field };
 }
 
-// A field counts as syncable (MVP 1 scope: fields.text only) when its schema
-// is `kind: 'form', formKind: 'slug'` — fields.text (this fork) and the name
-// field inside fields.slug share that tag. Shared by the admin's publish
-// effect (SingletonPage.tsx) and the visual editor's dry() helper so both
-// recognize the same fields the same way.
-export function isSyncableTextField(
+export type SyncableFieldKind = 'text' | 'image';
+
+// A field counts as syncable when its schema is `kind: 'form'` and either
+// `formKind: 'slug'` (fields.text — this fork, and the name field inside
+// fields.slug share that tag) or `columnKind: 'image'` (fields.image). Shared
+// by the admin's publish effect (SingletonPage.tsx) and the visual editor's
+// dry() helper so both recognize the same fields, and dispatch on how a
+// field's value gets edited/painted (contenteditable text vs. media-library
+// picker), the same way.
+export function getSyncableFieldKind(
   fieldSchema: ComponentSchema | undefined
-): boolean {
-  return (
-    !!fieldSchema &&
-    fieldSchema.kind === 'form' &&
-    (fieldSchema as { formKind?: string }).formKind === 'slug'
-  );
+): SyncableFieldKind | undefined {
+  if (!fieldSchema || fieldSchema.kind !== 'form') return undefined;
+  if ((fieldSchema as { formKind?: string }).formKind === 'slug') return 'text';
+  if ((fieldSchema as { columnKind?: string }).columnKind === 'image') return 'image';
+  return undefined;
 }
 
 // --- Cross-tab bus -----------------------------------------------------

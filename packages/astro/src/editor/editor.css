@@ -20,6 +20,20 @@ body.editing [data-dry] {
 body.editing [data-dry]:hover {
   outline-color: rgba(0, 128, 255, 0.8);
 }
+
+/* fields.image spots aren't contenteditable — clicking opens the same
+   file-manager picker the admin's image field uses (see bind.ts's
+   handleImageSpotClick). Style as a clickable target instead of a text
+   caret, with a translucent scrim + hint on hover so it reads as "click to
+   change" rather than a plain picture. */
+.dry-image-spot {
+  cursor: pointer !important;
+  position: relative;
+  transition: filter 0.15s ease;
+}
+.dry-image-spot:hover {
+  filter: brightness(0.85);
+}
 .dry-spot-flash {
   outline: 2px solid #f59e0b !important;
   outline-offset: 2px;

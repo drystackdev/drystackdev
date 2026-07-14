@@ -1,8 +1,9 @@
 import type { Collection, Config, ComponentSchema, Singleton } from '@drystack/core';
 import type { EntryWithResolvedLinkedFiles } from '@drystack/core/reader';
+import { getSyncableFieldKind } from '@drystack/core/edit-sync';
 import { createConfiguredReader } from './reader';
 
-export type DryItem = { 'data-dry': string };
+export type DryItem = { 'data-dry': string; 'data-dry-kind': 'text' | 'image' };
 
 type SchemaOf<S> = S extends Singleton<infer Schema> ? Schema : never;
 
@@ -68,21 +69,18 @@ async function readSingleton(
     enumerable: false,
     value(field: string) {
       const fieldSchema = schema[field];
-      // `fields.text` (this fork) reports `kind: 'form', formKind: 'slug'` — the
-      // same tag `fields.slug`'s inner name field uses (they share an
-      // implementation). Singletons never use `fields.slug`, so this check is
-      // unambiguous within dry()'s singleton-only scope.
-      const isTextField =
-        !!fieldSchema &&
-        fieldSchema.kind === 'form' &&
-        (fieldSchema as { formKind?: string }).formKind === 'slug';
-      if (!isTextField) {
+      // Shared with the admin's edit-sync effects (SingletonPage.tsx) so both
+      // surfaces recognize the same fields the same way. MVP scope: flat
+      // top-level fields.text ('slug' formKind) and fields.image
+      // ('image' columnKind) only — see plan/vistual-editing-inline.md.
+      const kind = getSyncableFieldKind(fieldSchema);
+      if (!kind) {
         console.warn(
-          `[drystack] dry(): field "${field}" on singleton "${name}" is not fields.text — skipping data-dry attribute.`
+          `[drystack] dry(): field "${field}" on singleton "${name}" is not fields.text or fields.image — skipping data-dry attribute.`
         );
         return {};
       }
-      return { 'data-dry': `singleton::${name}::${field}` };
+      return { 'data-dry': `singleton::${name}::${field}`, 'data-dry-kind': kind };
     },
   });
   return result;

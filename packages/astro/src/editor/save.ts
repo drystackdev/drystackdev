@@ -6,6 +6,7 @@ import {
 } from '@drystack/core/path-utils';
 import { loadDataFile } from '@drystack/core/required-files';
 import { dump } from '@drystack/core/yaml';
+import { getSyncableFieldKind } from '@drystack/core/edit-sync';
 // @ts-expect-error — provided by the drystack Astro integration's Vite plugin
 import apiPath from 'virtual:drystack-path';
 import { getAllEdits, publishClear } from './store';
@@ -148,11 +149,11 @@ async function readCurrentFile(
 }
 
 // Every pending edit must satisfy its own field's schema.validate before it's
-// allowed to reach disk/GitHub — the visual editor writes raw DOM text
+// allowed to reach disk/GitHub — the visual editor writes raw DOM text/paths
 // straight into YAML, so without this a required/min-length/pattern field
 // could be saved empty or malformed. Mirrors the admin form's
 // clientSideValidateProp gate (packages/drystack/src/form/errors.ts), scoped
-// down to flat fields.text values since that's all MVP 1 edits.
+// to the flat fields.text/fields.image edits this editor supports.
 function validateEdits(
   config: Config<any, any>,
   bySingleton: Map<string, Map<string, string>>
@@ -161,11 +162,15 @@ function validateEdits(
   for (const [name, fields] of bySingleton) {
     const schema = config.singletons![name].schema as Record<
       string,
-      { validate?: (value: string, args?: unknown) => unknown }
+      { validate?: (value: unknown, args?: unknown) => unknown }
     >;
     for (const [field, value] of fields) {
+      // fields.image stores '' as the edit-sync sentinel for "cleared"
+      // (see paintImage in bind.ts) but its own validate() expects null.
+      const kind = getSyncableFieldKind(schema[field] as any);
+      const validatedValue = kind === 'image' && value === '' ? null : value;
       try {
-        schema[field]?.validate?.(value, undefined);
+        schema[field]?.validate?.(validatedValue, undefined);
       } catch (err) {
         messages.push(err instanceof Error ? err.message : `${name}.${field} is invalid`);
       }
@@ -209,8 +214,17 @@ async function collectFileDiffs(
     const data = (
       raw ? (loadDataFile(raw, format).loaded ?? {}) : {}
     ) as Record<string, unknown>;
+    const schema = config.singletons![name].schema as Record<string, unknown>;
     for (const [field, value] of fields) {
-      data[field] = value;
+      // fields.image's serialize() omits the key entirely when the value is
+      // null (see form/fields/image/index.tsx) — mirror that here so a
+      // cleared image doesn't get written back as `image: ''`.
+      const kind = getSyncableFieldKind(schema[field] as any);
+      if (kind === 'image' && value === '') {
+        delete data[field];
+      } else {
+        data[field] = value;
+      }
     }
     diffs.push({ path: filepath, before, after: dump(data) });
   }

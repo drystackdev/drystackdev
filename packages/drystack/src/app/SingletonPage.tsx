@@ -49,11 +49,12 @@ import { delDraft, getDraft, setDraft } from './persistence';
 import {
   editKey,
   getAllEdits,
-  isSyncableTextField,
+  getSyncableFieldKind,
   parseEditKey,
   publishDelete,
   publishEdit,
   subscribeEdits,
+  type SyncableFieldKind,
 } from './edit-sync';
 import * as s from 'superstruct';
 import { useData } from './useData';
@@ -349,6 +350,23 @@ function SingletonPageInner(
   );
 }
 
+// The edit-sync bus only carries strings (see edit-sync.ts's PendingEdit) —
+// fields.image's `null` (no image) is represented on the bus as '', the same
+// sentinel bind.ts's paintImage and the visual editor's save.ts already use.
+// fields.text values are always strings already, so they pass through as-is.
+function toBusValue(kind: SyncableFieldKind, value: unknown): string | undefined {
+  if (kind === 'image') {
+    if (value === null) return '';
+    return typeof value === 'string' ? value : undefined;
+  }
+  return typeof value === 'string' ? value : undefined;
+}
+
+function fromBusValue(kind: SyncableFieldKind, busValue: string): string | null {
+  if (kind === 'image') return busValue === '' ? null : busValue;
+  return busValue;
+}
+
 function LocalSingletonPage(
   props: SingletonPageProps & {
     draft:
@@ -381,7 +399,7 @@ function LocalSingletonPage(
   // Reset alongside `state` whenever the tree genuinely reloads (below):
   // the fresh `initialState` prop already carries these values then.
   const [committedOverrides, setCommittedOverrides] = useState<
-    Record<string, string>
+    Record<string, string | null>
   >({});
 
   useShowRestoredDraftMessage(draft, state, localTreeKey);
@@ -450,7 +468,7 @@ function LocalSingletonPage(
     []
   );
 
-  // --- Cross-tab / visual-editor sync (fields.text only; MVP 1 scope) ---
+  // --- Cross-tab / visual-editor sync (fields.text + fields.image) ---
   //
   // `lastSyncedRef` tracks, per field, the value already reflected on the
   // shared edit-sync bus — set either right before we publish it (below) or
@@ -467,30 +485,31 @@ function LocalSingletonPage(
   if (!lastSyncedRef.current) {
     lastSyncedRef.current = {};
     for (const [field, fieldSchema] of Object.entries(singletonConfig.schema)) {
-      const value = (state as Record<string, unknown>)[field];
-      if (isSyncableTextField(fieldSchema) && typeof value === 'string') {
-        lastSyncedRef.current[field] = value;
-      }
+      const kind = getSyncableFieldKind(fieldSchema);
+      if (!kind) continue;
+      const busValue = toBusValue(kind, (state as Record<string, unknown>)[field]);
+      if (busValue !== undefined) lastSyncedRef.current[field] = busValue;
     }
   }
 
   // Catch up on mount: a field can already have a pending edit sitting in
-  // the shared IndexedDB store — e.g. typed in the visual editor, or in an
-  // admin tab that's since been closed — before this tab ever subscribed to
-  // the bus, so a live-only subscription would never see it. Apply whatever
-  // is already there once, the same way the visual editor's
+  // the shared IndexedDB store — e.g. typed/picked in the visual editor, or
+  // in an admin tab that's since been closed — before this tab ever
+  // subscribed to the bus, so a live-only subscription would never see it.
+  // Apply whatever is already there once, the same way the visual editor's
   // applyPendingEdits() does for the DOM on load.
   useEffect(() => {
     let cancelled = false;
     getAllEdits().then(edits => {
       if (cancelled) return;
-      const updates: Record<string, string> = {};
+      const updates: Record<string, string | null> = {};
       for (const edit of edits) {
         const { type, name, field } = parseEditKey(edit.key);
         if (type !== 'singleton' || name !== singleton) continue;
-        if (!isSyncableTextField(singletonConfig.schema[field])) continue;
+        const kind = getSyncableFieldKind(singletonConfig.schema[field]);
+        if (!kind) continue;
         if (lastSyncedRef.current![field] === edit.value) continue;
-        updates[field] = edit.value;
+        updates[field] = fromBusValue(kind, edit.value);
         lastSyncedRef.current![field] = edit.value;
       }
       if (Object.keys(updates).length > 0) {
@@ -505,16 +524,19 @@ function LocalSingletonPage(
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
     for (const [field, fieldSchema] of Object.entries(singletonConfig.schema)) {
-      if (!isSyncableTextField(fieldSchema)) continue;
-      const value = (state as Record<string, unknown>)[field];
-      if (typeof value !== 'string') continue;
-      if (lastSyncedRef.current![field] === value) continue;
-      lastSyncedRef.current![field] = value;
+      const kind = getSyncableFieldKind(fieldSchema);
+      if (!kind) continue;
+      const busValue = toBusValue(kind, (state as Record<string, unknown>)[field]);
+      if (busValue === undefined) continue;
+      if (lastSyncedRef.current![field] === busValue) continue;
+      lastSyncedRef.current![field] = busValue;
       // Debounced so fast typing doesn't flood other tabs with a broadcast
       // per keystroke — still "live" at ~200ms (plan.md open question 3).
+      // A picked image only fires this once (no keystrokes), so the same
+      // debounce just adds one imperceptible 200ms hop for it.
       timers.push(
         setTimeout(() => {
-          publishEdit(editKey('singleton', singleton, field), value);
+          publishEdit(editKey('singleton', singleton, field), busValue);
         }, 200)
       );
     }
@@ -526,7 +548,8 @@ function LocalSingletonPage(
       if (msg.type === 'set') {
         const { type, name, field } = parseEditKey(msg.key);
         if (type !== 'singleton' || name !== singleton) return;
-        if (!isSyncableTextField(singletonConfig.schema[field])) return;
+        const kind = getSyncableFieldKind(singletonConfig.schema[field]);
+        if (!kind) return;
         // Don't stomp on what the user is actively typing — the field's
         // wrapper div carries data-field (object/ui.tsx) for exactly this
         // check. Last-write-wins once they move on: either their own next
@@ -536,7 +559,7 @@ function LocalSingletonPage(
         );
         if (fieldEl?.contains(document.activeElement)) return;
         lastSyncedRef.current![field] = msg.value;
-        onPreviewPropsChange(s => ({ ...s, [field]: msg.value }));
+        onPreviewPropsChange(s => ({ ...s, [field]: fromBusValue(kind, msg.value) }));
         return;
       }
       // 'delete' / 'clear' — the field(s) are no longer pending anywhere,
@@ -555,13 +578,21 @@ function LocalSingletonPage(
             })()
           : Object.keys(singletonConfig.schema);
       setCommittedOverrides(prev => {
-        let next: Record<string, string> | undefined;
+        let next: Record<string, string | null> | undefined;
         for (const field of fields) {
-          if (!isSyncableTextField(singletonConfig.schema[field])) continue;
+          const kind = getSyncableFieldKind(singletonConfig.schema[field]);
+          if (!kind) continue;
           const value = (stateRef.current as Record<string, unknown>)[field];
-          if (typeof value !== 'string' || prev[field] === value) continue;
+          if (
+            (kind === 'text' && typeof value !== 'string') ||
+            (kind === 'image' && typeof value !== 'string' && value !== null)
+          ) {
+            continue;
+          }
+          const typedValue = value as string | null;
+          if (prev[field] === typedValue) continue;
           next ??= { ...prev };
-          next[field] = value;
+          next[field] = typedValue;
         }
         return next ?? prev;
       });
@@ -587,14 +618,14 @@ function LocalSingletonPage(
   });
   const update = useEventCallback(_update);
 
-  // A successful save means this singleton's fields.text values now match
-  // what's pending — drop those keys from the shared edit-sync bus so a
-  // visual-editor tab that had them queued (from live-typed edits it
+  // A successful save means this singleton's synced fields now match what's
+  // pending — drop those keys from the shared edit-sync bus so a
+  // visual-editor tab that had them queued (from live-typed/picked edits it
   // received earlier) stops treating already-saved content as unreviewed.
   useEffect(() => {
     if (updateResult.kind !== 'updated') return;
     for (const [field, fieldSchema] of Object.entries(singletonConfig.schema)) {
-      if (isSyncableTextField(fieldSchema)) {
+      if (getSyncableFieldKind(fieldSchema)) {
         publishDelete(editKey('singleton', singleton, field));
       }
     }

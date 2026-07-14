@@ -56,6 +56,14 @@
       "drystack-src": "./src/app/edit-sync.ts",
       "default": "./dist/app/edit-sync.js"
     },
+    "./media-library-bridge": {
+      "drystack-src": "./src/app/media-library/bridge.ts",
+      "default": "./dist/app/media-library/bridge.js"
+    },
+    "./media-host": {
+      "drystack-src": "./src/app/media-library/VeiMediaHost.tsx",
+      "default": "./dist/app/media-library/VeiMediaHost.js"
+    },
     "./required-files": {
       "drystack-src": "./src/app/required-files.ts",
       "default": "./dist/app/required-files.js"

@@ -9,6 +9,8 @@ import {
   getSourceCache,
   setSourceCache,
   clearSourceCache,
+  getPendingBlob,
+  clearPendingBlobs,
   type EditBusMessage,
 } from './store';
 import { getLatestFieldValues } from './save';
@@ -39,12 +41,33 @@ export function resetOriginalValue(key: string, value: string) {
   originalValues.set(key, value);
 }
 
+function isImageSpot(el: HTMLElement): boolean {
+  return el.getAttribute('data-dry-kind') === 'image';
+}
+
 function handleInput(e: Event) {
   const el = (e.target as HTMLElement)?.closest<HTMLElement>('[data-dry]');
-  if (!el) return;
+  if (!el || isImageSpot(el)) return;
   const key = el.getAttribute('data-dry');
   if (!key) return;
   publishEdit(key, el.textContent ?? '').then(() => onChangeCallback?.());
+}
+
+// Registered by the toolbar once the media-library host has mounted — clicking
+// an image spot in edit mode opens the same file-manager picker the admin's
+// fields.image input uses, rather than making the image contenteditable.
+let onImageSpotClickCallback: ((key: string) => void) | undefined;
+
+export function setImageSpotClickHandler(cb: ((key: string) => void) | undefined) {
+  onImageSpotClickCallback = cb;
+}
+
+function handleImageSpotClick(e: MouseEvent) {
+  const el = (e.target as HTMLElement)?.closest<HTMLElement>('[data-dry]');
+  if (!el || !isImageSpot(el)) return;
+  e.preventDefault();
+  const key = el.getAttribute('data-dry');
+  if (key) onImageSpotClickCallback?.(key);
 }
 
 export function isEditing() {
@@ -57,23 +80,34 @@ export function enableEditing(onChange?: () => void) {
   document.body.classList.add('editing');
   document.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
     const key = el.getAttribute('data-dry');
-    // No pending edit was painted here, so the current text is the on-disk
-    // value — safe to snapshot now as the diff baseline.
+    if (isImageSpot(el)) {
+      // No pending edit was painted here, so the current `src` is the
+      // on-disk value — safe to snapshot now as the diff baseline.
+      if (key) rememberOriginal(key, el.getAttribute('src') ?? '');
+      el.classList.add('dry-image-spot');
+      return;
+    }
     if (key) rememberOriginal(key, el.textContent ?? '');
     el.contentEditable = 'plaintext-only';
     // Firefox versions without plaintext-only support silently ignore it.
     if (el.contentEditable !== 'plaintext-only') el.contentEditable = 'true';
   });
   document.addEventListener('input', handleInput, true);
+  document.addEventListener('click', handleImageSpotClick, true);
 }
 
 export function disableEditing() {
   editing = false;
   document.body.classList.remove('editing');
   document.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
+    if (isImageSpot(el)) {
+      el.classList.remove('dry-image-spot');
+      return;
+    }
     el.removeAttribute('contenteditable');
   });
   document.removeEventListener('input', handleInput, true);
+  document.removeEventListener('click', handleImageSpotClick, true);
 }
 
 // Cloudflare Pages builds fresh on every deploy, so buildVersion (a build-time
@@ -103,10 +137,42 @@ export async function discardEditsIfBuildIsNewer(
     // The static build just caught up, so its HTML is now at least as fresh
     // as anything cached below — keeping a stale entry around would risk it
     // later painting over even-fresher static HTML from a *subsequent*
-    // deploy this tab never re-fetched for.
+    // deploy this tab never re-fetched for. Same reasoning covers the pending
+    // image blobs: any image the build just shipped is now servable from its
+    // real path, so the preview bytes cached for it are no longer needed.
     await clearSourceCache();
+    await clearPendingBlobs();
     await setMeta(BUILD_VERSION_KEY, buildVersion);
   }
+}
+
+// Live object URLs currently painted onto an image spot, keyed by field key —
+// tracked so a later paint (or a reset/discard) can revoke the previous one
+// instead of leaking it.
+const imageObjectUrls = new Map<string, string>();
+
+function revokeImageObjectUrl(key: string): void {
+  const existing = imageObjectUrls.get(key);
+  if (existing) {
+    URL.revokeObjectURL(existing);
+    imageObjectUrls.delete(key);
+  }
+}
+
+// Paints a value fetched straight from source (never a pending edit — see
+// refreshFromLatestSource/applyCachedSource) onto one element and resets its
+// diff baseline to match. Source values are always real, already-servable
+// paths (never pending-blob previews), so no blob lookup is needed here.
+function paintFetchedValue(el: HTMLElement, key: string, value: string): void {
+  resetOriginalValue(key, value);
+  if (isImageSpot(el)) {
+    revokeImageObjectUrl(key);
+    el.removeAttribute('srcset');
+    el.hidden = !value;
+    if (value) el.setAttribute('src', value);
+    return;
+  }
+  el.textContent = value;
 }
 
 // Re-reads every on-page singleton straight from its real source (local API,
@@ -152,23 +218,45 @@ export async function refreshFromLatestSource(
           const field = key.split('::')[2];
           const value = latest[field];
           if (value === undefined) return;
-          resetOriginalValue(key, value);
-          el.textContent = value;
+          paintFetchedValue(el, key, value);
         });
     })
   );
+}
+
+// Restores one field's on-page element(s) to their captured baseline — shared
+// by resetPendingEdits (all fields) and the review dialog's per-field discard.
+// Baseline values (see rememberOriginal) are always real on-disk/GitHub
+// values, never pending-blob previews, so this never needs a blob lookup.
+export function revertFieldToOriginal(key: string): void {
+  const original = getOriginalValue(key);
+  if (original === undefined) return;
+  document
+    .querySelectorAll<HTMLElement>(`[data-dry="${CSS.escape(key)}"]`)
+    .forEach(el => {
+      if (isImageSpot(el)) {
+        revokeImageObjectUrl(key);
+        el.removeAttribute('srcset');
+        el.hidden = !original;
+        if (original) el.setAttribute('src', original);
+        return;
+      }
+      el.textContent = original;
+    });
 }
 
 // Discards every pending edit: restores each on-page field to its captured
 // baseline (kept accurate by refreshFromLatestSource/applyPendingEdits) and
 // clears the IndexedDB edit log — no network fetch needed.
 export async function resetPendingEdits(): Promise<void> {
+  const keys = new Set<string>();
   document.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
     const key = el.getAttribute('data-dry');
-    const original = key ? getOriginalValue(key) : undefined;
-    if (original !== undefined) el.textContent = original;
+    if (key) keys.add(key);
   });
+  keys.forEach(revertFieldToOriginal);
   await publishClear();
+  await clearPendingBlobs();
 }
 
 // Paints one pending edit onto every DOM element carrying its key — a field
@@ -177,12 +265,38 @@ export async function resetPendingEdits(): Promise<void> {
 // first in document order. Shared by the bulk on-load apply below and the
 // live cross-tab subscription, which paints one key at a time as edits
 // arrive from other tabs.
-function applyEdit(key: string, value: string): void {
+//
+// Image values prefer the pending-blob cache (see edit-sync.ts) over the raw
+// path: a freshly picked/uploaded image isn't guaranteed servable at its path
+// yet (github mode needs a deploy to catch up), but its bytes are already
+// known locally. Exported so the toolbar's image-picker flow can paint a
+// freshly picked file immediately after publishing it, the same way a
+// same-key edit arriving from another tab gets painted below.
+export async function applyEdit(key: string, value: string): Promise<void> {
   const els = document.querySelectorAll<HTMLElement>(
     `[data-dry="${CSS.escape(key)}"]`
   );
+  let blob: Uint8Array | undefined;
+  if (Array.from(els).some(isImageSpot) && value) {
+    blob = await getPendingBlob(value);
+  }
   els.forEach(el => {
-    // Capture the on-disk value before overwriting it with the pending edit.
+    if (isImageSpot(el)) {
+      // Capture the on-disk value before overwriting it with the pending edit.
+      rememberOriginal(key, el.getAttribute('src') ?? '');
+      revokeImageObjectUrl(key);
+      el.removeAttribute('srcset');
+      el.hidden = !value;
+      if (!value) return;
+      if (blob) {
+        const url = URL.createObjectURL(new Blob([blob]));
+        imageObjectUrls.set(key, url);
+        el.setAttribute('src', url);
+      } else {
+        el.setAttribute('src', value);
+      }
+      return;
+    }
     rememberOriginal(key, el.textContent ?? '');
     el.textContent = value;
   });
@@ -214,8 +328,7 @@ async function applyCachedSource(pendingKeys: Set<string>): Promise<void> {
           const field = key.split('::')[2];
           const value = cached[field];
           if (value === undefined) return;
-          resetOriginalValue(key, value);
-          el.textContent = value;
+          paintFetchedValue(el, key, value);
         });
     })
   );
@@ -231,7 +344,7 @@ export async function applyPendingEdits(): Promise<number> {
   // then pending edits on top — applyEdit's rememberOriginal only captures a
   // baseline if one isn't already set, so ordering here matters.
   await applyCachedSource(pendingKeys);
-  for (const edit of edits) applyEdit(edit.key, edit.value);
+  for (const edit of edits) await applyEdit(edit.key, edit.value);
   return edits.length;
 }
 
@@ -245,8 +358,7 @@ export function subscribeToRemoteEdits(
 ): () => void {
   return subscribeEdits((msg: EditBusMessage) => {
     if (msg.type === 'set') {
-      applyEdit(msg.key, msg.value);
-      onChange?.();
+      applyEdit(msg.key, msg.value).then(() => onChange?.());
       return;
     }
     // 'delete' / 'clear' — a save (this key's edit is now committed) or a

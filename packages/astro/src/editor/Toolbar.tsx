@@ -1,12 +1,19 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Config } from '@drystack/core';
+import { getSingletonPath } from '@drystack/core/path-utils';
+import {
+  openMediaLibrary,
+  waitForMediaLibraryOpener,
+  type MediaLibraryPick,
+} from '@drystack/core/media-library-bridge';
 // @ts-expect-error — provided by the drystack Astro integration's Vite plugin
 import apiPath from 'virtual:drystack-path';
 import { Badge } from '@keystar/ui/badge';
 import { ActionButton, Button, ButtonGroup } from '@keystar/ui/button';
 import { Dialog, DialogContainer, useDialogContainer } from '@keystar/ui/dialog';
 import { Icon } from '@keystar/ui/icon';
+import { Flex } from '@keystar/ui/layout';
 import { editIcon } from '@keystar/ui/icon/icons/editIcon';
 import { xIcon } from '@keystar/ui/icon/icons/xIcon';
 import { saveIcon } from '@keystar/ui/icon/icons/saveIcon';
@@ -26,30 +33,59 @@ import {
   getOriginalValue,
   refreshFromLatestSource,
   resetPendingEdits,
+  applyEdit,
+  revertFieldToOriginal,
+  setImageSpotClickHandler,
 } from './bind';
-import { getAllEdits, publishDelete, subscribeEdits } from './store';
-import { saveEdits, getCurrentBranchName } from './save';
+import {
+  getAllEdits,
+  publishDelete,
+  publishEdit,
+  subscribeEdits,
+  putPendingBlob,
+  getPendingBlob,
+} from './store';
+import { saveEdits, getCurrentBranchName, getGithubToken } from './save';
 import { brandDisplayLabel } from '@drystack/core/brand-label';
 import { CloudflareStatusCompact } from '@drystack/core/deploy-cloudflare-status';
 import { useVeiDeploy } from './deploy';
 
+// Loaded lazily (only once the visual editor actually needs to open the
+// image picker) — this chunk pulls in urql + graphcache + the admin's file
+// manager, which would otherwise bloat every live-site page's JS payload.
+const VeiMediaHost = lazy(() =>
+  import('@drystack/core/media-host').then(m => ({ default: m.VeiMediaHost }))
+);
+
 type Spot = { key: string; name: string; field: string };
-type FieldChange = Spot & { before: string; after: string };
+type FieldChange = Spot & { kind: 'text' | 'image'; before: string; after: string };
 
 // The single source of truth for "what's actually pending" — reads
 // IndexedDB via getAllEdits() and drops any entry whose value happens to
 // equal its captured original (e.g. typed then reverted by hand). Shared by
 // the toolbar's badge/Save-Reset-enabled state and the review dialog's list
 // so the two can never disagree about whether there's anything to review.
+//
+// `kind` is read straight off the matching DOM element's data-dry-kind
+// (rather than threaded through from config) since that's the same
+// attribute bind.ts already dispatches on to paint the value — one fewer
+// thing that could disagree. Defaults to 'text' if no matching element is on
+// this page (e.g. a pending edit for a singleton not rendered here).
 async function getPendingChanges(): Promise<FieldChange[]> {
   const edits = await getAllEdits();
   return edits
     .map(e => {
       const [, name, field] = e.key.split('::');
+      const el = document.querySelector<HTMLElement>(
+        `[data-dry="${CSS.escape(e.key)}"]`
+      );
+      const kind: 'text' | 'image' =
+        el?.getAttribute('data-dry-kind') === 'image' ? 'image' : 'text';
       return {
         key: e.key,
         name,
         field,
+        kind,
         before: getOriginalValue(e.key) ?? '',
         after: e.value,
       };
@@ -116,6 +152,75 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     // another tab (admin or another visual-editor tab), not just this one.
     return subscribeEdits(() => refreshCount());
   }, []);
+
+  // The admin's media-library picker (VeiMediaHost) — lazy-mounted once an
+  // image spot is actually clicked, not on every page load (see the lazy()
+  // import above). `mediaHostBranch` only matters in github mode; resolved
+  // once, right before the first mount, into a ref rather than state since
+  // nothing needs to re-render off it changing.
+  const [mediaHostMounted, setMediaHostMounted] = useState(false);
+  const mediaHostBranchRef = useRef('');
+
+  // Mounts VeiMediaHost on first use and waits for its FileManagerHost to
+  // finish registering the picker (registerMediaLibraryOpener runs in an
+  // effect, one or more renders after the mount is requested — see
+  // waitForMediaLibraryOpener). Returns false (after surfacing a toast) if
+  // github mode has no admin session — mounting the host without one would
+  // hit the shell's own "not authenticated" redirect, which would navigate
+  // this live-site tab to the admin login page.
+  const ensureMediaHostMounted = async (): Promise<boolean> => {
+    if (!mediaHostMounted) {
+      if (isGithub) {
+        if (!getGithubToken()) {
+          toastQueue.critical('Cần đăng nhập admin để đổi ảnh.');
+          return false;
+        }
+        try {
+          mediaHostBranchRef.current = (await getCurrentBranchName(config)) ?? '';
+        } catch (err) {
+          toastQueue.critical(err instanceof Error ? err.message : String(err));
+          return false;
+        }
+      }
+      setMediaHostMounted(true);
+    }
+    const ready = await waitForMediaLibraryOpener();
+    if (!ready) toastQueue.critical('Không thể mở thư viện media.');
+    return ready;
+  };
+
+  // Wired to every fields.image spot's click (see bind.ts's
+  // handleImageSpotClick) — opens the exact same file-manager dialog the
+  // admin's ImageFieldInput uses, scoped to this singleton's own assets
+  // folder (matching EntryDirectoryProvider's convention in SingletonPage.tsx).
+  useEffect(() => {
+    const handler = async (key: string) => {
+      const ready = await ensureMediaHostMounted();
+      if (!ready) return;
+      const [, singletonName] = key.split('::');
+      let pick: MediaLibraryPick | undefined;
+      try {
+        pick = await openMediaLibrary({
+          accept: 'image',
+          local: {
+            directory: `${getSingletonPath(config, singletonName)}/assets`,
+            label: 'Trang này',
+          },
+        });
+      } catch (err) {
+        toastQueue.critical(err instanceof Error ? err.message : String(err));
+        return;
+      }
+      if (!pick) return;
+      await putPendingBlob(pick.path, pick.content);
+      await publishEdit(key, pick.path);
+      await applyEdit(key, pick.path);
+      refreshCount();
+    };
+    setImageSpotClickHandler(handler);
+    return () => setImageSpotClickHandler(undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config, isGithub, mediaHostMounted]);
 
   const toggleEdit = () => {
     if (editing) {
@@ -411,6 +516,16 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       <DialogContainer onDismiss={() => setReviewOpen(false)}>
         {reviewOpen && <ReviewDialog onChange={refreshCount} />}
       </DialogContainer>
+
+      {mediaHostMounted && (
+        <Suspense fallback={null}>
+          <VeiMediaHost
+            config={config}
+            basePath={adminBase}
+            currentBranch={mediaHostBranchRef.current}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
@@ -431,14 +546,11 @@ function ReviewDialog({ onChange }: { onChange: () => void }) {
   }, []);
 
   // Discard a single field's edit: drop it from the store, revert the live DOM
-  // back to its original value, and refresh the toolbar's pending count.
+  // back to its original value (text or image — see bind.ts), and refresh the
+  // toolbar's pending count.
   const handleDelete = async (key: string) => {
     await publishDelete(key);
-    const els = document.querySelectorAll<HTMLElement>(
-      `[data-dry="${CSS.escape(key)}"]`
-    );
-    const original = getOriginalValue(key);
-    if (original != null) els.forEach(el => { el.textContent = original; });
+    revertFieldToOriginal(key);
     setChanges(cs => cs?.filter(c => c.key !== key) ?? null);
     onChange();
   };
@@ -508,16 +620,19 @@ function FieldDiffView({
       </div>
       <div className={`dry-acc-body${open ? ' is-open' : ''}`}>
         <div className="dry-acc-body-inner">
-          <div
-            className="dry-diff"
-            style={{
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-              fontSize: 12,
-              lineHeight: 1.5,
-              borderTop: '1px solid rgba(128,128,128,0.3)',
-              overflowX: 'auto',
-            }}
-          >
+          {change.kind === 'image' ? (
+            <ImageDiffView before={change.before} after={change.after} />
+          ) : (
+            <div
+              className="dry-diff"
+              style={{
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                fontSize: 12,
+                lineHeight: 1.5,
+                borderTop: '1px solid rgba(128,128,128,0.3)',
+                overflowX: 'auto',
+              }}
+            >
         {lines.map((line, i) => (
           <div
             key={i}
@@ -552,9 +667,78 @@ function FieldDiffView({
             <span style={{ flex: 1 }}>{line.text || ' '}</span>
           </div>
         ))}
-          </div>
+            </div>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Prefers the pending-blob cache (see edit-sync.ts) over the raw path, same
+// as bind.ts's paintImage — a freshly picked file's bytes are known locally
+// before it's guaranteed servable at its path (github mode needs a deploy to
+// catch up).
+function ImageThumb({ path }: { path: string }) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!path) {
+      setBlobUrl(null);
+      return;
+    }
+    let cancelled = false;
+    let createdUrl: string | null = null;
+    getPendingBlob(path).then(bytes => {
+      if (cancelled || !bytes) return;
+      createdUrl = URL.createObjectURL(new Blob([bytes]));
+      setBlobUrl(createdUrl);
+    });
+    return () => {
+      cancelled = true;
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+    };
+  }, [path]);
+
+  if (!path) {
+    return <Text color="neutralSecondary">Không có ảnh</Text>;
+  }
+  return (
+    <img
+      src={blobUrl ?? path}
+      alt=""
+      style={{
+        display: 'block',
+        maxWidth: 140,
+        maxHeight: 100,
+        borderRadius: 6,
+        objectFit: 'contain',
+        background: 'rgba(128,128,128,0.08)',
+      }}
+    />
+  );
+}
+
+function ImageDiffView({ before, after }: { before: string; after: string }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+        padding: 12,
+        borderTop: '1px solid rgba(128,128,128,0.3)',
+      }}
+    >
+      <Flex direction="column" gap="small">
+        <Text size="small" color="neutralSecondary">Trước</Text>
+        <ImageThumb path={before} />
+      </Flex>
+      <Icon src={chevronRightIcon} />
+      <Flex direction="column" gap="small">
+        <Text size="small" color="neutralSecondary">Sau</Text>
+        <ImageThumb path={after} />
+      </Flex>
     </div>
   );
 }

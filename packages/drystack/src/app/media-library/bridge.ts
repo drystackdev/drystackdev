@@ -31,9 +31,31 @@ type Opener = (
 ) => Promise<MediaLibraryPick[] | undefined>;
 
 let currentOpener: Opener | null = null;
+let openerReadyResolvers: Array<() => void> = [];
 
 export function registerMediaLibraryOpener(opener: Opener | null) {
   currentOpener = opener;
+  if (opener) {
+    openerReadyResolvers.forEach(resolve => resolve());
+    openerReadyResolvers = [];
+  }
+}
+
+// Lets a caller that just triggered a lazy mount of the component tree which
+// calls registerMediaLibraryOpener (e.g. the visual editor's VeiMediaHost —
+// see packages/astro/src/editor/Toolbar.tsx) wait for that registration
+// instead of racing it: the registering effect only runs after React commits
+// the newly-mounted subtree, one or more ticks after the caller requests the
+// mount. Resolves `true` immediately if an opener is already registered.
+export function waitForMediaLibraryOpener(timeoutMs = 8000): Promise<boolean> {
+  if (currentOpener) return Promise.resolve(true);
+  return new Promise(resolve => {
+    const timer = setTimeout(() => resolve(false), timeoutMs);
+    openerReadyResolvers.push(() => {
+      clearTimeout(timer);
+      resolve(true);
+    });
+  });
 }
 
 export function openMediaLibrary(
