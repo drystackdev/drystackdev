@@ -36,6 +36,7 @@ import { quoteIcon } from '@keystar/ui/icon/icons/quoteIcon';
 import { removeFormattingIcon } from '@keystar/ui/icon/icons/removeFormattingIcon';
 import { strikethroughIcon } from '@keystar/ui/icon/icons/strikethroughIcon';
 import { tableIcon } from '@keystar/ui/icon/icons/tableIcon';
+import { columnsIcon } from '@keystar/ui/icon/icons/columnsIcon';
 import { underlineIcon } from '@keystar/ui/icon/icons/underlineIcon';
 import { MenuTrigger, Menu } from '@keystar/ui/menu';
 import { Picker, Item } from '@keystar/ui/picker';
@@ -51,6 +52,7 @@ import {
 } from './editor-view';
 import { toggleList } from './lists';
 import { insertNode, insertTable, toggleCodeBlock } from './commands/misc';
+import { insertGrid } from './grid';
 import { EditorSchema } from './schema';
 import { ImageToolbarButton } from './images';
 import { useEntryLayoutSplitPaneContext } from '../../../../app/entry-form';
@@ -269,6 +271,19 @@ export const Toolbar = memo(function Toolbar(
                 </ToolbarButton>
                 <Tooltip>
                   <Text>Table</Text>
+                </Tooltip>
+              </TooltipTrigger>
+            )}
+            {nodes.grid && (
+              <TooltipTrigger>
+                <ToolbarButton
+                  aria-label="Grid"
+                  command={insertGrid(nodes.grid)}
+                >
+                  <Icon src={columnsIcon} />
+                </ToolbarButton>
+                <Tooltip>
+                  <Text>Grid</Text>
                 </Tooltip>
               </TooltipTrigger>
             )}

@@ -6,7 +6,7 @@ import { imageLayoutStyleString } from '../image-layout';
 import { getColumnWidthPercents } from '../table-column-resize';
 import {
   cellStyleString,
-  GRID_CONTAINER_STYLE,
+  gridContainerStyle,
   GRID_RESPONSIVE_CSS,
 } from '../grid';
 
@@ -310,7 +310,10 @@ function proseMirrorToHtmlNode(
     const gridDiv: HtmlNode = {
       kind: 'element',
       tag: 'div',
-      attrs: { 'data-dry-grid': '', style: GRID_CONTAINER_STYLE },
+      attrs: {
+        'data-dry-grid': '',
+        style: gridContainerStyle(node.attrs.gap, node.attrs.columns),
+      },
       children: blocks(node.content),
     };
     if (!emitStyle) return gridDiv;

@@ -2,7 +2,12 @@ import { MarkType, Node as ProseMirrorNode } from 'prosemirror-model';
 import { EditorSchema, TEXT_ALIGN_VALUES } from '../schema';
 import { MEDIA_LIBRARY_DIRECTORY } from '../../../../../app/media-library/constants';
 import { imageLayoutFromElement } from '../image-layout';
-import { parseGridColumnSpan, parsePlaceContent } from '../grid';
+import {
+  parseGridColumnSpan,
+  parseGridColumns,
+  parsePlaceContent,
+  parseGridGap,
+} from '../grid';
 
 type ParseState = {
   schema: EditorSchema;
@@ -245,6 +250,8 @@ function gridFromElement(
 ): ProseMirrorNode | null {
   const { schema } = state;
   if (!schema.nodes.grid || !schema.nodes.grid_cell) return null;
+  const gridStyle = el.getAttribute('style') ?? '';
+  const columns = parseGridColumns(gridStyle);
   const cells: ProseMirrorNode[] = [];
   for (const child of Array.from(el.children)) {
     if (
@@ -255,13 +262,17 @@ function gridFromElement(
     }
     const style = child.getAttribute('style') ?? '';
     const cell = schema.nodes.grid_cell.createAndFill(
-      { span: parseGridColumnSpan(style), place: parsePlaceContent(style) },
+      {
+        span: parseGridColumnSpan(style, columns),
+        place: parsePlaceContent(style),
+      },
       blockChildren(child, state)
     );
     if (cell) cells.push(cell);
   }
   if (!cells.length) return null;
-  return schema.nodes.grid.createAndFill({}, cells);
+  const gap = parseGridGap(gridStyle);
+  return schema.nodes.grid.createAndFill({ gap, columns }, cells);
 }
 
 function blocksFromChildNodes(

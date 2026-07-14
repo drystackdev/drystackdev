@@ -6,19 +6,13 @@ import {
   useCallback,
   useEffect,
   useRef,
+  useState,
 } from 'react';
 
 import { css, tokenSchema } from '@keystar/ui/style';
-import { Icon } from '@keystar/ui/icon';
-import { plusIcon } from '@keystar/ui/icon/icons/plusIcon';
 
 import { useEditorViewRef } from './editor-view';
-import {
-  GRID_COLUMNS,
-  GRID_DEFAULT_SPAN,
-  GRID_GAP,
-  clampSpan,
-} from './grid';
+import { GRID_DEFAULT_COLUMNS, clampSpan } from './grid';
 
 type NodeViewProps = {
   node: ProseMirrorNode;
@@ -27,50 +21,23 @@ type NodeViewProps = {
 };
 
 // The grid container the editor actually renders. `data-dry-grid` matches the
-// serialized markup so the resize handles can locate their container, and the
-// dashed border is an edit-only affordance (this class never reaches the
-// published HTML — that comes from the serializer, not from here).
+// serialized markup so the resize handles can locate their container. `gap`
+// comes from the node attr (editable from the toolbar). The container itself
+// has no border/padding — the dashed edit affordance lives on each cell.
 export function GridNodeView(props: NodeViewProps) {
-  const { children, getPos } = props;
-  const viewRef = useEditorViewRef();
-  const getPosRef = useRef(getPos);
-  getPosRef.current = getPos;
-
-  const appendCell = useCallback(() => {
-    const view = viewRef.current;
-    const pos = getPosRef.current();
-    if (!view || pos == null) return;
-    const gridNode = view.state.doc.nodeAt(pos);
-    if (!gridNode) return;
-    const cellType = view.state.schema.nodes.grid_cell;
-    const paragraphType = view.state.schema.nodes.paragraph;
-    const newCell = cellType?.createAndFill(
-      { span: GRID_DEFAULT_SPAN },
-      paragraphType?.createAndFill() ?? undefined
-    );
-    if (!newCell) return;
-    view.dispatch(
-      view.state.tr.insert(pos + gridNode.nodeSize - 1, newCell)
-    );
-    view.focus();
-  }, [viewRef]);
-
+  const columns: number = props.node.attrs.columns ?? GRID_DEFAULT_COLUMNS;
   return (
-    <div className={gridClass} data-dry-grid="">
-      {children}
-      {/* the always-present trailing "+" appender — an editor affordance, not
-          a real node, so it never serializes */}
-      <button
-        type="button"
-        contentEditable={false}
-        className={appendCellClass}
-        // keep the pointer-down from collapsing the selection before click
-        onMouseDown={event => event.preventDefault()}
-        onClick={appendCell}
-        aria-label="Add cell"
-      >
-        <Icon src={plusIcon} />
-      </button>
+    <div
+      className={gridClass}
+      style={{
+        gap: props.node.attrs.gap,
+        // track count is per-grid (node attr), so it lives inline rather than
+        // in the static class
+        gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+      }}
+      data-dry-grid=""
+    >
+      {props.children}
     </div>
   );
 }
@@ -80,6 +47,7 @@ type Drag = {
   startWidth: number;
   pitch: number;
   gap: number;
+  columns: number;
   lastSpan: number;
 };
 
@@ -93,6 +61,11 @@ export function GridCellView(props: NodeViewProps) {
   getPosRef.current = getPos;
   const cellRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<Drag | null>(null);
+  // live "span / columns" readout, shown only while a resize drag is active
+  const [resizeLabel, setResizeLabel] = useState<{
+    span: number;
+    columns: number;
+  } | null>(null);
 
   const commitSpan = useCallback(
     (nextSpan: number) => {
@@ -110,11 +83,15 @@ export function GridCellView(props: NodeViewProps) {
       const drag = dragRef.current;
       if (!drag) return;
       const dx = event.clientX - drag.startX;
-      // (width + gap) / pitch == the unit count; snap to whole 1/24 steps
-      const next = clampSpan((drag.startWidth + dx + drag.gap) / drag.pitch);
+      // (width + gap) / pitch == the unit count; snap to whole 1/N steps
+      const next = clampSpan(
+        (drag.startWidth + dx + drag.gap) / drag.pitch,
+        drag.columns
+      );
       if (next !== drag.lastSpan) {
         drag.lastSpan = next;
         commitSpan(next);
+        setResizeLabel({ span: next, columns: drag.columns });
       }
     },
     [commitSpan]
@@ -124,6 +101,7 @@ export function GridCellView(props: NodeViewProps) {
     window.removeEventListener('pointermove', onDragMove);
     window.removeEventListener('pointerup', onDragEnd);
     dragRef.current = null;
+    setResizeLabel(null);
   }, [onDragMove]);
 
   const startDrag = useCallback(
@@ -138,7 +116,17 @@ export function GridCellView(props: NodeViewProps) {
       const gap = gridEl
         ? parseFloat(getComputedStyle(gridEl).columnGap) || 16
         : 16;
-      const startSpan = clampSpan(node.attrs.span);
+      // the grid's track count lives on the parent grid node — read it off
+      // ProseMirror state so the drag snaps (and the readout reads) against
+      // this grid's own column count
+      const view = viewRef.current;
+      const pos = getPosRef.current();
+      let columns = GRID_DEFAULT_COLUMNS;
+      if (view && pos != null) {
+        const parent = view.state.doc.resolve(pos).parent;
+        if (parent.type.name === 'grid') columns = parent.attrs.columns;
+      }
+      const startSpan = clampSpan(node.attrs.span, columns);
       dragRef.current = {
         startX: event.clientX,
         startWidth: rect.width,
@@ -146,12 +134,14 @@ export function GridCellView(props: NodeViewProps) {
         // we never need to reason about where the row wraps
         pitch: (rect.width + gap) / startSpan,
         gap,
+        columns,
         lastSpan: startSpan,
       };
+      setResizeLabel({ span: startSpan, columns });
       window.addEventListener('pointermove', onDragMove);
       window.addEventListener('pointerup', onDragEnd);
     },
-    [node.attrs.span, onDragMove, onDragEnd]
+    [node.attrs.span, onDragMove, onDragEnd, viewRef]
   );
 
   useEffect(() => {
@@ -173,9 +163,15 @@ export function GridCellView(props: NodeViewProps) {
       data-span={span}
     >
       {children}
+      {resizeLabel && (
+        <span className={resizeBadgeClass} contentEditable={false} aria-hidden="true">
+          {resizeLabel.span}/{resizeLabel.columns}
+        </span>
+      )}
       <span
         contentEditable={false}
         className={resizeHandleClass}
+        data-resize-grip=""
         onPointerDown={startDrag}
         aria-hidden="true"
       />
@@ -185,12 +181,9 @@ export function GridCellView(props: NodeViewProps) {
 
 const gridClass = css({
   display: 'grid',
-  gridTemplateColumns: `repeat(${GRID_COLUMNS}, minmax(0, 1fr))`,
-  gap: GRID_GAP,
+  // `gap` and `grid-template-columns` are applied inline from the node attrs;
+  // no border/padding on the container itself
   alignItems: 'stretch',
-  border: `1px dashed ${tokenSchema.color.border.neutral}`,
-  borderRadius: tokenSchema.size.radius.regular,
-  padding: tokenSchema.size.space.regular,
   marginBlock: '1em',
 });
 
@@ -207,9 +200,16 @@ const cellClass = css({
   padding: tokenSchema.size.space.small,
   outline: `1px dashed ${tokenSchema.color.border.muted}`,
   outlineOffset: -1,
-  // click a cell to focus it — just an outline, no fill (per the design)
+  // click a cell to focus it — a solid, saturated primary/accent outline
+  // (foreground.accent = the strong indigo, not the faint indigo6 border
+  // token) makes it obvious which item is the active target
   '&:focus-within': {
-    outline: `2px solid ${tokenSchema.color.alias.borderSelected}`,
+    outline: `2px solid ${tokenSchema.color.foreground.accent}`,
+    outlineOffset: -1,
+  },
+  // the resize grip only appears while the cell is hovered or focused
+  '&:hover [data-resize-grip], &:focus-within [data-resize-grip]': {
+    opacity: 1,
   },
 });
 
@@ -217,41 +217,51 @@ const resizeHandleClass = css({
   position: 'absolute',
   top: 0,
   bottom: 0,
-  insetInlineEnd: -tokenSchema.size.space.small,
-  width: tokenSchema.size.space.medium,
-  cursor: 'col-resize',
-  touchAction: 'none',
-  zIndex: 1,
-  '&::after': {
-    content: '""',
-    position: 'absolute',
-    top: '50%',
-    insetInlineEnd: '50%',
-    transform: 'translate(50%, -50%)',
-    height: '40%',
-    width: 2,
-    borderRadius: 1,
-    backgroundColor: tokenSchema.color.border.emphasis,
-    opacity: 0,
-  },
-  '&:hover::after': {
-    opacity: 1,
-  },
-});
-
-const appendCellClass = css({
-  gridColumn: 'span 2',
+  // straddle the cell's right edge (sitting in the grid gap) with a wide
+  // enough hit zone to grab easily
+  insetInlineEnd: `calc(${tokenSchema.size.space.regular} * -0.5)`,
+  width: tokenSchema.size.space.large,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  minHeight: tokenSchema.size.scale[600],
-  border: `1px dashed ${tokenSchema.color.border.neutral}`,
-  borderRadius: tokenSchema.size.radius.small,
-  color: tokenSchema.color.foreground.neutralSecondary,
-  backgroundColor: 'transparent',
-  cursor: 'pointer',
-  '&:hover': {
-    borderColor: tokenSchema.color.alias.borderHovered,
-    color: tokenSchema.color.foreground.neutral,
+  cursor: 'col-resize',
+  touchAction: 'none',
+  zIndex: 2,
+  // hidden until the cell is hovered/focused (revealed by `cellClass`)
+  opacity: 0,
+  transition: 'opacity 0.15s',
+  // a vertical grip; highlighted when the grip itself is hovered
+  '&::after': {
+    content: '""',
+    height: '55%',
+    minHeight: 20,
+    width: tokenSchema.size.space.xsmall,
+    borderRadius: tokenSchema.size.radius.full,
+    backgroundColor: tokenSchema.color.border.emphasis,
+    transition: 'background-color 0.15s, transform 0.15s',
+  },
+  '&:hover::after': {
+    backgroundColor: tokenSchema.color.alias.borderSelected,
+    transform: 'scaleX(1.6)',
   },
 });
+
+// the "span / columns" pill shown at the cell's top-right while resizing
+const resizeBadgeClass = css({
+  position: 'absolute',
+  top: tokenSchema.size.space.small,
+  insetInlineEnd: tokenSchema.size.space.small,
+  zIndex: 3,
+  pointerEvents: 'none',
+  paddingBlock: tokenSchema.size.space.xsmall,
+  paddingInline: tokenSchema.size.space.small,
+  borderRadius: tokenSchema.size.radius.small,
+  backgroundColor: tokenSchema.color.foreground.neutralSecondary,
+  color: tokenSchema.color.foreground.inverse,
+  fontSize: tokenSchema.typography.text.small.size,
+  fontWeight: tokenSchema.typography.fontWeight.medium,
+  lineHeight: 1,
+  fontVariantNumeric: 'tabular-nums',
+  whiteSpace: 'nowrap',
+});
+

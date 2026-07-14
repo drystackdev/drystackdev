@@ -48,9 +48,13 @@ import {
   insertGrid,
   cellStyleString,
   parseGridColumnSpan,
+  parseGridColumns,
   parsePlaceContent,
-  GRID_CONTAINER_STYLE,
+  parseGridGap,
+  gridContainerStyle,
   GRID_DEFAULT_SPAN,
+  GRID_DEFAULT_GAP,
+  GRID_DEFAULT_COLUMNS,
 } from './grid';
 import {
   imageLayoutFromElement,
@@ -539,6 +543,11 @@ const nodeSpecs = {
     group: 'block',
     isolating: true,
     defining: true,
+    attrs: {
+      gap: { default: GRID_DEFAULT_GAP },
+      // number of grid tracks (configurable per grid via the settings popover)
+      columns: { default: GRID_DEFAULT_COLUMNS },
+    },
     insertMenu: {
       label: 'Grid',
       description: 'Insert a multi-column layout',
@@ -548,9 +557,30 @@ const nodeSpecs = {
     reactNodeView: {
       component: GridNodeView,
     },
-    parseDOM: [{ tag: 'div[data-dry-grid]' }],
-    toDOM() {
-      return ['div', { 'data-dry-grid': '', style: GRID_CONTAINER_STYLE }, 0];
+    parseDOM: [
+      {
+        tag: 'div[data-dry-grid]',
+        getAttrs(dom) {
+          if (typeof dom === 'string') {
+            return { gap: GRID_DEFAULT_GAP, columns: GRID_DEFAULT_COLUMNS };
+          }
+          const style = dom.getAttribute('style') ?? '';
+          return {
+            gap: parseGridGap(style),
+            columns: parseGridColumns(style),
+          };
+        },
+      },
+    ],
+    toDOM(node) {
+      return [
+        'div',
+        {
+          'data-dry-grid': '',
+          style: gridContainerStyle(node.attrs.gap, node.attrs.columns),
+        },
+        0,
+      ];
     },
   },
   grid_cell: {
@@ -575,8 +605,14 @@ const nodeSpecs = {
             return { span: GRID_DEFAULT_SPAN, place: null };
           }
           const style = dom.getAttribute('style') ?? '';
+          // clamp the span against the parent grid's own column count (read
+          // off the container) so a pasted cell can't exceed its grid
+          const gridEl = dom.closest('[data-dry-grid]');
+          const columns = gridEl
+            ? parseGridColumns(gridEl.getAttribute('style') ?? '')
+            : GRID_DEFAULT_COLUMNS;
           return {
-            span: parseGridColumnSpan(style),
+            span: parseGridColumnSpan(style, columns),
             place: parsePlaceContent(style),
           };
         },

@@ -1,120 +1,245 @@
-import { useState } from 'react';
-import { Node } from 'prosemirror-model';
-import { EditorState } from 'prosemirror-state';
+import { useState } from "react";
+import { Node } from "prosemirror-model";
+import { EditorState } from "prosemirror-state";
 
-import { ActionButton } from '@keystar/ui/button';
-import { AlertDialog, DialogContainer } from '@keystar/ui/dialog';
-import { Icon } from '@keystar/ui/icon';
-import { settingsIcon } from '@keystar/ui/icon/icons/settingsIcon';
-import { layoutGridIcon } from '@keystar/ui/icon/icons/layoutGridIcon';
-import { trash2Icon } from '@keystar/ui/icon/icons/trash2Icon';
-import { Divider, Flex } from '@keystar/ui/layout';
-import { MenuTrigger, Menu, Section } from '@keystar/ui/menu';
-import { TooltipTrigger, Tooltip } from '@keystar/ui/tooltip';
-import { Item } from '@react-stately/collections';
-
-import { useEditorDispatchCommand, useEditorState } from '../editor-view';
+import { ActionButton } from "@keystar/ui/button";
 import {
-  addCellAfterFocused,
+  AlertDialog,
+  DialogContainer,
+  DialogTrigger,
+} from "@keystar/ui/dialog";
+import { Icon } from "@keystar/ui/icon";
+import { settingsIcon } from "@keystar/ui/icon/icons/settingsIcon";
+import { layoutGridIcon } from "@keystar/ui/icon/icons/layoutGridIcon";
+import { trash2Icon } from "@keystar/ui/icon/icons/trash2Icon";
+import { Divider, Flex } from "@keystar/ui/layout";
+import { Picker, Item } from "@keystar/ui/picker";
+import { css, tokenSchema } from "@keystar/ui/style";
+import { TooltipTrigger, Tooltip } from "@keystar/ui/tooltip";
+
+import { useEditorDispatchCommand, useEditorState } from "../editor-view";
+import {
   appendCellToGrid,
   deleteFocusedCell,
   findGridCell,
   gridHasContent,
   setFocusedCellPlace,
+  setGridColumns,
   GridPlace,
-} from '../grid';
+  GRID_GAP_OPTIONS,
+  GRID_COLUMN_OPTIONS,
+} from "../grid";
 
-const cellActions: Record<string, { label: string; command: typeof addCellAfterFocused }> = {
-  addColumn: { label: 'Add column', command: addCellAfterFocused },
-  addItem: { label: 'Add item', command: appendCellToGrid },
-  deleteItem: { label: 'Delete item', command: deleteFocusedCell },
-};
-
-// requires a focused cell to make sense (append is grid-scoped, but keeping it
-// grouped keeps the menu simple; it stays enabled)
-const cellScopedKeys = new Set(['addColumn', 'deleteItem']);
-
-function GridSettingsMenu(props: { state: EditorState }) {
+// The gear opens a settings panel (keystar's Menu has no nested submenus, so
+// the grid-wide controls — columns, gap — live in a popover instead of as
+// separate toolbar buttons). "Delete item" needs a focused cell to target;
+// "Add item" is grid-scoped, so it stays enabled regardless.
+function GridSettingsMenu(props: {
+  node: Node;
+  state: EditorState;
+  pos: number;
+}) {
   const runCommand = useEditorDispatchCommand();
   const hasCell = findGridCell(props.state) !== null;
-  const disabledKeys = hasCell
-    ? []
-    : [...cellScopedKeys].filter(key => key in cellActions);
+  const columns = String(props.node.attrs.columns);
+  const gap = props.node.attrs.gap as string;
   return (
-    <TooltipTrigger>
-      <MenuTrigger>
-        <ActionButton prominence="low" aria-label="Grid settings">
-          <Icon src={settingsIcon} />
-        </ActionButton>
-        <Menu
-          disabledKeys={disabledKeys}
-          onAction={key => {
-            const action = cellActions[key as string];
-            if (action) runCommand(action.command);
+    <DialogTrigger type="popover" hideArrow>
+      <ActionButton prominence="low" aria-label="Grid settings">
+        <Icon src={settingsIcon} />
+      </ActionButton>
+      <Flex
+        direction="column"
+        gap="large"
+        padding="large"
+        UNSAFE_style={{ minWidth: 200 }}
+      >
+        <Picker
+          label="Columns"
+          selectedKey={columns}
+          onSelectionChange={(key) => {
+            runCommand(setGridColumns(props.pos, parseInt(String(key), 10)));
           }}
         >
-          {Object.entries(cellActions).map(([key, action]) => (
-            <Item key={key}>{action.label}</Item>
+          {GRID_COLUMN_OPTIONS.map((cols) => (
+            <Item key={String(cols)}>{String(cols)}</Item>
           ))}
-        </Menu>
-      </MenuTrigger>
-      <Tooltip>Grid settings</Tooltip>
-    </TooltipTrigger>
+        </Picker>
+        <Picker
+          label="Gap"
+          selectedKey={gap}
+          onSelectionChange={(key) => {
+            const value = String(key);
+            runCommand((state, dispatch) => {
+              if (dispatch) {
+                dispatch(state.tr.setNodeAttribute(props.pos, "gap", value));
+              }
+              return true;
+            });
+          }}
+        >
+          {GRID_GAP_OPTIONS.map((g) => (
+            <Item key={g}>{g}</Item>
+          ))}
+        </Picker>
+        <ActionButton onPress={() => runCommand(appendCellToGrid)}>
+          Add item
+        </ActionButton>
+        <ActionButton
+          isDisabled={!hasCell}
+          onPress={() => runCommand(deleteFocusedCell)}
+        >
+          Delete item
+        </ActionButton>
+      </Flex>
+    </DialogTrigger>
   );
 }
 
-// 3×3 flex/grid placement picker — sets the focused cell's `place-content`
-const VERTICAL: readonly [string, string][] = [
-  ['start', 'Top'],
-  ['center', 'Middle'],
-  ['end', 'Bottom'],
-];
-const HORIZONTAL: readonly [string, string][] = [
-  ['start', 'left'],
-  ['center', 'center'],
-  ['end', 'right'],
+// Item layout — an icon button that opens a 3×3 alignment picker built from
+// Tabler `box-align-*` glyphs (a box with the marker in the matching corner /
+// edge; the plain box = center). The cell matching the focused cell's current
+// placement is highlighted; clicking it again clears back to the default
+// (top, full width). The popover stays open on click so several alignments
+// can be tried in a row.
+const PLACES: { place: GridPlace; label: string; path: string }[] = [
+  {
+    place: "start start",
+    label: "Top left",
+    path: "M11 5v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1m4-1h-.01M20 4h-.01M20 9h-.01m.01 6h-.01M4 15h-.01M20 20h-.01M15 20h-.01M9 20h-.01M4 20h-.01",
+  },
+  {
+    place: "start center",
+    label: "Top center",
+    path: "M4 10.005h16v-5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1zm0 5v-.01m0 5.01v-.01m5 .01v-.01m6 .01v-.01m5 .01v-.01m0-4.99v-.01",
+  },
+  {
+    place: "start end",
+    label: "Top right",
+    path: "M19 11.01h-5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1m1 4V15m0 5.01V20m-5 .01V20m-6 .01V20M9 4.01V4M4 20.01V20m0-4.99V15m0-5.99V9m0-4.99V4",
+  },
+  {
+    place: "center start",
+    label: "Middle left",
+    path: "M10.002 20.003v-16h-5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1zm5 0h-.01m5.011 0h-.011m.011-5.001h-.011m.011-6h-.011m.011-5h-.011m-4.99 0h-.01",
+  },
+  {
+    place: "center center",
+    label: "Center",
+    path: "m12 3l8 4.5v9L12 21l-8-4.5v-9zm0 9l8-4.5M12 12v9m0-9L4 7.5",
+  },
+  {
+    place: "center end",
+    label: "Middle right",
+    path: "M13.998 20.003v-16h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1zm-5 0h.01m-5.011 0h.011m-.011-5.001h.011m-.011-6h.011m-.011-5h.011m4.99 0h.01",
+  },
+  {
+    place: "end start",
+    label: "Bottom left",
+    path: "M5 13h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1M4 9v.01M4 4v.01M9 4v.01M15 4v.01M15 20v.01M20 4v.01M20 9v.01M20 15v.01M20 20v.01",
+  },
+  {
+    place: "end center",
+    label: "Bottom center",
+    path: "M4 14h16v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zm0-5v.01M4 4v.01M9 4v.01M15 4v.01M20 4v.01M20 9v.01",
+  },
+  {
+    place: "end end",
+    label: "Bottom right",
+    path: "M19 13h-5a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1m1-4v.01M20 4v.01M15 4v.01M9 4v.01M9 20v.01M4 4v.01M4 9v.01M4 15v.01M4 20v.01",
+  },
 ];
 
 function GridLayoutMenu(props: { state: EditorState }) {
   const runCommand = useEditorDispatchCommand();
-  const hasCell = findGridCell(props.state) !== null;
+  const cell = findGridCell(props.state);
+  const current: GridPlace = cell?.node.attrs.place ?? null;
   return (
-    <TooltipTrigger>
-      <MenuTrigger>
-        <ActionButton
-          prominence="low"
-          isDisabled={!hasCell}
-          aria-label="Item layout"
-        >
-          <Icon src={layoutGridIcon} />
-        </ActionButton>
-        <Menu
-          onAction={key => {
-            if (key === 'none') {
-              runCommand(setFocusedCellPlace(null));
-            } else {
-              runCommand(setFocusedCellPlace(key as GridPlace));
-            }
-          }}
-        >
-          <Section key="positions">
-            {VERTICAL.flatMap(([vValue, vLabel]) =>
-              HORIZONTAL.map(([hValue, hLabel]) => (
-                <Item key={`${vValue} ${hValue}`}>{`${vLabel} ${hLabel}`}</Item>
-              ))
-            )}
-          </Section>
-          <Section key="reset">
-            <Item key="none">Reset (top, full width)</Item>
-          </Section>
-        </Menu>
-      </MenuTrigger>
-      <Tooltip>Item layout</Tooltip>
-    </TooltipTrigger>
+    <DialogTrigger type="popover" hideArrow>
+      <ActionButton
+        prominence="low"
+        isDisabled={!cell}
+        aria-label="Item layout"
+      >
+        <Icon src={layoutGridIcon} />
+      </ActionButton>
+      <div className={layoutPanelClass} role="group" aria-label="Item layout">
+        {PLACES.map(({ place, label, path }) => {
+          const active = current === place;
+          return (
+            <button
+              key={place ?? "none"}
+              type="button"
+              aria-label={label}
+              aria-pressed={active}
+              className={active ? layoutCellActiveClass : layoutCellClass}
+              // keep the editor selection inside the focused cell — otherwise
+              // pressing would blur it before the command runs
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() =>
+                runCommand(setFocusedCellPlace(active ? null : place))
+              }
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width={18}
+                height={18}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d={path} />
+              </svg>
+            </button>
+          );
+        })}
+      </div>
+    </DialogTrigger>
   );
 }
 
-export function GridPopover(props: { node: Node; state: EditorState; pos: number }) {
+const layoutPanelClass = css({
+  display: "grid",
+  gridTemplateColumns: "repeat(3, auto)",
+  gap: tokenSchema.size.space.xsmall,
+  padding: tokenSchema.size.space.regular,
+});
+
+const layoutCellClass = css({
+  width: 28,
+  height: 28,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 0,
+  border: "none",
+  background: "transparent",
+  cursor: "pointer",
+  borderRadius: tokenSchema.size.radius.small,
+  color: tokenSchema.color.foreground.neutralSecondary,
+  "&:hover": { color: tokenSchema.color.foreground.neutral },
+});
+
+// mirror keystar's selected low-prominence ActionButton (neutralSecondary
+// fill, inverse foreground) so the active cell matches every other selected
+// button — the old accent fill + canvas foreground read as hardcoded black
+const layoutCellActiveClass = css(layoutCellClass, {
+  backgroundColor: tokenSchema.color.foreground.neutralSecondary,
+  color: tokenSchema.color.foreground.inverse,
+  "&:hover": {
+    backgroundColor: tokenSchema.color.foreground.neutral,
+    color: tokenSchema.color.foreground.inverse,
+  },
+});
+
+export function GridPopover(props: {
+  node: Node;
+  state: EditorState;
+  pos: number;
+}) {
   const runCommand = useEditorDispatchCommand();
   const state = useEditorState();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -130,7 +255,7 @@ export function GridPopover(props: { node: Node; state: EditorState; pos: number
 
   return (
     <Flex gap="regular" padding="regular" alignItems="center">
-      <GridSettingsMenu state={state} />
+      <GridSettingsMenu node={props.node} state={state} pos={props.pos} />
       <GridLayoutMenu state={state} />
       <Divider orientation="vertical" />
       <TooltipTrigger>
