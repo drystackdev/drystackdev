@@ -2,3 +2,5 @@ text: Nội dung text 123456
 image: /assets/IMG_8972.JPG
 array:
   - item 1
+  - item 3
+  - item 2

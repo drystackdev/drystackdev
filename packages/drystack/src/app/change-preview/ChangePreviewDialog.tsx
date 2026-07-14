@@ -1,4 +1,5 @@
 import { ReactNode, useState } from 'react';
+import { useLocalizedStringFormatter } from '@react-aria/i18n';
 import { ActionButton, Button, ButtonGroup } from '@keystar/ui/button';
 import { Dialog, useDialogContainer } from '@keystar/ui/dialog';
 import { Icon } from '@keystar/ui/icon';
@@ -9,6 +10,7 @@ import { Content } from '@keystar/ui/slots';
 import { css } from '@keystar/ui/style';
 import { Tooltip, TooltipTrigger } from '@keystar/ui/tooltip';
 import { Heading, Text } from '@keystar/ui/typography';
+import l10nMessages from '../l10n';
 
 // Raw markup styling for the accordion — kept as scoped emotion classes
 // (rather than a global stylesheet like VEI's old editor.css) so this
@@ -90,7 +92,7 @@ export function ChangePreviewDialog({
   changes,
   onDelete,
   renderImage,
-  title = 'Review changes',
+  title,
 }: {
   changes: FieldChange[] | null;
   onDelete?: (key: string) => void;
@@ -98,13 +100,17 @@ export function ChangePreviewDialog({
   title?: string;
 }) {
   const { dismiss } = useDialogContainer();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
+  const dialogTitle = title ?? stringFormatter.format('reviewChanges');
 
   return (
-    <Dialog size="large" aria-label={title}>
-      <Heading>{title}</Heading>
+    <Dialog size="large" aria-label={dialogTitle}>
+      <Heading>{dialogTitle}</Heading>
       <Content>
-        {!changes && <Text>Loading…</Text>}
-        {changes?.length === 0 && <Text>No changes.</Text>}
+        {!changes && <Text>{stringFormatter.format('loading')}…</Text>}
+        {changes?.length === 0 && (
+          <Text>{stringFormatter.format('noChanges')}</Text>
+        )}
         {changes && changes.length > 0 && (
           <div>
             {changes.map((c, i) => (
@@ -120,7 +126,7 @@ export function ChangePreviewDialog({
         )}
       </Content>
       <ButtonGroup>
-        <Button onPress={dismiss}>Close</Button>
+        <Button onPress={dismiss}>{stringFormatter.format('close')}</Button>
       </ButtonGroup>
     </Dialog>
   );
@@ -138,6 +144,7 @@ function FieldDiffView({
   renderImage?: (path: string) => ReactNode;
 }) {
   const [open, setOpen] = useState(!!defaultOpen);
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const lines = diffLines(change.before, change.after);
   return (
     <div className={accordionItem}>
@@ -162,12 +169,12 @@ function FieldDiffView({
           <TooltipTrigger>
             <ActionButton
               prominence="low"
-              aria-label="Discard this change"
+              aria-label={stringFormatter.format('discardThisChange')}
               onPress={() => onDelete(change.key)}
             >
               <Icon src={trash2Icon} />
             </ActionButton>
-            <Tooltip>Discard this change</Tooltip>
+            <Tooltip>{stringFormatter.format('discardThisChange')}</Tooltip>
           </TooltipTrigger>
         )}
       </div>
@@ -238,8 +245,11 @@ function FieldDiffView({
 // cache) and hand it here, instead of re-declaring the "no image yet" check
 // and its markup on both sides.
 export function ImageThumbFrame({ path, src }: { path: string; src: string }) {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   if (!path) {
-    return <Text color="neutralSecondary">No image</Text>;
+    return (
+      <Text color="neutralSecondary">{stringFormatter.format('noImage')}</Text>
+    );
   }
   return (
     <img
@@ -266,6 +276,7 @@ function ImageDiffView({
   after: string;
   renderImage?: (path: string) => ReactNode;
 }) {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const render = renderImage ?? (path => <ImageThumbFrame path={path} src={path} />);
   return (
     <div
@@ -278,12 +289,16 @@ function ImageDiffView({
       }}
     >
       <Flex direction="column" gap="small">
-        <Text size="small" color="neutralSecondary">Before</Text>
+        <Text size="small" color="neutralSecondary">
+          {stringFormatter.format('before')}
+        </Text>
         {render(before)}
       </Flex>
       <Icon src={chevronRightIcon} />
       <Flex direction="column" gap="small">
-        <Text size="small" color="neutralSecondary">After</Text>
+        <Text size="small" color="neutralSecondary">
+          {stringFormatter.format('after')}
+        </Text>
         {render(after)}
       </Flex>
     </div>

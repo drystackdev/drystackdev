@@ -65,7 +65,12 @@ export function EditorRoot({ config }: { config: Config<any, any> }) {
     };
   }, []);
   return (
-    <KeystarProvider colorScheme={scheme}>
+    // Pin the locale the same way the admin's own Provider does
+    // (packages/drystack/src/app/provider.tsx) — without this,
+    // KeystarProvider falls back to the visitor's browser language, so a
+    // Vietnamese-locale browser would render this dialog in Vietnamese while
+    // the admin (which forces config.locale || 'en-US') stayed in English.
+    <KeystarProvider colorScheme={scheme} locale={config.locale || 'en-US'}>
       <Toolbar config={config} />
       <Toaster />
     </KeystarProvider>

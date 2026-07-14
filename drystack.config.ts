@@ -455,7 +455,10 @@ export default config({
       schema: {
         text: fields.text({label: "[field.Text]"}),
         image: fields.image({label: "[field.Image]"}),
-        array: fields.array(fields.text({label: "[field.Array[]]"}), {label: "[field.Array]"})
+        array: fields.array(fields.text({label: "[field.Array[]]"}), {
+          label: "[field.Array]",
+          itemLabel: (props) => props.value || "Item mới",
+        })
       }
     })
   }
