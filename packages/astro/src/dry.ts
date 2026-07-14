@@ -3,16 +3,25 @@ import type { EntryWithResolvedLinkedFiles } from '@drystack/core/reader';
 import { getSyncableFieldKind } from '@drystack/core/edit-sync';
 import { createConfiguredReader } from './reader';
 
-export type DryItem = { 'data-dry': string; 'data-dry-kind': 'text' | 'image' };
+export type DryItem = {
+  'data-dry': string;
+  'data-dry-kind': 'text' | 'image' | 'array';
+};
 
 type SchemaOf<S> = S extends Singleton<infer Schema> ? Schema : never;
+
+// Plain field ("heading") or one level into a fields.array ("array.0") — the
+// two path shapes readSingleton()'s item() actually supports, see dry.ts.
+type DryFieldPath<S> =
+  | (keyof SchemaOf<S> & string)
+  | `${keyof SchemaOf<S> & string}.${number}`;
 
 export type DrySingleton<
   S extends Singleton<Record<string, ComponentSchema>> = Singleton<
     Record<string, ComponentSchema>
   >,
 > = EntryWithResolvedLinkedFiles<S> & {
-  item(field: keyof SchemaOf<S> & string): DryItem | {};
+  item(field: DryFieldPath<S>): DryItem | {};
 };
 
 /**
@@ -68,19 +77,44 @@ async function readSingleton(
   Object.defineProperty(result, 'item', {
     enumerable: false,
     value(field: string) {
-      const fieldSchema = schema[field];
       // Shared with the admin's edit-sync effects (SingletonPage.tsx) so both
       // surfaces recognize the same fields the same way. MVP scope: flat
-      // top-level fields.text ('slug' formKind) and fields.image
-      // ('image' columnKind) only — see plan/vistual-editing-inline.md.
-      const kind = getSyncableFieldKind(fieldSchema);
-      if (!kind) {
+      // top-level fields.text ('slug' formKind), fields.image ('image'
+      // columnKind), and fields.array of a fields.text element (one path
+      // segment deeper, e.g. "array.0") — see plan/vei-array-object.md.
+      const [baseField, ...rest] = field.split('.');
+      const baseSchema = schema[baseField];
+
+      if (rest.length === 0) {
+        const kind = getSyncableFieldKind(baseSchema);
+        if (!kind) {
+          console.warn(
+            `[drystack] dry(): field "${field}" on singleton "${name}" is not fields.text, fields.image, or fields.array — skipping data-dry attribute.`
+          );
+          return {};
+        }
+        return { 'data-dry': `singleton::${name}::${field}`, 'data-dry-kind': kind };
+      }
+
+      // Nested path — MVP only supports one level deep, indexing into a
+      // fields.array whose element is itself fields.text (array-of-object is
+      // deferred, see plan).
+      if (rest.length !== 1 || !baseSchema || baseSchema.kind !== 'array') {
         console.warn(
-          `[drystack] dry(): field "${field}" on singleton "${name}" is not fields.text or fields.image — skipping data-dry attribute.`
+          `[drystack] dry(): "${field}" on singleton "${name}" is not a supported array item path — skipping data-dry attribute.`
         );
         return {};
       }
-      return { 'data-dry': `singleton::${name}::${field}`, 'data-dry-kind': kind };
+      const elementKind = getSyncableFieldKind(
+        (baseSchema as { element: ComponentSchema }).element
+      );
+      if (elementKind !== 'text') {
+        console.warn(
+          `[drystack] dry(): array "${baseField}" on singleton "${name}" is not an array of fields.text — array-of-object item editing isn't supported yet.`
+        );
+        return {};
+      }
+      return { 'data-dry': `singleton::${name}::${field}`, 'data-dry-kind': elementKind };
     },
   });
   return result;

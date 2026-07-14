@@ -1,6 +1,15 @@
-import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import React, {
+  FormEvent,
+  lazy,
+  Suspense,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { createPortal } from 'react-dom';
-import type { Config } from '@drystack/core';
+import type { ArrayField, ComponentSchema, Config } from '@drystack/core';
 import { getSingletonPath } from '@drystack/core/path-utils';
 import {
   openMediaLibrary,
@@ -10,8 +19,8 @@ import {
 // @ts-expect-error — provided by the drystack Astro integration's Vite plugin
 import apiPath from 'virtual:drystack-path';
 import { Badge } from '@keystar/ui/badge';
-import { ActionButton, Button } from '@keystar/ui/button';
-import { DialogContainer } from '@keystar/ui/dialog';
+import { ActionButton, Button, ButtonGroup } from '@keystar/ui/button';
+import { Dialog, DialogContainer } from '@keystar/ui/dialog';
 import { Icon } from '@keystar/ui/icon';
 import { editIcon } from '@keystar/ui/icon/icons/editIcon';
 import { xIcon } from '@keystar/ui/icon/icons/xIcon';
@@ -20,16 +29,26 @@ import { eyeIcon } from '@keystar/ui/icon/icons/eyeIcon';
 import { externalLinkIcon } from '@keystar/ui/icon/icons/externalLinkIcon';
 import { rotateCcwIcon } from '@keystar/ui/icon/icons/rotateCcwIcon';
 import { rocketIcon } from '@keystar/ui/icon/icons/rocketIcon';
+import { slidersIcon } from '@keystar/ui/icon/icons/slidersIcon';
+import { VStack } from '@keystar/ui/layout';
+import { Content } from '@keystar/ui/slots';
 import { toastQueue } from '@keystar/ui/toast';
 import { Tooltip, TooltipTrigger } from '@keystar/ui/tooltip';
+import { Heading } from '@keystar/ui/typography';
 import {
   ChangePreviewDialog,
   ImageThumbFrame,
   type FieldChange,
 } from '@drystack/core/change-preview';
 import {
+  createGetPreviewProps,
+  FormValueContentFromPreviewProps,
+  clientSideValidateProp,
+} from '@drystack/core/field-editor';
+import {
   enableEditing,
   disableEditing,
+  getArrayValueFromDom,
   getOriginalValue,
   refreshFromLatestSource,
   resetPendingEdits,
@@ -152,6 +171,25 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [spots, setSpots] = useState<Spot[]>([]);
 
+  // Array-field gear button — a floating icon portaled to <body>, shown
+  // while hovering any fields.array container spot in edit mode (identified
+  // by data-dry-kind="array", set server-side by dry.item()), positioned
+  // over that element via getBoundingClientRect. Clicking it opens
+  // ArrayFieldDialog, which renders the exact admin editor for that array
+  // (see field-editor.tsx re-exports).
+  const [arrayGearSpot, setArrayGearSpot] = useState<{
+    key: string;
+    rect: DOMRect;
+  } | null>(null);
+  const [arrayDialogKey, setArrayDialogKey] = useState<string | null>(null);
+  const arrayGearCloseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  );
+  // The element currently backing arrayGearSpot, kept around purely so
+  // scroll/resize can recompute its rect — getBoundingClientRect() is
+  // viewport-relative and goes stale the instant the page scrolls.
+  const arrayGearElRef = useRef<HTMLElement | null>(null);
+
   // Deploy menu — a second pill (brand name + Deploy), github-only, mutually
   // exclusive with the edit menu it sits beside.
   const isGithub = config.storage.kind === 'github';
@@ -186,6 +224,60 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     return subscribeEdits(() => refreshCount());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Hover detection for the array-field gear button — only active in edit
+  // mode. Delegated at the document level (capture phase) rather than one
+  // listener per spot, since spots can appear/disappear as the array grows
+  // or shrinks via template-clone (see bind.ts's renderArray).
+  useEffect(() => {
+    if (!editing) {
+      arrayGearElRef.current = null;
+      setArrayGearSpot(null);
+      return;
+    }
+    const onOver = (e: MouseEvent) => {
+      const el = (e.target as HTMLElement)?.closest<HTMLElement>(
+        '[data-dry-kind="array"]'
+      );
+      if (!el) return;
+      const key = el.getAttribute('data-dry');
+      if (!key) return;
+      clearTimeout(arrayGearCloseTimer.current);
+      arrayGearElRef.current = el;
+      setArrayGearSpot({ key, rect: el.getBoundingClientRect() });
+    };
+    const onOut = (e: MouseEvent) => {
+      const related = e.relatedTarget as HTMLElement | null;
+      if (
+        related?.closest('[data-dry-kind="array"]') ||
+        related?.closest('.dry-array-gear')
+      ) {
+        return;
+      }
+      arrayGearCloseTimer.current = setTimeout(() => {
+        arrayGearElRef.current = null;
+        setArrayGearSpot(null);
+      }, 140);
+    };
+    // Capture phase + scroll's non-bubbling nature: this also catches scrolls
+    // inside nested scroll containers, not just the window.
+    const onReposition = () => {
+      const el = arrayGearElRef.current;
+      if (!el) return;
+      setArrayGearSpot(prev => (prev ? { ...prev, rect: el.getBoundingClientRect() } : prev));
+    };
+    document.addEventListener('mouseover', onOver, true);
+    document.addEventListener('mouseout', onOut, true);
+    document.addEventListener('scroll', onReposition, true);
+    window.addEventListener('resize', onReposition);
+    return () => {
+      document.removeEventListener('mouseover', onOver, true);
+      document.removeEventListener('mouseout', onOut, true);
+      document.removeEventListener('scroll', onReposition, true);
+      window.removeEventListener('resize', onReposition);
+      clearTimeout(arrayGearCloseTimer.current);
+    };
+  }, [editing]);
 
   // The admin's media-library picker (VeiMediaHost) — lazy-mounted once an
   // image spot is actually clicked, not on every page load (see the lazy()
@@ -552,8 +644,51 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
           document.body
         )}
 
+      {arrayGearSpot &&
+        createPortal(
+          <button
+            type="button"
+            className="dry-array-gear"
+            aria-label="Edit list"
+            disabled={(getArrayValueFromDom(arrayGearSpot.key)?.length ?? 0) === 0}
+            style={{
+              top: arrayGearSpot.rect.top + 6,
+              right: window.innerWidth - arrayGearSpot.rect.right + 6,
+            }}
+            onMouseEnter={() => clearTimeout(arrayGearCloseTimer.current)}
+            onMouseLeave={() => {
+              arrayGearCloseTimer.current = setTimeout(() => {
+                arrayGearElRef.current = null;
+                setArrayGearSpot(null);
+              }, 140);
+            }}
+            onClick={() => {
+              setArrayDialogKey(arrayGearSpot.key);
+              arrayGearElRef.current = null;
+              setArrayGearSpot(null);
+            }}
+          >
+            <Icon src={slidersIcon} />
+          </button>,
+          document.body
+        )}
+
       <DialogContainer onDismiss={() => setReviewOpen(false)}>
         {reviewOpen && <VeiReviewDialog config={config} onChange={refreshCount} />}
+      </DialogContainer>
+
+      <DialogContainer onDismiss={() => setArrayDialogKey(null)}>
+        {arrayDialogKey && (
+          <ArrayFieldDialog
+            config={config}
+            fieldKey={arrayDialogKey}
+            onClose={() => setArrayDialogKey(null)}
+            onSaved={() => {
+              refreshCount();
+              setSpots(readSpots());
+            }}
+          />
+        )}
       </DialogContainer>
 
       {mediaHostMounted && (
@@ -566,6 +701,105 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
         </Suspense>
       )}
     </div>
+  );
+}
+
+// Renders the exact admin editor (Add/Edit/Reorder/Delete) for one
+// fields.array field, seeded from its current live value (already up to
+// date with any pending item/container edits — see bind.ts's
+// getArrayValueFromDom). Reuses the admin's own field-rendering engine via
+// createGetPreviewProps + FormValueContentFromPreviewProps (see
+// field-editor.tsx) instead of a bespoke reimplementation — MVP scope is
+// array-of-fields.text only, see plan/vei-array-object.md.
+function ArrayFieldDialog({
+  config,
+  fieldKey,
+  onClose,
+  onSaved,
+}: {
+  config: Config<any, any>;
+  fieldKey: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [, name, field] = fieldKey.split('::');
+  const fieldSchema = config.singletons?.[name]?.schema?.[field] as
+    | ArrayField<ComponentSchema>
+    | undefined;
+  const [value, setValue] = useState<string[]>(
+    () => getArrayValueFromDom(fieldKey) ?? []
+  );
+  const [forceValidation, setForceValidation] = useState(false);
+  const formId = useId();
+
+  const getPreviewProps = useMemo(
+    () =>
+      fieldSchema
+        ? // ArrayField<ComponentSchema>'s element is the broad ComponentSchema
+          // union, so ParsedValueForComponentSchema resolves to a wide
+          // `readonly unknown[]`-ish type that setValue's narrower
+          // `string[]` updater doesn't structurally match — this dialog's
+          // MVP scope (dry.ts only allows array-of-fields.text, see
+          // plan/vei-array-object.md) guarantees the runtime shape is
+          // always string[].
+          createGetPreviewProps(fieldSchema, setValue as any, () => undefined)
+        : undefined,
+    [fieldSchema]
+  );
+
+  if (!fieldSchema || !getPreviewProps) return null;
+  const previewProps = getPreviewProps(value);
+
+  const onDone = async () => {
+    if (!clientSideValidateProp(fieldSchema, value, undefined)) {
+      setForceValidation(true);
+      return;
+    }
+    // A whole-array replace supersedes any inline item edits already queued
+    // for this array (typed into an item spot before this dialog was
+    // opened) — otherwise a stale array.N edit would win back over this
+    // index when the file is written (see save.ts's mergeFieldEdits, which
+    // layers item edits on top of the container edit).
+    const edits = await getAllEdits();
+    const itemPrefix = `${fieldKey}.`;
+    await Promise.all(
+      edits.filter(e => e.key.startsWith(itemPrefix)).map(e => publishDelete(e.key))
+    );
+    const busValue = JSON.stringify(value);
+    await publishEdit(fieldKey, busValue);
+    await applyEdit(fieldKey, busValue);
+    onSaved();
+    onClose();
+  };
+
+  return (
+    <Dialog>
+      <Heading>{fieldSchema.label}</Heading>
+      <Content>
+        <VStack
+          id={formId}
+          elementType="form"
+          onSubmit={(event: FormEvent) => {
+            if (event.target !== event.currentTarget) return;
+            event.preventDefault();
+            onDone();
+          }}
+          gap="xxlarge"
+        >
+          <FormValueContentFromPreviewProps
+            autoFocus
+            {...previewProps}
+            forceValidation={forceValidation}
+          />
+        </VStack>
+      </Content>
+      <ButtonGroup>
+        <Button onPress={onClose}>Hủy</Button>
+        <Button form={formId} prominence="high" type="submit">
+          Xong
+        </Button>
+      </ButtonGroup>
+    </Dialog>
   );
 }
 

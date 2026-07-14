@@ -20,7 +20,7 @@ const dry = await createDry(config).singleton.demo;
     )
   }
 
-  <ul {...dry.item("array")}>
+  <ul {...dry.item("array")} style="display: flex; flex-direction: column; gap: 1rem">
     {dry.array.map((i, idx)=><li {...dry.item(`array.${idx}`)}>{i}</li>)}
   </ul>
 </main>

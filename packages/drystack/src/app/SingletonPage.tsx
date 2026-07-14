@@ -380,17 +380,34 @@ function SingletonPageInner(
 // The edit-sync bus only carries strings (see edit-sync.ts's PendingEdit) —
 // fields.image's `null` (no image) is represented on the bus as '', the same
 // sentinel bind.ts's paintImage and the visual editor's save.ts already use.
-// fields.text values are always strings already, so they pass through as-is.
+// fields.array's array value is JSON-encoded, matching the encoding used
+// everywhere else on the bus (see bind.ts's parseArrayValue and the visual
+// editor's Toolbar.tsx/save.ts). fields.text values are always strings
+// already, so they pass through as-is.
 function toBusValue(kind: SyncableFieldKind, value: unknown): string | undefined {
   if (kind === 'image') {
     if (value === null) return '';
     return typeof value === 'string' ? value : undefined;
   }
+  if (kind === 'array') {
+    return Array.isArray(value) ? JSON.stringify(value) : undefined;
+  }
   return typeof value === 'string' ? value : undefined;
 }
 
-function fromBusValue(kind: SyncableFieldKind, busValue: string): string | null {
+function fromBusValue(
+  kind: SyncableFieldKind,
+  busValue: string
+): string | string[] | null {
   if (kind === 'image') return busValue === '' ? null : busValue;
+  if (kind === 'array') {
+    try {
+      const parsed = JSON.parse(busValue);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
   return busValue;
 }
 
@@ -426,7 +443,7 @@ function LocalSingletonPage(
   // Reset alongside `state` whenever the tree genuinely reloads (below):
   // the fresh `initialState` prop already carries these values then.
   const [committedOverrides, setCommittedOverrides] = useState<
-    Record<string, string | null>
+    Record<string, string | string[] | null>
   >({});
 
   useShowRestoredDraftMessage(draft, state, localTreeKey);
@@ -530,19 +547,48 @@ function LocalSingletonPage(
   // subscribed to the bus, so a live-only subscription would never see it.
   // Apply whatever is already there once, the same way the visual editor's
   // applyPendingEdits() does for the DOM on load.
+  //
+  // A fields.array field can have edits at two granularities: a whole-array
+  // replace (field === its base field, published by the visual editor's
+  // array dialog) and/or per-item edits (field === "baseField.N", typed
+  // inline into an item spot) — processed in two passes so a container edit
+  // is applied first and per-item edits then override individual indices on
+  // top of it, mirroring save.ts's mergeFieldEdits precedence.
   useEffect(() => {
     let cancelled = false;
     getAllEdits().then(edits => {
       if (cancelled) return;
-      const updates: Record<string, string | null> = {};
-      for (const edit of edits) {
-        const { type, name, field } = parseEditKey(edit.key);
-        if (type !== 'singleton' || name !== singleton) continue;
-        const kind = getSyncableFieldKind(singletonConfig.schema[field]);
+      const relevant = edits.filter(edit => {
+        const { type, name } = parseEditKey(edit.key);
+        return type === 'singleton' && name === singleton;
+      });
+      const updates: Record<string, unknown> = {};
+      for (const edit of relevant) {
+        const { field } = parseEditKey(edit.key);
+        const baseField = field.split('.')[0];
+        if (field !== baseField) continue;
+        const kind = getSyncableFieldKind(singletonConfig.schema[baseField]);
         if (!kind) continue;
         if (lastSyncedRef.current![field] === edit.value) continue;
-        updates[field] = fromBusValue(kind, edit.value);
         lastSyncedRef.current![field] = edit.value;
+        updates[baseField] = fromBusValue(kind, edit.value);
+      }
+      for (const edit of relevant) {
+        const { field } = parseEditKey(edit.key);
+        const baseField = field.split('.')[0];
+        if (field === baseField) continue;
+        const kind = getSyncableFieldKind(singletonConfig.schema[baseField]);
+        if (kind !== 'array') continue;
+        if (lastSyncedRef.current![field] === edit.value) continue;
+        lastSyncedRef.current![field] = edit.value;
+        if (!(baseField in updates)) {
+          const current = (stateRef.current as Record<string, unknown>)[baseField];
+          updates[baseField] = Array.isArray(current) ? [...current] : [];
+        }
+        const idx = Number(field.slice(baseField.length + 1));
+        if (Number.isInteger(idx) && idx >= 0) {
+          (updates[baseField] as unknown[])[idx] = edit.value;
+        }
       }
       if (Object.keys(updates).length > 0) {
         onPreviewPropsChange(s => ({ ...s, ...updates }));
@@ -580,18 +626,39 @@ function LocalSingletonPage(
       if (msg.type === 'set') {
         const { type, name, field } = parseEditKey(msg.key);
         if (type !== 'singleton' || name !== singleton) return;
-        const kind = getSyncableFieldKind(singletonConfig.schema[field]);
+        // A fields.array field's edit can be nested (baseField.N, a
+        // per-item inline edit) — the base field is what's tagged in the
+        // schema and on the form's own wrapper element either way.
+        const baseField = field.split('.')[0];
+        const kind = getSyncableFieldKind(singletonConfig.schema[baseField]);
         if (!kind) return;
         // Don't stomp on what the user is actively typing — the field's
         // wrapper div carries data-field (object/ui.tsx) for exactly this
         // check. Last-write-wins once they move on: either their own next
         // edit publishes over this, or a later message applies here.
         const fieldEl = document.querySelector(
-          `[data-field="${CSS.escape(field)}"]`
+          `[data-field="${CSS.escape(baseField)}"]`
         );
         if (fieldEl?.contains(document.activeElement)) return;
         lastSyncedRef.current![field] = msg.value;
-        onPreviewPropsChange(s => ({ ...s, [field]: fromBusValue(kind, msg.value) }));
+        if (field === baseField) {
+          onPreviewPropsChange(s => ({
+            ...s,
+            [baseField]: fromBusValue(kind, msg.value),
+          }));
+          return;
+        }
+        // Per-item array edit — splice the new value into a copy of the
+        // array's current state rather than replacing the whole field.
+        if (kind !== 'array') return;
+        const idx = Number(field.slice(baseField.length + 1));
+        if (!Number.isInteger(idx) || idx < 0) return;
+        onPreviewPropsChange(s => {
+          const current = (s as Record<string, unknown>)[baseField];
+          const arr = Array.isArray(current) ? [...current] : [];
+          arr[idx] = msg.value;
+          return { ...s, [baseField]: arr };
+        });
         return;
       }
       // 'delete' / 'clear' — the field(s) are no longer pending anywhere,
@@ -610,18 +677,19 @@ function LocalSingletonPage(
             })()
           : Object.keys(singletonConfig.schema);
       setCommittedOverrides(prev => {
-        let next: Record<string, string | null> | undefined;
+        let next: Record<string, string | string[] | null> | undefined;
         for (const field of fields) {
           const kind = getSyncableFieldKind(singletonConfig.schema[field]);
           if (!kind) continue;
           const value = (stateRef.current as Record<string, unknown>)[field];
           if (
             (kind === 'text' && typeof value !== 'string') ||
-            (kind === 'image' && typeof value !== 'string' && value !== null)
+            (kind === 'image' && typeof value !== 'string' && value !== null) ||
+            (kind === 'array' && !Array.isArray(value))
           ) {
             continue;
           }
-          const typedValue = value as string | null;
+          const typedValue = value as string | string[] | null;
           if (prev[field] === typedValue) continue;
           next ??= { ...prev };
           next[field] = typedValue;

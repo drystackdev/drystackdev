@@ -45,6 +45,88 @@ function isImageSpot(el: HTMLElement): boolean {
   return el.getAttribute('data-dry-kind') === 'image';
 }
 
+function isArraySpot(el: HTMLElement): boolean {
+  return el.getAttribute('data-dry-kind') === 'array';
+}
+
+// --- Array binding (template-clone) --------------------------------------
+//
+// A fields.array container (e.g. <ul {...dry.item('array')}>) renders its
+// items as ordinary child elements the page author wrote themselves (e.g.
+// <li {...dry.item('array.0')}>) — there's no framework-owned render function
+// to re-invoke when the array's length changes. Instead, the first existing
+// item element is captured as a per-container "template" the first time it's
+// seen; growing the array clones it, shrinking removes the trailing excess.
+// Only direct children of the container count as items (matches the
+// dry.item('array.N') convention) — this is the scoped MVP for array-of-text,
+// see plan/vei-array-object.md.
+const arrayTemplates = new Map<string, HTMLElement>();
+
+function getArrayItemChildren(container: HTMLElement, key: string): HTMLElement[] {
+  const prefix = `${key}.`;
+  return Array.from(container.children).filter(
+    (child): child is HTMLElement =>
+      child.getAttribute('data-dry')?.startsWith(prefix) === true
+  );
+}
+
+function readArrayValues(container: HTMLElement, key: string): string[] {
+  return getArrayItemChildren(container, key).map(el => el.textContent ?? '');
+}
+
+// Captures a clonable template from the first existing item, if one exists
+// and none has been captured yet — a container that had no items when first
+// seen has nothing to clone a shape from, so it never gets a template (the
+// toolbar's gear button stays disabled whenever an array has zero items on
+// the page, see Toolbar.tsx, which is what keeps this reachable state rare).
+function captureArrayTemplate(container: HTMLElement, key: string): HTMLElement[] {
+  const items = getArrayItemChildren(container, key);
+  if (items.length > 0 && !arrayTemplates.has(key)) {
+    const template = items[0].cloneNode(true) as HTMLElement;
+    template.removeAttribute('contenteditable');
+    arrayTemplates.set(key, template);
+  }
+  return items;
+}
+
+// Reconciles a container's item elements to match `values`, by index —
+// clones the captured template to grow, removes trailing elements to shrink,
+// and repaints surviving elements' text + data-dry index in place. Live and
+// framework-agnostic: no VDOM diffing, just direct DOM surgery on whatever
+// markup the page author wrote.
+function renderArray(container: HTMLElement, key: string, values: string[]): void {
+  const items = captureArrayTemplate(container, key);
+  const template = arrayTemplates.get(key);
+  for (let i = 0; i < values.length; i++) {
+    let el = items[i];
+    if (!el) {
+      if (!template) break;
+      el = template.cloneNode(true) as HTMLElement;
+      container.appendChild(el);
+      items[i] = el;
+    }
+    el.setAttribute('data-dry', `${key}.${i}`);
+    el.textContent = values[i];
+    if (editing) {
+      el.contentEditable = 'plaintext-only';
+      if (el.contentEditable !== 'plaintext-only') el.contentEditable = 'true';
+    }
+  }
+  for (let i = values.length; i < items.length; i++) {
+    items[i].remove();
+  }
+}
+
+// Reads a fields.array field's current live value straight off the DOM
+// (already up to date with any pending item/container edits already
+// painted) — used to seed the array editor dialog and to check whether the
+// toolbar's gear button should be enabled (see Toolbar.tsx).
+export function getArrayValueFromDom(key: string): string[] | undefined {
+  const container = document.querySelector<HTMLElement>(`[data-dry="${CSS.escape(key)}"]`);
+  if (!container) return undefined;
+  return readArrayValues(container, key);
+}
+
 function handleInput(e: Event) {
   const el = (e.target as HTMLElement)?.closest<HTMLElement>('[data-dry]');
   if (!el || isImageSpot(el)) return;
@@ -84,7 +166,16 @@ export function enableEditing(onChange?: () => void) {
       // No pending edit was painted here, so the current `src` is the
       // on-disk value — safe to snapshot now as the diff baseline.
       if (key) rememberOriginal(key, el.getAttribute('src') ?? '');
-      el.classList.add('dry-image-spot');
+      return;
+    }
+    if (isArraySpot(el)) {
+      // Not contentEditable — edited via the toolbar's gear-button dialog
+      // (whole-array replace) or by typing directly into an item spot
+      // (array.N, a plain text spot handled by the branch below).
+      if (key) {
+        rememberOriginal(key, JSON.stringify(readArrayValues(el, key)));
+        captureArrayTemplate(el, key);
+      }
       return;
     }
     if (key) rememberOriginal(key, el.textContent ?? '');
@@ -100,10 +191,8 @@ export function disableEditing() {
   editing = false;
   document.body.classList.remove('editing');
   document.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
-    if (isImageSpot(el)) {
-      el.classList.remove('dry-image-spot');
-      return;
-    }
+    if (isImageSpot(el)) return;
+    if (isArraySpot(el)) return;
     el.removeAttribute('contenteditable');
   });
   document.removeEventListener('input', handleInput, true);
@@ -172,7 +261,26 @@ function paintFetchedValue(el: HTMLElement, key: string, value: string): void {
     if (value) el.setAttribute('src', value);
     return;
   }
+  if (isArraySpot(el)) {
+    const parsed = parseArrayValue(value);
+    if (parsed) renderArray(el, key, parsed);
+    return;
+  }
   el.textContent = value;
+}
+
+// `value` on the edit-sync bus is always a string — a fields.array value is
+// carried as its JSON-encoded form (see save.ts's getLatestFieldValues and
+// the array dialog's publishEdit in Toolbar.tsx). Malformed/foreign JSON is
+// swallowed rather than thrown, since a bad value here shouldn't break
+// painting for the rest of the page.
+function parseArrayValue(value: string): string[] | undefined {
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? (parsed as string[]) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 // Re-reads every on-page singleton straight from its real source (local API,
@@ -241,6 +349,11 @@ export function revertFieldToOriginal(key: string): void {
         if (original) el.setAttribute('src', original);
         return;
       }
+      if (isArraySpot(el)) {
+        const parsed = parseArrayValue(original);
+        if (parsed) renderArray(el, key, parsed);
+        return;
+      }
       el.textContent = original;
     });
 }
@@ -295,6 +408,13 @@ export async function applyEdit(key: string, value: string): Promise<void> {
       } else {
         el.setAttribute('src', value);
       }
+      return;
+    }
+    if (isArraySpot(el)) {
+      // Capture the on-disk value before overwriting it with the pending edit.
+      rememberOriginal(key, JSON.stringify(readArrayValues(el, key)));
+      const parsed = parseArrayValue(value);
+      if (parsed) renderArray(el, key, parsed);
       return;
     }
     rememberOriginal(key, el.textContent ?? '');

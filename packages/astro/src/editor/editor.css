@@ -14,11 +14,15 @@
 
 body.editing [data-dry] {
   outline: 2px solid rgba(0, 128, 255, 0.5);
-  outline-offset: 2px;
+  outline-offset: 0px;
+  border-radius: 1px;
   cursor: text;
+  transition: outline-offset 0.2s cubic-bezier(0.075, 0.82, 0.165, 1);
 }
 body.editing [data-dry]:hover {
   outline-color: rgba(0, 128, 255, 0.8);
+  outline-offset: 5px;
+  transition: outline-offset 0.5s cubic-bezier(0.075, 0.82, 0.165, 1);
 }
 
 /* fields.image spots aren't contenteditable — clicking opens the same
@@ -26,18 +30,58 @@ body.editing [data-dry]:hover {
    handleImageSpotClick). Style as a clickable target instead of a text
    caret, with a translucent scrim + hint on hover so it reads as "click to
    change" rather than a plain picture. */
-.dry-image-spot {
+body.editing [data-dry-kind='image'] {
   cursor: pointer !important;
   position: relative;
   transition: filter 0.15s ease;
 }
-.dry-image-spot:hover {
+body.editing [data-dry-kind='image']:hover {
   filter: brightness(0.85);
 }
 .dry-spot-flash {
   outline: 2px solid #f59e0b !important;
   outline-offset: 2px;
   scroll-margin: 80px;
+}
+
+/* fields.array containers aren't contenteditable themselves — their items
+   (data-dry-kind="text" spots one level down) are. Swap the inherited text
+   caret for a default cursor and a dashed outline so a container reads as a
+   distinct "structured" region rather than another editable text spot. */
+body.editing [data-dry-kind='array'] {
+  cursor: default !important;
+  outline-color: rgba(0, 128, 255, 0.5);
+}
+
+/* Floating gear button shown while hovering a fields.array container in edit
+   mode (see Toolbar.tsx) — portaled to <body>, positioned via inline
+   top/right computed from the spot's getBoundingClientRect. Disabled (see the
+   "dry.array.length == 0" rule in Toolbar.tsx) rather than hidden, so the
+   affordance stays visible but inert until the array has at least one item
+   to clone a template from. */
+.dry-array-gear {
+  position: fixed;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+}
+.dry-array-gear:hover {
+  background: #1d4ed8;
+}
+.dry-array-gear:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 /* The editor's mount node (ROOT_ID in index.tsx), a direct child of <body>.

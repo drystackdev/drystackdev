@@ -1,4 +1,4 @@
-import type { Config } from '@drystack/core';
+import type { Config, ComponentSchema } from '@drystack/core';
 import {
   getSingletonPath,
   getSingletonFormat,
@@ -6,7 +6,11 @@ import {
 } from '@drystack/core/path-utils';
 import { loadDataFile } from '@drystack/core/required-files';
 import { dump } from '@drystack/core/yaml';
-import { getSyncableFieldKind } from '@drystack/core/edit-sync';
+import {
+  getSyncableFieldKind,
+  type SyncableFieldKind,
+} from '@drystack/core/edit-sync';
+import { clientSideValidateProp } from '@drystack/core/field-editor';
 // @ts-expect-error — provided by the drystack Astro integration's Vite plugin
 import apiPath from 'virtual:drystack-path';
 import { getAllEdits, publishClear } from './store';
@@ -152,33 +156,75 @@ async function readCurrentFile(
 // allowed to reach disk/GitHub — the visual editor writes raw DOM text/paths
 // straight into YAML, so without this a required/min-length/pattern field
 // could be saved empty or malformed. Mirrors the admin form's
-// clientSideValidateProp gate (packages/drystack/src/form/errors.ts), scoped
-// to the flat fields.text/fields.image edits this editor supports.
-function validateEdits(
-  config: Config<any, any>,
-  bySingleton: Map<string, Map<string, string>>
+// clientSideValidateProp gate (packages/drystack/src/form/errors.ts).
+// Validates the *merged* value per base field (see mergeFieldEdits below), not
+// each raw bus entry independently — a fields.array's min/max length check
+// needs the whole array, not just whichever index/container edit happened to
+// be pending.
+//
+// fields.array's schema (unlike fields.text/fields.image) has no `.validate`
+// method of its own — length/element validation lives in
+// form/errors.ts's validateValueWithSchema, reachable here only through the
+// public clientSideValidateProp wrapper (re-exported at
+// @drystack/core/field-editor for the visual editor's array dialog). It
+// returns a bool and only console.warns the specific failure, so the
+// message pushed here is a generic fallback rather than the precise reason.
+function validateField(
+  name: string,
+  baseField: string,
+  schema: Record<string, ComponentSchema>,
+  kind: SyncableFieldKind | undefined,
+  value: unknown,
+  messages: string[]
 ): void {
-  const messages: string[] = [];
-  for (const [name, fields] of bySingleton) {
-    const schema = config.singletons![name].schema as Record<
-      string,
-      { validate?: (value: unknown, args?: unknown) => unknown }
-    >;
-    for (const [field, value] of fields) {
-      // fields.image stores '' as the edit-sync sentinel for "cleared"
-      // (see paintImage in bind.ts) but its own validate() expects null.
-      const kind = getSyncableFieldKind(schema[field] as any);
-      const validatedValue = kind === 'image' && value === '' ? null : value;
-      try {
-        schema[field]?.validate?.(validatedValue, undefined);
-      } catch (err) {
-        messages.push(err instanceof Error ? err.message : `${name}.${field} is invalid`);
-      }
+  if (kind === 'array') {
+    if (!clientSideValidateProp(schema[baseField], value, undefined)) {
+      messages.push(`${name}.${baseField} is invalid`);
     }
+    return;
   }
-  if (messages.length > 0) {
-    throw new Error(messages.join('; '));
+  try {
+    (
+      schema[baseField] as { validate?: (value: unknown, args?: unknown) => unknown }
+    )?.validate?.(value, undefined);
+  } catch (err) {
+    messages.push(err instanceof Error ? err.message : `${name}.${baseField} is invalid`);
   }
+}
+
+// Merges every pending edit for one base field into the value that should be
+// written to `data[baseField]`. A fields.text/fields.image edit is always a
+// single flat entry (field === baseField). A fields.array edit can be a
+// whole-array replace (the dialog's container-level edit, field ===
+// baseField, value is JSON) and/or one-or-more per-item edits (typed inline,
+// field === "baseField.N") — the container edit (or, absent that, the
+// current on-disk array) supplies the starting array, and per-item edits
+// then override individual indices on top, so an inline tweak made after the
+// dialog was used always wins for that index.
+function mergeFieldEdits(
+  kind: SyncableFieldKind | undefined,
+  baseField: string,
+  fieldEdits: Map<string, string>,
+  currentValue: unknown
+): unknown {
+  if (kind === 'array') {
+    const containerEdit = fieldEdits.get(baseField);
+    const base =
+      containerEdit !== undefined
+        ? (JSON.parse(containerEdit) as unknown[])
+        : Array.isArray(currentValue)
+          ? [...currentValue]
+          : [];
+    for (const [field, value] of fieldEdits) {
+      if (field === baseField) continue;
+      const idx = Number(field.slice(baseField.length + 1));
+      if (Number.isInteger(idx) && idx >= 0) base[idx] = value;
+    }
+    return base;
+  }
+  // fields.text / fields.image never have a nested path — one entry, keyed
+  // by the base field itself.
+  return fieldEdits.get(baseField);
 }
 
 // Reads each singleton file the pending edits touch and returns its current
@@ -189,19 +235,23 @@ async function collectFileDiffs(
   githubBranchName?: string
 ): Promise<FileDiff[]> {
   const edits = await getAllEdits();
-  const bySingleton = new Map<string, Map<string, string>>();
+  // name -> baseField -> (field -> raw bus value) — field may be nested
+  // (e.g. "array.3") but always shares a singleton with its base field.
+  const bySingleton = new Map<string, Map<string, Map<string, string>>>();
   for (const edit of edits) {
     const [type, name, field] = edit.key.split('::');
     if (type !== 'singleton' || !name || !field) continue;
     if (!config.singletons?.[name]) continue;
+    const baseField = field.split('.')[0];
     if (!bySingleton.has(name)) bySingleton.set(name, new Map());
-    bySingleton.get(name)!.set(field, edit.value);
+    const byBaseField = bySingleton.get(name)!;
+    if (!byBaseField.has(baseField)) byBaseField.set(baseField, new Map());
+    byBaseField.get(baseField)!.set(field, edit.value);
   }
 
-  validateEdits(config, bySingleton);
-
+  const messages: string[] = [];
   const diffs: FileDiff[] = [];
-  for (const [name, fields] of bySingleton) {
+  for (const [name, byBaseField] of bySingleton) {
     const format = getSingletonFormat(config, name);
     if (format.contentField) {
       throw new Error(
@@ -214,19 +264,28 @@ async function collectFileDiffs(
     const data = (
       raw ? (loadDataFile(raw, format).loaded ?? {}) : {}
     ) as Record<string, unknown>;
-    const schema = config.singletons![name].schema as Record<string, unknown>;
-    for (const [field, value] of fields) {
+    const schema = config.singletons![name].schema as Record<
+      string,
+      ComponentSchema
+    >;
+    for (const [baseField, fieldEdits] of byBaseField) {
+      const kind = getSyncableFieldKind(schema[baseField] as any);
+      const merged = mergeFieldEdits(kind, baseField, fieldEdits, data[baseField]);
       // fields.image's serialize() omits the key entirely when the value is
       // null (see form/fields/image/index.tsx) — mirror that here so a
       // cleared image doesn't get written back as `image: ''`.
-      const kind = getSyncableFieldKind(schema[field] as any);
-      if (kind === 'image' && value === '') {
-        delete data[field];
+      if (kind === 'image' && merged === '') {
+        delete data[baseField];
       } else {
-        data[field] = value;
+        data[baseField] = merged;
       }
+      const validatedValue = kind === 'image' && merged === '' ? null : merged;
+      validateField(name, baseField, schema, kind, validatedValue, messages);
     }
     diffs.push({ path: filepath, before, after: dump(data) });
+  }
+  if (messages.length > 0) {
+    throw new Error(messages.join('; '));
   }
   return diffs;
 }
@@ -259,8 +318,11 @@ export async function getCurrentBranchName(
 // source (local API, or GitHub Contents API at the default branch) rather
 // than trusting whatever HTML the page happened to render with — that HTML
 // can be stale in github mode if this visitor's Cloudflare CDN edge hasn't
-// caught up with the latest deploy yet. Only string-valued (fields.text)
-// entries are returned, matching MVP 1's scope (see dry.ts).
+// caught up with the latest deploy yet. String-valued (fields.text) entries
+// pass through as-is; fields.array entries are JSON-encoded to fit this
+// function's Record<string, string> shape, matching the encoding used
+// everywhere else on the edit-sync bus (see bind.ts's parseArrayValue and the
+// array dialog's publishEdit in Toolbar.tsx) — MVP scope, see dry.ts.
 export async function getLatestFieldValues(
   config: Config<any, any>,
   singletonName: string
@@ -283,9 +345,19 @@ export async function getLatestFieldValues(
     string,
     unknown
   >;
+  const schema = config.singletons![singletonName].schema as Record<
+    string,
+    unknown
+  >;
   const result: Record<string, string> = {};
   for (const [field, value] of Object.entries(data)) {
-    if (typeof value === 'string') result[field] = value;
+    if (typeof value === 'string') {
+      result[field] = value;
+      continue;
+    }
+    if (Array.isArray(value) && getSyncableFieldKind(schema[field] as any) === 'array') {
+      result[field] = JSON.stringify(value);
+    }
   }
   return result;
 }

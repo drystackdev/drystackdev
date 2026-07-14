@@ -221,19 +221,23 @@ export function parseEditKey(
   return { type, name, field };
 }
 
-export type SyncableFieldKind = 'text' | 'image';
+export type SyncableFieldKind = 'text' | 'image' | 'array';
 
 // A field counts as syncable when its schema is `kind: 'form'` and either
 // `formKind: 'slug'` (fields.text — this fork, and the name field inside
-// fields.slug share that tag) or `columnKind: 'image'` (fields.image). Shared
-// by the admin's publish effect (SingletonPage.tsx) and the visual editor's
-// dry() helper so both recognize the same fields, and dispatch on how a
-// field's value gets edited/painted (contenteditable text vs. media-library
-// picker), the same way.
+// fields.slug share that tag) or `columnKind: 'image'` (fields.image), or
+// when it's `kind: 'array'` (fields.array — MVP scope: array of a primitive
+// element, see plan/vei-array-object.md). Shared by the admin's publish
+// effect (SingletonPage.tsx) and the visual editor's dry() helper so both
+// recognize the same fields, and dispatch on how a field's value gets
+// edited/painted (contenteditable text, media-library picker, or the
+// array's template-clone list binding), the same way.
 export function getSyncableFieldKind(
   fieldSchema: ComponentSchema | undefined
 ): SyncableFieldKind | undefined {
-  if (!fieldSchema || fieldSchema.kind !== 'form') return undefined;
+  if (!fieldSchema) return undefined;
+  if (fieldSchema.kind === 'array') return 'array';
+  if (fieldSchema.kind !== 'form') return undefined;
   if ((fieldSchema as { formKind?: string }).formKind === 'slug') return 'text';
   if ((fieldSchema as { columnKind?: string }).columnKind === 'image') return 'image';
   return undefined;
