@@ -9,10 +9,25 @@ import {
   useState,
 } from 'react';
 
+import type { EditorState } from 'prosemirror-state';
+
 import { css, tokenSchema } from '@keystar/ui/style';
 
-import { useEditorViewRef } from './editor-view';
+import { useEditorViewRef, useEditorState } from './editor-view';
 import { GRID_DEFAULT_COLUMNS, clampSpan } from './grid';
+
+// A ProseMirror editor is a *single* contenteditable, so `document.activeElement`
+// is always the editor root — never an individual cell. That means CSS
+// `:focus-within` on a cell never fires. Instead we ask the editor state
+// whether the current selection lives inside this cell (by matching the cell's
+// position against the selection's ancestors) and mark it as active ourselves.
+function isSelectionInsideCell(state: EditorState, cellPos: number): boolean {
+  const $from = state.selection.$from;
+  for (let depth = $from.depth; depth > 0; depth--) {
+    if ($from.before(depth) === cellPos) return true;
+  }
+  return false;
+}
 
 type NodeViewProps = {
   node: ProseMirrorNode;
@@ -55,6 +70,13 @@ export function GridCellView(props: NodeViewProps) {
   const { node, children, getPos } = props;
   const span: number = node.attrs.span;
   const place: string | null = node.attrs.place;
+
+  // is the caret/selection currently inside this cell? drives the accent
+  // "active item" outline (see isSelectionInsideCell for why not :focus-within)
+  const editorState = useEditorState();
+  const selfPos = getPos();
+  const isActive =
+    selfPos != null && isSelectionInsideCell(editorState, selfPos);
 
   const viewRef = useEditorViewRef();
   const getPosRef = useRef(getPos);
@@ -161,6 +183,7 @@ export function GridCellView(props: NodeViewProps) {
       className={cellClass}
       style={innerStyle}
       data-span={span}
+      data-active={isActive || undefined}
     >
       {children}
       {resizeLabel && (
@@ -200,15 +223,17 @@ const cellClass = css({
   padding: tokenSchema.size.space.small,
   outline: `1px dashed ${tokenSchema.color.border.muted}`,
   outlineOffset: -1,
-  // click a cell to focus it — a solid, saturated primary/accent outline
+  // the cell holding the caret gets a solid, saturated primary/accent outline
   // (foreground.accent = the strong indigo, not the faint indigo6 border
-  // token) makes it obvious which item is the active target
-  '&:focus-within': {
-    outline: `2px solid ${tokenSchema.color.foreground.accent}`,
-    outlineOffset: -1,
+  // token) so it's obvious which item is the active target. `data-active` is
+  // set from editor state — CSS `:focus-within` can't work here (see
+  // isSelectionInsideCell)
+  '&[data-active]': {
+    outline: `1.5px solid ${tokenSchema.color.foreground.accent}`,
+    outlineOffset: 1,
   },
-  // the resize grip only appears while the cell is hovered or focused
-  '&:hover [data-resize-grip], &:focus-within [data-resize-grip]': {
+  // the resize grip appears while the cell is hovered or is the active item
+  '&:hover [data-resize-grip], &[data-active] [data-resize-grip]': {
     opacity: 1,
   },
 });
