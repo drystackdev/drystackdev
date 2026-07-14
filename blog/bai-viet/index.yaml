@@ -1,0 +1,11 @@
+title: bài viết
+excerpt: Mô tả cho bài viết
+keywords: blog
+cover: /blog/bai-viet/assets/image.png
+date: 2026-07-13
+publish: true
+body:
+  wordCount: 5
+  charCount: 21
+createdAt: '2026-07-14T06:14:40.711Z'
+updatedAt: '2026-07-14T06:14:40.711Z'
