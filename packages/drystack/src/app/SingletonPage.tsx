@@ -35,6 +35,12 @@ import { CreateBranchDuringUpdateDialog } from './ItemPage';
 import { PageBody, PageHeader, PageRoot } from './shell/page';
 import { useBaseCommit, useCurrentBranch, useRepoInfo } from './shell/data';
 import { useHasChanged } from './useHasChanged';
+import {
+  ChangePreviewDialog,
+  type FieldChange,
+} from './change-preview/ChangePreviewDialog';
+import { computeFieldChanges } from './change-preview/computeFieldChanges';
+import { AdminImageThumb } from './change-preview/AdminImageThumb';
 import { parseEntry, useItemData } from './useItemData';
 import { serializeEntryToFiles, useUpsertItem } from './updating';
 import { Icon } from '@keystar/ui/icon';
@@ -88,8 +94,11 @@ function SingletonPageInner(
     state: Record<string, unknown>;
     onReset: () => void;
     previewProps: GenericPreviewProps<ComponentSchema, undefined>;
+    changes: FieldChange[];
+    onRevertField: (key: string) => void;
   }
 ) {
+  const [reviewOpen, setReviewOpen] = useState(false);
   const isBelowDesktop = useMediaQuery(breakpointQueries.below.desktop);
   const repoInfo = useRepoInfo();
   const currentBranch = useCurrentBranch();
@@ -233,7 +242,16 @@ function SingletonPageInner(
               alignSelf="center"
             />
           ) : (
-            props.hasChanged && <Badge tone="pending">Unsaved</Badge>
+            props.hasChanged && (
+              <button
+                type="button"
+                onClick={() => setReviewOpen(true)}
+                aria-label="Review changes"
+                style={{ all: 'unset', display: 'inline-flex', cursor: 'pointer' }}
+              >
+                <Badge tone="pending">Unsaved</Badge>
+              </button>
+            )
           )}
         </Flex>
         <ActionGroup
@@ -345,6 +363,15 @@ function SingletonPageInner(
               />
             )}
         </DialogContainer>
+        <DialogContainer onDismiss={() => setReviewOpen(false)}>
+          {reviewOpen && (
+            <ChangePreviewDialog
+              changes={props.changes}
+              onDelete={props.onRevertField}
+              renderImage={(path: string) => <AdminImageThumb path={path} />}
+            />
+          )}
+        </DialogContainer>
       </Flex>
     </PageRoot>
   );
@@ -426,6 +453,11 @@ function LocalSingletonPage(
       schema,
       slugField: undefined,
     }) || isCreating;
+
+  const changes = useMemo(
+    () => computeFieldChanges(schema, effectiveInitialState, state),
+    [schema, effectiveInitialState, state]
+  );
 
   useEffect(() => {
     const key = ['singleton', singleton] as const;
@@ -631,14 +663,24 @@ function LocalSingletonPage(
     }
   }, [updateResult, singleton, singletonConfig.schema]);
 
+  const resetState = useMemo(
+    () =>
+      effectiveInitialState === null
+        ? getInitialPropsValue(schema)
+        : effectiveInitialState,
+    [effectiveInitialState, schema]
+  );
   const onReset = () =>
-    setState({
-      localTreeKey: localTreeKey,
-      state:
-        effectiveInitialState === null
-          ? getInitialPropsValue(schema)
-          : effectiveInitialState,
-    });
+    setState({ localTreeKey: localTreeKey, state: resetState });
+  const onRevertField = useCallback(
+    (key: string) => {
+      setState(s => ({
+        localTreeKey: s.localTreeKey,
+        state: { ...s.state, [key]: resetState[key] },
+      }));
+    },
+    [resetState]
+  );
   return (
     <SingletonPageInner
       {...props}
@@ -649,6 +691,8 @@ function LocalSingletonPage(
       updateResult={updateResult}
       state={state}
       previewProps={previewProps}
+      changes={changes}
+      onRevertField={onRevertField}
     />
   );
 }

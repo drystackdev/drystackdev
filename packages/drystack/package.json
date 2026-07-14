@@ -60,6 +60,10 @@
       "drystack-src": "./src/app/media-library/bridge.ts",
       "default": "./dist/app/media-library/bridge.js"
     },
+    "./change-preview": {
+      "drystack-src": "./src/app/change-preview/ChangePreviewDialog.tsx",
+      "default": "./dist/app/change-preview/ChangePreviewDialog.js"
+    },
     "./media-host": {
       "drystack-src": "./src/app/media-library/VeiMediaHost.tsx",
       "default": "./dist/app/media-library/VeiMediaHost.js"

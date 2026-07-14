@@ -243,67 +243,15 @@ body > .kui-scheme--auto {
 .dry-ref-item .dry-ref-name { font-weight: 600; }
 .dry-ref-empty { padding: 8px 10px; font-size: 13px; opacity: 0.6; }
 
-/* Review diff — raw markup, so it doesn't inherit a Keystar text colour. The
-   dialog is wrapped in a KeystarProvider, so pull the theme-aware foreground
-   token (tracks the admin's light/dark choice, not the OS preference). */
-.dry-diff { color: var(--kui-color-foreground-neutral, #1f2937); }
-
-/* Review changes = one accordion item per edited key. Built to match Keystar
-   (its Text/Icon in the header) with a smooth height collapse via animatable
-   grid rows. */
-.dry-acc {
-  border: 1px solid rgba(128, 128, 128, 0.3);
-  border-radius: 8px;
-  overflow: hidden;
-}
-.dry-acc + .dry-acc { margin-top: 8px; }
-.dry-acc-head {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding-right: 6px;
-}
-.dry-acc-summary {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-}
-.dry-acc-summary:hover { background: rgba(128, 128, 128, 0.08); }
-.dry-acc-chevron {
-  display: flex;
-  flex: none;
-  color: var(--kui-color-foreground-neutral, #1f2937);
-  opacity: 0.6;
-  transition: transform 0.2s ease;
-}
-.dry-acc-chevron.is-open { transform: rotate(90deg); }
-
-/* Collapse animation — grid-template-rows 0fr <-> 1fr animates the height. */
-.dry-acc-body {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 0.25s ease;
-}
-.dry-acc-body.is-open { grid-template-rows: 1fr; }
-.dry-acc-body-inner {
-  overflow: hidden;
-  min-height: 0;
-}
+/* Review-changes accordion/diff styling now lives as scoped emotion classes
+   in drystack core's ChangePreviewDialog (packages/drystack/src/app/
+   change-preview/), shared with the admin — see Toolbar.tsx's import. */
 
 /* Only the singleton hover dropdown (.dry-ref-menu) needs a media query: it's
    portaled straight to <body> with React's createPortal, outside any
    KeystarProvider, so Keystar's scheme tokens don't cascade to it. The edit
-   pill and the review dialog both live inside a KeystarProvider and use the
-   `--kui-*` tokens above, so they track the theme without a media query. */
+   pill and the review dialog both live inside a KeystarProvider and use
+   `--kui-*` tokens, so they track the theme without a media query. */
 @media (prefers-color-scheme: dark) {
   .dry-ref-menu {
     background: #1f2937;

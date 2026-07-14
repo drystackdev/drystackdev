@@ -74,6 +74,12 @@ import {
   useUpsertItem,
 } from './updating';
 import { useHasChanged } from './useHasChanged';
+import {
+  ChangePreviewDialog,
+  type FieldChange,
+} from './change-preview/ChangePreviewDialog';
+import { computeFieldChanges } from './change-preview/computeFieldChanges';
+import { AdminImageThumb } from './change-preview/AdminImageThumb';
 import { parseEntry, useItemData } from './useItemData';
 import {
   getBranchPrefix,
@@ -142,6 +148,8 @@ function ItemPageInner(
     >;
     hasChanged: boolean;
     state: Record<string, unknown>;
+    changes: FieldChange[];
+    onRevertField: (key: string) => void;
   }
 ) {
   const {
@@ -168,6 +176,7 @@ function ItemPageInner(
       : undefined;
   const previewHref = urlForSlug(props.itemSlug);
   const { push, replace } = router;
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [pendingRename, setPendingRename] = useState<{
     from: string;
     to: string;
@@ -311,6 +320,7 @@ function ItemPageInner(
             isLoading={updateResult.kind === 'loading'}
             hasChanged={props.hasChanged}
             onDelete={onDelete}
+            onOpenReview={() => setReviewOpen(true)}
             collection={collection}
             itemSlug={itemSlug}
             previewUrl={collectionConfig.previewUrl}
@@ -471,6 +481,15 @@ function ItemPageInner(
               />
             )}
         </DialogContainer>
+        <DialogContainer onDismiss={() => setReviewOpen(false)}>
+          {reviewOpen && (
+            <ChangePreviewDialog
+              changes={props.changes}
+              onDelete={props.onRevertField}
+              renderImage={(path: string) => <AdminImageThumb path={path} />}
+            />
+          )}
+        </DialogContainer>
       </ItemPageShell>
     </>
   );
@@ -525,6 +544,11 @@ function LocalItemPage(
     slugField: collectionConfig.slugField,
   });
 
+  const changes = useMemo(
+    () => computeFieldChanges(schema, initialState, state),
+    [schema, initialState, state]
+  );
+
   const slug = getSlugFromState(collectionConfig, state);
   const formatInfo = getCollectionFormat(config, collection);
   const futureBasePath = getCollectionItemPath(config, collection, slug);
@@ -577,6 +601,15 @@ function LocalItemPage(
   const onReset = () => {
     setState({ state: initialState, localTreeKey });
   };
+  const onRevertField = useCallback(
+    (key: string) => {
+      setState(s => ({
+        localTreeKey: s.localTreeKey,
+        state: { ...s.state, [key]: initialState[key] },
+      }));
+    },
+    [initialState]
+  );
   return (
     <ItemPageInner
       {...props}
@@ -587,6 +620,8 @@ function LocalItemPage(
       previewProps={previewProps}
       state={state}
       hasChanged={hasChanged}
+      changes={changes}
+      onRevertField={onRevertField}
     />
   );
 }
@@ -596,6 +631,7 @@ function HeaderActions(props: {
   hasChanged: boolean;
   isLoading: boolean;
   onDelete: (redirect?: { from: string; to: string }) => void;
+  onOpenReview: () => void;
   collection: string;
   itemSlug: string;
   previewUrl?: string;
@@ -612,6 +648,7 @@ function HeaderActions(props: {
     hasChanged,
     isLoading,
     onDelete,
+    onOpenReview,
     collection,
     itemSlug,
     previewUrl,
@@ -708,17 +745,30 @@ function HeaderActions(props: {
     }
 
     if (hasChanged) {
-      return isBelowDesktop ? (
-        <Box
-          backgroundColor="pendingEmphasis"
-          height="scale.75"
-          width="scale.75"
-          borderRadius="full"
+      return (
+        <button
+          type="button"
+          onClick={onOpenReview}
+          aria-label="Review changes"
+          style={{
+            all: 'unset',
+            display: 'inline-flex',
+            cursor: 'pointer',
+          }}
         >
-          <Text visuallyHidden>Unsaved</Text>
-        </Box>
-      ) : (
-        <Badge tone="pending">Unsaved</Badge>
+          {isBelowDesktop ? (
+            <Box
+              backgroundColor="pendingEmphasis"
+              height="scale.75"
+              width="scale.75"
+              borderRadius="full"
+            >
+              <Text visuallyHidden>Unsaved</Text>
+            </Box>
+          ) : (
+            <Badge tone="pending">Unsaved</Badge>
+          )}
+        </button>
       );
     }
 
