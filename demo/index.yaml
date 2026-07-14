@@ -1,2 +1,6 @@
-text: Nội dung text
-image: /assets/IMG_8972.JPG
+text: Nội dung text 123456
+image: /assets/IMG_8873.JPG
+array:
+  - Item 1
+  - item 2
+  - item 3

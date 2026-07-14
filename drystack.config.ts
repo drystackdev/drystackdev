@@ -453,8 +453,9 @@ export default config({
     demo: singleton({
       label: "Demo Vistual Editing Inline",
       schema: {
-        text: fields.text({label: "[field.Text] - vistual editing inline"}),
-        image: fields.image({label: "[field.Image] - vistual editing inline"}),
+        text: fields.text({label: "[field.Text]"}),
+        image: fields.image({label: "[field.Image]"}),
+        array: fields.array(fields.text({label: "[field.Array[]]"}), {label: "[field.Array]"})
       }
     })
   }
