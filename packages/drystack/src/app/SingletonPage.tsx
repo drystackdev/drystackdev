@@ -411,6 +411,47 @@ function fromBusValue(
   return busValue;
 }
 
+// Splices one per-item fields.array edit into `arr` in place. `field` is either
+// "baseField.N" (array-of-primitive item — the whole item value) or
+// "baseField.N.sub" (an array-of-object item's sub-field). A sub-field is
+// decoded per its own kind (image '' → null), matching how the visual editor's
+// save.ts (mergeFieldEdits) and bind.ts read the same nested keys.
+function applyArrayItemEdit(
+  arr: unknown[],
+  baseField: string,
+  field: string,
+  busValue: string,
+  schema: Record<string, ComponentSchema>
+): void {
+  const rest = field.slice(baseField.length + 1); // "N" or "N.sub"
+  const dot = rest.indexOf('.');
+  if (dot === -1) {
+    const idx = Number(rest);
+    if (Number.isInteger(idx) && idx >= 0) arr[idx] = busValue;
+    return;
+  }
+  const idx = Number(rest.slice(0, dot));
+  const sub = rest.slice(dot + 1);
+  if (!Number.isInteger(idx) || idx < 0 || sub.includes('.')) return;
+  const element = (schema[baseField] as { element?: ComponentSchema } | undefined)
+    ?.element;
+  const subKind =
+    element?.kind === 'object'
+      ? getSyncableFieldKind(
+          (element as { fields: Record<string, ComponentSchema> }).fields[sub]
+        )
+      : undefined;
+  const prev = arr[idx];
+  const base =
+    typeof prev === 'object' && prev !== null
+      ? (prev as Record<string, unknown>)
+      : {};
+  arr[idx] = {
+    ...base,
+    [sub]: subKind ? fromBusValue(subKind, busValue) : busValue,
+  };
+}
+
 function LocalSingletonPage(
   props: SingletonPageProps & {
     draft:
@@ -585,10 +626,13 @@ function LocalSingletonPage(
           const current = (stateRef.current as Record<string, unknown>)[baseField];
           updates[baseField] = Array.isArray(current) ? [...current] : [];
         }
-        const idx = Number(field.slice(baseField.length + 1));
-        if (Number.isInteger(idx) && idx >= 0) {
-          (updates[baseField] as unknown[])[idx] = edit.value;
-        }
+        applyArrayItemEdit(
+          updates[baseField] as unknown[],
+          baseField,
+          field,
+          edit.value,
+          singletonConfig.schema
+        );
       }
       if (Object.keys(updates).length > 0) {
         onPreviewPropsChange(s => ({ ...s, ...updates }));
@@ -648,15 +692,14 @@ function LocalSingletonPage(
           }));
           return;
         }
-        // Per-item array edit — splice the new value into a copy of the
-        // array's current state rather than replacing the whole field.
+        // Per-item array edit ("baseField.N" or "baseField.N.sub") — splice the
+        // new value into a copy of the array's current state rather than
+        // replacing the whole field.
         if (kind !== 'array') return;
-        const idx = Number(field.slice(baseField.length + 1));
-        if (!Number.isInteger(idx) || idx < 0) return;
         onPreviewPropsChange(s => {
           const current = (s as Record<string, unknown>)[baseField];
           const arr = Array.isArray(current) ? [...current] : [];
-          arr[idx] = msg.value;
+          applyArrayItemEdit(arr, baseField, field, msg.value, singletonConfig.schema);
           return { ...s, [baseField]: arr };
         });
         return;

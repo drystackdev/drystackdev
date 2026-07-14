@@ -51,6 +51,13 @@ body.editing [data-dry-kind="array"] {
   cursor: default !important;
 }
 
+/* Array-of-object item wrappers (data-dry-kind="object") are structural
+   markers too — the editable spots are the text/image sub-fields one level
+   down. Keep the default cursor so a wrapper doesn't read as a text spot. */
+body.editing [data-dry-kind="object"] {
+  cursor: default !important;
+}
+
 /* Floating gear button shown while hovering a fields.array container in edit
    mode (see Toolbar.tsx) — portaled to <body>, positioned via inline
    top/right computed from the spot's getBoundingClientRect. Disabled (see the

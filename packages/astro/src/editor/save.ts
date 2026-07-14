@@ -13,7 +13,7 @@ import {
 import { clientSideValidateProp } from '@drystack/core/field-editor';
 // @ts-expect-error — provided by the drystack Astro integration's Vite plugin
 import apiPath from 'virtual:drystack-path';
-import { getAllEdits, publishClear } from './store';
+import { getAllEdits, publishClear, clearPendingBlobs } from './store';
 
 const textEncoder = new TextEncoder();
 
@@ -205,7 +205,8 @@ function mergeFieldEdits(
   kind: SyncableFieldKind | undefined,
   baseField: string,
   fieldEdits: Map<string, string>,
-  currentValue: unknown
+  currentValue: unknown,
+  fieldSchema: ComponentSchema | undefined
 ): unknown {
   if (kind === 'array') {
     const containerEdit = fieldEdits.get(baseField);
@@ -215,10 +216,53 @@ function mergeFieldEdits(
         : Array.isArray(currentValue)
           ? [...currentValue]
           : [];
+    const elementSchema = (fieldSchema as { element?: ComponentSchema } | undefined)
+      ?.element;
     for (const [field, value] of fieldEdits) {
       if (field === baseField) continue;
-      const idx = Number(field.slice(baseField.length + 1));
-      if (Number.isInteger(idx) && idx >= 0) base[idx] = value;
+      const rest = field.slice(baseField.length + 1); // "N" or "N.sub"
+      const dot = rest.indexOf('.');
+      if (dot === -1) {
+        // Array-of-primitive item edit — the whole item value.
+        const idx = Number(rest);
+        if (Number.isInteger(idx) && idx >= 0) base[idx] = value;
+        continue;
+      }
+      // Array-of-object sub-field edit ("N.sub") — override just that field of
+      // the object at index N, layered on top of the container edit (or the
+      // current on-disk object).
+      const idx = Number(rest.slice(0, dot));
+      const sub = rest.slice(dot + 1);
+      if (!Number.isInteger(idx) || idx < 0 || sub.includes('.')) continue;
+      const prev = base[idx];
+      base[idx] = {
+        ...(typeof prev === 'object' && prev !== null
+          ? (prev as Record<string, unknown>)
+          : {}),
+        [sub]: value,
+      };
+    }
+    // Mirror fields.image's serialize (omit the key when there's no image, see
+    // form/fields/image/index.tsx) for image sub-fields of an array-of-object:
+    // the reader's image.parse throws on a literal `null`, so an empty image
+    // must be absent from the YAML, not written as null/''.
+    if (elementSchema?.kind === 'object') {
+      const subFields = (elementSchema as {
+        fields: Record<string, ComponentSchema>;
+      }).fields;
+      const imageSubs = Object.entries(subFields)
+        .filter(([, s]) => getSyncableFieldKind(s) === 'image')
+        .map(([k]) => k);
+      return base.map(item => {
+        if (typeof item !== 'object' || item === null) return item;
+        const obj = { ...(item as Record<string, unknown>) };
+        for (const sub of imageSubs) {
+          if (obj[sub] === null || obj[sub] === '' || obj[sub] === undefined) {
+            delete obj[sub];
+          }
+        }
+        return obj;
+      });
     }
     return base;
   }
@@ -270,7 +314,13 @@ async function collectFileDiffs(
     >;
     for (const [baseField, fieldEdits] of byBaseField) {
       const kind = getSyncableFieldKind(schema[baseField] as any);
-      const merged = mergeFieldEdits(kind, baseField, fieldEdits, data[baseField]);
+      const merged = mergeFieldEdits(
+        kind,
+        baseField,
+        fieldEdits,
+        data[baseField],
+        schema[baseField]
+      );
       // fields.image's serialize() omits the key entirely when the value is
       // null (see form/fields/image/index.tsx) — mirror that here so a
       // cleared image doesn't get written back as `image: ''`.
@@ -457,6 +507,13 @@ export async function saveEdits(config: Config<any, any>): Promise<string | unde
       }),
     });
     if (!res.ok) throw new Error(await res.text());
+    // Local writes are immediately real/servable — unlike github mode (which
+    // needs a deploy to catch up, see discardEditsIfBuildIsNewer), there's no
+    // lag to bridge, so the bytes cached for previewing pending images can be
+    // dropped now instead of leaking in IndexedDB forever (the only other
+    // place that clears them is Reset, which is disabled once nothing's
+    // pending — i.e. never reachable right after a successful save).
+    await clearPendingBlobs();
   } else {
     throw new Error(
       `dry(): MVP 1 does not support storage.kind "${(config.storage as any).kind}"`

@@ -40,6 +40,26 @@ const dry = await createDry(config).singleton.demo;
       ))
     }
   </div>
+
+  <div class="imglist" {...dry.item("arrayObject")}>
+    {
+      dry.arrayObject.map((obj, idx) => (
+        <div
+          style="display:flex; flex-direction: column; gap: 1rem"
+          {...dry.item(`arrayObject.${idx}`)}
+        >
+          <h4 {...dry.item(`arrayObject.${idx}.name`)}>{obj.name}</h4>
+          <Image
+            width={200}
+            height={200}
+            alt="hình ảnh demo"
+            src={obj.image!}
+            {...dry.item(`arrayObject.${idx}.image`)}
+          />
+        </div>
+      ))
+    }
+  </div>
 </main>
 
 <style>

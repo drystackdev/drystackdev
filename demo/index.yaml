@@ -7,3 +7,6 @@ array:
 arrayImg:
   - /assets/IMG_8873.JPG
   - /assets/IMG_8972.JPG
+arrayObject:
+  - name: Văn bản 1
+    image: /assets/IMG_8972.JPG

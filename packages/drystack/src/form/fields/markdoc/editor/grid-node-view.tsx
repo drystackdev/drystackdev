@@ -268,7 +268,7 @@ const resizeHandleClass = css({
   // a vertical grip; highlighted when the grip itself is hovered
   '&::after': {
     content: '""',
-    height: '55%',
+    height: 'calc(100% - 8px)',
     minHeight: 20,
     width: tokenSchema.size.space.xsmall,
     borderRadius: tokenSchema.size.radius.full,

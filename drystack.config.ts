@@ -453,17 +453,27 @@ export default config({
     demo: singleton({
       label: "Demo Vistual Editing Inline",
       schema: {
-        text: fields.text({label: "[field.Text]"}),
-        image: fields.image({label: "[field.Image]"}),
-        array: fields.array(fields.text({label: "[field.Array[]]"}), {
+        text: fields.text({ label: "[field.Text]" }),
+        image: fields.image({ label: "[field.Image]" }),
+        array: fields.array(fields.text({ label: "[field.Array[]]" }), {
           label: "[field.Array]",
           itemLabel: (props) => props.value,
         }),
-        arrayImg: fields.array(fields.image({label: "[field.ArrayImg[]]"}), {
+        arrayImg: fields.array(fields.image({ label: "[field.ArrayImg[]]" }), {
           label: "[field.ArrayImg]",
           itemLabel: (props) => props.value || "",
         }),
-      }
-    })
-  }
+        arrayObject: fields.array(
+          fields.object({
+            name: fields.text({ label: "Name of object" }),
+            image: fields.image({label: "Image"})
+          }),
+          {
+            label: "[field.ArrayObject]",
+            itemLabel: (props) => props.fields.name.value || "",
+          },
+        ),
+      },
+    }),
+  },
 });
