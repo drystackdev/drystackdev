@@ -1,18 +1,24 @@
 ---
 import BlogListing from "../../components/BlogListing.astro";
 import { getBlogPosts } from "../../data/blog";
-import { getBlogListingPage } from "../../data/site";
+import { dry } from "@drystack/astro/dry";
+import config from "../../../drystack.config";
 
-const [posts, page] = await Promise.all([getBlogPosts(), getBlogListingPage()]);
+const [posts, page] = await Promise.all([
+  getBlogPosts(),
+  dry(config).singleton.blogListing,
+]);
 ---
 
 <BlogListing
   posts={posts}
   basePath="/blog"
-  metaTitle={page.metaTitle}
-  metaDescription={page.metaDescription}
-  ogImage={page.ogImage || undefined}
-  eyebrow={page.eyebrow}
-  heading={page.heading}
-  lede={page.lede}
+  metaTitle={page.metaTitle as string}
+  metaDescription={page.metaDescription as string}
+  ogImage={(page.ogImage as string) || undefined}
+  eyebrow={page.eyebrow as string}
+  eyebrowItemProps={page.item("eyebrow")}
+  heading={page.heading as string}
+  lede={page.lede as string}
+  ledeItemProps={page.item("lede")}
 />

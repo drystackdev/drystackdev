@@ -1,10 +1,17 @@
-import type { Config, ComponentSchema } from '@drystack/core';
+import type { Collection, Config, ComponentSchema, Singleton } from '@drystack/core';
+import type { EntryWithResolvedLinkedFiles } from '@drystack/core/reader';
 import { createConfiguredReader } from './reader';
 
 export type DryItem = { 'data-dry': string };
 
-export type DrySingleton = Record<string, unknown> & {
-  item(field: string): DryItem | {};
+type SchemaOf<S> = S extends Singleton<infer Schema> ? Schema : never;
+
+export type DrySingleton<
+  S extends Singleton<Record<string, ComponentSchema>> = Singleton<
+    Record<string, ComponentSchema>
+  >,
+> = EntryWithResolvedLinkedFiles<S> & {
+  item(field: keyof SchemaOf<S> & string): DryItem | {};
 };
 
 /**
@@ -15,11 +22,22 @@ export type DrySingleton = Record<string, unknown> & {
  *   const d = await dry(config).singleton.home;
  *   <h1 {...d.item('heading')}>{d.heading}</h1>
  */
-export function dry(config: Config<any, any>): {
-  singleton: Record<string, Promise<DrySingleton>>;
+export function dry<
+  Collections extends {
+    [key: string]: Collection<Record<string, ComponentSchema>, string>;
+  },
+  Singletons extends {
+    [key: string]: Singleton<Record<string, ComponentSchema>>;
+  },
+>(
+  config: Config<Collections, Singletons>
+): {
+  singleton: { [Name in keyof Singletons]: Promise<DrySingleton<Singletons[Name]>> };
 } {
   const readerPromise = createConfiguredReader(config);
-  const singleton: Record<string, Promise<DrySingleton>> = {};
+  const singleton = {} as {
+    [Name in keyof Singletons]: Promise<DrySingleton<Singletons[Name]>>;
+  };
   for (const name of Object.keys(config.singletons ?? {})) {
     let promise: Promise<DrySingleton> | undefined;
     Object.defineProperty(singleton, name, {

@@ -7,6 +7,7 @@ import Icon from "../components/Icon.astro";
 import Heading from "./Heading.astro";
 import JsonLd from "./JsonLd.astro";
 import type { BlogPost } from "../data/blog";
+import type { DryItem } from "@drystack/astro/dry";
 
 interface Props {
   posts: BlogPost[];
@@ -15,8 +16,10 @@ interface Props {
   metaDescription: string;
   ogImage?: string;
   eyebrow: string;
+  eyebrowItemProps?: DryItem | {};
   heading: string;
   lede: string;
+  ledeItemProps?: DryItem | {};
 }
 
 const {
@@ -26,8 +29,10 @@ const {
   metaDescription,
   ogImage,
   eyebrow,
+  eyebrowItemProps = {},
   heading,
   lede,
+  ledeItemProps = {},
 } = Astro.props;
 
 const sorted = [...posts].sort((a, b) => b.date.localeCompare(a.date));
@@ -64,11 +69,15 @@ const breadcrumbSchema = {
       </div>
     </div>
     <div class="container page-hero__inner" data-stagger="120">
-      <p class="eyebrow reveal">{eyebrow}</p>
+      <p class="eyebrow reveal" {...eyebrowItemProps}>{eyebrow}</p>
       <h1 class="section-title reveal">
         <Heading text={heading} />
       </h1>
-      <p class="section-lede reveal" style="margin: 1rem auto 0;">
+      <p
+        class="section-lede reveal"
+        style="margin: 1rem auto 0;"
+        {...ledeItemProps}
+      >
         {lede}
       </p>
     </div>

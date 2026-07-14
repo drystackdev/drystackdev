@@ -1,21 +1,24 @@
 ---
 import BlogListing from "../../components/BlogListing.astro";
 import { getSeoKnowledgePosts } from "../../data/blog";
-import { getSeoKnowledgeListingPage } from "../../data/site";
+import { dry } from "@drystack/astro/dry";
+import config from "../../../drystack.config";
 
 const [posts, page] = await Promise.all([
   getSeoKnowledgePosts(),
-  getSeoKnowledgeListingPage(),
+  dry(config).singleton.seoKnowledgeListing,
 ]);
 ---
 
 <BlogListing
   posts={posts}
   basePath="/blog-kien-thuc"
-  metaTitle={page.metaTitle}
-  metaDescription={page.metaDescription}
-  ogImage={page.ogImage || undefined}
-  eyebrow={page.eyebrow}
-  heading={page.heading}
-  lede={page.lede}
+  metaTitle={page.metaTitle as string}
+  metaDescription={page.metaDescription as string}
+  ogImage={(page.ogImage as string) || undefined}
+  eyebrow={page.eyebrow as string}
+  eyebrowItemProps={page.item("eyebrow")}
+  heading={page.heading as string}
+  lede={page.lede as string}
+  ledeItemProps={page.item("lede")}
 />

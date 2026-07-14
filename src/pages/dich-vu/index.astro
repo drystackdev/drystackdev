@@ -6,9 +6,13 @@ import Icon from "../../components/Icon.astro";
 import Heading from "../../components/Heading.astro";
 import JsonLd from "../../components/JsonLd.astro";
 import { getServices } from "../../data/services";
-import { getDichVuPage } from "../../data/site";
+import { dry } from "@drystack/astro/dry";
+import config from "../../../drystack.config";
 
-const [services, page] = await Promise.all([getServices(), getDichVuPage()]);
+const [services, page] = await Promise.all([
+  getServices(),
+  dry(config).singleton.dichVu,
+]);
 
 const breadcrumbSchema = {
   "@context": "https://schema.org",
@@ -20,7 +24,11 @@ const breadcrumbSchema = {
 };
 ---
 
-<Main title={page.metaTitle} description={page.metaDescription} image={page.ogImage || undefined}>
+<Main
+  title={page.metaTitle as string}
+  description={page.metaDescription as string}
+  image={(page.ogImage as string) || undefined}
+>
   <JsonLd schema={breadcrumbSchema} />
   <Header />
 
@@ -34,11 +42,15 @@ const breadcrumbSchema = {
       </div>
     </div>
     <div class="container page-hero__inner" data-stagger="120">
-      <p class="eyebrow reveal">{page.eyebrow}</p>
+      <p class="eyebrow reveal" {...page.item("eyebrow")}>{page.eyebrow}</p>
       <h1 class="section-title reveal">
-        <Heading text={page.heading} />
+        <Heading text={page.heading as string} />
       </h1>
-      <p class="section-lede reveal" style="margin: 1rem auto 0;">
+      <p
+        class="section-lede reveal"
+        style="margin: 1rem auto 0;"
+        {...page.item("lede")}
+      >
         {page.lede}
       </p>
     </div>
