@@ -185,7 +185,10 @@ export function GridCellView(props: NodeViewProps) {
       data-span={span}
       data-active={isActive || undefined}
     >
-      {children}
+      {/* when the cell is placed (display:grid + place-content), wrap the
+          editable content in a real block so the paragraphs aren't direct grid
+          items — Chromium drops the caret from an *empty* editable grid item */}
+      {place ? <div className={placeContentClass}>{children}</div> : children}
       {resizeLabel && (
         <span className={resizeBadgeClass} contentEditable={false} aria-hidden="true">
           {resizeLabel.span}/{resizeLabel.columns}
@@ -208,6 +211,13 @@ const gridClass = css({
   // no border/padding on the container itself
   alignItems: 'stretch',
   marginBlock: '1em',
+});
+
+// the single in-flow grid item that `place-content` positions when a cell is
+// aligned; keeps the editable paragraphs as ordinary blocks (so they render a
+// caret) rather than direct grid items
+const placeContentClass = css({
+  minWidth: 0,
 });
 
 const cellClass = css({

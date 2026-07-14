@@ -9,9 +9,10 @@ import {
   DialogTrigger,
 } from "@keystar/ui/dialog";
 import { Icon } from "@keystar/ui/icon";
+import { plusIcon } from "@keystar/ui/icon/icons/plusIcon";
 import { settingsIcon } from "@keystar/ui/icon/icons/settingsIcon";
-import { layoutGridIcon } from "@keystar/ui/icon/icons/layoutGridIcon";
 import { trash2Icon } from "@keystar/ui/icon/icons/trash2Icon";
+import { xIcon } from "@keystar/ui/icon/icons/xIcon";
 import { Divider, Flex } from "@keystar/ui/layout";
 import { Picker, Item } from "@keystar/ui/picker";
 import { css, tokenSchema } from "@keystar/ui/style";
@@ -19,7 +20,7 @@ import { TooltipTrigger, Tooltip } from "@keystar/ui/tooltip";
 
 import { useEditorDispatchCommand, useEditorState } from "../editor-view";
 import {
-  appendCellToGrid,
+  addCell,
   deleteFocusedCell,
   findGridCell,
   gridHasContent,
@@ -32,15 +33,14 @@ import {
 
 // The gear opens a settings panel (keystar's Menu has no nested submenus, so
 // the grid-wide controls — columns, gap — live in a popover instead of as
-// separate toolbar buttons). "Delete item" needs a focused cell to target;
-// "Add item" is grid-scoped, so it stays enabled regardless.
+// separate toolbar buttons). Add/delete item live as their own +/x buttons on
+// the toolbar (see GridPopover).
 function GridSettingsMenu(props: {
   node: Node;
   state: EditorState;
   pos: number;
 }) {
   const runCommand = useEditorDispatchCommand();
-  const hasCell = findGridCell(props.state) !== null;
   const columns = String(props.node.attrs.columns);
   const gap = props.node.attrs.gap as string;
   return (
@@ -82,15 +82,6 @@ function GridSettingsMenu(props: {
             <Item key={g}>{g}</Item>
           ))}
         </Picker>
-        <ActionButton onPress={() => runCommand(appendCellToGrid)}>
-          Add item
-        </ActionButton>
-        <ActionButton
-          isDisabled={!hasCell}
-          onPress={() => runCommand(deleteFocusedCell)}
-        >
-          Delete item
-        </ActionButton>
       </Flex>
     </DialogTrigger>
   );
@@ -150,6 +141,30 @@ const PLACES: { place: GridPlace; label: string; path: string }[] = [
   },
 ];
 
+// the box-align glyph for a given placement. `null`/unplaced falls back to the
+// top-left glyph — matching how unplaced content actually flows (top, full
+// width). Reused by both the toolbar button and the 3×3 picker.
+function PlaceGlyph(props: { place: GridPlace; size?: number }) {
+  const size = props.size ?? 20;
+  const entry =
+    PLACES.find((p) => p.place === (props.place ?? "start start")) ?? PLACES[0];
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={entry.path} />
+    </svg>
+  );
+}
+
 function GridLayoutMenu(props: { state: EditorState }) {
   const runCommand = useEditorDispatchCommand();
   const cell = findGridCell(props.state);
@@ -161,10 +176,11 @@ function GridLayoutMenu(props: { state: EditorState }) {
         isDisabled={!cell}
         aria-label="Item layout"
       >
-        <Icon src={layoutGridIcon} />
+        {/* icon mirrors the active item's current placement (top-left if none) */}
+        <PlaceGlyph place={current} />
       </ActionButton>
       <div className={layoutPanelClass} role="group" aria-label="Item layout">
-        {PLACES.map(({ place, label, path }) => {
+        {PLACES.map(({ place, label }) => {
           const active = current === place;
           return (
             <button
@@ -180,19 +196,7 @@ function GridLayoutMenu(props: { state: EditorState }) {
                 runCommand(setFocusedCellPlace(active ? null : place))
               }
             >
-              <svg
-                viewBox="0 0 24 24"
-                width={18}
-                height={18}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d={path} />
-              </svg>
+              <PlaceGlyph place={place} size={18} />
             </button>
           );
         })}
@@ -243,6 +247,8 @@ export function GridPopover(props: {
   const runCommand = useEditorDispatchCommand();
   const state = useEditorState();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // "delete item" targets the focused cell — disabled until one is focused
+  const hasCell = findGridCell(state) !== null;
 
   const deleteGrid = () => {
     runCommand((s, dispatch) => {
@@ -257,6 +263,27 @@ export function GridPopover(props: {
     <Flex gap="regular" padding="regular" alignItems="center">
       <GridSettingsMenu node={props.node} state={state} pos={props.pos} />
       <GridLayoutMenu state={state} />
+      <TooltipTrigger>
+        <ActionButton
+          prominence="low"
+          aria-label="Add item"
+          onPress={() => runCommand(addCell)}
+        >
+          <Icon src={plusIcon} />
+        </ActionButton>
+        <Tooltip>Add item</Tooltip>
+      </TooltipTrigger>
+      <TooltipTrigger>
+        <ActionButton
+          prominence="low"
+          aria-label="Delete item"
+          isDisabled={!hasCell}
+          onPress={() => runCommand(deleteFocusedCell)}
+        >
+          <Icon src={xIcon} />
+        </ActionButton>
+        <Tooltip>Delete item</Tooltip>
+      </TooltipTrigger>
       <Divider orientation="vertical" />
       <TooltipTrigger>
         <ActionButton

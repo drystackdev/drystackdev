@@ -1,6 +1,7 @@
+import { chainCommands } from "prosemirror-commands";
 import type { Node as ProseMirrorNode, NodeType } from "prosemirror-model";
 import type { Command, EditorState } from "prosemirror-state";
-import { NodeSelection } from "prosemirror-state";
+import { NodeSelection, Selection } from "prosemirror-state";
 
 // The grid is a flat CSS-grid whose track count is configurable per grid (the
 // `columns` attr, default 24 — like a 24-unit design grid). Each `grid_cell`
@@ -171,7 +172,11 @@ export const addCellAfterFocused: Command = (state, dispatch) => {
   const newCell = makeCell(state.schema, cell.node.attrs.span);
   if (!newCell) return false;
   if (dispatch) {
-    dispatch(state.tr.insert(cell.pos + cell.node.nodeSize, newCell));
+    const insertPos = cell.pos + cell.node.nodeSize;
+    const tr = state.tr.insert(insertPos, newCell);
+    // drop the caret into the fresh cell so the user can type right away
+    tr.setSelection(Selection.near(tr.doc.resolve(insertPos + 1), 1));
+    dispatch(tr.scrollIntoView());
   }
   return true;
 };
@@ -191,10 +196,22 @@ export const appendCellToGrid: Command = (state, dispatch) => {
   if (!newCell) return false;
   if (dispatch) {
     // -1 to land just inside the grid's closing token
-    dispatch(state.tr.insert(grid.pos + grid.node.nodeSize - 1, newCell));
+    const insertPos = grid.pos + grid.node.nodeSize - 1;
+    const tr = state.tr.insert(insertPos, newCell);
+    // drop the caret into the fresh cell so the user can type right away
+    tr.setSelection(Selection.near(tr.doc.resolve(insertPos + 1), 1));
+    dispatch(tr.scrollIntoView());
   }
   return true;
 };
+
+// the toolbar "+" — insert a new cell to the right of the focused one, falling
+// back to appending at the grid's end when nothing is focused so the button is
+// never a dead click.
+export const addCell: Command = chainCommands(
+  addCellAfterFocused,
+  appendCellToGrid,
+);
 
 // delete the focused cell; if it's the last one, remove the whole grid so we
 // never leave an empty grid behind
@@ -210,6 +227,44 @@ export const deleteFocusedCell: Command = (state, dispatch) => {
     }
   }
   return true;
+};
+
+// move the caret into the previous/next sibling cell within the same grid.
+// Bound to Tab / Shift-Tab. At the grid's first/last cell there is nowhere to
+// go, but we still consume the key (return true) so focus never escapes the
+// editor — an unhandled Tab blurs the whole contenteditable.
+export function moveToAdjacentCell(direction: 1 | -1): Command {
+  return (state, dispatch) => {
+    const cell = findGridCell(state);
+    const grid = findGrid(state);
+    if (!cell || !grid) return false;
+    const cellPositions: number[] = [];
+    grid.node.forEach((_child, offset) => {
+      cellPositions.push(grid.pos + 1 + offset);
+    });
+    const index = cellPositions.indexOf(cell.pos);
+    const targetPos =
+      index === -1 ? undefined : cellPositions[index + direction];
+    // at the grid edge: consume the key so Tab doesn't blur the editor
+    if (targetPos === undefined) return true;
+    if (dispatch) {
+      // land the caret at the start of the target cell's content
+      const $target = state.doc.resolve(targetPos + 1);
+      dispatch(
+        state.tr.setSelection(Selection.near($target, 1)).scrollIntoView(),
+      );
+    }
+    return true;
+  };
+}
+
+// Backspace/Delete inside an *empty* grid cell removes the whole cell (or the
+// grid, if it was the only cell) rather than joining paragraphs across the cell
+// boundary. Non-empty cells return false so the normal delete behaviour runs.
+export const deleteEmptyGridCell: Command = (state, dispatch) => {
+  const cell = findGridCell(state);
+  if (!cell || gridHasContent(cell.node)) return false;
+  return deleteFocusedCell(state, dispatch);
 };
 
 export function setFocusedCellPlace(place: GridPlace): Command {

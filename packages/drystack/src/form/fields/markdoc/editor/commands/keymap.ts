@@ -25,6 +25,7 @@ import {
   liftListItem,
   sinkListItem,
 } from '../lists';
+import { moveToAdjacentCell, deleteEmptyGridCell } from '../grid';
 import { EditorSchema } from '../schema';
 import { Command, NodeSelection } from 'prosemirror-state';
 import { NodeType, ResolvedPos } from 'prosemirror-model';
@@ -84,6 +85,15 @@ export function keymapForSchema(
     add('Enter', splitListItem(nodes.list_item));
     add('Tab', sinkListItem(nodes.list_item));
     add('Shift-Tab', liftListItem(nodes.list_item));
+  }
+  if (nodes.grid_cell) {
+    // Tab hops between grid cells; added after list_item's Tab so sinkListItem
+    // (a no-op outside a list) gets first refusal. Added before the generic
+    // Backspace/Delete below so deleting an empty cell wins over joinBackward.
+    add('Tab', moveToAdjacentCell(1));
+    add('Shift-Tab', moveToAdjacentCell(-1));
+    add('Backspace', deleteEmptyGridCell);
+    add('Delete', deleteEmptyGridCell);
   }
   add(
     'Enter',
