@@ -16,6 +16,8 @@
     "build": "astro build",
     "preview": "wrangler dev",
     "astro": "astro",
+    "dev:b": "bun run dev --background",
+    "dev:s": "bun run dev stop",
     "publish:packages": "bash scripts/publish.sh"
   },
   "dependencies": {

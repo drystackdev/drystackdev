@@ -4,7 +4,7 @@ import Icon from "./Icon.astro";
 import Heading from "./Heading.astro";
 import { getHomepage } from "../data/site";
 
-const { techTools } = await getHomepage();
+const { techTools } = await getHomepage() as any;
 const tools = techTools.tools.map((t) => ({ ...t, size: 65 }));
 
 // Fibonacci-sphere distribution so the tiles sit evenly spaced on the globe.

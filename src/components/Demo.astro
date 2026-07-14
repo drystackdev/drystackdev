@@ -1,0 +1,33 @@
+---
+import { dry as createDry } from "@drystack/astro/dry";
+import config from "../../drystack.config";
+import Image from "astro/components/Image.astro";
+
+const dry = await createDry(config).singleton.demo;
+---
+
+<main>
+  <h1 {...dry.item("text")}>{dry.text}</h1>
+  {
+    dry.image && (
+      <Image width={200} height={200} alt="hình ảnh demo" src={dry.image} />
+    )
+  }
+</main>
+
+<style>
+  main {
+    height: 70dvh;
+    padding-top: 10rem;
+    max-width: 800px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem
+  }
+  img {
+    object-fit: contain;
+    width: 300px;
+    height: auto;
+  }
+</style>

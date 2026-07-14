@@ -450,5 +450,12 @@ export default config({
         lede: fields.text({ label: "Mô tả", multiline: true }),
       },
     }),
+    demo: singleton({
+      label: "Demo Vistual Editing Inline",
+      schema: {
+        text: fields.text({label: "[field.Text] - vistual editing inline"}),
+        image: fields.image({label: "[field.Image] - vistual editing inline"}),
+      }
+    })
   }
 });
