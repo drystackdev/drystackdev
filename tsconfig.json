@@ -1,5 +1,13 @@
 {
   "extends": "astro/tsconfigs/strict",
+  "compilerOptions": {
+    // Matches astro.config.mjs's Vite `resolve.conditions: ["drystack-src"]`
+    // (dev-only) so the editor's TS server resolves @drystack/* imports to
+    // their src/*.ts sources too — otherwise it falls back to the "default"
+    // condition (dist/*.d.ts), which is a build artifact that goes stale
+    // the moment you edit those packages' source without rebuilding.
+    "customConditions": ["drystack-src"]
+  },
   "include": [".astro/types.d.ts", "**/*"],
   "exclude": ["dist"]
 }
