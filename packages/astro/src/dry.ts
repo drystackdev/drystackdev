@@ -80,8 +80,9 @@ async function readSingleton(
       // Shared with the admin's edit-sync effects (SingletonPage.tsx) so both
       // surfaces recognize the same fields the same way. MVP scope: flat
       // top-level fields.text ('slug' formKind), fields.image ('image'
-      // columnKind), and fields.array of a fields.text element (one path
-      // segment deeper, e.g. "array.0") — see plan/vei-array-object.md.
+      // columnKind), and fields.array of a fields.text or fields.image
+      // element (one path segment deeper, e.g. "array.0") — see
+      // plan/vei-array-object.md.
       const [baseField, ...rest] = field.split('.');
       const baseSchema = schema[baseField];
 
@@ -97,8 +98,8 @@ async function readSingleton(
       }
 
       // Nested path — MVP only supports one level deep, indexing into a
-      // fields.array whose element is itself fields.text (array-of-object is
-      // deferred, see plan).
+      // fields.array whose element is itself fields.text or fields.image
+      // (array-of-object is deferred, see plan).
       if (rest.length !== 1 || !baseSchema || baseSchema.kind !== 'array') {
         console.warn(
           `[drystack] dry(): "${field}" on singleton "${name}" is not a supported array item path — skipping data-dry attribute.`
@@ -108,9 +109,9 @@ async function readSingleton(
       const elementKind = getSyncableFieldKind(
         (baseSchema as { element: ComponentSchema }).element
       );
-      if (elementKind !== 'text') {
+      if (elementKind !== 'text' && elementKind !== 'image') {
         console.warn(
-          `[drystack] dry(): array "${baseField}" on singleton "${name}" is not an array of fields.text — array-of-object item editing isn't supported yet.`
+          `[drystack] dry(): array "${baseField}" on singleton "${name}" is not an array of fields.text or fields.image — array-of-object item editing isn't supported yet.`
         );
         return {};
       }

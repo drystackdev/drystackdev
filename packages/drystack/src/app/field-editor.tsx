@@ -7,3 +7,5 @@
 export { createGetPreviewProps } from '../form/preview-props';
 export { FormValueContentFromPreviewProps } from '../form/form-from-preview';
 export { clientSideValidateProp } from '../form/errors';
+export { ArrayFieldListView } from '../form/fields/array/ui';
+export { valueToUpdater } from '../form/get-value';

@@ -44,7 +44,10 @@ import {
   createGetPreviewProps,
   FormValueContentFromPreviewProps,
   clientSideValidateProp,
+  ArrayFieldListView,
+  valueToUpdater,
 } from '@drystack/core/field-editor';
+import { getSyncableFieldKind } from '@drystack/core/edit-sync';
 import {
   enableEditing,
   disableEditing,
@@ -682,6 +685,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
           <ArrayFieldDialog
             config={config}
             fieldKey={arrayDialogKey}
+            ensureMediaHostMounted={ensureMediaHostMounted}
             onClose={() => setArrayDialogKey(null)}
             onSaved={() => {
               refreshCount();
@@ -704,21 +708,38 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   );
 }
 
-// Renders the exact admin editor (Add/Edit/Reorder/Delete) for one
-// fields.array field, seeded from its current live value (already up to
-// date with any pending item/container edits — see bind.ts's
-// getArrayValueFromDom). Reuses the admin's own field-rendering engine via
-// createGetPreviewProps + FormValueContentFromPreviewProps (see
-// field-editor.tsx) instead of a bespoke reimplementation — MVP scope is
-// array-of-fields.text only, see plan/vei-array-object.md.
+// Renders the array editor for one fields.array field, seeded from its
+// current live value (already up to date with any pending item/container
+// edits — see bind.ts's getArrayValueFromDom). Both array-of-fields.text and
+// array-of-fields.image reuse the admin's own field-rendering engine via
+// createGetPreviewProps (see field-editor.tsx) for the same underlying
+// state/update plumbing — the only difference is how each item is *edited*.
+// Text uses FormValueContentFromPreviewProps end to end (Add/Edit/Reorder/
+// Delete UI, for free). Image reuses ArrayFieldListView (the same row list,
+// drag-reorder and delete admin's ArrayFieldInput renders — see
+// packages/drystack/src/form/fields/array/ui.tsx) but swaps out the
+// Add/Edit *modal* content: the admin's own ArrayFieldAddItemModalContent/
+// ArrayEditItemModalContent render FormValueContentFromPreviewProps for the
+// element schema, which for fields.image mounts ImageFieldInput — a
+// component that reaches into admin-only React context (ConfigContext,
+// RouterProvider, a urql client — see
+// packages/drystack/src/app/media-library/VeiMediaHost.tsx's own provider
+// stack) this live-site editor never mounts. ImageArrayEditor opens the same
+// lightweight openMediaLibrary() bridge the single-image click flow already
+// uses instead, and writes the result back through the *same*
+// previewProps.onChange/elements[i].onChange plumbing ArrayFieldListView
+// itself uses, so add/remove/reorder still all go through the one shared
+// state machine.
 function ArrayFieldDialog({
   config,
   fieldKey,
+  ensureMediaHostMounted,
   onClose,
   onSaved,
 }: {
   config: Config<any, any>;
   fieldKey: string;
+  ensureMediaHostMounted: () => Promise<boolean>;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -732,6 +753,9 @@ function ArrayFieldDialog({
   const [forceValidation, setForceValidation] = useState(false);
   const formId = useId();
 
+  const isImageArray =
+    !!fieldSchema && getSyncableFieldKind(fieldSchema.element) === 'image';
+
   const getPreviewProps = useMemo(
     () =>
       fieldSchema
@@ -739,9 +763,9 @@ function ArrayFieldDialog({
           // union, so ParsedValueForComponentSchema resolves to a wide
           // `readonly unknown[]`-ish type that setValue's narrower
           // `string[]` updater doesn't structurally match — this dialog's
-          // MVP scope (dry.ts only allows array-of-fields.text, see
-          // plan/vei-array-object.md) guarantees the runtime shape is
-          // always string[].
+          // scope (dry.ts only allows array-of-fields.text or
+          // array-of-fields.image, see plan/vei-array-object.md) guarantees
+          // the runtime shape is always string[].
           createGetPreviewProps(fieldSchema, setValue as any, () => undefined)
         : undefined,
     [fieldSchema]
@@ -786,11 +810,21 @@ function ArrayFieldDialog({
           }}
           gap="xxlarge"
         >
-          <FormValueContentFromPreviewProps
-            autoFocus
-            {...previewProps}
-            forceValidation={forceValidation}
-          />
+          {isImageArray ? (
+            <ImageArrayEditor
+              config={config}
+              singletonName={name}
+              fieldSchema={fieldSchema}
+              previewProps={previewProps}
+              ensureMediaHostMounted={ensureMediaHostMounted}
+            />
+          ) : (
+            <FormValueContentFromPreviewProps
+              autoFocus
+              {...previewProps}
+              forceValidation={forceValidation}
+            />
+          )}
         </VStack>
       </Content>
       <ButtonGroup>
@@ -800,6 +834,84 @@ function ArrayFieldDialog({
         </Button>
       </ButtonGroup>
     </Dialog>
+  );
+}
+
+// The array-of-fields.image editor — a plain thumbnail grid instead of the
+// admin's ArrayFieldInput/ImageFieldInput (see ArrayFieldDialog's comment for
+// why those can't mount here). Renders the exact same row list, drag-reorder
+// and delete UI as the admin's ArrayFieldInput (via ArrayFieldListView,
+// re-exported alongside it in field-editor.tsx) — only Add/Edit swap
+// openMediaLibrary() in for the modal that would otherwise mount
+// ImageFieldInput, writing back through the same previewProps.onChange /
+// elements[i].onChange plumbing ArrayFieldListView itself uses (see
+// preview-props.tsx's array() builder), so remove/reorder still flow through
+// the one shared state machine untouched. Picking caches bytes locally via
+// putPendingBlob (same as the single-image click flow) so ArrayFieldDialog's
+// onDone always publishes the real path — never a blob: URL.
+function ImageArrayEditor({
+  config,
+  singletonName,
+  fieldSchema,
+  previewProps,
+  ensureMediaHostMounted,
+}: {
+  config: Config<any, any>;
+  singletonName: string;
+  fieldSchema: ArrayField<ComponentSchema>;
+  // Same shape ArrayFieldListView/FormValueContentFromPreviewProps consume
+  // (see createGetPreviewProps) — loosely typed to avoid importing the full
+  // generic preview-props machinery for this one internal helper.
+  previewProps: any;
+  ensureMediaHostMounted: () => Promise<boolean>;
+}) {
+  const pickInto = async (onPicked: (path: string) => void) => {
+    const ready = await ensureMediaHostMounted();
+    if (!ready) return;
+    let picked: MediaLibraryPick | undefined;
+    try {
+      picked = await openMediaLibrary({
+        accept: 'image',
+        local: {
+          directory: `${getSingletonPath(config, singletonName)}/assets`,
+          label: 'Trang này',
+        },
+      });
+    } catch (err) {
+      toastQueue.critical(err instanceof Error ? err.message : String(err));
+      return;
+    }
+    if (!picked) return;
+    await putPendingBlob(picked.path, picked.content);
+    onPicked(picked.path);
+  };
+
+  const addItem = () =>
+    pickInto(path => {
+      previewProps.onChange([
+        ...previewProps.elements.map((el: { key: string }) => ({ key: el.key })),
+        { key: undefined, value: valueToUpdater(path, fieldSchema.element) },
+      ]);
+    });
+
+  const editItem = (idx: number) =>
+    pickInto(path => {
+      previewProps.elements[idx].onChange(path);
+    });
+
+  return (
+    <VStack gap="medium">
+      <ActionButton alignSelf="start" onPress={addItem}>
+        Thêm ảnh
+      </ActionButton>
+      <ArrayFieldListView
+        {...previewProps}
+        autoFocus={false}
+        forceValidation={false}
+        aria-label={fieldSchema.label}
+        onOpenItem={editItem}
+      />
+    </VStack>
   );
 }
 

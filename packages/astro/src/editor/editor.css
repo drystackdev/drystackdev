@@ -13,16 +13,15 @@
    prefers-color-scheme media query. */
 
 body.editing [data-dry] {
-  outline: 2px solid rgba(0, 128, 255, 0.5);
+  outline: 2px solid rgba(0, 128, 255, 0.2);
   outline-offset: 0px;
   border-radius: 1px;
   cursor: text;
-  transition: outline-offset 0.2s cubic-bezier(0.075, 0.82, 0.165, 1);
+  transition: outline-offset 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
 }
 body.editing [data-dry]:hover {
   outline-color: rgba(0, 128, 255, 0.8);
   outline-offset: 5px;
-  transition: outline-offset 0.5s cubic-bezier(0.075, 0.82, 0.165, 1);
 }
 
 /* fields.image spots aren't contenteditable — clicking opens the same
@@ -30,12 +29,12 @@ body.editing [data-dry]:hover {
    handleImageSpotClick). Style as a clickable target instead of a text
    caret, with a translucent scrim + hint on hover so it reads as "click to
    change" rather than a plain picture. */
-body.editing [data-dry-kind='image'] {
+body.editing [data-dry-kind="image"] {
   cursor: pointer !important;
   position: relative;
-  transition: filter 0.15s ease;
+  transition: filter 0.15s ease,  outline-offset 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
 }
-body.editing [data-dry-kind='image']:hover {
+body.editing [data-dry-kind="image"]:hover {
   filter: brightness(0.85);
 }
 .dry-spot-flash {
@@ -48,9 +47,8 @@ body.editing [data-dry-kind='image']:hover {
    (data-dry-kind="text" spots one level down) are. Swap the inherited text
    caret for a default cursor and a dashed outline so a container reads as a
    distinct "structured" region rather than another editable text spot. */
-body.editing [data-dry-kind='array'] {
+body.editing [data-dry-kind="array"] {
   cursor: default !important;
-  outline-color: rgba(0, 128, 255, 0.5);
 }
 
 /* Floating gear button shown while hovering a fields.array container in edit
@@ -135,7 +133,10 @@ body > .kui-scheme--auto {
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28) !important;
   transition: transform 0.2s ease;
 }
-.dry-fab:hover { transform: scale(1.06); background: #2563eb !important; }
+.dry-fab:hover {
+  transform: scale(1.06);
+  background: #2563eb !important;
+}
 
 /* Round icon buttons inside the menu (Keystar Buttons, square + 50% radius). */
 .dry-iconbtn {
@@ -165,15 +166,21 @@ body > .kui-scheme--auto {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 /* The two icons spin in opposite directions as they swap. */
 .dry-fab-icon.is-hidden {
   opacity: 0;
   pointer-events: none;
 }
-.dry-fab-icon--edit.is-hidden { transform: rotate(-90deg) scale(0.3); }
-.dry-fab-icon--x.is-hidden { transform: rotate(90deg) scale(0.3); }
+.dry-fab-icon--edit.is-hidden {
+  transform: rotate(-90deg) scale(0.3);
+}
+.dry-fab-icon--x.is-hidden {
+  transform: rotate(90deg) scale(0.3);
+}
 
 /* Unified menu — an always-visible pill led by its FAB, shared by both bar
    menus (deploy and edit). Collapsed it hugs the lone FAB and reads as a round
@@ -191,8 +198,12 @@ body > .kui-scheme--auto {
   border-color: var(--kui-color-border-muted, rgba(0, 0, 0, 0.1));
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
   border: 1px solid transparent;
-  transition: gap 0.3s ease, padding 0.3s ease, background 0.3s ease,
-    border-color 0.3s ease, box-shadow 0.3s ease;
+  transition:
+    gap 0.3s ease,
+    padding 0.3s ease,
+    background 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
 }
 /* Open → part the FAB from the actions that just slid out. */
 .dry-menu.is-open .dry-menu-pill {
@@ -223,7 +234,9 @@ body > .kui-scheme--auto {
   gap: 8px;
   opacity: 0;
   transform: translateX(-6px);
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
 }
 .dry-menu.is-open .dry-menu-actions-inner {
   overflow: visible;
@@ -231,12 +244,17 @@ body > .kui-scheme--auto {
   transform: none;
   /* Reveal (and un-clip the review badge) only after the width animation
      finishes; closing reverts instantly. */
-  transition: overflow 0s 0.3s, opacity 0.22s ease 0.26s,
+  transition:
+    overflow 0s 0.3s,
+    opacity 0.22s ease 0.26s,
     transform 0.22s ease 0.26s;
 }
 
 /* Floating count badge, pinned to the top-right of the Review button. */
-.dry-review { position: relative; display: flex; }
+.dry-review {
+  position: relative;
+  display: flex;
+}
 .dry-badge {
   position: absolute;
   top: -7px;
@@ -248,7 +266,9 @@ body > .kui-scheme--auto {
 /* Hover dropdown listing the singletons editable on the page. Rendered through
    a portal to <body> (see Toolbar) so the menu's overflow:hidden — needed for
    the collapse animation — never clips it. */
-.dry-ref { display: flex; }
+.dry-ref {
+  display: flex;
+}
 .dry-ref-menu {
   position: fixed;
   z-index: 2147483647;
@@ -263,8 +283,9 @@ body > .kui-scheme--auto {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   /* Portaled to <body>, so the KeystarProvider font no longer cascades here.
      Match Keystar's default (system) stack used by the bar's buttons. */
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    'Helvetica Neue', Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
   font-size: 13px;
   line-height: 1.4;
 }
@@ -283,9 +304,17 @@ body > .kui-scheme--auto {
   font-size: 13px;
   color: inherit;
 }
-.dry-ref-item:hover { background: rgba(0, 0, 0, 0.06); }
-.dry-ref-item .dry-ref-name { font-weight: 600; }
-.dry-ref-empty { padding: 8px 10px; font-size: 13px; opacity: 0.6; }
+.dry-ref-item:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+.dry-ref-item .dry-ref-name {
+  font-weight: 600;
+}
+.dry-ref-empty {
+  padding: 8px 10px;
+  font-size: 13px;
+  opacity: 0.6;
+}
 
 /* Review-changes accordion/diff styling now lives as scoped emotion classes
    in drystack core's ChangePreviewDialog (packages/drystack/src/app/
@@ -303,10 +332,12 @@ body > .kui-scheme--auto {
     border-color: rgba(255, 255, 255, 0.12);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   }
-  .dry-ref-item:hover { background: rgba(255, 255, 255, 0.08); }
+  .dry-ref-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
 }
 
 #drystack-editor-root {
   position: relative;
-  z-index: 999999
+  z-index: 999999;
 }

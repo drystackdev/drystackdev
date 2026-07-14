@@ -58,8 +58,8 @@ function isArraySpot(el: HTMLElement): boolean {
 // item element is captured as a per-container "template" the first time it's
 // seen; growing the array clones it, shrinking removes the trailing excess.
 // Only direct children of the container count as items (matches the
-// dry.item('array.N') convention) — this is the scoped MVP for array-of-text,
-// see plan/vei-array-object.md.
+// dry.item('array.N') convention) — this is the scoped MVP for array-of-text
+// and array-of-image, see plan/vei-array-object.md.
 const arrayTemplates = new Map<string, HTMLElement>();
 
 function getArrayItemChildren(container: HTMLElement, key: string): HTMLElement[] {
@@ -70,8 +70,30 @@ function getArrayItemChildren(container: HTMLElement, key: string): HTMLElement[
   );
 }
 
+// An array's items all share the same element schema, so one representative
+// element's own data-dry-kind (server-rendered by dry.item(), preserved
+// through template-clone) tells us how to read/paint every item — the
+// captured template is checked first since it survives even after the array
+// is edited down to zero items on screen.
+function getArrayElementKind(container: HTMLElement, key: string): 'text' | 'image' {
+  const kindOf = (el: HTMLElement | undefined) =>
+    el?.getAttribute('data-dry-kind') === 'image' ? 'image' : 'text';
+  const template = arrayTemplates.get(key);
+  if (template) return kindOf(template);
+  return kindOf(getArrayItemChildren(container, key)[0]);
+}
+
 function readArrayValues(container: HTMLElement, key: string): string[] {
-  return getArrayItemChildren(container, key).map(el => el.textContent ?? '');
+  const kind = getArrayElementKind(container, key);
+  return getArrayItemChildren(container, key).map(el => {
+    if (kind !== 'image') return el.textContent ?? '';
+    // `data-dry-value` (set by paintImageSpot/applyEdit) is the real path;
+    // `src` alone can be a transient blob: preview URL once a pending image
+    // edit has been applied — reading that back as "the value" would leak
+    // the local object URL into a save. Only an item never touched by JS
+    // (straight from SSR) lacks the attribute, and its `src` is real then.
+    return el.getAttribute('data-dry-value') ?? el.getAttribute('src') ?? '';
+  });
 }
 
 // Captures a clonable template from the first existing item, if one exists
@@ -97,6 +119,7 @@ function captureArrayTemplate(container: HTMLElement, key: string): HTMLElement[
 function renderArray(container: HTMLElement, key: string, values: string[]): void {
   const items = captureArrayTemplate(container, key);
   const template = arrayTemplates.get(key);
+  const kind = getArrayElementKind(container, key);
   for (let i = 0; i < values.length; i++) {
     let el = items[i];
     if (!el) {
@@ -105,11 +128,17 @@ function renderArray(container: HTMLElement, key: string, values: string[]): voi
       container.appendChild(el);
       items[i] = el;
     }
-    el.setAttribute('data-dry', `${key}.${i}`);
-    el.textContent = values[i];
-    if (editing) {
-      el.contentEditable = 'plaintext-only';
-      if (el.contentEditable !== 'plaintext-only') el.contentEditable = 'true';
+    const itemKey = `${key}.${i}`;
+    el.setAttribute('data-dry', itemKey);
+    if (kind === 'image') {
+      revokeImageObjectUrl(itemKey);
+      paintImageSpot(el, values[i]);
+    } else {
+      el.textContent = values[i];
+      if (editing) {
+        el.contentEditable = 'plaintext-only';
+        if (el.contentEditable !== 'plaintext-only') el.contentEditable = 'true';
+      }
     }
   }
   for (let i = values.length; i < items.length; i++) {
@@ -248,6 +277,23 @@ function revokeImageObjectUrl(key: string): void {
   }
 }
 
+// Paints an image spot's `src` and records the real value (never a blob:
+// preview URL) in `data-dry-value` — `src` alone isn't a reliable read-back
+// source once a pending-blob preview has been painted over it (see
+// applyEdit below), but array items need to read *some* attribute off the
+// DOM to reconstruct their container's current value (see readArrayValues),
+// so this is the one place that intentionally survives a blob-URL repaint.
+function paintImageSpot(el: HTMLElement, value: string): void {
+  el.removeAttribute('srcset');
+  el.hidden = !value;
+  if (value) {
+    el.setAttribute('src', value);
+    el.setAttribute('data-dry-value', value);
+  } else {
+    el.removeAttribute('data-dry-value');
+  }
+}
+
 // Paints a value fetched straight from source (never a pending edit — see
 // refreshFromLatestSource/applyCachedSource) onto one element and resets its
 // diff baseline to match. Source values are always real, already-servable
@@ -256,9 +302,7 @@ function paintFetchedValue(el: HTMLElement, key: string, value: string): void {
   resetOriginalValue(key, value);
   if (isImageSpot(el)) {
     revokeImageObjectUrl(key);
-    el.removeAttribute('srcset');
-    el.hidden = !value;
-    if (value) el.setAttribute('src', value);
+    paintImageSpot(el, value);
     return;
   }
   if (isArraySpot(el)) {
@@ -344,9 +388,7 @@ export function revertFieldToOriginal(key: string): void {
     .forEach(el => {
       if (isImageSpot(el)) {
         revokeImageObjectUrl(key);
-        el.removeAttribute('srcset');
-        el.hidden = !original;
-        if (original) el.setAttribute('src', original);
+        paintImageSpot(el, original);
         return;
       }
       if (isArraySpot(el)) {
@@ -400,7 +442,15 @@ export async function applyEdit(key: string, value: string): Promise<void> {
       revokeImageObjectUrl(key);
       el.removeAttribute('srcset');
       el.hidden = !value;
-      if (!value) return;
+      if (!value) {
+        el.removeAttribute('data-dry-value');
+        return;
+      }
+      // `data-dry-value` always records `value` itself (the real path), even
+      // when `src` is about to be overwritten with a local blob: preview —
+      // see paintImageSpot/readArrayValues for why the two can't be the same
+      // attribute.
+      el.setAttribute('data-dry-value', value);
       if (blob) {
         const url = URL.createObjectURL(new Blob([blob]));
         imageObjectUrls.set(key, url);

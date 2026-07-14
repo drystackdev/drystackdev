@@ -457,8 +457,12 @@ export default config({
         image: fields.image({label: "[field.Image]"}),
         array: fields.array(fields.text({label: "[field.Array[]]"}), {
           label: "[field.Array]",
-          itemLabel: (props) => props.value || "Item mới",
-        })
+          itemLabel: (props) => props.value,
+        }),
+        arrayImg: fields.array(fields.image({label: "[field.ArrayImg[]]"}), {
+          label: "[field.ArrayImg]",
+          itemLabel: (props) => props.value || "",
+        }),
       }
     })
   }
