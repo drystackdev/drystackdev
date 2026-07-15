@@ -199,22 +199,25 @@ function makeEditableIfEditing(el: HTMLElement): void {
 // Paints one array-of-object item: re-keys the wrapper and every descendant
 // sub-field spot to index `i` (so a grown/reordered item points at the right
 // index), then writes each sub-field's value from `obj`. Mirrors the flat
-// text/image painting the primitive branch does, one level in.
+// text/image painting the primitive branch does, one level in. `item` must be
+// the specific item wrapper element — querying from the whole array
+// container would match every item's descendants (they all share the same
+// `key.` prefix), clobbering every other item with this one's value.
 function paintObjectItem(
-  container: HTMLElement,
+  item: HTMLElement,
   key: string,
   i: number,
   obj: Record<string, unknown>
 ): void {
-  container.setAttribute('data-dry', `${key}.${i}`);
-  const containerPrefix = `${key}.`;
-  container.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
+  item.setAttribute('data-dry', `${key}.${i}`);
+  const itemPrefix = `${key}.`;
+  item.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
     const k = el.getAttribute('data-dry');
-    if (!k || !k.startsWith(containerPrefix)) return;
+    if (!k || !k.startsWith(itemPrefix)) return;
     // "…key.<oldIdx>.<sub…>" → re-index to "…key.<i>.<sub…>" (sub keeps its
     // own — possibly deeper — path so re-indexing is stable even for nested
     // spots we don't paint).
-    const afterKey = k.slice(containerPrefix.length);
+    const afterKey = k.slice(itemPrefix.length);
     const dot = afterKey.indexOf('.');
     if (dot === -1) return;
     const sub = afterKey.slice(dot + 1);
@@ -262,7 +265,7 @@ function renderArray(container: HTMLElement, key: string, values: unknown[]): vo
       items[i] = el;
     }
     if (kind === 'object') {
-      paintObjectItem(container, key, i, (values[i] ?? {}) as Record<string, unknown>);
+      paintObjectItem(el, key, i, (values[i] ?? {}) as Record<string, unknown>);
       continue;
     }
     const itemKey = `${key}.${i}`;

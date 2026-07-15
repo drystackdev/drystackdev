@@ -11,4 +11,7 @@ arrayImg:
 arrayObject:
   - name: Văn bản 1
     image: /assets/IMG_8972.JPG
-    file: /assets/IMG_8873.JPG
+    file: /assets/test-doc.txt
+  - name: Văn bản 2
+    image: /assets/IMG_8873.JPG
+    file: /assets/test-doc.txt
