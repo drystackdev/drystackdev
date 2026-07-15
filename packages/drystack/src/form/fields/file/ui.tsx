@@ -1,11 +1,15 @@
 import { ButtonGroup, ActionButton, Button } from '@keystar/ui/button';
 import { FieldDescription, FieldLabel, FieldMessage } from '@keystar/ui/field';
-import { Flex } from '@keystar/ui/layout';
+import { Icon } from '@keystar/ui/icon';
+import { fileCodeIcon } from '@keystar/ui/icon/icons/fileCodeIcon';
+import { Flex, Box } from '@keystar/ui/layout';
+import { Text } from '@keystar/ui/typography';
 
 import { useId, useReducer } from 'react';
 import { FormFieldInputProps } from '../../api';
 import { openMediaLibrary } from '../../../app/media-library/bridge';
 import { useMediaLibraryPreviewURL } from '../../../app/media-library/useMediaLibraryPreviewURL';
+import { useEntryDirectoryContext } from '../../../app/entry-form';
 
 // TODO: button labels ("Choose from library", "Remove", "Download") need i18n support
 export function FileFieldInput(
@@ -18,6 +22,7 @@ export function FileFieldInput(
   const { value } = props;
   const [blurred, onBlur] = useReducer(() => true, false);
   const objectUrl = useMediaLibraryPreviewURL(value);
+  const entryDirectory = useEntryDirectoryContext();
   const labelId = useId();
   const descriptionId = useId();
   return (
@@ -43,7 +48,12 @@ export function FileFieldInput(
       <ButtonGroup>
         <ActionButton
           onPress={async () => {
-            const picked = await openMediaLibrary({ accept: 'any' });
+            const picked = await openMediaLibrary({
+              accept: 'any',
+              local: entryDirectory
+                ? { directory: `${entryDirectory}/assets`, label: 'This entry' }
+                : undefined,
+            });
             onBlur();
             if (picked) {
               props.onChange(picked.path);
@@ -75,6 +85,22 @@ export function FileFieldInput(
           </>
         )}
       </ButtonGroup>
+      {value !== null && (
+        <Box
+          alignSelf="start"
+          backgroundColor="canvas"
+          borderRadius="regular"
+          border="neutral"
+          padding="regular"
+        >
+          <Flex alignItems="center" gap="regular">
+            <Icon src={fileCodeIcon} />
+            <Text UNSAFE_style={{ wordBreak: 'break-all' }}>
+              {value.split('/').pop()}
+            </Text>
+          </Flex>
+        </Box>
+      )}
       {(props.forceValidation || blurred) &&
         props.validation?.isRequired &&
         value === null && (

@@ -84,31 +84,52 @@ function isObjectItemSpot(el: HTMLElement): boolean {
 // and array-of-image, see plan/vei-array-object.md.
 const arrayTemplates = new Map<string, HTMLElement>();
 
+// Elements at or under `root` (including `root` itself) whose data-dry
+// starts with `prefix`, self first. Lets every array-item helper below work
+// whether the item's dry.item() spot lives on the item root itself (the
+// legacy self-marked pattern, e.g. arrayImg's <Image {...dry.item('arrayImg.0')}/>)
+// or on a descendant inside author-supplied wrapper markup the item root
+// itself doesn't carry data-dry for (e.g. <li><div {...dry.item('array.0')}>
+// ...</div></li> — the <li> is just the clone-template unit).
+function collectDrySpots(root: HTMLElement, prefix: string): HTMLElement[] {
+  const spots: HTMLElement[] = [];
+  if (root.getAttribute('data-dry')?.startsWith(prefix)) spots.push(root);
+  root.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
+    if (el.getAttribute('data-dry')?.startsWith(prefix)) spots.push(el);
+  });
+  return spots;
+}
+
 function getArrayItemChildren(container: HTMLElement, key: string): HTMLElement[] {
   const prefix = `${key}.`;
   return Array.from(container.children).filter(
-    (child): child is HTMLElement =>
-      child.getAttribute('data-dry')?.startsWith(prefix) === true
+    (child): child is HTMLElement => collectDrySpots(child as HTMLElement, prefix).length > 0
   );
 }
 
-// An array's items all share the same element schema, so one representative
-// element's own data-dry-kind (server-rendered by dry.item(), preserved
-// through template-clone) tells us how to read/paint every item — the
-// captured template is checked first since it survives even after the array
-// is edited down to zero items on screen. 'object' means each item is a
-// wrapper element carrying text/image/file sub-field spots (array-of-object).
+// An array's items all share the same shape, so one representative item's
+// spot(s) tell us how to read/paint every item — the captured template is
+// checked first since it survives even after the array is edited down to
+// zero items on screen. A spot whose key (after stripping the `key.`
+// prefix) still has a `.` in it (e.g. "0.name") is a sub-field of an
+// array-of-object item — this is how the unmarked-wrapper arrayObject
+// pattern is detected, since no element carries data-dry-kind="object" in
+// that pattern (only the legacy self-marked wrapper does). Otherwise the
+// spot's own data-dry-kind (server-rendered by dry.item(), preserved
+// through template-clone) is the item kind.
 function getArrayElementKind(
   container: HTMLElement,
   key: string
 ): 'text' | 'image' | 'file' | 'object' {
-  const kindOf = (el: HTMLElement | undefined) => {
-    const k = el?.getAttribute('data-dry-kind');
-    return k === 'image' || k === 'file' || k === 'object' ? k : 'text';
-  };
-  const template = arrayTemplates.get(key);
-  if (template) return kindOf(template);
-  return kindOf(getArrayItemChildren(container, key)[0]);
+  const prefix = `${key}.`;
+  const sample = arrayTemplates.get(key) ?? getArrayItemChildren(container, key)[0];
+  if (!sample) return 'text';
+  const spot = collectDrySpots(sample, prefix)[0];
+  if (!spot) return 'text';
+  const afterKey = spot.getAttribute('data-dry')!.slice(prefix.length);
+  if (afterKey.includes('.')) return 'object';
+  const k = spot.getAttribute('data-dry-kind');
+  return k === 'image' || k === 'file' || k === 'object' ? k : 'text';
 }
 
 // The native attribute carrying an asset spot's pristine SSR value — `src`
@@ -131,22 +152,22 @@ function readSpotValue(el: HTMLElement): string {
   return el.getAttribute('data-dry-value') ?? readAssetAttr(el) ?? '';
 }
 
-// Reconstructs one array-of-object item's value from its sub-field spots. The
-// item wrapper's own key (e.g. "…cards.0") prefixes each sub-field's key
-// ("…cards.0.title"); the trailing segment is the object field name. Image/
-// file sub-fields read null when empty, matching fields.image/fields.file's
-// null value so the object shape lines up with the admin form / reader (one
-// level deep — nested object/array sub-fields are out of scope, see
-// plan/vei-array-object.md).
-function readObjectItem(item: HTMLElement): Record<string, unknown> {
+// Reconstructs one array-of-object item's value from its sub-field spots.
+// `keyPrefix` is the array's own key plus a trailing dot (e.g. "…cards.");
+// each sub-field spot's key looks like "…cards.0.title" — the segment after
+// the item index is the object field name. A spot with no further dot after
+// the index (i.e. "…cards.0" itself) is the item root's own legacy
+// self-mark, not a sub-field, and is skipped. Image/file sub-fields read
+// null when empty, matching fields.image/fields.file's null value so the
+// object shape lines up with the admin form / reader (one level deep —
+// nested object/array sub-fields are out of scope).
+function readObjectItem(item: HTMLElement, keyPrefix: string): Record<string, unknown> {
   const obj: Record<string, unknown> = {};
-  const itemKey = item.getAttribute('data-dry');
-  if (!itemKey) return obj;
-  const prefix = `${itemKey}.`;
-  item.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
-    const k = el.getAttribute('data-dry');
-    if (!k || !k.startsWith(prefix)) return;
-    const sub = k.slice(prefix.length);
+  collectDrySpots(item, keyPrefix).forEach(el => {
+    const afterKey = el.getAttribute('data-dry')!.slice(keyPrefix.length); // "0.title"
+    const dot = afterKey.indexOf('.');
+    if (dot === -1) return; // item root's own legacy self-mark, not a sub-field
+    const sub = afterKey.slice(dot + 1);
     if (sub.includes('.')) return; // one level only
     if (isAssetSpot(el)) {
       const v = readSpotValue(el);
@@ -163,8 +184,12 @@ function readObjectItem(item: HTMLElement): Record<string, unknown> {
 function readArrayValues(container: HTMLElement, key: string): unknown[] {
   const kind = getArrayElementKind(container, key);
   const items = getArrayItemChildren(container, key);
-  if (kind === 'object') return items.map(readObjectItem);
-  return items.map(readSpotValue);
+  const prefix = `${key}.`;
+  if (kind === 'object') return items.map(item => readObjectItem(item, prefix));
+  return items.map(item => {
+    const spot = collectDrySpots(item, prefix)[0];
+    return spot ? readSpotValue(spot) : '';
+  });
 }
 
 // Captures a clonable template from the first existing item, if one exists
@@ -196,20 +221,32 @@ function makeEditableIfEditing(el: HTMLElement): void {
   if (el.contentEditable !== 'plaintext-only') el.contentEditable = 'true';
 }
 
-// Paints one array-of-object item: re-keys the wrapper and every descendant
-// sub-field spot to index `i` (so a grown/reordered item points at the right
-// index), then writes each sub-field's value from `obj`. Mirrors the flat
-// text/image painting the primitive branch does, one level in. `item` must be
-// the specific item wrapper element — querying from the whole array
-// container would match every item's descendants (they all share the same
-// `key.` prefix), clobbering every other item with this one's value.
+// Paints one array-of-object item: re-keys every descendant sub-field spot
+// to index `i` (so a grown/reordered item points at the right index), then
+// writes each sub-field's value from `obj`. Mirrors the flat text/image
+// painting the primitive branch does, one level in. `item` must be the
+// specific item root element — querying from the whole array container
+// would match every item's descendants (they all share the same `key.`
+// prefix), clobbering every other item with this one's value.
+//
+// The item root itself is only re-keyed if it already carried its own
+// data-dry-kind="object" mark (the legacy self-marked wrapper pattern,
+// e.g. dry.item('cards.0') applied directly to the wrapper). In the newer
+// pattern the item root is just author-supplied clone-template markup
+// (e.g. a plain <div> or <li>) with no data-dry of its own — forcing one on
+// would make it show up in enableEditing's generic [data-dry] loop without
+// a recognized kind, turning the *whole wrapper's* text into one big
+// contenteditable blob instead of leaving its individual sub-field spots
+// alone.
 function paintObjectItem(
   item: HTMLElement,
   key: string,
   i: number,
   obj: Record<string, unknown>
 ): void {
-  item.setAttribute('data-dry', `${key}.${i}`);
+  if (item.getAttribute('data-dry-kind') === 'object') {
+    item.setAttribute('data-dry', `${key}.${i}`);
+  }
   const itemPrefix = `${key}.`;
   item.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
     const k = el.getAttribute('data-dry');
@@ -219,7 +256,7 @@ function paintObjectItem(
     // spots we don't paint).
     const afterKey = k.slice(itemPrefix.length);
     const dot = afterKey.indexOf('.');
-    if (dot === -1) return;
+    if (dot === -1) return; // the item root's own spot, already handled above
     const sub = afterKey.slice(dot + 1);
     const subKey = `${key}.${i}.${sub}`;
     el.setAttribute('data-dry', subKey);
@@ -269,13 +306,16 @@ function renderArray(container: HTMLElement, key: string, values: unknown[]): vo
       continue;
     }
     const itemKey = `${key}.${i}`;
-    el.setAttribute('data-dry', itemKey);
+    // The actual spot may be `el` itself (legacy self-marked pattern) or a
+    // descendant inside author-supplied wrapper markup — see collectDrySpots.
+    const spot = collectDrySpots(el, `${key}.`)[0] ?? el;
+    spot.setAttribute('data-dry', itemKey);
     if (kind === 'image' || kind === 'file') {
       revokeAssetObjectUrl(itemKey);
-      paintAssetSpot(el, (values[i] as string) ?? '');
+      paintAssetSpot(spot, (values[i] as string) ?? '');
     } else {
-      el.textContent = (values[i] as string) ?? '';
-      makeEditableIfEditing(el);
+      spot.textContent = (values[i] as string) ?? '';
+      makeEditableIfEditing(spot);
     }
   }
   for (let i = values.length; i < items.length; i++) {

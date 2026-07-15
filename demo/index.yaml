@@ -2,16 +2,19 @@ text: Nội dung text 123456
 image: /assets/IMG_8873.JPG
 file: /assets/test-doc.txt
 array:
-  - item 1
-  - item 2
-  - item 3
+  - item đầu tiên
+  - item thứ 2
+  - item thứ 3
 arrayImg:
-  - /assets/IMG_8873.JPG
   - /assets/IMG_8972.JPG
+  - /assets/IMG_8873.JPG
 arrayObject:
-  - name: Văn bản 1
+  - name: Văn bản đầu tiên
     image: /assets/IMG_8972.JPG
-    file: /assets/test-doc.txt
-  - name: Văn bản 2
-    image: /assets/IMG_8873.JPG
+    file: /demo/assets/test-doc.txt
+  - name: Văn bản thứ 2
+    image: /assets/IMG_8972.JPG
+    file: /demo/assets/test-doc.txt
+  - name: Văn bản thứ 3
+    image: /assets/IMG_8972.JPG
     file: /assets/test-doc.txt
