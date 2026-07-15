@@ -788,23 +788,16 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       {editing && (
         <div className="dry-active-spot">
           {isGithub && (
-            <>
-              <CloudflareStatusInline
-                busy={deployBusy}
-                busyLabel={deployLabel}
-              />
-              {" - "}
-            </>
+            <CloudflareStatusInline busy={deployBusy} busyLabel={deployLabel} />
           )}
           {activeSpot ? (
             <>
-              {activeSpot.pathLabel}
-              {" - "}
               <span
                 className={`dry-active-spot-kind dry-active-spot-kind--${activeSpot.kind}`}
               >
                 {activeSpot.kindLabel}
               </span>
+              {activeSpot.pathLabel}
             </>
           ) : (
             <em className="dry-active-spot-empty">No item</em>
