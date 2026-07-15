@@ -34,7 +34,8 @@ import { saveIcon } from "@keystar/ui/icon/icons/saveIcon";
 import { eyeIcon } from "@keystar/ui/icon/icons/eyeIcon";
 import { externalLinkIcon } from "@keystar/ui/icon/icons/externalLinkIcon";
 import { rotateCcwIcon } from "@keystar/ui/icon/icons/rotateCcwIcon";
-import { slidersIcon } from "@keystar/ui/icon/icons/slidersIcon";
+import { listIcon } from "@keystar/ui/icon/icons/listIcon";
+import { bracesIcon } from "@keystar/ui/icon/icons/bracesIcon";
 import { VStack } from "@keystar/ui/layout";
 import { Content } from "@keystar/ui/slots";
 import { toastQueue } from "@keystar/ui/toast";
@@ -869,13 +870,14 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
             arrayGearSpot.kind === "array"
               ? getContainerValueFromDom(arrayGearSpot.key)
               : null;
+          const gearLabel =
+            arrayGearSpot.kind === "array" ? "Edit list" : "Edit fields";
           return createPortal(
             <button
               type="button"
               className="dry-array-gear"
-              aria-label={
-                arrayGearSpot.kind === "array" ? "Edit list" : "Edit fields"
-              }
+              aria-label={gearLabel}
+              data-dry-tooltip={gearLabel}
               disabled={
                 arrayGearSpot.kind === "array" &&
                 (!Array.isArray(value) || value.length === 0)
@@ -898,7 +900,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
                 setArrayGearSpot(null);
               }}
             >
-              <Icon src={slidersIcon} />
+              <Icon src={arrayGearSpot.kind === "array" ? listIcon : bracesIcon} />
             </button>,
             document.body,
           );

@@ -106,6 +106,36 @@ body.editing [data-dry-kind="object"] {
   opacity: 0.7;
 }
 
+/* Hover/focus label for the gear button — CSS-only (content: attr()) rather
+   than Keystar's Tooltip/TooltipTrigger, since this button is a plain
+   portaled DOM node (not a KeystarProvider-aware component) and react-aria's
+   tooltip trigger relies on FocusableContext to wire up its hover/focus
+   props, which a raw <button> never consumes. Shown below the button (not
+   above) because the button itself sits near the top edge of the hovered
+   container, where an above-placed tooltip risks clipping off the viewport. */
+.dry-array-gear[data-dry-tooltip]::after {
+  content: attr(data-dry-tooltip);
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #000;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  pointer-events: none;
+}
+.dry-array-gear[data-dry-tooltip]:hover::after,
+.dry-array-gear[data-dry-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 /* The editor's mount node (ROOT_ID in index.tsx), a direct child of <body>.
    KeystarProvider wraps everything below it in a div with `isolation: isolate`,
    which opens a stacking context — so a z-index on .dry-bar only competes with
@@ -287,6 +317,7 @@ body > .kui-scheme--auto {
    corner). */
 .dry-active-spot {
   position: fixed;
+  gap: .5rem;
   top: 0px;
   left: 0px;
   z-index: 2147483000;
