@@ -270,10 +270,30 @@ function mergeFieldEdits(
   for (const [field, value] of fieldEdits) {
     if (field === baseField) continue;
     const path = field.slice(baseField.length + 1).split('.');
-    // Raw string passthrough — save.ts writes straight to YAML, so an asset
-    // leaf's '' sentinel is stripped (not decoded to null) by
-    // stripEmptyAssetLeaves below rather than at splice time.
-    base = spliceValueEdit(base, path, baseSchema, () => value);
+    // A path edit's terminal schema is usually a flat leaf (text/image/file)
+    // — save.ts writes those straight to YAML as the raw bus string, so an
+    // asset leaf's '' sentinel is stripped (not decoded to null) by
+    // stripEmptyAssetLeaves below rather than at splice time. But at any
+    // nesting depth (array>object>array, …) a path can also terminate on a
+    // NESTED array/object — e.g. "sections.0.items" is itself a whole-
+    // container replace for the array nested inside a sections item — whose
+    // bus value is JSON-encoded the same way the outer container edit above
+    // is (see bind.ts's parseArrayValue/parseObjectValue,
+    // SingletonPage.tsx's fromBusValue). Passing that JSON *string* through
+    // unparsed would leave a string sitting where the schema expects a real
+    // array/object, which crashes clientSideValidateProp below instead of
+    // failing loudly — see plan/de-quy-object.md.
+    base = spliceValueEdit(base, path, baseSchema, leafSchema => {
+      const leafKind = getSyncableFieldKind(leafSchema);
+      if (leafKind !== 'array' && leafKind !== 'object') return value;
+      try {
+        const parsed = JSON.parse(value);
+        if (leafKind === 'array') return Array.isArray(parsed) ? parsed : [];
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+      } catch {
+        return leafKind === 'array' ? [] : {};
+      }
+    });
   }
   return stripEmptyAssetLeaves(base, baseSchema);
 }

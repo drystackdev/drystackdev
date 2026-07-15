@@ -10,5 +10,9 @@
 + khi build thẻ không ghi tường minh mà sẽ ghi dạng sẽ có dạng data-dry-id="d:hash"
 + khi đăng nhạp github, local sẽ dựa trên json mapping và data-dry-id để tìm ra object để handle đảm bảo mật và giúp html sạch hơn
 
+cơ chế tôi nghĩ ra:
+- json sẽ đc tạo khi hàm config được khởi chạy sẵn có sẵn id hash
+- khi gọi hàm dry.item sẽ tạo data-dry-id sẽ tạo ra id hash tương ứng
+
 Muốn hỏi: có cơ chế nào tốt hơn không? có giúp an toàn hệ thống trên production không?
 

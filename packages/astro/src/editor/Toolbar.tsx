@@ -949,6 +949,38 @@ async function pickAsset(
   return picked;
 }
 
+// Resolves a dotted field path (e.g. "sections.0.items") against a
+// singleton's schema, walking one segment at a time the same way dry.ts's
+// resolveDrySpot does server-side — a numeric segment steps into an array's
+// `.element`, a name segment steps into an object's `.fields[name]`. A flat
+// `schema[field]` lookup (the old code here) only resolves a top-level field
+// name; any nested container path — an array item's own object wrapper
+// ("sections.0"), a sub-field array nested inside it ("sections.0.items"),
+// or even a one-level-deep nested array under a standalone object
+// ("info.links") — would resolve to `undefined` and silently render nothing
+// (see plan/de-quy-object.md, and Toolbar's onOver hover-detection, which
+// shows the gear button for any such spot regardless of whether this
+// resolves — the dialog looked like it "wouldn't open").
+function resolveFieldSchema(
+  config: Config<any, any>,
+  name: string,
+  field: string
+): ArrayField<ComponentSchema> | ObjectField | undefined {
+  const [baseField, ...rest] = field.split('.');
+  let schema: ComponentSchema | undefined = config.singletons?.[name]?.schema?.[baseField];
+  for (const seg of rest) {
+    if (!schema) return undefined;
+    if (schema.kind === 'array' && /^\d+$/.test(seg)) {
+      schema = schema.element;
+    } else if (schema.kind === 'object') {
+      schema = schema.fields[seg];
+    } else {
+      return undefined;
+    }
+  }
+  return schema?.kind === 'array' || schema?.kind === 'object' ? schema : undefined;
+}
+
 // Renders the container editor for one fields.array or fields.object field
 // (at any nesting depth), seeded from its current live value (already up to
 // date with any pending item/sub-field edits — see bind.ts's
@@ -971,10 +1003,7 @@ function ContainerFieldDialog({
   onSaved: () => void;
 }) {
   const [, name, field] = fieldKey.split('::');
-  const fieldSchema = config.singletons?.[name]?.schema?.[field] as
-    | ArrayField<ComponentSchema>
-    | ObjectField
-    | undefined;
+  const fieldSchema = resolveFieldSchema(config, name, field);
   // unknown[] for array-of-*, Record<string, unknown> for a standalone
   // object — whichever shape `fieldSchema.kind` calls for.
   // getContainerValueFromDom mirrors that dispatch off the same live spot,
