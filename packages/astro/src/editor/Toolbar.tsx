@@ -7,45 +7,50 @@ import React, {
   useMemo,
   useRef,
   useState,
-} from 'react';
-import { createPortal } from 'react-dom';
-import type { ArrayField, ComponentSchema, Config, ObjectField } from '@drystack/core';
-import { getSingletonPath } from '@drystack/core/path-utils';
-import { getAuth } from '@drystack/core/auth';
+} from "react";
+import { createPortal } from "react-dom";
+import type {
+  ArrayField,
+  ComponentSchema,
+  Config,
+  ObjectField,
+} from "@drystack/core";
+import { getSingletonPath } from "@drystack/core/path-utils";
+import { getAuth } from "@drystack/core/auth";
 import {
   openMediaLibrary,
   waitForMediaLibraryOpener,
   type MediaLibraryPick,
-} from '@drystack/core/media-library-bridge';
+} from "@drystack/core/media-library-bridge";
 // @ts-expect-error — provided by the drystack Astro integration's Vite plugin
-import apiPath from 'virtual:drystack-path';
-import { Badge } from '@keystar/ui/badge';
-import { ActionButton, Button, ButtonGroup } from '@keystar/ui/button';
-import { AlertDialog, Dialog, DialogContainer } from '@keystar/ui/dialog';
-import { Icon } from '@keystar/ui/icon';
-import { editIcon } from '@keystar/ui/icon/icons/editIcon';
-import { xIcon } from '@keystar/ui/icon/icons/xIcon';
-import { saveIcon } from '@keystar/ui/icon/icons/saveIcon';
-import { eyeIcon } from '@keystar/ui/icon/icons/eyeIcon';
-import { externalLinkIcon } from '@keystar/ui/icon/icons/externalLinkIcon';
-import { rotateCcwIcon } from '@keystar/ui/icon/icons/rotateCcwIcon';
-import { slidersIcon } from '@keystar/ui/icon/icons/slidersIcon';
-import { VStack } from '@keystar/ui/layout';
-import { Content } from '@keystar/ui/slots';
-import { toastQueue } from '@keystar/ui/toast';
-import { Tooltip, TooltipTrigger } from '@keystar/ui/tooltip';
-import { Heading, Text } from '@keystar/ui/typography';
+import apiPath from "virtual:drystack-path";
+import { Badge } from "@keystar/ui/badge";
+import { ActionButton, Button, ButtonGroup } from "@keystar/ui/button";
+import { AlertDialog, Dialog, DialogContainer } from "@keystar/ui/dialog";
+import { Icon } from "@keystar/ui/icon";
+import { editIcon } from "@keystar/ui/icon/icons/editIcon";
+import { xIcon } from "@keystar/ui/icon/icons/xIcon";
+import { saveIcon } from "@keystar/ui/icon/icons/saveIcon";
+import { eyeIcon } from "@keystar/ui/icon/icons/eyeIcon";
+import { externalLinkIcon } from "@keystar/ui/icon/icons/externalLinkIcon";
+import { rotateCcwIcon } from "@keystar/ui/icon/icons/rotateCcwIcon";
+import { slidersIcon } from "@keystar/ui/icon/icons/slidersIcon";
+import { VStack } from "@keystar/ui/layout";
+import { Content } from "@keystar/ui/slots";
+import { toastQueue } from "@keystar/ui/toast";
+import { Tooltip, TooltipTrigger } from "@keystar/ui/tooltip";
+import { Heading, Text } from "@keystar/ui/typography";
 import {
   ChangePreviewDialog,
   ImageThumbFrame,
   type FieldChange,
-} from '@drystack/core/change-preview';
+} from "@drystack/core/change-preview";
 import {
   createGetPreviewProps,
   FormValueContentFromPreviewProps,
   clientSideValidateProp,
   EntryDirectoryProvider,
-} from '@drystack/core/field-editor';
+} from "@drystack/core/field-editor";
 import {
   enableEditing,
   disableEditing,
@@ -57,7 +62,7 @@ import {
   revertFieldToOriginal,
   setImageSpotClickHandler,
   setFileSpotClickHandler,
-} from './bind';
+} from "./bind";
 import {
   getAllEdits,
   publishDelete,
@@ -65,21 +70,25 @@ import {
   subscribeEdits,
   putPendingBlob,
   getPendingBlob,
-} from './store';
-import { saveEdits, getCurrentBranchName, getGithubToken } from './save';
-import { isAssetKind } from '@drystack/core/edit-sync';
-import { CloudflareStatusInline } from '@drystack/core/deploy-cloudflare-status';
-import { useVeiDeploy } from './deploy';
+} from "./store";
+import { saveEdits, getCurrentBranchName, getGithubToken } from "./save";
+import { isAssetKind } from "@drystack/core/edit-sync";
+import { CloudflareStatusInline } from "@drystack/core/deploy-cloudflare-status";
+import { useVeiDeploy } from "./deploy";
 
 // Loaded lazily (only once the visual editor actually enters edit mode) —
 // this chunk pulls in urql + graphcache + the admin's field-editor/file-
 // manager components, which would otherwise bloat every live-site page's JS
 // payload.
 const VeiAdminProviders = lazy(() =>
-  import('@drystack/core/media-host').then(m => ({ default: m.VeiAdminProviders }))
+  import("@drystack/core/media-host").then((m) => ({
+    default: m.VeiAdminProviders,
+  })),
 );
 const FileManagerHost = lazy(() =>
-  import('@drystack/core/file-manager-host').then(m => ({ default: m.FileManagerHost }))
+  import("@drystack/core/file-manager-host").then((m) => ({
+    default: m.FileManagerHost,
+  })),
 );
 
 type Spot = { key: string; name: string; field: string };
@@ -100,16 +109,20 @@ type Spot = { key: string; name: string; field: string };
 // key` fallback as the admin's computeFieldChanges) rather than the raw
 // field key, so the review dialog reads identically in the admin and here —
 // see CLAUDE.md's UI-consistency expectations for this shared component.
-async function getPendingChanges(config: Config<any, any>): Promise<FieldChange[]> {
+async function getPendingChanges(
+  config: Config<any, any>,
+): Promise<FieldChange[]> {
   const edits = await getAllEdits();
   return edits
-    .map(e => {
-      const [, name, field] = e.key.split('::');
+    .map((e) => {
+      const [, name, field] = e.key.split("::");
       const el = document.querySelector<HTMLElement>(
-        `[data-dry="${CSS.escape(e.key)}"]`
+        `[data-dry="${CSS.escape(e.key)}"]`,
       );
-      const dryKind = el?.getAttribute('data-dry-kind');
-      const kind: 'text' | 'image' | 'file' = isAssetKind(dryKind) ? dryKind : 'text';
+      const dryKind = el?.getAttribute("data-dry-kind");
+      const kind: "text" | "image" | "file" = isAssetKind(dryKind)
+        ? dryKind
+        : "text";
       const fieldSchema = config.singletons?.[name]?.schema?.[field] as
         | { label?: string }
         | undefined;
@@ -117,24 +130,24 @@ async function getPendingChanges(config: Config<any, any>): Promise<FieldChange[
         key: e.key,
         label: fieldSchema?.label ?? field,
         kind,
-        before: getOriginalValue(e.key) ?? '',
+        before: getOriginalValue(e.key) ?? "",
         after: e.value,
       };
     })
-    .filter(c => c.before !== c.after);
+    .filter((c) => c.before !== c.after);
 }
 
-const adminBase = `/${String(apiPath).replace(/^\/+|\/+$/g, '')}`;
+const adminBase = `/${String(apiPath).replace(/^\/+|\/+$/g, "")}`;
 
 // Whether the edit-mode toolbar was expanded, persisted across reloads —
 // without this, refreshing the page while editing silently drops back to
 // view mode (pending edits themselves already survive via IndexedDB, see
 // bind.ts's applyPendingEdits, but the toolbar/contentEditable state didn't).
-const EDITING_STORAGE_KEY = 'drystack-vei-editing';
+const EDITING_STORAGE_KEY = "drystack-vei-editing";
 
 function readStoredEditing(): boolean {
   try {
-    return localStorage.getItem(EDITING_STORAGE_KEY) === '1';
+    return localStorage.getItem(EDITING_STORAGE_KEY) === "1";
   } catch {
     // localStorage can throw (e.g. blocked cookies) — just won't persist.
     return false;
@@ -143,7 +156,7 @@ function readStoredEditing(): boolean {
 
 function writeStoredEditing(value: boolean): void {
   try {
-    if (value) localStorage.setItem(EDITING_STORAGE_KEY, '1');
+    if (value) localStorage.setItem(EDITING_STORAGE_KEY, "1");
     else localStorage.removeItem(EDITING_STORAGE_KEY);
   } catch {
     // Same as above — best-effort persistence only.
@@ -158,11 +171,11 @@ function writeStoredEditing(value: boolean): void {
 function readSpots(): Spot[] {
   const seen = new Set<string>();
   const spots: Spot[] = [];
-  document.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
-    const key = el.getAttribute('data-dry');
+  document.querySelectorAll<HTMLElement>("[data-dry]").forEach((el) => {
+    const key = el.getAttribute("data-dry");
     if (!key || seen.has(key)) return;
-    const [type, name, field] = key.split('::');
-    if (type === 'singleton' && name && field) {
+    const [type, name, field] = key.split("::");
+    if (type === "singleton" && name && field) {
       seen.add(key);
       spots.push({ key, name, field });
     }
@@ -180,10 +193,10 @@ type ActiveSpot = { key: string; kind: string };
 // .dry-active-spot-kind--<kind> in editor.css) and the path label
 // ("Singleton: demo.array.0.name").
 function formatActiveSpot(
-  spot: ActiveSpot | null
+  spot: ActiveSpot | null,
 ): { kind: string; kindLabel: string; pathLabel: string } | null {
   if (!spot) return null;
-  const [type, name, field] = spot.key.split('::');
+  const [type, name, field] = spot.key.split("::");
   if (!type || !name || !field) return null;
   const capitalize = (s: string) => `${s.charAt(0).toUpperCase()}${s.slice(1)}`;
   return {
@@ -211,9 +224,9 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   // flicker the label off).
   const [hoverSpot, setHoverSpot] = useState<ActiveSpot | null>(null);
   const [focusSpot, setFocusSpot] = useState<ActiveSpot | null>(null);
-  const activeSpotCloseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined
-  );
+  const activeSpotCloseTimer = useRef<
+    ReturnType<typeof setTimeout> | undefined
+  >(undefined);
 
   // Container gear button — a floating icon portaled to <body>, shown while
   // hovering any fields.array OR fields.object container spot in edit mode
@@ -224,12 +237,12 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   // field-editor.tsx re-exports).
   const [arrayGearSpot, setArrayGearSpot] = useState<{
     key: string;
-    kind: 'array' | 'object';
+    kind: "array" | "object";
     rect: DOMRect;
   } | null>(null);
   const [arrayDialogKey, setArrayDialogKey] = useState<string | null>(null);
   const arrayGearCloseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined
+    undefined,
   );
   // The element currently backing arrayGearSpot, kept around purely so
   // scroll/resize can recompute its rect — getBoundingClientRect() is
@@ -239,13 +252,19 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   // isGithub gates the brand/merge/deploy flow Save triggers automatically
   // (see onSave/runSave below) — local mode has no branch concept and keeps
   // its old instant, confirm-free save.
-  const isGithub = config.storage.kind === 'github';
+  const isGithub = config.storage.kind === "github";
   const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
-  const { deploy, isBusy: deployBusy, label: deployLabel } = useVeiDeploy(config);
+  const {
+    deploy,
+    isBusy: deployBusy,
+    label: deployLabel,
+  } = useVeiDeploy(config);
 
   // Hover dropdown state — the menu itself is portaled to <body>.
   const refWrapRef = useRef<HTMLDivElement>(null);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
   const [refOpen, setRefOpen] = useState(false);
   const [refPos, setRefPos] = useState({ left: 0, bottom: 0 });
 
@@ -280,12 +299,12 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     }
     const onOver = (e: MouseEvent) => {
       const el = (e.target as HTMLElement)?.closest<HTMLElement>(
-        '[data-dry-kind="array"], [data-dry-kind="object"]'
+        '[data-dry-kind="array"], [data-dry-kind="object"]',
       );
       if (!el) return;
-      const key = el.getAttribute('data-dry');
-      const kind = el.getAttribute('data-dry-kind');
-      if (!key || (kind !== 'array' && kind !== 'object')) return;
+      const key = el.getAttribute("data-dry");
+      const kind = el.getAttribute("data-dry-kind");
+      if (!key || (kind !== "array" && kind !== "object")) return;
       clearTimeout(arrayGearCloseTimer.current);
       arrayGearElRef.current = el;
       setArrayGearSpot({ key, kind, rect: el.getBoundingClientRect() });
@@ -294,7 +313,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       const related = e.relatedTarget as HTMLElement | null;
       if (
         related?.closest('[data-dry-kind="array"], [data-dry-kind="object"]') ||
-        related?.closest('.dry-array-gear')
+        related?.closest(".dry-array-gear")
       ) {
         return;
       }
@@ -308,17 +327,19 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     const onReposition = () => {
       const el = arrayGearElRef.current;
       if (!el) return;
-      setArrayGearSpot(prev => (prev ? { ...prev, rect: el.getBoundingClientRect() } : prev));
+      setArrayGearSpot((prev) =>
+        prev ? { ...prev, rect: el.getBoundingClientRect() } : prev,
+      );
     };
-    document.addEventListener('mouseover', onOver, true);
-    document.addEventListener('mouseout', onOut, true);
-    document.addEventListener('scroll', onReposition, true);
-    window.addEventListener('resize', onReposition);
+    document.addEventListener("mouseover", onOver, true);
+    document.addEventListener("mouseout", onOut, true);
+    document.addEventListener("scroll", onReposition, true);
+    window.addEventListener("resize", onReposition);
     return () => {
-      document.removeEventListener('mouseover', onOver, true);
-      document.removeEventListener('mouseout', onOut, true);
-      document.removeEventListener('scroll', onReposition, true);
-      window.removeEventListener('resize', onReposition);
+      document.removeEventListener("mouseover", onOver, true);
+      document.removeEventListener("mouseout", onOut, true);
+      document.removeEventListener("scroll", onReposition, true);
+      window.removeEventListener("resize", onReposition);
       clearTimeout(arrayGearCloseTimer.current);
     };
   }, [editing]);
@@ -337,40 +358,43 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       return;
     }
     const onFocusIn = (e: FocusEvent) => {
-      const el = (e.target as HTMLElement)?.closest<HTMLElement>('[data-dry]');
-      const key = el?.getAttribute('data-dry');
-      setFocusSpot(key ? { key, kind: el!.getAttribute('data-dry-kind') ?? 'text' } : null);
+      const el = (e.target as HTMLElement)?.closest<HTMLElement>("[data-dry]");
+      const key = el?.getAttribute("data-dry");
+      setFocusSpot(
+        key ? { key, kind: el!.getAttribute("data-dry-kind") ?? "text" } : null,
+      );
     };
     const onFocusOut = (e: FocusEvent) => {
-      const el = (e.target as HTMLElement)?.closest<HTMLElement>('[data-dry]');
-      const key = el?.getAttribute('data-dry');
+      const el = (e.target as HTMLElement)?.closest<HTMLElement>("[data-dry]");
+      const key = el?.getAttribute("data-dry");
       if (!key) return;
       // Only clear if this blur is for the spot we're currently reporting —
       // a stale async blur from a spot that's no longer focused shouldn't
       // clobber whatever focused since.
-      setFocusSpot(prev => (prev?.key === key ? null : prev));
+      setFocusSpot((prev) => (prev?.key === key ? null : prev));
     };
     const onOver = (e: MouseEvent) => {
-      const el = (e.target as HTMLElement)?.closest<HTMLElement>('[data-dry]');
+      const el = (e.target as HTMLElement)?.closest<HTMLElement>("[data-dry]");
       if (!el) return;
       clearTimeout(activeSpotCloseTimer.current);
-      const key = el.getAttribute('data-dry');
-      if (key) setHoverSpot({ key, kind: el.getAttribute('data-dry-kind') ?? 'text' });
+      const key = el.getAttribute("data-dry");
+      if (key)
+        setHoverSpot({ key, kind: el.getAttribute("data-dry-kind") ?? "text" });
     };
     const onOut = (e: MouseEvent) => {
       const related = e.relatedTarget as HTMLElement | null;
-      if (related?.closest('[data-dry]')) return;
+      if (related?.closest("[data-dry]")) return;
       activeSpotCloseTimer.current = setTimeout(() => setHoverSpot(null), 140);
     };
-    document.addEventListener('focusin', onFocusIn, true);
-    document.addEventListener('focusout', onFocusOut, true);
-    document.addEventListener('mouseover', onOver, true);
-    document.addEventListener('mouseout', onOut, true);
+    document.addEventListener("focusin", onFocusIn, true);
+    document.addEventListener("focusout", onFocusOut, true);
+    document.addEventListener("mouseover", onOver, true);
+    document.addEventListener("mouseout", onOut, true);
     return () => {
-      document.removeEventListener('focusin', onFocusIn, true);
-      document.removeEventListener('focusout', onFocusOut, true);
-      document.removeEventListener('mouseover', onOver, true);
-      document.removeEventListener('mouseout', onOut, true);
+      document.removeEventListener("focusin", onFocusIn, true);
+      document.removeEventListener("focusout", onFocusOut, true);
+      document.removeEventListener("mouseover", onOver, true);
+      document.removeEventListener("mouseout", onOut, true);
       clearTimeout(activeSpotCloseTimer.current);
     };
   }, [editing]);
@@ -385,11 +409,13 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   // attempted, with no per-click mount race to arbitrate. `currentBranch`
   // only matters in github mode.
   type ProviderState =
-    | { status: 'idle' }
-    | { status: 'loading' }
-    | { status: 'ready'; currentBranch: string }
-    | { status: 'blocked'; message: string };
-  const [providerState, setProviderState] = useState<ProviderState>({ status: 'idle' });
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "ready"; currentBranch: string }
+    | { status: "blocked"; message: string };
+  const [providerState, setProviderState] = useState<ProviderState>({
+    status: "idle",
+  });
   // Lets long-lived effects (the image/file spot click handlers below) read
   // the current provider status without re-subscribing their click handler
   // every time it changes.
@@ -408,17 +434,20 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
 
   useEffect(() => {
     if (!editing) {
-      setProviderState({ status: 'idle' });
+      setProviderState({ status: "idle" });
       return;
     }
     if (!isGithub) {
-      setProviderState({ status: 'ready', currentBranch: '' });
+      setProviderState({ status: "ready", currentBranch: "" });
       return;
     }
     let cancelled = false;
     const resolve = () => {
       if (resolvedProviderRef.current) {
-        setProviderState({ status: 'ready', currentBranch: resolvedProviderRef.current.currentBranch });
+        setProviderState({
+          status: "ready",
+          currentBranch: resolvedProviderRef.current.currentBranch,
+        });
         return;
       }
       // github mode needs an admin session — mounting the boundary without
@@ -430,29 +459,29 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       // the urql authExchange that normally handles this lives) — so try a
       // silent refresh off the still-valid, much longer-lived refresh-token
       // cookie before bouncing the user to re-auth.
-      setProviderState({ status: 'loading' });
+      setProviderState({ status: "loading" });
       const ensureToken = getGithubToken()
         ? Promise.resolve(true)
-        : getAuth(config, adminBase).then(auth => !!auth);
-      ensureToken.then(hasToken => {
+        : getAuth(config, adminBase).then((auth) => !!auth);
+      ensureToken.then((hasToken) => {
         if (cancelled) return;
         if (!hasToken) {
           setProviderState({
-            status: 'blocked',
-            message: 'Cần đăng nhập admin để đổi ảnh/tệp.',
+            status: "blocked",
+            message: "Cần đăng nhập admin để đổi ảnh/tệp.",
           });
           return;
         }
         getCurrentBranchName(config)
-          .then(branch => {
+          .then((branch) => {
             if (cancelled) return;
-            resolvedProviderRef.current = { currentBranch: branch ?? '' };
-            setProviderState({ status: 'ready', currentBranch: branch ?? '' });
+            resolvedProviderRef.current = { currentBranch: branch ?? "" };
+            setProviderState({ status: "ready", currentBranch: branch ?? "" });
           })
-          .catch(err => {
+          .catch((err) => {
             if (!cancelled) {
               setProviderState({
-                status: 'blocked',
+                status: "blocked",
                 message: err instanceof Error ? err.message : String(err),
               });
             }
@@ -473,10 +502,12 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   // of succeeding instead of replaying the same stale failure forever.
   const requireProviderReady = (): boolean => {
     const s = providerStateRef.current;
-    if (s.status === 'ready') return true;
-    if (s.status === 'blocked') resolveProviderRef.current();
+    if (s.status === "ready") return true;
+    if (s.status === "blocked") resolveProviderRef.current();
     toastQueue.critical(
-      s.status === 'blocked' ? s.message : 'Đang chuẩn bị, thử lại sau giây lát.'
+      s.status === "blocked"
+        ? s.message
+        : "Đang chuẩn bị, thử lại sau giây lát.",
     );
     return false;
   };
@@ -491,13 +522,13 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   // to 'ready' can otherwise race its own mount) before opening the picker.
   useEffect(() => {
     const registerHandler = (
-      accept: 'image' | 'any',
-      setHandler: (cb: ((key: string) => void) | undefined) => void
+      accept: "image" | "any",
+      setHandler: (cb: ((key: string) => void) | undefined) => void,
     ) => {
       const handler = async (key: string) => {
         if (!requireProviderReady()) return;
         if (!(await waitForMediaLibraryOpener())) return;
-        const [, singletonName] = key.split('::');
+        const [, singletonName] = key.split("::");
         const pick = await pickAsset(config, singletonName, accept);
         if (!pick) return;
         await publishEdit(key, pick.path);
@@ -507,8 +538,8 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       setHandler(handler);
       return () => setHandler(undefined);
     };
-    const cleanupImage = registerHandler('image', setImageSpotClickHandler);
-    const cleanupFile = registerHandler('any', setFileSpotClickHandler);
+    const cleanupImage = registerHandler("image", setImageSpotClickHandler);
+    const cleanupFile = registerHandler("any", setFileSpotClickHandler);
     return () => {
       cleanupImage();
       cleanupFile();
@@ -559,7 +590,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       // github's own deploy() toast is the final word on success/failure —
       // only show the generic one when there was nothing to merge (local
       // mode, or a github save with nothing pending).
-      if (!deployed) toastQueue.positive('Changes saved', { timeout: 4000 });
+      if (!deployed) toastQueue.positive("Changes saved", { timeout: 4000 });
     } catch (err) {
       toastQueue.critical(err instanceof Error ? err.message : String(err));
     } finally {
@@ -586,7 +617,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   // Open the admin home in a new tab. Synchronous (fired straight from the
   // click) so the browser doesn't treat it as a blocked popup.
   const openAdminHome = () => {
-    window.open(adminBase, '_blank', 'noopener,noreferrer');
+    window.open(adminBase, "_blank", "noopener,noreferrer");
   };
 
   // Deep-link to a singleton's admin editor in a new tab. github mode needs an
@@ -594,14 +625,16 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   // activation — and point it at the URL once resolved; a window.open() issued
   // after the await would be killed by the popup blocker.
   const goToAdmin = async (name: string) => {
-    const tab = window.open('', '_blank');
+    const tab = window.open("", "_blank");
     if (tab) tab.opener = null;
     try {
       const branch = await getCurrentBranchName(config);
-      const branchSegment = branch ? `branch/${encodeURIComponent(branch)}/` : '';
+      const branchSegment = branch
+        ? `branch/${encodeURIComponent(branch)}/`
+        : "";
       const url = `${adminBase}/${branchSegment}singleton/${encodeURIComponent(name)}`;
       if (tab) tab.location.href = url;
-      else window.open(url, '_blank', 'noopener,noreferrer');
+      else window.open(url, "_blank", "noopener,noreferrer");
     } catch (err) {
       tab?.close();
       toastQueue.critical(err instanceof Error ? err.message : String(err));
@@ -611,26 +644,28 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   // Highlight (and scroll to) every editable spot belonging to a singleton.
   const flashSingleton = (name: string, on: boolean) => {
     const els = spots
-      .filter(s => s.name === name)
-      .flatMap(s =>
+      .filter((s) => s.name === name)
+      .flatMap((s) =>
         Array.from(
-          document.querySelectorAll<HTMLElement>(`[data-dry="${CSS.escape(s.key)}"]`)
-        )
+          document.querySelectorAll<HTMLElement>(
+            `[data-dry="${CSS.escape(s.key)}"]`,
+          ),
+        ),
       );
-    els.forEach(el => el.classList.toggle('dry-spot-flash', on));
+    els.forEach((el) => el.classList.toggle("dry-spot-flash", on));
     if (on && els[0]) {
-      els[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      els[0].scrollIntoView({ behavior: "smooth", block: "center" });
     }
   };
 
   // One entry per singleton (deduped), labelled from config.
   const singletonList = Array.from(
     new Map(
-      spots.map(s => [
+      spots.map((s) => [
         s.name,
         (config.singletons?.[s.name] as { label?: string })?.label ?? s.name,
-      ])
-    )
+      ]),
+    ),
   ).map(([name, label]) => ({ name, label }));
 
   const openRefMenu = () => {
@@ -654,22 +689,22 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
           it's just the edit FAB; enabling edit expands the action buttons out
           to the right (width collapse) and morphs the pencil into an ✕ that
           collapses the menu again. */}
-      <div className={`dry-menu${editing ? ' is-open' : ''}`}>
+      <div className={`dry-menu${editing ? " is-open" : ""}`}>
         <div className="dry-menu-pill">
           {/* Toggle button — always visible, leads the pill. */}
           <Button
             prominence="high"
-            aria-label={editing ? 'Exit edit mode' : 'Edit page'}
+            aria-label={editing ? "Exit edit mode" : "Edit page"}
             onPress={toggleEdit}
             UNSAFE_className="dry-fab"
           >
             <span
-              className={`dry-fab-icon dry-fab-icon--edit${editing ? ' is-hidden' : ''}`}
+              className={`dry-fab-icon dry-fab-icon--edit${editing ? " is-hidden" : ""}`}
             >
               <Icon src={editIcon} />
             </span>
             <span
-              className={`dry-fab-icon dry-fab-icon--x${editing ? '' : ' is-hidden'}`}
+              className={`dry-fab-icon dry-fab-icon--x${editing ? "" : " is-hidden"}`}
             >
               <Icon src={xIcon} />
             </span>
@@ -734,7 +769,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
                 >
                   <Icon src={saveIcon} />
                 </Button>
-                <Tooltip>{saving ? 'Saving…' : 'Save changes'}</Tooltip>
+                <Tooltip>{saving ? "Saving…" : "Save changes"}</Tooltip>
               </TooltipTrigger>
             </div>
           </div>
@@ -754,17 +789,22 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
         <div className="dry-active-spot">
           {isGithub && (
             <>
-              <CloudflareStatusInline busy={deployBusy} busyLabel={deployLabel} />
-              {' - '}
+              <CloudflareStatusInline
+                busy={deployBusy}
+                busyLabel={deployLabel}
+              />
+              {" - "}
             </>
           )}
           {activeSpot ? (
             <>
-              <span className={`dry-active-spot-kind dry-active-spot-kind--${activeSpot.kind}`}>
+              {activeSpot.pathLabel}
+              {" - "}
+              <span
+                className={`dry-active-spot-kind dry-active-spot-kind--${activeSpot.kind}`}
+              >
                 {activeSpot.kindLabel}
               </span>
-              {' - '}
-              {activeSpot.pathLabel}
             </>
           ) : (
             <em className="dry-active-spot-empty">No item</em>
@@ -791,8 +831,8 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
             }}
           >
             <Text>
-              Thao tác này sẽ lưu thay đổi, gộp vào nhánh chính (main) và deploy lên
-              production. Bạn có chắc chắn?
+              Thao tác này sẽ lưu thay đổi, gộp vào nhánh chính (main) và deploy
+              lên production. Bạn có chắc chắn?
             </Text>
           </AlertDialog>
         )}
@@ -808,7 +848,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
             onMouseEnter={openRefMenu}
             onMouseLeave={scheduleCloseRefMenu}
           >
-            {singletonList.map(s => (
+            {singletonList.map((s) => (
               <button
                 type="button"
                 role="menuitem"
@@ -822,7 +862,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
               </button>
             ))}
           </div>,
-          document.body
+          document.body,
         )}
 
       {arrayGearSpot &&
@@ -833,13 +873,20 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
           // "empty" state (every field always exists per schema), so it's
           // never disabled.
           const value =
-            arrayGearSpot.kind === 'array' ? getContainerValueFromDom(arrayGearSpot.key) : null;
+            arrayGearSpot.kind === "array"
+              ? getContainerValueFromDom(arrayGearSpot.key)
+              : null;
           return createPortal(
             <button
               type="button"
               className="dry-array-gear"
-              aria-label={arrayGearSpot.kind === 'array' ? 'Edit list' : 'Edit fields'}
-              disabled={arrayGearSpot.kind === 'array' && (!Array.isArray(value) || value.length === 0)}
+              aria-label={
+                arrayGearSpot.kind === "array" ? "Edit list" : "Edit fields"
+              }
+              disabled={
+                arrayGearSpot.kind === "array" &&
+                (!Array.isArray(value) || value.length === 0)
+              }
               style={{
                 top: arrayGearSpot.rect.top + 6,
                 right: window.innerWidth - arrayGearSpot.rect.right + 6,
@@ -860,12 +907,14 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
             >
               <Icon src={slidersIcon} />
             </button>,
-            document.body
+            document.body,
           );
         })()}
 
       <DialogContainer onDismiss={() => setReviewOpen(false)}>
-        {reviewOpen && <VeiReviewDialog config={config} onChange={refreshCount} />}
+        {reviewOpen && (
+          <VeiReviewDialog config={config} onChange={refreshCount} />
+        )}
       </DialogContainer>
 
       {/* The admin provider boundary — mounted whenever edit mode is on (see
@@ -875,7 +924,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
           dialog renders inside the boundary since its element/fields schema
           may mount the admin's real ImageFieldInput/FileFieldInput, which
           need this context (useConfig/useMediaLibraryPreviewURL/tree data). */}
-      {providerState.status === 'ready' && (
+      {providerState.status === "ready" && (
         <Suspense fallback={null}>
           <VeiAdminProviders
             config={config}
@@ -913,7 +962,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
 async function pickAsset(
   config: Config<any, any>,
   singletonName: string,
-  accept: 'image' | 'any'
+  accept: "image" | "any",
 ): Promise<MediaLibraryPick | undefined> {
   let picked: MediaLibraryPick | undefined;
   try {
@@ -921,7 +970,7 @@ async function pickAsset(
       accept,
       local: {
         directory: `${getSingletonPath(config, singletonName)}/assets`,
-        label: 'Trang này',
+        label: "Trang này",
       },
     });
   } catch (err) {
@@ -948,21 +997,24 @@ async function pickAsset(
 function resolveFieldSchema(
   config: Config<any, any>,
   name: string,
-  field: string
+  field: string,
 ): ArrayField<ComponentSchema> | ObjectField | undefined {
-  const [baseField, ...rest] = field.split('.');
-  let schema: ComponentSchema | undefined = config.singletons?.[name]?.schema?.[baseField];
+  const [baseField, ...rest] = field.split(".");
+  let schema: ComponentSchema | undefined =
+    config.singletons?.[name]?.schema?.[baseField];
   for (const seg of rest) {
     if (!schema) return undefined;
-    if (schema.kind === 'array' && /^\d+$/.test(seg)) {
+    if (schema.kind === "array" && /^\d+$/.test(seg)) {
       schema = schema.element;
-    } else if (schema.kind === 'object') {
+    } else if (schema.kind === "object") {
       schema = schema.fields[seg];
     } else {
       return undefined;
     }
   }
-  return schema?.kind === 'array' || schema?.kind === 'object' ? schema : undefined;
+  return schema?.kind === "array" || schema?.kind === "object"
+    ? schema
+    : undefined;
 }
 
 // Renders the container editor for one fields.array or fields.object field
@@ -986,7 +1038,7 @@ function ContainerFieldDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [, name, field] = fieldKey.split('::');
+  const [, name, field] = fieldKey.split("::");
   const fieldSchema = resolveFieldSchema(config, name, field);
   // unknown[] for array-of-*, Record<string, unknown> for a standalone
   // object — whichever shape `fieldSchema.kind` calls for.
@@ -996,7 +1048,7 @@ function ContainerFieldDialog({
   const [value, setValue] = useState<unknown>(() => {
     const v = getContainerValueFromDom(fieldKey);
     if (v !== undefined) return v;
-    return fieldSchema?.kind === 'object' ? {} : [];
+    return fieldSchema?.kind === "object" ? {} : [];
   });
   const [forceValidation, setForceValidation] = useState(false);
   const formId = useId();
@@ -1012,7 +1064,7 @@ function ContainerFieldDialog({
           // guarantees the runtime shape lines up.
           createGetPreviewProps(fieldSchema, setValue as any, () => undefined)
         : undefined,
-    [fieldSchema]
+    [fieldSchema],
   );
 
   if (!fieldSchema || !getPreviewProps) return null;
@@ -1035,7 +1087,9 @@ function ContainerFieldDialog({
     const edits = await getAllEdits();
     const itemPrefix = `${fieldKey}.`;
     await Promise.all(
-      edits.filter(e => e.key.startsWith(itemPrefix)).map(e => publishDelete(e.key))
+      edits
+        .filter((e) => e.key.startsWith(itemPrefix))
+        .map((e) => publishDelete(e.key)),
     );
     const busValue = JSON.stringify(value);
     await publishEdit(fieldKey, busValue);
@@ -1091,7 +1145,7 @@ function VeiReviewDialog({
 
   useEffect(() => {
     let cancelled = false;
-    getPendingChanges(config).then(list => {
+    getPendingChanges(config).then((list) => {
       if (cancelled) return;
       setChanges(list);
     });
@@ -1106,7 +1160,7 @@ function VeiReviewDialog({
   const handleDelete = async (key: string) => {
     await publishDelete(key);
     revertFieldToOriginal(key);
-    setChanges(cs => cs?.filter(c => c.key !== key) ?? null);
+    setChanges((cs) => cs?.filter((c) => c.key !== key) ?? null);
     onChange();
   };
 
@@ -1133,7 +1187,7 @@ function VeiImageThumb({ path }: { path: string }) {
     }
     let cancelled = false;
     let createdUrl: string | null = null;
-    getPendingBlob(path).then(bytes => {
+    getPendingBlob(path).then((bytes) => {
       if (cancelled || !bytes) return;
       createdUrl = URL.createObjectURL(new Blob([bytes as any]));
       setBlobUrl(createdUrl);
