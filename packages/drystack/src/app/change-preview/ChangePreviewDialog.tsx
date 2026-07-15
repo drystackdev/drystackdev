@@ -5,6 +5,7 @@ import { Dialog, useDialogContainer } from '@keystar/ui/dialog';
 import { Icon } from '@keystar/ui/icon';
 import { Flex } from '@keystar/ui/layout';
 import { chevronRightIcon } from '@keystar/ui/icon/icons/chevronRightIcon';
+import { fileIcon } from '@keystar/ui/icon/icons/fileIcon';
 import { trash2Icon } from '@keystar/ui/icon/icons/trash2Icon';
 import { Content } from '@keystar/ui/slots';
 import { css } from '@keystar/ui/style';
@@ -74,7 +75,7 @@ export type FieldChange = {
   key: string;
   label: string;
   sublabel?: string;
-  kind: 'text' | 'image';
+  kind: 'text' | 'image' | 'file';
   before: string;
   after: string;
 };
@@ -183,6 +184,8 @@ function FieldDiffView({
               after={change.after}
               renderImage={renderImage}
             />
+          ) : change.kind === 'file' ? (
+            <FileDiffView before={change.before} after={change.after} />
           ) : (
             <div
               style={{
@@ -297,6 +300,53 @@ function ImageDiffView({
           {stringFormatter.format('after')}
         </Text>
         {render(after)}
+      </Flex>
+    </div>
+  );
+}
+
+// Files aren't previewable inline like images, so before/after just show the
+// filename (falling back to the full path when there's no `/` to split on).
+function FileNameCell({ path }: { path: string }) {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
+  if (!path) {
+    return (
+      <Text color="neutralSecondary">{stringFormatter.format('noFile')}</Text>
+    );
+  }
+  const filename = path.split('/').pop() || path;
+  return (
+    <Flex alignItems="center" gap="small">
+      <Icon src={fileIcon} />
+      <Text>{filename}</Text>
+    </Flex>
+  );
+}
+
+function FileDiffView({ before, after }: { before: string; after: string }) {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+        padding: 12,
+        borderTop: '1px solid rgba(128,128,128,0.3)',
+      }}
+    >
+      <Flex direction="column" gap="small">
+        <Text size="small" color="neutralSecondary">
+          {stringFormatter.format('before')}
+        </Text>
+        <FileNameCell path={before} />
+      </Flex>
+      <Icon src={chevronRightIcon} />
+      <Flex direction="column" gap="small">
+        <Text size="small" color="neutralSecondary">
+          {stringFormatter.format('after')}
+        </Text>
+        <FileNameCell path={after} />
       </Flex>
     </div>
   );

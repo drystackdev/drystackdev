@@ -24,7 +24,7 @@ import {
 } from '@drystack/core/brand-store';
 import { formatBrandLabel, formatBrandRef } from '@drystack/core/brand-label';
 import {
-  getGithubToken,
+  getGithubTokenWithRefresh,
   parseRepo,
   githubGraphQL,
   base64Encode,
@@ -141,7 +141,7 @@ async function checkHasChanges(
   config: Config<any, any>,
   brand: BrandRecord
 ): Promise<boolean> {
-  const token = getGithubToken();
+  const token = await getGithubTokenWithRefresh(config);
   if (!token) return true; // can't tell — don't block the button on it
   const storage = config.storage as { repo: string | { owner: string; name: string } };
   const { owner, name } = parseRepo(storage.repo);
@@ -192,7 +192,7 @@ async function runDeploy(
   config: Config<any, any>,
   setLabel: (label: string) => void
 ): Promise<DeployOutcome> {
-  const token = getGithubToken();
+  const token = await getGithubTokenWithRefresh(config);
   if (!token) throw new Error('Chưa đăng nhập GitHub.');
   const storage = config.storage as {
     repo: string | { owner: string; name: string };

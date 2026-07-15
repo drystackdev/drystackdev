@@ -11,6 +11,7 @@ import {
   type SyncableFieldKind,
 } from '@drystack/core/edit-sync';
 import { clientSideValidateProp } from '@drystack/core/field-editor';
+import { getAuth } from '@drystack/core/auth';
 // @ts-expect-error — provided by the drystack Astro integration's Vite plugin
 import apiPath from 'virtual:drystack-path';
 import { getAllEdits, publishClear, clearPendingBlobs } from './store';
@@ -35,6 +36,22 @@ export function getGithubToken(): string | null {
     /(?:^|;\s*)drystack-gh-access-token=([^;]+)/
   );
   return match ? decodeURIComponent(match[1]) : null;
+}
+
+// The access-token cookie is short-lived (GitHub's OAuth expiry, a few
+// hours) and nothing refreshes it while a user only ever interacts with this
+// live-site toolbar — the admin SPA's urql authExchange, which normally
+// keeps it alive, is never mounted in that case. Try the still-valid,
+// much-longer-lived refresh-token cookie before treating the session as
+// gone, so a save/publish that lands after a long idle stretch on this page
+// doesn't fail outright.
+export async function getGithubTokenWithRefresh(
+  config: Config<any, any>
+): Promise<string | null> {
+  const token = getGithubToken();
+  if (token) return token;
+  const auth = await getAuth(config, `/${apiPath}`);
+  return auth?.accessToken ?? null;
 }
 
 export function parseRepo(repo: string | { owner: string; name: string }) {
@@ -130,7 +147,7 @@ async function readCurrentFile(
     return new Uint8Array(await blobRes.arrayBuffer());
   }
   if (config.storage.kind === 'github') {
-    const token = getGithubToken();
+    const token = await getGithubTokenWithRefresh(config);
     if (!token) throw new Error('Not signed in to GitHub');
     const { owner, name } = parseRepo((config.storage as any).repo);
     const res = await fetch(
@@ -363,7 +380,7 @@ export async function getCurrentBranchName(
   config: Config<any, any>
 ): Promise<string | undefined> {
   if (config.storage.kind !== 'github') return undefined;
-  const token = getGithubToken();
+  const token = await getGithubTokenWithRefresh(config);
   if (!token) throw new Error('Not signed in to GitHub');
   const { owner, name } = parseRepo((config.storage as any).repo);
   const branch = await getDefaultBranch(token, owner, name);
@@ -385,7 +402,7 @@ export async function getLatestFieldValues(
 ): Promise<Record<string, string>> {
   let branch: string | undefined;
   if (config.storage.kind === 'github') {
-    const token = getGithubToken();
+    const token = await getGithubTokenWithRefresh(config);
     if (!token) throw new Error('Not signed in to GitHub');
     const { owner, name } = parseRepo((config.storage as any).repo);
     branch = (await getDefaultBranch(token, owner, name)).branchName;
@@ -424,7 +441,7 @@ export async function getPendingDiffs(
   config: Config<any, any>
 ): Promise<FileDiff[]> {
   if (config.storage.kind === 'github') {
-    const token = getGithubToken();
+    const token = await getGithubTokenWithRefresh(config);
     if (!token) throw new Error('Not signed in to GitHub');
     const { owner, name } = parseRepo((config.storage as any).repo);
     const branch = await getDefaultBranch(token, owner, name);
@@ -443,7 +460,7 @@ export async function saveEdits(config: Config<any, any>): Promise<string | unde
   const isGithub = config.storage.kind === 'github';
   let commitOid: string | undefined;
   if (isGithub) {
-    const token = getGithubToken();
+    const token = await getGithubTokenWithRefresh(config);
     if (!token) throw new Error('Not signed in to GitHub');
     const { owner, name } = parseRepo((config.storage as any).repo);
     let branch = await getDefaultBranch(token, owner, name);

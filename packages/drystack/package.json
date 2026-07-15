@@ -76,6 +76,10 @@
       "drystack-src": "./src/app/field-editor.tsx",
       "default": "./dist/app/field-editor.js"
     },
+    "./auth": {
+      "drystack-src": "./src/app/auth.ts",
+      "default": "./dist/app/auth.js"
+    },
     "./required-files": {
       "drystack-src": "./src/app/required-files.ts",
       "default": "./dist/app/required-files.js"

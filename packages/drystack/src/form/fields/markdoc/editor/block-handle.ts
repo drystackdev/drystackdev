@@ -33,12 +33,21 @@ const LIST_TYPES = new Set(['ordered_list', 'unordered_list', 'list_item']);
 // A span of one or more sibling blocks at the same depth: `[from, to)`
 // bounds the run of nodes to pick up (a single block, a run of list items,
 // or a run of top-level/grid-cell blocks spanned by an existing selection).
-type HandleTarget = { from: number; to: number; isListItem: boolean };
+type HandleTarget = {
+  from: number;
+  to: number;
+  isListItem: boolean;
+  // Position right before the enclosing `grid_cell`, set only when this
+  // target is every block the cell has — see the comment on
+  // `emptiedGridCellPos` below.
+  emptiedGridCellPos: number | null;
+};
 
 // Shared between the plugin view (which sets it on dragstart) and the plugin's
-// `handleDrop` prop (which reads it to enforce reorder-only lists). One object
-// per editor — `blockHandle()` runs once when the state is created.
-type DragState = { isListItem: boolean };
+// `handleDrop`/`appendTransaction` props (which read it to enforce
+// reorder-only lists and to clean up a drained grid cell). One object per
+// editor — `blockHandle()` runs once when the state is created.
+type DragState = { isListItem: boolean; emptiedGridCellPos: number | null };
 
 export const blockHandleKey = new PluginKey('blockHandle');
 
@@ -220,9 +229,25 @@ class BlockHandleView {
     const isListItem = itemDepth === childDepth + 1;
 
     const range = this.rangeForSelection(view.state.selection, found.pos, itemDepth);
-    if (range) return { ...range, isListItem };
+    const { from, to } = range ?? {
+      from: $pos.before(itemDepth),
+      to: $pos.after(itemDepth),
+    };
 
-    return { from: $pos.before(itemDepth), to: $pos.after(itemDepth), isListItem };
+    // `grid_cell` is `isolating`, so — unlike every other `block+` container
+    // here — ProseMirror won't cascade-delete it when its last child goes
+    // away; it fills the now-invalid empty cell with a default paragraph
+    // instead, which sits there as unwanted clutter with no way to remove it
+    // via the drag gesture itself. Flag it here (only when the whole cell's
+    // content is the thing being dragged out) so `appendTransaction` can
+    // clean up that filler — or drop the now-sole-empty cell entirely —
+    // once the move lands.
+    const emptiedGridCellPos =
+      rootDepth > 0 && from === $pos.start(rootDepth) && to === $pos.end(rootDepth)
+        ? $pos.before(rootDepth)
+        : null;
+
+    return { from, to, isListItem, emptiedGridCellPos };
   }
 
   // When the press falls inside a non-empty selection, and that selection's
@@ -251,7 +276,7 @@ class BlockHandleView {
       event.preventDefault();
       return;
     }
-    const { from, to, isListItem } = this.target;
+    const { from, to, isListItem, emptiedGridCellPos } = this.target;
     const soleNode = view.state.doc.nodeAt(from);
     if (!soleNode) {
       event.preventDefault();
@@ -283,6 +308,7 @@ class BlockHandleView {
     // the source across doc changes; it's absent from the public type
     view.dragging = { slice, move: true, node: selection } as any;
     this.dragState.isListItem = isListItem;
+    this.dragState.emptiedGridCellPos = emptiedGridCellPos;
   };
 
   private onDragEnd = () => {
@@ -292,6 +318,7 @@ class BlockHandleView {
     // `view.dom`, not our proxy — so a stale slice would linger.
     this.view.dragging = null;
     this.dragState.isListItem = false;
+    this.dragState.emptiedGridCellPos = null;
     this.isDragging = false;
     this.cancel();
   };
@@ -331,7 +358,7 @@ function dropTargetIsInsideList(view: EditorView, event: DragEvent): boolean {
 }
 
 export function blockHandle() {
-  const dragState: DragState = { isListItem: false };
+  const dragState: DragState = { isListItem: false, emptiedGridCellPos: null };
   return new Plugin({
     key: blockHandleKey,
     view: view => new BlockHandleView(view, dragState),
@@ -342,6 +369,34 @@ export function blockHandle() {
         // land outside any list
         return !dropTargetIsInsideList(view, event as DragEvent);
       },
+    },
+    appendTransaction(transactions, _oldState, newState) {
+      const pos = dragState.emptiedGridCellPos;
+      dragState.emptiedGridCellPos = null; // one-shot: only ever applies to the drop it was armed for
+      if (pos == null) return null;
+      if (!transactions.some(tr => tr.getMeta('uiEvent') === 'drop')) return null;
+
+      const mapped = transactions.reduce((p, tr) => tr.mapping.map(p), pos);
+      const cell = newState.doc.nodeAt(mapped);
+      if (!cell || cell.type !== newState.schema.nodes.grid_cell) return null;
+
+      // Only the schema-mandated filler paragraph — leave it alone if the
+      // user has actually typed something into it since the drop.
+      const isEmptyFiller =
+        cell.childCount === 1 &&
+        cell.firstChild!.type === newState.schema.nodes.paragraph &&
+        cell.firstChild!.content.size === 0;
+      if (!isEmptyFiller) return null;
+
+      const $cell = newState.doc.resolve(mapped);
+      const grid = $cell.parent;
+      if (grid.childCount <= 1) {
+        // last cell left in the grid — drop the whole grid rather than leave
+        // a single-cell layout containing nothing
+        const from = $cell.before($cell.depth);
+        return newState.tr.delete(from, from + grid.nodeSize);
+      }
+      return newState.tr.delete(mapped, mapped + cell.nodeSize);
     },
   });
 }

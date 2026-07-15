@@ -11,6 +11,7 @@ import React, {
 import { createPortal } from 'react-dom';
 import type { ArrayField, ComponentSchema, Config } from '@drystack/core';
 import { getSingletonPath } from '@drystack/core/path-utils';
+import { getAuth } from '@drystack/core/auth';
 import {
   openMediaLibrary,
   type MediaLibraryPick,
@@ -107,8 +108,9 @@ async function getPendingChanges(config: Config<any, any>): Promise<FieldChange[
       const el = document.querySelector<HTMLElement>(
         `[data-dry="${CSS.escape(e.key)}"]`
       );
-      const kind: 'text' | 'image' =
-        el?.getAttribute('data-dry-kind') === 'image' ? 'image' : 'text';
+      const dryKind = el?.getAttribute('data-dry-kind');
+      const kind: 'text' | 'image' | 'file' =
+        dryKind === 'image' ? 'image' : dryKind === 'file' ? 'file' : 'text';
       const fieldSchema = config.singletons?.[name]?.schema?.[field] as
         | { label?: string }
         | undefined;
@@ -313,28 +315,40 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     }
     // github mode needs an admin session — mounting the boundary without one
     // would hit the shell's own "not authenticated" redirect, which would
-    // navigate this live-site tab to the admin login page.
-    if (!getGithubToken()) {
-      setProviderState({
-        status: 'blocked',
-        message: 'Cần đăng nhập admin để đổi ảnh/tệp.',
-      });
-      return;
-    }
+    // navigate this live-site tab to the admin login page. The access-token
+    // cookie is short-lived (GitHub's OAuth expiry, a few hours) and nothing
+    // else refreshes it while the user only ever visits this live-site
+    // toolbar (never the admin SPA, which is where the urql authExchange
+    // that normally handles this lives) — so try a silent refresh off the
+    // still-valid, much longer-lived refresh-token cookie before bouncing
+    // the user to re-auth.
     let cancelled = false;
     setProviderState({ status: 'loading' });
-    getCurrentBranchName(config)
-      .then(branch => {
-        if (!cancelled) setProviderState({ status: 'ready', currentBranch: branch ?? '' });
-      })
-      .catch(err => {
-        if (!cancelled) {
-          setProviderState({
-            status: 'blocked',
-            message: err instanceof Error ? err.message : String(err),
-          });
-        }
-      });
+    const ensureToken = getGithubToken()
+      ? Promise.resolve(true)
+      : getAuth(config, adminBase).then(auth => !!auth);
+    ensureToken.then(hasToken => {
+      if (cancelled) return;
+      if (!hasToken) {
+        setProviderState({
+          status: 'blocked',
+          message: 'Cần đăng nhập admin để đổi ảnh/tệp.',
+        });
+        return;
+      }
+      getCurrentBranchName(config)
+        .then(branch => {
+          if (!cancelled) setProviderState({ status: 'ready', currentBranch: branch ?? '' });
+        })
+        .catch(err => {
+          if (!cancelled) {
+            setProviderState({
+              status: 'blocked',
+              message: err instanceof Error ? err.message : String(err),
+            });
+          }
+        });
+    });
     return () => {
       cancelled = true;
     };

@@ -27,11 +27,12 @@ export function computeFieldChanges(
     const after = state[key];
     if (isEqual(before, after)) continue;
     const label = (field as { label?: string }).label ?? key;
+    const columnKind =
+      field.kind === 'form'
+        ? (field as { columnKind?: string }).columnKind
+        : undefined;
     const kind: FieldChange['kind'] =
-      field.kind === 'form' &&
-      (field as { columnKind?: string }).columnKind === 'image'
-        ? 'image'
-        : 'text';
+      columnKind === 'image' ? 'image' : columnKind === 'file' ? 'file' : 'text';
     changes.push({
       key,
       label,
