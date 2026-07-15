@@ -577,6 +577,53 @@ export function component<
 
 type Comp<Props> = (props: Props) => ReactElement | null;
 
+// Recursion-depth guard for DotPathForComponentSchema below. `ComponentSchema`
+// is structurally self-referential (an array field's `element`, and an
+// object field's `fields` values, are themselves `ComponentSchema`), so the
+// *generic*, unconstrained `Schema extends ComponentSchema` case has no
+// inherent depth bound. Collapsing straight to a string union (rather than
+// staying object-shaped the way ParsedValueForComponentSchema does) makes
+// TypeScript evaluate eagerly enough that the unbounded case hits "type
+// instantiation excessively deep" even before any real schema is plugged
+// in. 8 levels is far deeper than any real content schema nests today (the
+// deepest realistic case is array→object→array, 3 levels) — a practical
+// ceiling to satisfy the compiler, not a deliberate feature cap.
+type Prev = [never, 0, 1, 2, 3, 4, 5, 6, 7];
+
+// Every dot-path string reachable into `Schema` — mirrors
+// ParsedValueForComponentSchema's recursion (same branch order/shape) so the
+// two stay in sync. A leaf (form/child) has no path past itself: `never`
+// there, which a template literal type collapses out of any union it
+// appears in (so array-of-text's paths are `${number}` alone, not
+// `${number}.${never}`). Path convention is dot-string (not the
+// array-shaped ReadonlyPropPath used elsewhere in this package) to match
+// dry.item()'s existing data-dry-key convention, its only consumer today.
+export type DotPathForComponentSchema<
+  Schema extends ComponentSchema,
+  Depth extends number = 8,
+> = Depth extends 0
+  ? never
+  : Schema extends ChildField
+    ? never
+    : Schema extends FormField<any, any, any>
+      ? never
+      : Schema extends ObjectField<infer Fields>
+        ? {
+            [Key in keyof Fields & string]:
+              | Key
+              | `${Key}.${DotPathForComponentSchema<Fields[Key], Prev[Depth]>}`;
+          }[keyof Fields & string]
+        : Schema extends ConditionalField<infer _DiscriminantField, infer Values>
+          ?
+              | 'discriminant'
+              | 'value'
+              | `value.${{
+                  [Key in keyof Values]: DotPathForComponentSchema<Values[Key], Prev[Depth]>;
+                }[keyof Values]}`
+          : Schema extends ArrayField<infer ElementField>
+            ? `${number}` | `${number}.${DotPathForComponentSchema<ElementField, Prev[Depth]>}`
+            : never;
+
 export type ParsedValueForComponentSchema<Schema extends ComponentSchema> =
   Schema extends ChildField
     ? null

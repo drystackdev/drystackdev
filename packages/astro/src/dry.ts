@@ -1,4 +1,10 @@
-import type { Collection, Config, ComponentSchema, Singleton } from '@drystack/core';
+import type {
+  Collection,
+  Config,
+  ComponentSchema,
+  DotPathForComponentSchema,
+  Singleton,
+} from '@drystack/core';
 import type { EntryWithResolvedLinkedFiles } from '@drystack/core/reader';
 import { getSyncableFieldKind, isAssetKind } from '@drystack/core/edit-sync';
 import { createConfiguredReader } from './reader';
@@ -11,14 +17,20 @@ export type DryItem = {
 
 type SchemaOf<S> = S extends Singleton<infer Schema> ? Schema : never;
 
-// Plain field ("heading"), one level into a fields.array ("array.0" — a
-// primitive item or an object-item wrapper), or one level deeper into an
-// array-of-object item's sub-field ("cards.0.title") — the path shapes
-// readSingleton()'s item() supports, see dry.ts.
-type DryFieldPath<S> =
-  | (keyof SchemaOf<S> & string)
-  | `${keyof SchemaOf<S> & string}.${number}`
-  | `${keyof SchemaOf<S> & string}.${number}.${string}`;
+// Every valid dry.item() path into a singleton — one segment per top-level
+// field, recursing into each field's own shape via DotPathForComponentSchema
+// (form/api.tsx) so array-of-object, object-of-object, array-of-array, etc.
+// all get real autocomplete/type-checking here instead of a free-form tail.
+// bind.ts's DOM binding currently only paints one level of object-nesting
+// inside an array — item() below still console.warns and skips the
+// data-dry attribute for anything deeper it can't bind yet, so a path this
+// type accepts can be a no-op at runtime until bind.ts is extended to match
+// (tracked separately, not part of this change).
+type DryFieldPath<S> = {
+  [Key in keyof SchemaOf<S> & string]:
+    | Key
+    | `${Key}.${DotPathForComponentSchema<SchemaOf<S>[Key]>}`;
+}[keyof SchemaOf<S> & string];
 
 export type DrySingleton<
   S extends Singleton<Record<string, ComponentSchema>> = Singleton<

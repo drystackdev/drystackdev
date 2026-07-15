@@ -1,0 +1,1 @@
+ở chế độ evi cần thực hiện chức năng de quy array of object of array, hiện tại sẽ hoạt động đầy đủ các chức năng lòng nhau của object, array, text, image 
