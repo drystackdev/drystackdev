@@ -84,10 +84,14 @@ export const handleGitHubAppCreation: typeof ApiNode.handleGitHubAppCreation =
     if (!result.ok) return result.response;
     const { slug, client_id, client_secret } = result.data;
     const secret = bytesToHex(webcrypto.getRandomValues(new Uint8Array(40)));
+    const dryMapSecret = bytesToHex(
+      webcrypto.getRandomValues(new Uint8Array(40))
+    );
     const fragment = new URLSearchParams({
       DRYSTACK_GITHUB_CLIENT_ID: client_id,
       DRYSTACK_GITHUB_CLIENT_SECRET: client_secret,
       DRYSTACK_SECRET: secret,
+      DRYSTACK_DRY_MAP_SECRET: dryMapSecret,
     }).toString();
     return redirect(
       `${uiBasePath}/created-github-app?slug=${encodeURIComponent(slug)}#${fragment}`

@@ -1141,7 +1141,7 @@ function VeiImageThumb({ path }: { path: string }) {
     let createdUrl: string | null = null;
     getPendingBlob(path).then(bytes => {
       if (cancelled || !bytes) return;
-      createdUrl = URL.createObjectURL(new Blob([bytes]));
+      createdUrl = URL.createObjectURL(new Blob([bytes as any]));
       setBlobUrl(createdUrl);
     });
     return () => {

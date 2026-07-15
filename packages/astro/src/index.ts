@@ -1,6 +1,6 @@
 import type { AstroIntegration } from 'astro';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { RunnableDevEnvironment, ViteDevServer } from 'vite';
+import type { ResolvedConfig, RunnableDevEnvironment, ViteDevServer } from 'vite';
 import { createRunnableDevEnvironment } from 'vite';
 import {
   mkdirSync,
@@ -96,7 +96,10 @@ async function handleLocalApiRequest(
   const request = new Request(`http://${host}${req.url ?? ''}`, {
     method,
     headers: requestHeaders,
-    body,
+    // Buffer is a Uint8Array at runtime (fine as a fetch body), but its type
+    // isn't structurally assignable to BodyInit — see the same cast pattern
+    // for pending-blob bytes in Toolbar.tsx/bind.ts.
+    body: body as BodyInit | undefined,
   });
 
   const response = await handler(request);
@@ -196,17 +199,18 @@ function writeCmsRedirectsFile(root: string, clientDir: string) {
 // Flushes dry.ts's build-time id→{data-dry,kind,value} registry (populated
 // only for storage.kind === 'github' — see dry.ts's readSingleton) to an
 // encrypted static asset. Empty registry (local mode, or no dry.item() calls
-// at all) means nothing to write. Encrypting with DRYSTACK_SECRET — the same
-// secret already required at runtime for refresh-token cookie encryption
-// (generic.ts) — means the deployed Worker can decrypt it back with zero new
-// key-management surface.
+// at all) means nothing to write. Encrypted with its own DRYSTACK_DRY_MAP_SECRET
+// (distinct from DRYSTACK_SECRET, which stays runtime-only for refresh-token
+// cookie encryption in generic.ts) — the build environment necessarily has to
+// see *some* secret to produce this file, so it gets a dedicated one whose
+// compromise can't also decrypt GitHub refresh-token cookies.
 async function writeDryMapFile(clientDir: string) {
   const registry = readDryMapRegistryFile();
   if (Object.keys(registry).length === 0) return;
-  const secret = process.env.DRYSTACK_SECRET;
+  const secret = process.env.DRYSTACK_DRY_MAP_SECRET;
   if (!secret) {
     throw new Error(
-      'drystack: DRYSTACK_SECRET must be set at build time to encrypt the dry-map (data-dry-id → field) registry — without it, the build would either fail or, worse, silently publish it unencrypted. Set the same DRYSTACK_SECRET used by the deployed Worker in the build environment.'
+      'drystack: DRYSTACK_DRY_MAP_SECRET must be set at build time to encrypt the dry-map (data-dry-id → field) registry — without it, the build would either fail or, worse, silently publish it unencrypted. Set the same DRYSTACK_DRY_MAP_SECRET used by the deployed Worker in the build environment (kept separate from DRYSTACK_SECRET so a build-time leak can\'t also decrypt refresh-token cookies).'
     );
   }
   const encrypted = await encryptValue(JSON.stringify(registry), secret);
@@ -321,7 +325,7 @@ import "@drystack/core/ui";
                 dev: {
                   // `createRunnableDevEnvironment` gives us a Node module
                   // runner (unlike the workerd `ssr` environment).
-                  createEnvironment(name, viteConfig) {
+                  createEnvironment(name: string, viteConfig: ResolvedConfig) {
                     return createRunnableDevEnvironment(name, viteConfig);
                   },
                 },

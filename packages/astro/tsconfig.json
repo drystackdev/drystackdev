@@ -13,8 +13,8 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "esnext",
-    "types": ["node"]
+    "types": ["node", "astro/client"]
   },
   "include": ["src/**/*", "internal/**/*"],
-  "exclude": ["**/dist/**/*", "**/node_modules/**/*"]
+  "exclude": ["**/dist/**/*", "**/node_modules/**/*", "src/worker/**/*"]
 }

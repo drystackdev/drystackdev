@@ -13,6 +13,7 @@ import { parseString } from 'set-cookie-parser';
 // adapter (Node, etc.), where env vars come from `.env` files instead.
 async function getCloudflareEnv(): Promise<Record<string, any> | undefined> {
   try {
+    // @ts-expect-error — only resolves at runtime on Workers; see the comment above.
     const cf: any = await import(/* @vite-ignore */ 'cloudflare:workers');
     return cf.env;
   } catch {
@@ -43,6 +44,12 @@ export function makeHandler(_config: APIRouteConfig) {
           envVarsForCf?.DRYSTACK_SECRET ??
           tryOrUndefined(() => {
             return import.meta.env.DRYSTACK_SECRET;
+          }),
+        dryMapSecret:
+          _config.dryMapSecret ??
+          envVarsForCf?.DRYSTACK_DRY_MAP_SECRET ??
+          tryOrUndefined(() => {
+            return import.meta.env.DRYSTACK_DRY_MAP_SECRET;
           }),
         // The `github/dry-map` route self-fetches its own deployed static
         // assets through this — Cloudflare's `ASSETS` binding (declared in
@@ -80,7 +87,9 @@ export function makeHandler(_config: APIRouteConfig) {
           }
         }
       } else {
-        for (const [key, value] of Object.entries(headers)) {
+        // Neither an array nor a Headers instance (excluded above), so per
+        // ResponseInit's HeadersInit union this must be a plain string map.
+        for (const [key, value] of Object.entries(headers as Record<string, string>)) {
           headersInADifferentStructure.set(key.toLowerCase(), [value]);
         }
       }

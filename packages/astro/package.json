@@ -61,7 +61,8 @@
     "internal"
   ],
   "scripts": {
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.worker.json"
   },
   "dependencies": {
     "@babel/runtime": "^7.18.3",
@@ -71,6 +72,7 @@
     "set-cookie-parser": "^2.5.1"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260715.1",
     "@drystack/core": "workspace:^",
     "@types/js-yaml": "^4.0.5",
     "@types/set-cookie-parser": "^2.4.2",

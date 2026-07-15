@@ -1,4 +1,5 @@
 import type { Config } from '@drystack/core';
+// @ts-expect-error — provided by the drystack Astro integration's Vite plugin
 import apiPath from 'virtual:drystack-path';
 import type { DryMapEntry } from '../dry';
 import {

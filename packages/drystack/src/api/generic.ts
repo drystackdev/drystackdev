@@ -25,6 +25,14 @@ export type APIRouteConfig = {
   clientSecret?: string;
   /** @default process.env.DRYSTACK_SECRET */
   secret?: string;
+  /**
+   * Decrypts the `github/dry-map` static asset (see @drystack/astro's
+   * writeDryMapFile) — kept separate from `secret` so a build-time leak of
+   * this one (the build necessarily has to see it) can't also decrypt
+   * refresh-token cookies encrypted with `secret`.
+   * @default process.env.DRYSTACK_DRY_MAP_SECRET
+   */
+  dryMapSecret?: string;
   localBaseDirectory?: string;
   config: Config<any, any>;
   /**
@@ -46,6 +54,7 @@ type InnerAPIRouteConfig = {
   clientId: string;
   clientSecret: string;
   secret: string;
+  dryMapSecret: string | undefined;
   config: Config;
   uiBasePath: string;
   apiBasePath: string;
@@ -76,6 +85,9 @@ export function makeGenericAPIRouteHandler(
       tryOrUndefined(() => process.env.DRYSTACK_GITHUB_CLIENT_SECRET),
     secret:
       _config.secret ?? tryOrUndefined(() => process.env.DRYSTACK_SECRET),
+    dryMapSecret:
+      _config.dryMapSecret ??
+      tryOrUndefined(() => process.env.DRYSTACK_DRY_MAP_SECRET),
     config: _config.config,
     basePath: _config.basePath,
     assetsFetcher: _config.assetsFetcher,
@@ -138,6 +150,7 @@ export function makeGenericAPIRouteHandler(
     clientId: _config2.clientId,
     clientSecret: _config2.clientSecret,
     secret: _config2.secret,
+    dryMapSecret: _config2.dryMapSecret,
     config: _config2.config,
     uiBasePath,
     apiBasePath,
@@ -402,6 +415,9 @@ async function githubDryMap(
   if (!accessToken || !(await verifyGitHubAccess(accessToken, config))) {
     return { status: 401, body: 'Not authorized' };
   }
+  if (!config.dryMapSecret) {
+    return { status: 500, body: 'DRYSTACK_DRY_MAP_SECRET is not configured' };
+  }
   if (!config.assetsFetcher) {
     return { status: 404, body: 'Not Found' };
   }
@@ -414,7 +430,7 @@ async function githubDryMap(
   const encrypted = await assetRes.text();
   let decrypted: string;
   try {
-    decrypted = await decryptValue(encrypted, config.secret);
+    decrypted = await decryptValue(encrypted, config.dryMapSecret);
   } catch {
     return { status: 500, body: 'Failed to decrypt dry-map' };
   }

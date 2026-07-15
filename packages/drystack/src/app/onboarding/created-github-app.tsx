@@ -12,6 +12,7 @@ const SECRET_KEYS = [
   'DRYSTACK_GITHUB_CLIENT_ID',
   'DRYSTACK_GITHUB_CLIENT_SECRET',
   'DRYSTACK_SECRET',
+  'DRYSTACK_DRY_MAP_SECRET',
 ] as const;
 
 function readSecretsFromHash(): Record<string, string> | undefined {
