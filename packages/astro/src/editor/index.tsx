@@ -33,8 +33,11 @@ export async function mount(
   // Must run first — discardEditsIfBuildIsNewer/applyPendingEdits below (and
   // every other DOM lookup in bind.ts) key off the real `data-dry` attribute,
   // which GitHub-mode production HTML doesn't carry until this patches it
-  // back in. See bind.ts's hydrateDryAttributesFromMap for why.
-  await hydrateDryAttributesFromMap(config);
+  // back in. See bind.ts's hydrateDryAttributesFromMap for why. `false` means
+  // the injected script's cheap cookie-presence check let a stale/invalid
+  // GitHub session through — bail rather than mount a Toolbar with nothing
+  // actually bound to edit.
+  if (!(await hydrateDryAttributesFromMap(config))) return;
 
   await discardEditsIfBuildIsNewer(config, buildVersion);
   await applyPendingEdits();

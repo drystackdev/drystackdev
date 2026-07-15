@@ -1,4 +1,5 @@
 import type { Config } from '@drystack/core';
+import { refreshAuth } from '@drystack/core/auth';
 // @ts-expect-error — provided by the drystack Astro integration's Vite plugin
 import apiPath from 'virtual:drystack-path';
 import type { DryMapEntry } from '../dry';
@@ -566,24 +567,35 @@ export function disableEditing() {
 // find nothing if the real attributes aren't back on the elements yet).
 // Fetches the reverse map from the `github/dry-map` API route — which only
 // returns it once it verifies the caller's GitHub token server-side — and
-// patches the real attributes onto each `[data-dry-id]` element in place. If
-// the fetch 401s (not a real editor, e.g. a spoofed cookie) or the map is
-// missing, elements are left with only `data-dry-id`: inert, no data-dry, so
-// none of the editing logic below ever engages for them. Local mode already
-// ships the real attributes directly (see dry.ts), so this is a no-op there.
+// patches the real attributes onto each `[data-dry-id]` element in place.
+// index.ts's injected script only checks whether the access-token cookie is
+// *present* (cheap, no network) before loading this far — a stale/expired/
+// revoked token still passes that check, so a 401 here isn't necessarily a
+// spoofed cookie; it's often just a token that needs refreshing. One retry
+// via the longer-lived refresh-token cookie (same recovery `getAuth` does)
+// before giving up. Returns false only once that's exhausted and the caller
+// still isn't a verified editor — callers use this to decide whether to
+// mount the editor UI at all rather than showing a half-working one where
+// nothing is actually bound. Local mode ships the real attributes directly
+// (see dry.ts), so this is a no-op there (and reports true — nothing to
+// verify).
 export async function hydrateDryAttributesFromMap(
   config: Config<any, any>
-): Promise<void> {
-  if (config.storage.kind !== 'github') return;
+): Promise<boolean> {
+  if (config.storage.kind !== 'github') return true;
   const elements = document.querySelectorAll<HTMLElement>('[data-dry-id]');
-  if (elements.length === 0) return;
+  if (elements.length === 0) return true;
   let map: Record<string, DryMapEntry>;
   try {
-    const res = await fetch(`/api/${apiPath}/github/dry-map`);
-    if (!res.ok) return;
+    let res = await fetch(`/api/${apiPath}/github/dry-map`);
+    if (res.status === 401 && (await refreshAuth(`/${apiPath}`))) {
+      res = await fetch(`/api/${apiPath}/github/dry-map`);
+    }
+    if (res.status === 401) return false;
+    if (!res.ok) return true;
     map = await res.json();
   } catch {
-    return;
+    return true;
   }
   for (const el of elements) {
     const id = el.getAttribute('data-dry-id');
@@ -596,6 +608,7 @@ export async function hydrateDryAttributesFromMap(
       el.setAttribute('data-dry-value', entry['data-dry-value']);
     }
   }
+  return true;
 }
 
 // Cloudflare Pages builds fresh on every deploy, so buildVersion (a build-time
