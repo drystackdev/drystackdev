@@ -324,8 +324,6 @@ body > .kui-scheme--auto {
   padding: 4px 12px;
   border-radius: 4px;
   background: #000;
-  border-top-right-radius: 50px;
-  border-bottom-right-radius: 50px;
   color: #fff;
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
@@ -335,6 +333,9 @@ body > .kui-scheme--auto {
   overflow: hidden;
   text-overflow: ellipsis;
   pointer-events: none;
+  display: flex;
+  align-items: center;
+  width: fit-content;
 }
 .dry-active-spot-empty {
   font-style: italic;
@@ -343,7 +344,7 @@ body > .kui-scheme--auto {
 .dry-active-spot-kind {
   font-weight: 700;
   display: inline-block;
-  width: 5em;
+  width: 3em;
   text-align: center;
 }
 .dry-active-spot-kind--text {
