@@ -2,7 +2,7 @@ text: Nội dung text 123456
 image: /assets/IMG_8873.JPG
 file: /demo/assets/test-doc.txt
 array:
-  - item đầu tiên
+  - item đầu tiên được chỉnh sửa trên server
   - item thứ 2
   - item thứ 3
 arrayImg:
