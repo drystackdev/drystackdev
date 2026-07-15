@@ -475,6 +475,30 @@ export default config({
             itemLabel: (props) => props.fields.name.value || "",
           },
         ),
+        info: fields.object(
+          {
+            label: fields.text({ label: "Nhãn (object lồng ở top-level)" }),
+            thumb: fields.image({ label: "Ảnh (trong object top-level)" }),
+            links: fields.array(fields.text({ label: "Link" }), {
+              label: "Links (array lồng trong object)",
+              itemLabel: (props) => props.value || "",
+            }),
+          },
+          { label: "[field.Object] — object đứng độc lập ở top-level" },
+        ),
+        sections: fields.array(
+          fields.object({
+            title: fields.text({ label: "Tiêu đề section" }),
+            items: fields.array(fields.text({ label: "Mục" }), {
+              label: "Items (array lồng trong object trong array)",
+              itemLabel: (props) => props.value || "",
+            }),
+          }),
+          {
+            label: "[field.ArrayObjectArray] — array > object > array",
+            itemLabel: (props) => props.fields.title.value || "",
+          },
+        ),
       },
     }),
   },

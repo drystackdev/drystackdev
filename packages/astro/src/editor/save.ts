@@ -1,4 +1,4 @@
-import type { Config, ComponentSchema } from '@drystack/core';
+import type { ArrayField, Config, ComponentSchema, ObjectField } from '@drystack/core';
 import {
   getSingletonPath,
   getSingletonFormat,
@@ -9,7 +9,7 @@ import { dump } from '@drystack/core/yaml';
 import {
   getSyncableFieldKind,
   isAssetKind,
-  type SyncableFieldKind,
+  spliceValueEdit,
 } from '@drystack/core/edit-sync';
 import { clientSideValidateProp } from '@drystack/core/field-editor';
 import { getAuth } from '@drystack/core/auth';
@@ -180,114 +180,102 @@ async function readCurrentFile(
 // needs the whole array, not just whichever index/container edit happened to
 // be pending.
 //
-// fields.array's schema (unlike fields.text/fields.image) has no `.validate`
-// method of its own — length/element validation lives in
-// form/errors.ts's validateValueWithSchema, reachable here only through the
-// public clientSideValidateProp wrapper (re-exported at
-// @drystack/core/field-editor for the visual editor's array dialog). It
+// fields.array/fields.object's schema (unlike fields.text/fields.image) has
+// no `.validate` method of its own — length/element/nested-field validation
+// lives in form/errors.ts's validateValueWithSchema, reachable here only
+// through the public clientSideValidateProp wrapper (re-exported at
+// @drystack/core/field-editor for the visual editor's container dialog). It
 // returns a bool and only console.warns the specific failure, so the
 // message pushed here is a generic fallback rather than the precise reason.
 function validateField(
   name: string,
   baseField: string,
   schema: Record<string, ComponentSchema>,
-  kind: SyncableFieldKind | undefined,
   value: unknown,
   messages: string[]
 ): void {
-  if (kind === 'array') {
-    if (!clientSideValidateProp(schema[baseField], value, undefined)) {
+  const baseSchema = schema[baseField];
+  if (baseSchema?.kind === 'array' || baseSchema?.kind === 'object') {
+    if (!clientSideValidateProp(baseSchema, value, undefined)) {
       messages.push(`${name}.${baseField} is invalid`);
     }
     return;
   }
   try {
     (
-      schema[baseField] as { validate?: (value: unknown, args?: unknown) => unknown }
+      baseSchema as { validate?: (value: unknown, args?: unknown) => unknown } | undefined
     )?.validate?.(value, undefined);
   } catch (err) {
     messages.push(err instanceof Error ? err.message : `${name}.${baseField} is invalid`);
   }
 }
 
+// Mirrors fields.image/fields.file's serialize (omit the key when there's no
+// value, see form/fields/image|file/index.tsx), recursively through nested
+// array/object structure — the reader's image.parse/file.parse throws on a
+// literal `null`, so an empty asset leaf must be absent from the YAML, not
+// written as null/''. Runs once over the whole merged container value after
+// every edit has been spliced in (mergeFieldEdits below), since a leaf's
+// presence/absence only matters in the final shape, not per edit.
+function stripEmptyAssetLeaves(value: unknown, schema: ComponentSchema): unknown {
+  if (schema.kind === 'array') {
+    if (!Array.isArray(value)) return value;
+    const element = (schema as ArrayField<ComponentSchema>).element;
+    return value.map(item => stripEmptyAssetLeaves(item, element));
+  }
+  if (schema.kind === 'object') {
+    if (typeof value !== 'object' || value === null) return value;
+    const obj = { ...(value as Record<string, unknown>) };
+    for (const [sub, subSchema] of Object.entries((schema as ObjectField).fields)) {
+      if (
+        isAssetKind(getSyncableFieldKind(subSchema)) &&
+        (obj[sub] === null || obj[sub] === '' || obj[sub] === undefined)
+      ) {
+        delete obj[sub];
+      } else if (sub in obj) {
+        obj[sub] = stripEmptyAssetLeaves(obj[sub], subSchema);
+      }
+    }
+    return obj;
+  }
+  return value;
+}
+
 // Merges every pending edit for one base field into the value that should be
 // written to `data[baseField]`. A fields.text/fields.image edit is always a
-// single flat entry (field === baseField). A fields.array edit can be a
-// whole-array replace (the dialog's container-level edit, field ===
-// baseField, value is JSON) and/or one-or-more per-item edits (typed inline,
-// field === "baseField.N") — the container edit (or, absent that, the
-// current on-disk array) supplies the starting array, and per-item edits
-// then override individual indices on top, so an inline tweak made after the
-// dialog was used always wins for that index.
+// single flat entry (field === baseField). A fields.array/fields.object edit
+// can be a whole-container replace (the dialog's container-level edit, field
+// === baseField, value is JSON) and/or one-or-more per-path edits (typed
+// inline at any depth, field === "baseField.<path>") — the container edit
+// (or, absent that, the current on-disk value) supplies the starting
+// array/object, and per-path edits then splice on top via spliceValueEdit
+// (edit-sync.ts), so an inline tweak made after the dialog was used always
+// wins for that path.
 function mergeFieldEdits(
-  kind: SyncableFieldKind | undefined,
+  baseSchema: ComponentSchema | undefined,
   baseField: string,
   fieldEdits: Map<string, string>,
-  currentValue: unknown,
-  fieldSchema: ComponentSchema | undefined
+  currentValue: unknown
 ): unknown {
-  if (kind === 'array') {
-    const containerEdit = fieldEdits.get(baseField);
-    const base =
-      containerEdit !== undefined
-        ? (JSON.parse(containerEdit) as unknown[])
-        : Array.isArray(currentValue)
-          ? [...currentValue]
-          : [];
-    const elementSchema = (fieldSchema as { element?: ComponentSchema } | undefined)
-      ?.element;
-    for (const [field, value] of fieldEdits) {
-      if (field === baseField) continue;
-      const rest = field.slice(baseField.length + 1); // "N" or "N.sub"
-      const dot = rest.indexOf('.');
-      if (dot === -1) {
-        // Array-of-primitive item edit — the whole item value.
-        const idx = Number(rest);
-        if (Number.isInteger(idx) && idx >= 0) base[idx] = value;
-        continue;
-      }
-      // Array-of-object sub-field edit ("N.sub") — override just that field of
-      // the object at index N, layered on top of the container edit (or the
-      // current on-disk object).
-      const idx = Number(rest.slice(0, dot));
-      const sub = rest.slice(dot + 1);
-      if (!Number.isInteger(idx) || idx < 0 || sub.includes('.')) continue;
-      const prev = base[idx];
-      base[idx] = {
-        ...(typeof prev === 'object' && prev !== null
-          ? (prev as Record<string, unknown>)
-          : {}),
-        [sub]: value,
-      };
-    }
-    // Mirror fields.image/fields.file's serialize (omit the key when there's
-    // no value, see form/fields/image|file/index.tsx) for image/file
-    // sub-fields of an array-of-object: the reader's image.parse/file.parse
-    // throws on a literal `null`, so an empty value must be absent from the
-    // YAML, not written as null/''.
-    if (elementSchema?.kind === 'object') {
-      const subFields = (elementSchema as {
-        fields: Record<string, ComponentSchema>;
-      }).fields;
-      const assetSubs = Object.entries(subFields)
-        .filter(([, s]) => isAssetKind(getSyncableFieldKind(s)))
-        .map(([k]) => k);
-      return base.map(item => {
-        if (typeof item !== 'object' || item === null) return item;
-        const obj = { ...(item as Record<string, unknown>) };
-        for (const sub of assetSubs) {
-          if (obj[sub] === null || obj[sub] === '' || obj[sub] === undefined) {
-            delete obj[sub];
-          }
-        }
-        return obj;
-      });
-    }
-    return base;
+  if (!baseSchema || (baseSchema.kind !== 'array' && baseSchema.kind !== 'object')) {
+    // fields.text / fields.image / fields.file never have a nested path —
+    // one entry, keyed by the base field itself.
+    return fieldEdits.get(baseField);
   }
-  // fields.text / fields.image / fields.file never have a nested path — one
-  // entry, keyed by the base field itself.
-  return fieldEdits.get(baseField);
+  const containerEdit = fieldEdits.get(baseField);
+  let base: unknown =
+    containerEdit !== undefined
+      ? JSON.parse(containerEdit)
+      : (currentValue ?? (baseSchema.kind === 'array' ? [] : {}));
+  for (const [field, value] of fieldEdits) {
+    if (field === baseField) continue;
+    const path = field.slice(baseField.length + 1).split('.');
+    // Raw string passthrough — save.ts writes straight to YAML, so an asset
+    // leaf's '' sentinel is stripped (not decoded to null) by
+    // stripEmptyAssetLeaves below rather than at splice time.
+    base = spliceValueEdit(base, path, baseSchema, () => value);
+  }
+  return stripEmptyAssetLeaves(base, baseSchema);
 }
 
 // Reads each singleton file the pending edits touch and returns its current
@@ -332,26 +320,19 @@ async function collectFileDiffs(
       ComponentSchema
     >;
     for (const [baseField, fieldEdits] of byBaseField) {
-      const kind = getSyncableFieldKind(schema[baseField] as any);
-      const merged = mergeFieldEdits(
-        kind,
-        baseField,
-        fieldEdits,
-        data[baseField],
-        schema[baseField]
-      );
+      const merged = mergeFieldEdits(schema[baseField], baseField, fieldEdits, data[baseField]);
       // fields.image/fields.file's serialize() omits the key entirely when
       // the value is null (see form/fields/image|file/index.tsx) — mirror
       // that here so a cleared image/file doesn't get written back as
       // `field: ''`.
-      const isAsset = isAssetKind(kind);
+      const isAsset = isAssetKind(getSyncableFieldKind(schema[baseField] as any));
       if (isAsset && merged === '') {
         delete data[baseField];
       } else {
         data[baseField] = merged;
       }
       const validatedValue = isAsset && merged === '' ? null : merged;
-      validateField(name, baseField, schema, kind, validatedValue, messages);
+      validateField(name, baseField, schema, validatedValue, messages);
     }
     diffs.push({ path: filepath, before, after: dump(data) });
   }
@@ -426,7 +407,15 @@ export async function getLatestFieldValues(
       result[field] = value;
       continue;
     }
-    if (Array.isArray(value) && getSyncableFieldKind(schema[field] as any) === 'array') {
+    const kind = getSyncableFieldKind(schema[field] as any);
+    if (Array.isArray(value) && kind === 'array') {
+      result[field] = JSON.stringify(value);
+    } else if (
+      kind === 'object' &&
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value)
+    ) {
       result[field] = JSON.stringify(value);
     }
   }

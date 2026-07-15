@@ -60,6 +60,7 @@ import {
   parseEditKey,
   publishDelete,
   publishEdit,
+  spliceValueEdit,
   subscribeEdits,
   type SyncableFieldKind,
 } from './edit-sync';
@@ -378,13 +379,19 @@ function SingletonPageInner(
   );
 }
 
+// A field value as it lives in the admin form's own state — wider than
+// `PendingEdit`'s bus-string, since a fields.array/fields.object value here
+// is the real array/object, not its JSON-encoded bus form.
+type FieldValue = string | string[] | Record<string, unknown> | null;
+
 // The edit-sync bus only carries strings (see edit-sync.ts's PendingEdit) —
 // fields.image/fields.file's `null` (no value) is represented on the bus as
 // '', the same sentinel bind.ts's paintAssetSpot and the visual editor's
-// save.ts already use. fields.array's array value is JSON-encoded, matching
-// the encoding used everywhere else on the bus (see bind.ts's
-// parseArrayValue and the visual editor's Toolbar.tsx/save.ts). fields.text
-// values are always strings already, so they pass through as-is.
+// save.ts already use. fields.array/fields.object's value is JSON-encoded,
+// matching the encoding used everywhere else on the bus (see bind.ts's
+// parseArrayValue/parseObjectValue and the visual editor's
+// Toolbar.tsx/save.ts). fields.text values are always strings already, so
+// they pass through as-is.
 function toBusValue(kind: SyncableFieldKind, value: unknown): string | undefined {
   if (isAssetKind(kind)) {
     if (value === null) return '';
@@ -393,13 +400,15 @@ function toBusValue(kind: SyncableFieldKind, value: unknown): string | undefined
   if (kind === 'array') {
     return Array.isArray(value) ? JSON.stringify(value) : undefined;
   }
+  if (kind === 'object') {
+    return typeof value === 'object' && value !== null && !Array.isArray(value)
+      ? JSON.stringify(value)
+      : undefined;
+  }
   return typeof value === 'string' ? value : undefined;
 }
 
-function fromBusValue(
-  kind: SyncableFieldKind,
-  busValue: string
-): string | string[] | null {
+function fromBusValue(kind: SyncableFieldKind, busValue: string): FieldValue {
   if (isAssetKind(kind)) return busValue === '' ? null : busValue;
   if (kind === 'array') {
     try {
@@ -409,48 +418,35 @@ function fromBusValue(
       return [];
     }
   }
+  if (kind === 'object') {
+    try {
+      const parsed = JSON.parse(busValue);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
   return busValue;
 }
 
-// Splices one per-item fields.array edit into `arr` in place. `field` is either
-// "baseField.N" (array-of-primitive item — the whole item value) or
-// "baseField.N.sub" (an array-of-object item's sub-field). A sub-field is
-// decoded per its own kind (image '' → null), matching how the visual editor's
-// save.ts (mergeFieldEdits) and bind.ts read the same nested keys.
-function applyArrayItemEdit(
-  arr: unknown[],
+// Splices one per-path fields.array/fields.object edit into `current` (the
+// base field's own current value) via spliceValueEdit (edit-sync.ts). `field`
+// is "baseField.<path>" at any depth (e.g. "cards.0.title" or "info.label").
+// A leaf is decoded per its own kind (image '' → null) via fromBusValue,
+// matching how the visual editor's save.ts (mergeFieldEdits) and bind.ts read
+// the same nested keys.
+function applyContainerPathEdit(
+  current: unknown,
   baseField: string,
   field: string,
   busValue: string,
-  schema: Record<string, ComponentSchema>
-): void {
-  const rest = field.slice(baseField.length + 1); // "N" or "N.sub"
-  const dot = rest.indexOf('.');
-  if (dot === -1) {
-    const idx = Number(rest);
-    if (Number.isInteger(idx) && idx >= 0) arr[idx] = busValue;
-    return;
-  }
-  const idx = Number(rest.slice(0, dot));
-  const sub = rest.slice(dot + 1);
-  if (!Number.isInteger(idx) || idx < 0 || sub.includes('.')) return;
-  const element = (schema[baseField] as { element?: ComponentSchema } | undefined)
-    ?.element;
-  const subKind =
-    element?.kind === 'object'
-      ? getSyncableFieldKind(
-          (element as { fields: Record<string, ComponentSchema> }).fields[sub]
-        )
-      : undefined;
-  const prev = arr[idx];
-  const base =
-    typeof prev === 'object' && prev !== null
-      ? (prev as Record<string, unknown>)
-      : {};
-  arr[idx] = {
-    ...base,
-    [sub]: subKind ? fromBusValue(subKind, busValue) : busValue,
-  };
+  baseSchema: ComponentSchema
+): unknown {
+  const path = field.slice(baseField.length + 1).split('.');
+  return spliceValueEdit(current, path, baseSchema, leafSchema => {
+    const leafKind = getSyncableFieldKind(leafSchema);
+    return leafKind ? fromBusValue(leafKind, busValue) : busValue;
+  });
 }
 
 function LocalSingletonPage(
@@ -485,7 +481,7 @@ function LocalSingletonPage(
   // Reset alongside `state` whenever the tree genuinely reloads (below):
   // the fresh `initialState` prop already carries these values then.
   const [committedOverrides, setCommittedOverrides] = useState<
-    Record<string, string | string[] | null>
+    Record<string, FieldValue>
   >({});
 
   useShowRestoredDraftMessage(draft, state, localTreeKey);
@@ -590,12 +586,13 @@ function LocalSingletonPage(
   // Apply whatever is already there once, the same way the visual editor's
   // applyPendingEdits() does for the DOM on load.
   //
-  // A fields.array field can have edits at two granularities: a whole-array
-  // replace (field === its base field, published by the visual editor's
-  // array dialog) and/or per-item edits (field === "baseField.N", typed
-  // inline into an item spot) — processed in two passes so a container edit
-  // is applied first and per-item edits then override individual indices on
-  // top of it, mirroring save.ts's mergeFieldEdits precedence.
+  // A fields.array/fields.object field can have edits at two granularities:
+  // a whole-container replace (field === its base field, published by the
+  // visual editor's container dialog) and/or per-path edits (field ===
+  // "baseField.<path>", typed inline into a leaf spot at any depth) —
+  // processed in two passes so a container edit is applied first and
+  // per-path edits then splice on top of it, mirroring save.ts's
+  // mergeFieldEdits precedence.
   useEffect(() => {
     let cancelled = false;
     getAllEdits().then(edits => {
@@ -619,20 +616,20 @@ function LocalSingletonPage(
         const { field } = parseEditKey(edit.key);
         const baseField = field.split('.')[0];
         if (field === baseField) continue;
-        const kind = getSyncableFieldKind(singletonConfig.schema[baseField]);
-        if (kind !== 'array') continue;
+        const baseSchema = singletonConfig.schema[baseField];
+        const kind = getSyncableFieldKind(baseSchema);
+        if (kind !== 'array' && kind !== 'object') continue;
         if (lastSyncedRef.current![field] === edit.value) continue;
         lastSyncedRef.current![field] = edit.value;
         if (!(baseField in updates)) {
-          const current = (stateRef.current as Record<string, unknown>)[baseField];
-          updates[baseField] = Array.isArray(current) ? [...current] : [];
+          updates[baseField] = (stateRef.current as Record<string, unknown>)[baseField];
         }
-        applyArrayItemEdit(
-          updates[baseField] as unknown[],
+        updates[baseField] = applyContainerPathEdit(
+          updates[baseField],
           baseField,
           field,
           edit.value,
-          singletonConfig.schema
+          baseSchema
         );
       }
       if (Object.keys(updates).length > 0) {
@@ -671,11 +668,13 @@ function LocalSingletonPage(
       if (msg.type === 'set') {
         const { type, name, field } = parseEditKey(msg.key);
         if (type !== 'singleton' || name !== singleton) return;
-        // A fields.array field's edit can be nested (baseField.N, a
-        // per-item inline edit) — the base field is what's tagged in the
-        // schema and on the form's own wrapper element either way.
+        // A fields.array/fields.object field's edit can be nested
+        // (baseField.<path>, a per-path inline edit at any depth) — the base
+        // field is what's tagged in the schema and on the form's own
+        // wrapper element either way.
         const baseField = field.split('.')[0];
-        const kind = getSyncableFieldKind(singletonConfig.schema[baseField]);
+        const baseSchema = singletonConfig.schema[baseField];
+        const kind = getSyncableFieldKind(baseSchema);
         if (!kind) return;
         // Don't stomp on what the user is actively typing — the field's
         // wrapper div carries data-field (object/ui.tsx) for exactly this
@@ -693,15 +692,16 @@ function LocalSingletonPage(
           }));
           return;
         }
-        // Per-item array edit ("baseField.N" or "baseField.N.sub") — splice the
-        // new value into a copy of the array's current state rather than
-        // replacing the whole field.
-        if (kind !== 'array') return;
+        // Per-path array/object edit ("baseField.<path>" at any depth) —
+        // splice the new value into the container's current state rather
+        // than replacing the whole field.
+        if (kind !== 'array' && kind !== 'object') return;
         onPreviewPropsChange(s => {
           const current = (s as Record<string, unknown>)[baseField];
-          const arr = Array.isArray(current) ? [...current] : [];
-          applyArrayItemEdit(arr, baseField, field, msg.value, singletonConfig.schema);
-          return { ...s, [baseField]: arr };
+          return {
+            ...s,
+            [baseField]: applyContainerPathEdit(current, baseField, field, msg.value, baseSchema),
+          };
         });
         return;
       }
@@ -721,7 +721,7 @@ function LocalSingletonPage(
             })()
           : Object.keys(singletonConfig.schema);
       setCommittedOverrides(prev => {
-        let next: Record<string, string | string[] | null> | undefined;
+        let next: Record<string, FieldValue> | undefined;
         for (const field of fields) {
           const kind = getSyncableFieldKind(singletonConfig.schema[field]);
           if (!kind) continue;
@@ -729,11 +729,13 @@ function LocalSingletonPage(
           if (
             (kind === 'text' && typeof value !== 'string') ||
             (isAssetKind(kind) && typeof value !== 'string' && value !== null) ||
-            (kind === 'array' && !Array.isArray(value))
+            (kind === 'array' && !Array.isArray(value)) ||
+            (kind === 'object' &&
+              (typeof value !== 'object' || value === null || Array.isArray(value)))
           ) {
             continue;
           }
-          const typedValue = value as string | string[] | null;
+          const typedValue = value as FieldValue;
           if (prev[field] === typedValue) continue;
           next ??= { ...prev };
           next[field] = typedValue;

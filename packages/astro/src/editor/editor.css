@@ -287,6 +287,58 @@ body > .kui-scheme--auto {
   pointer-events: none;
 }
 
+/* Active-spot indicator — a permanent top-left HUD label, on screen for the
+   whole time edit mode is on (unlike the rest of the bar, it doesn't wait
+   for a hover/focus to mount — see Toolbar.tsx), showing which dry field is
+   focused or hovered, e.g. "Text - Singleton: demo.array.0.name". Plain
+   debug-overlay styling (small, black background) rather than matching the
+   rest of the bar's pill treatment, and deliberately un-styled/un-animated —
+   it's meant to read as a flat readout, not another piece of UI chrome.
+   `pointer-events: none` so it never blocks clicks on whatever the host
+   page renders underneath it (often a logo/nav in that same top-left
+   corner). */
+.dry-active-spot {
+  position: fixed;
+  top: 0px;
+  left: 0px;
+  z-index: 2147483000;
+  min-width: 250px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #000;
+  color: #fff;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 10px;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.dry-active-spot-empty {
+  font-style: italic;
+  opacity: 0.65;
+}
+.dry-active-spot-kind {
+  font-weight: 700;
+}
+.dry-active-spot-kind--text {
+  color: #7dd3fc;
+}
+.dry-active-spot-kind--image {
+  color: #86efac;
+}
+.dry-active-spot-kind--file {
+  color: #fde047;
+}
+.dry-active-spot-kind--array {
+  color: #c4b5fd;
+}
+.dry-active-spot-kind--object {
+  color: #f9a8d4;
+}
+
 /* Hover dropdown listing the singletons editable on the page. Rendered through
    a portal to <body> (see Toolbar) so the menu's overflow:hidden — needed for
    the collapse animation — never clips it. */

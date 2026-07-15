@@ -17,3 +17,17 @@ arrayObject:
     file: /demo/assets/test-doc.txt
   - name: Văn bản thứ 3
     image: /assets/IMG_8873.JPG
+info:
+  label: Nhan SAVED VIA VEI
+  thumb: /assets/IMG_8873.JPG
+  links:
+    - Link đầu tiên
+    - Link thứ 2
+sections:
+  - title: Section đầu tiên
+    items:
+      - Mục 1.1
+      - Muc 1.2 SAVED VIA VEI
+  - title: Section thứ 2
+    items:
+      - Mục 2.1

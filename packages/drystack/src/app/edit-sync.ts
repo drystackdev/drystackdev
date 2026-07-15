@@ -7,7 +7,7 @@
 // `storage`-event fallback for browsers without it) exists only to push an
 // immediate notification to already-open tabs instead of waiting for their
 // next poll/reload.
-import type { ComponentSchema } from '..';
+import type { ArrayField, ComponentSchema, ObjectField } from '..';
 
 const DB_NAME = 'drystack-edits';
 const STORE_NAME = 'edits';
@@ -221,28 +221,77 @@ export function parseEditKey(
   return { type, name, field };
 }
 
-export type SyncableFieldKind = 'text' | 'image' | 'file' | 'array';
+export type SyncableFieldKind = 'text' | 'image' | 'file' | 'array' | 'object';
 
 // A field counts as syncable when its schema is `kind: 'form'` and either
 // `formKind: 'slug'` (fields.text — this fork, and the name field inside
 // fields.slug share that tag), `columnKind: 'image'` (fields.image), or
 // `columnKind: 'file'` (fields.file), or when it's `kind: 'array'`
-// (fields.array — MVP scope: array of a primitive element, see
-// plan/vei-array-object.md). Shared by the admin's publish effect
+// (fields.array) or `kind: 'object'` (fields.object — standalone at any
+// depth, not just top-level). Shared by the admin's publish effect
 // (SingletonPage.tsx) and the visual editor's dry() helper so both recognize
 // the same fields, and dispatch on how a field's value gets edited/painted
-// (contenteditable text, media-library picker, or the array's template-clone
-// list binding), the same way.
+// (contenteditable text, media-library picker, or a container's recursive
+// read/paint — see bind.ts's readContainerValue/paintContainerValue), the
+// same way.
 export function getSyncableFieldKind(
   fieldSchema: ComponentSchema | undefined
 ): SyncableFieldKind | undefined {
   if (!fieldSchema) return undefined;
   if (fieldSchema.kind === 'array') return 'array';
+  if (fieldSchema.kind === 'object') return 'object';
   if (fieldSchema.kind !== 'form') return undefined;
   if ((fieldSchema as { formKind?: string }).formKind === 'slug') return 'text';
   if ((fieldSchema as { columnKind?: string }).columnKind === 'image') return 'image';
   if ((fieldSchema as { columnKind?: string }).columnKind === 'file') return 'file';
   return undefined;
+}
+
+// Splices one leaf edit into a nested array/object value tree, walking
+// `path` (e.g. ["0", "tags", "1", "label"] for a bus key's
+// "cards.0.tags.1.label" suffix) down `schema` in lockstep — an array
+// segment is a numeric index into `schema`'s `element`, an object segment is
+// a field name into `schema`'s `fields`. Copy-on-write only along the spine
+// actually touched (mirrors the immutability convention every caller already
+// used before this was extracted: `[...arr]` / `{...obj}`). `setLeaf` is
+// called once path is exhausted, with the leaf's own schema and its previous
+// value, so each caller can decode the raw bus string its own way (save.ts
+// keeps it a raw string for YAML; SingletonPage.tsx decodes '' → null for
+// assets via fromBusValue) without this function needing to know which.
+// Shared by save.ts's mergeFieldEdits and SingletonPage.tsx's
+// applyArrayItemEdit, which independently hand-rolled the same one-level-only
+// splice before this existed.
+export function spliceValueEdit(
+  prev: unknown,
+  path: readonly string[],
+  schema: ComponentSchema,
+  setLeaf: (leafSchema: ComponentSchema, prevLeaf: unknown) => unknown
+): unknown {
+  if (path.length === 0) return setLeaf(schema, prev);
+  const [seg, ...rest] = path;
+  if (schema.kind === 'array') {
+    const idx = Number(seg);
+    if (!Number.isInteger(idx) || idx < 0) return prev;
+    const arr = Array.isArray(prev) ? [...prev] : [];
+    arr[idx] = spliceValueEdit(
+      arr[idx],
+      rest,
+      (schema as ArrayField<ComponentSchema>).element,
+      setLeaf
+    );
+    return arr;
+  }
+  if (schema.kind === 'object') {
+    const subSchema = (schema as ObjectField).fields[seg];
+    if (!subSchema) return prev;
+    const obj =
+      typeof prev === 'object' && prev !== null && !Array.isArray(prev)
+        ? { ...(prev as Record<string, unknown>) }
+        : {};
+    obj[seg] = spliceValueEdit(obj[seg], rest, subSchema, setLeaf);
+    return obj;
+  }
+  return prev; // schema has no further nesting — malformed path, no-op.
 }
 
 // A syncable field whose value is edited via the media-library picker

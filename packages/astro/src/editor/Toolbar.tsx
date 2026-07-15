@@ -9,7 +9,7 @@ import React, {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
-import type { ArrayField, ComponentSchema, Config } from '@drystack/core';
+import type { ArrayField, ComponentSchema, Config, ObjectField } from '@drystack/core';
 import { getSingletonPath } from '@drystack/core/path-utils';
 import { getAuth } from '@drystack/core/auth';
 import {
@@ -50,7 +50,7 @@ import {
 import {
   enableEditing,
   disableEditing,
-  getArrayValueFromDom,
+  getContainerValueFromDom,
   getOriginalValue,
   refreshFromLatestSource,
   resetPendingEdits,
@@ -172,6 +172,29 @@ function readSpots(): Spot[] {
   return spots;
 }
 
+// A dry spot the top-left indicator (see the hover/focus effect below) can
+// point at — captured together at the moment of the focus/hover event since
+// data-dry-kind isn't encoded in the data-dry key itself.
+type ActiveSpot = { key: string; kind: string };
+
+// Splits an ActiveSpot into the indicator's two display parts: the
+// colour-coded kind badge ("Text"/"Image"/…, styled by
+// .dry-active-spot-kind--<kind> in editor.css) and the path label
+// ("Singleton: demo.array.0.name").
+function formatActiveSpot(
+  spot: ActiveSpot | null
+): { kind: string; kindLabel: string; pathLabel: string } | null {
+  if (!spot) return null;
+  const [type, name, field] = spot.key.split('::');
+  if (!type || !name || !field) return null;
+  const capitalize = (s: string) => `${s.charAt(0).toUpperCase()}${s.slice(1)}`;
+  return {
+    kind: spot.kind,
+    kindLabel: capitalize(spot.kind),
+    pathLabel: `${capitalize(type)}: ${name}.${field}`,
+  };
+}
+
 export function Toolbar({ config }: { config: Config<any, any> }) {
   const [editing, setEditing] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
@@ -179,14 +202,31 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [spots, setSpots] = useState<Spot[]>([]);
 
-  // Array-field gear button — a floating icon portaled to <body>, shown
-  // while hovering any fields.array container spot in edit mode (identified
-  // by data-dry-kind="array", set server-side by dry.item()), positioned
-  // over that element via getBoundingClientRect. Clicking it opens
-  // ArrayFieldDialog, which renders the exact admin editor for that array
-  // (see field-editor.tsx re-exports).
+  // Active-spot indicator — a permanent top-left HUD, on for the whole time
+  // edit mode is on, showing which dry field is "in hand". A focused
+  // (contentEditable, currently being typed into) spot wins outright over a
+  // merely hovered one — once something has focus, hover is ignored
+  // entirely until that focus clears, rather than just deprioritized, so
+  // moving the mouse around while typing never disturbs the reading. Hover
+  // uses the same delayed-clear pattern as the array gear button below
+  // (moving from one spot straight onto its own portaled UI shouldn't
+  // flicker the label off).
+  const [hoverSpot, setHoverSpot] = useState<ActiveSpot | null>(null);
+  const [focusSpot, setFocusSpot] = useState<ActiveSpot | null>(null);
+  const activeSpotCloseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  );
+
+  // Container gear button — a floating icon portaled to <body>, shown while
+  // hovering any fields.array OR fields.object container spot in edit mode
+  // (identified by data-dry-kind="array"/"object", set server-side by
+  // dry.item(), at any nesting depth), positioned over that element via
+  // getBoundingClientRect. Clicking it opens ContainerFieldDialog, which
+  // renders the exact admin editor for that array/object (see
+  // field-editor.tsx re-exports).
   const [arrayGearSpot, setArrayGearSpot] = useState<{
     key: string;
+    kind: 'array' | 'object';
     rect: DOMRect;
   } | null>(null);
   const [arrayDialogKey, setArrayDialogKey] = useState<string | null>(null);
@@ -233,10 +273,13 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Hover detection for the array-field gear button — only active in edit
+  // Hover detection for the container gear button — only active in edit
   // mode. Delegated at the document level (capture phase) rather than one
   // listener per spot, since spots can appear/disappear as the array grows
-  // or shrinks via template-clone (see bind.ts's renderArray).
+  // or shrinks via template-clone (see bind.ts's renderArray). Matches the
+  // *closest* array-or-object container spot, so hovering a nested container
+  // (e.g. an array inside an object inside an array) targets that inner
+  // container's own dialog, not some ancestor's.
   useEffect(() => {
     if (!editing) {
       arrayGearElRef.current = null;
@@ -245,19 +288,20 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     }
     const onOver = (e: MouseEvent) => {
       const el = (e.target as HTMLElement)?.closest<HTMLElement>(
-        '[data-dry-kind="array"]'
+        '[data-dry-kind="array"], [data-dry-kind="object"]'
       );
       if (!el) return;
       const key = el.getAttribute('data-dry');
-      if (!key) return;
+      const kind = el.getAttribute('data-dry-kind');
+      if (!key || (kind !== 'array' && kind !== 'object')) return;
       clearTimeout(arrayGearCloseTimer.current);
       arrayGearElRef.current = el;
-      setArrayGearSpot({ key, rect: el.getBoundingClientRect() });
+      setArrayGearSpot({ key, kind, rect: el.getBoundingClientRect() });
     };
     const onOut = (e: MouseEvent) => {
       const related = e.relatedTarget as HTMLElement | null;
       if (
-        related?.closest('[data-dry-kind="array"]') ||
+        related?.closest('[data-dry-kind="array"], [data-dry-kind="object"]') ||
         related?.closest('.dry-array-gear')
       ) {
         return;
@@ -286,6 +330,61 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       clearTimeout(arrayGearCloseTimer.current);
     };
   }, [editing]);
+
+  // Active-spot focus/hover tracking (see the state above) — delegated at
+  // the document level (capture phase) the same way as the array gear hover
+  // detection, since spots come and go with the array template-clone. Focus
+  // uses focusin/focusout (fires for the contentEditable text spots enabled
+  // by bind.ts's enableEditing); hover uses mouseover/mouseout so non-
+  // focusable spots (image/file/array containers, which open a picker or a
+  // dialog instead of taking focus) still get a label.
+  useEffect(() => {
+    if (!editing) {
+      setHoverSpot(null);
+      setFocusSpot(null);
+      return;
+    }
+    const onFocusIn = (e: FocusEvent) => {
+      const el = (e.target as HTMLElement)?.closest<HTMLElement>('[data-dry]');
+      const key = el?.getAttribute('data-dry');
+      setFocusSpot(key ? { key, kind: el!.getAttribute('data-dry-kind') ?? 'text' } : null);
+    };
+    const onFocusOut = (e: FocusEvent) => {
+      const el = (e.target as HTMLElement)?.closest<HTMLElement>('[data-dry]');
+      const key = el?.getAttribute('data-dry');
+      if (!key) return;
+      // Only clear if this blur is for the spot we're currently reporting —
+      // a stale async blur from a spot that's no longer focused shouldn't
+      // clobber whatever focused since.
+      setFocusSpot(prev => (prev?.key === key ? null : prev));
+    };
+    const onOver = (e: MouseEvent) => {
+      const el = (e.target as HTMLElement)?.closest<HTMLElement>('[data-dry]');
+      if (!el) return;
+      clearTimeout(activeSpotCloseTimer.current);
+      const key = el.getAttribute('data-dry');
+      if (key) setHoverSpot({ key, kind: el.getAttribute('data-dry-kind') ?? 'text' });
+    };
+    const onOut = (e: MouseEvent) => {
+      const related = e.relatedTarget as HTMLElement | null;
+      if (related?.closest('[data-dry]')) return;
+      activeSpotCloseTimer.current = setTimeout(() => setHoverSpot(null), 140);
+    };
+    document.addEventListener('focusin', onFocusIn, true);
+    document.addEventListener('focusout', onFocusOut, true);
+    document.addEventListener('mouseover', onOver, true);
+    document.addEventListener('mouseout', onOut, true);
+    return () => {
+      document.removeEventListener('focusin', onFocusIn, true);
+      document.removeEventListener('focusout', onFocusOut, true);
+      document.removeEventListener('mouseover', onOver, true);
+      document.removeEventListener('mouseout', onOut, true);
+      clearTimeout(activeSpotCloseTimer.current);
+    };
+  }, [editing]);
+
+  // Focus always wins outright over hover — see the state comment above.
+  const activeSpot = formatActiveSpot(focusSpot ?? hoverSpot);
 
   // The admin provider boundary (VeiAdminProviders + FileManagerHost, lazy —
   // see the lazy() imports above) — mounted whenever edit mode is on, not
@@ -694,6 +793,27 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
         </div>
       )}
 
+      {/* Active-spot indicator — a permanent top-left HUD label, on for the
+          whole time edit mode is on (not just while something's focused/
+          hovered — see the state above), so it's always there to glance at.
+          Positioned/styled entirely in editor.css, independent of .dry-bar's
+          own bottom-left placement. */}
+      {editing && (
+        <div className="dry-active-spot">
+          {activeSpot ? (
+            <>
+              <span className={`dry-active-spot-kind dry-active-spot-kind--${activeSpot.kind}`}>
+                {activeSpot.kindLabel}
+              </span>
+              {' - '}
+              {activeSpot.pathLabel}
+            </>
+          ) : (
+            <em className="dry-active-spot-empty">No item</em>
+          )}
+        </div>
+      )}
+
       {refOpen &&
         singletonList.length > 0 &&
         createPortal(
@@ -722,34 +842,43 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
         )}
 
       {arrayGearSpot &&
-        createPortal(
-          <button
-            type="button"
-            className="dry-array-gear"
-            aria-label="Edit list"
-            disabled={(getArrayValueFromDom(arrayGearSpot.key)?.length ?? 0) === 0}
-            style={{
-              top: arrayGearSpot.rect.top + 6,
-              right: window.innerWidth - arrayGearSpot.rect.right + 6,
-            }}
-            onMouseEnter={() => clearTimeout(arrayGearCloseTimer.current)}
-            onMouseLeave={() => {
-              arrayGearCloseTimer.current = setTimeout(() => {
+        (() => {
+          // An array with zero items has no template to seed the dialog's
+          // shape from (see bind.ts's captureArrayTemplate) — disable rather
+          // than open an editor with nothing to show. An object has no such
+          // "empty" state (every field always exists per schema), so it's
+          // never disabled.
+          const value =
+            arrayGearSpot.kind === 'array' ? getContainerValueFromDom(arrayGearSpot.key) : null;
+          return createPortal(
+            <button
+              type="button"
+              className="dry-array-gear"
+              aria-label={arrayGearSpot.kind === 'array' ? 'Edit list' : 'Edit fields'}
+              disabled={arrayGearSpot.kind === 'array' && (!Array.isArray(value) || value.length === 0)}
+              style={{
+                top: arrayGearSpot.rect.top + 6,
+                right: window.innerWidth - arrayGearSpot.rect.right + 6,
+              }}
+              onMouseEnter={() => clearTimeout(arrayGearCloseTimer.current)}
+              onMouseLeave={() => {
+                arrayGearCloseTimer.current = setTimeout(() => {
+                  arrayGearElRef.current = null;
+                  setArrayGearSpot(null);
+                }, 140);
+              }}
+              onClick={() => {
+                if (!requireProviderReady()) return;
+                setArrayDialogKey(arrayGearSpot.key);
                 arrayGearElRef.current = null;
                 setArrayGearSpot(null);
-              }, 140);
-            }}
-            onClick={() => {
-              if (!requireProviderReady()) return;
-              setArrayDialogKey(arrayGearSpot.key);
-              arrayGearElRef.current = null;
-              setArrayGearSpot(null);
-            }}
-          >
-            <Icon src={slidersIcon} />
-          </button>,
-          document.body
-        )}
+              }}
+            >
+              <Icon src={slidersIcon} />
+            </button>,
+            document.body
+          );
+        })()}
 
       <DialogContainer onDismiss={() => setReviewOpen(false)}>
         {reviewOpen && <VeiReviewDialog config={config} onChange={refreshCount} />}
@@ -758,10 +887,10 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       {/* The admin provider boundary — mounted whenever edit mode is on (see
           the providerState effect above). FileManagerHost makes
           openMediaLibrary() available for both the inline image/file spot
-          click handlers and the field-editor dialog below; the array dialog
-          renders inside the boundary since its element schema may mount the
-          admin's real ImageFieldInput/FileFieldInput, which need this
-          context (useConfig/useMediaLibraryPreviewURL/tree data). */}
+          click handlers and the field-editor dialog below; the container
+          dialog renders inside the boundary since its element/fields schema
+          may mount the admin's real ImageFieldInput/FileFieldInput, which
+          need this context (useConfig/useMediaLibraryPreviewURL/tree data). */}
       {providerState.status === 'ready' && (
         <Suspense fallback={null}>
           <VeiAdminProviders
@@ -772,7 +901,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
             <FileManagerHost />
             <DialogContainer onDismiss={() => setArrayDialogKey(null)}>
               {arrayDialogKey && (
-                <ArrayFieldDialog
+                <ContainerFieldDialog
                   config={config}
                   fieldKey={arrayDialogKey}
                   onClose={() => setArrayDialogKey(null)}
@@ -795,8 +924,8 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
 // ImageFieldInput/FileFieldInput use (scoped to this singleton's assets
 // folder), caches the picked bytes locally so previews and saves can resolve
 // before the file is servable, and returns the pick. Callers differ only in
-// `accept`; the array/object dialog's own image/file sub-fields go through
-// the real ImageFieldInput/FileFieldInput instead (see ArrayFieldDialog).
+// `accept`; the container dialog's own image/file sub-fields go through
+// the real ImageFieldInput/FileFieldInput instead (see ContainerFieldDialog).
 async function pickAsset(
   config: Config<any, any>,
   singletonName: string,
@@ -820,16 +949,17 @@ async function pickAsset(
   return picked;
 }
 
-// Renders the array editor for one fields.array field, seeded from its
-// current live value (already up to date with any pending item/container
-// edits — see bind.ts's getArrayValueFromDom). Renders the admin's own
-// ArrayFieldInput unmodified (via FormValueContentFromPreviewProps, since
-// fieldSchema.kind === 'array' and no Input override is set) — its Add/Edit
-// modals mount the real per-element Input (ImageFieldInput/FileFieldInput/
-// ObjectFieldInput/…), the same as inside the admin app, now that this
-// dialog is mounted inside the admin provider boundary (see Toolbar's
-// VeiAdminProviders). Config schema is never touched.
-function ArrayFieldDialog({
+// Renders the container editor for one fields.array or fields.object field
+// (at any nesting depth), seeded from its current live value (already up to
+// date with any pending item/sub-field edits — see bind.ts's
+// getContainerValueFromDom). Renders the admin's own ArrayFieldInput/
+// ObjectFieldInput unmodified (via FormValueContentFromPreviewProps, since no
+// Input override is set) — its Add/Edit modals mount the real per-element
+// Input (ImageFieldInput/FileFieldInput/ObjectFieldInput/ArrayFieldInput/…),
+// the same as inside the admin app, now that this dialog is mounted inside
+// the admin provider boundary (see Toolbar's VeiAdminProviders). Config
+// schema is never touched.
+function ContainerFieldDialog({
   config,
   fieldKey,
   onClose,
@@ -843,23 +973,29 @@ function ArrayFieldDialog({
   const [, name, field] = fieldKey.split('::');
   const fieldSchema = config.singletons?.[name]?.schema?.[field] as
     | ArrayField<ComponentSchema>
+    | ObjectField
     | undefined;
-  // string[] for array-of-primitive, Record[]-ish for array-of-object — the
-  // shape dry.ts allows (see plan/vei-array-object.md).
-  const [value, setValue] = useState<unknown[]>(
-    () => getArrayValueFromDom(fieldKey) ?? []
-  );
+  // unknown[] for array-of-*, Record<string, unknown> for a standalone
+  // object — whichever shape `fieldSchema.kind` calls for.
+  // getContainerValueFromDom mirrors that dispatch off the same live spot,
+  // so its result already matches; the fallback only matters before the
+  // schema itself has resolved (first render).
+  const [value, setValue] = useState<unknown>(() => {
+    const v = getContainerValueFromDom(fieldKey);
+    if (v !== undefined) return v;
+    return fieldSchema?.kind === 'object' ? {} : [];
+  });
   const [forceValidation, setForceValidation] = useState(false);
   const formId = useId();
 
   const getPreviewProps = useMemo(
     () =>
       fieldSchema
-        ? // ArrayField<ComponentSchema>'s element is the broad ComponentSchema
-          // union, so ParsedValueForComponentSchema resolves to a wide
-          // `readonly unknown[]`-ish type that setValue's updater doesn't
-          // structurally match — this dialog's scope (array-of-text/image/
-          // file or array-of-object of those, see plan/vei-array-object.md)
+        ? // ArrayField<ComponentSchema>'s element / ObjectField's fields are
+          // the broad ComponentSchema union, so ParsedValueForComponentSchema
+          // resolves to a wide type that setValue's updater doesn't
+          // structurally match — this dialog's scope (any array/object
+          // nesting of text/image/file, see plan/de-quy-object.md)
           // guarantees the runtime shape lines up.
           createGetPreviewProps(fieldSchema, setValue as any, () => undefined)
         : undefined,
@@ -867,18 +1003,22 @@ function ArrayFieldDialog({
   );
 
   if (!fieldSchema || !getPreviewProps) return null;
-  const previewProps = getPreviewProps(value);
+  // Same wide-type situation as setValue above — getPreviewProps expects the
+  // schema-shaped value (array or object), which `value` always is at
+  // runtime once seeded from getContainerValueFromDom/the schema-kind
+  // default, just not provable from `unknown` alone.
+  const previewProps = getPreviewProps(value as any);
 
   const onDone = async () => {
     if (!clientSideValidateProp(fieldSchema, value, undefined)) {
       setForceValidation(true);
       return;
     }
-    // A whole-array replace supersedes any inline item edits already queued
-    // for this array (typed into an item spot before this dialog was
-    // opened) — otherwise a stale array.N edit would win back over this
-    // index when the file is written (see save.ts's mergeFieldEdits, which
-    // layers item edits on top of the container edit).
+    // A whole-container replace supersedes any inline item/sub-field edits
+    // already queued for it (typed into a leaf spot before this dialog was
+    // opened) — otherwise a stale per-path edit would win back over this
+    // path when the file is written (see save.ts's mergeFieldEdits, which
+    // layers per-path edits on top of the container edit).
     const edits = await getAllEdits();
     const itemPrefix = `${fieldKey}.`;
     await Promise.all(

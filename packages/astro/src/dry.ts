@@ -1,8 +1,10 @@
 import type {
+  ArrayField,
   Collection,
   Config,
   ComponentSchema,
   DotPathForComponentSchema,
+  ObjectField,
   Singleton,
 } from '@drystack/core';
 import type { EntryWithResolvedLinkedFiles } from '@drystack/core/reader';
@@ -20,12 +22,9 @@ type SchemaOf<S> = S extends Singleton<infer Schema> ? Schema : never;
 // Every valid dry.item() path into a singleton — one segment per top-level
 // field, recursing into each field's own shape via DotPathForComponentSchema
 // (form/api.tsx) so array-of-object, object-of-object, array-of-array, etc.
-// all get real autocomplete/type-checking here instead of a free-form tail.
-// bind.ts's DOM binding currently only paints one level of object-nesting
-// inside an array — item() below still console.warns and skips the
-// data-dry attribute for anything deeper it can't bind yet, so a path this
-// type accepts can be a no-op at runtime until bind.ts is extended to match
-// (tracked separately, not part of this change).
+// all get real autocomplete/type-checking here. readSingleton()'s item()
+// below (via resolveDrySpot) walks the schema the same way at runtime, so
+// every path this type accepts actually resolves — see plan/de-quy-object.md.
 type DryFieldPath<S> = {
   [Key in keyof SchemaOf<S> & string]:
     | Key
@@ -88,6 +87,46 @@ function assetValue(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
+// Resolves one dry.item() path against `schema`/`value` in lockstep,
+// recursing one path segment at a time — an array segment is a numeric
+// index into `schema.element`, an object segment is a field name into
+// `schema.fields`. Landing exactly on a leaf (text/image/file) with no
+// segments left returns its kind + current value; landing on a container
+// (array/object) with no segments left returns just its kind, a structural
+// marker bind.ts uses to know a container spot's own boundaries (never
+// contentEditable itself — see bind.ts's isContainerSpot) without needing a
+// value of its own. `getSyncableFieldKind` is the single source of truth
+// both branches share for "is this schema syncable at all" (edit-sync.ts).
+function resolveDrySpot(
+  schema: ComponentSchema | undefined,
+  value: unknown,
+  segments: string[]
+): { kind: DryItem['data-dry-kind']; value?: unknown } | undefined {
+  if (!schema) return undefined;
+  if (segments.length === 0) {
+    const kind = getSyncableFieldKind(schema);
+    if (!kind) return undefined;
+    if (kind === 'array' || kind === 'object') return { kind };
+    return { kind, value };
+  }
+  const [seg, ...rest] = segments;
+  if (schema.kind === 'array') {
+    const idx = Number(seg);
+    if (!Number.isInteger(idx) || idx < 0) return undefined;
+    const items = Array.isArray(value) ? value : [];
+    return resolveDrySpot((schema as ArrayField<ComponentSchema>).element, items[idx], rest);
+  }
+  if (schema.kind === 'object') {
+    const fields = (schema as ObjectField).fields;
+    const subValue =
+      value && typeof value === 'object' && !Array.isArray(value)
+        ? (value as Record<string, unknown>)[seg]
+        : undefined;
+    return resolveDrySpot(fields[seg], subValue, rest);
+  }
+  return undefined; // form/child fields have no further path to walk.
+}
+
 async function readSingleton(
   config: Config<any, any>,
   reader: Awaited<ReturnType<typeof createConfiguredReader>>,
@@ -105,103 +144,25 @@ async function readSingleton(
     enumerable: false,
     value(field: string) {
       // Shared with the admin's edit-sync effects (SingletonPage.tsx) so both
-      // surfaces recognize the same fields the same way. Supported path shapes:
-      // flat top-level fields.text ('slug' formKind), fields.image ('image'
-      // columnKind), fields.file ('file' columnKind), fields.array; one level
-      // into an array ("array.0" — a primitive item or an array-of-object item
-      // wrapper); and one level deeper into an array-of-object item's
-      // sub-field ("cards.0.title"). See plan/vei-array-object.md.
+      // surfaces recognize the same fields the same way. Any path
+      // DotPathForComponentSchema type-checks resolves here — flat fields,
+      // any depth of fields.array/fields.object nesting (array-of-object,
+      // object-of-array, array-of-object-of-array, a standalone top-level
+      // fields.object, …) — see plan/de-quy-object.md.
       const [baseField, ...rest] = field.split('.');
-      const baseSchema = schema[baseField];
-
-      if (rest.length === 0) {
-        const kind = getSyncableFieldKind(baseSchema);
-        if (!kind) {
-          console.warn(
-            `[drystack] dry(): field "${field}" on singleton "${name}" is not fields.text, fields.image, fields.file, or fields.array — skipping data-dry attribute.`
-          );
-          return {};
-        }
-        const attrs: DryItem = {
-          'data-dry': `singleton::${name}::${field}`,
-          'data-dry-kind': kind,
-        };
-        if (isAssetKind(kind)) {
-          attrs['data-dry-value'] = assetValue(entry[field]);
-        }
-        return attrs;
-      }
-
-      // Nested paths only index into a fields.array (one item deep, then at
-      // most one sub-field deeper for array-of-object).
-      if ((rest.length !== 1 && rest.length !== 2) || baseSchema?.kind !== 'array') {
+      const resolved = resolveDrySpot(schema[baseField], entry[baseField], rest);
+      if (!resolved) {
         console.warn(
-          `[drystack] dry(): "${field}" on singleton "${name}" is not a supported array item path — skipping data-dry attribute.`
-        );
-        return {};
-      }
-      const element = (baseSchema as { element: ComponentSchema }).element;
-
-      // "array.N" — a single item. A primitive element (fields.text/image/file)
-      // gets that element's kind and is edited inline; an object element marks
-      // the item *wrapper* ('object' kind, a structural marker used by
-      // bind.ts's template-clone, not itself contentEditable).
-      if (rest.length === 1) {
-        const elementKind = getSyncableFieldKind(element);
-        if (elementKind === 'text' || elementKind === 'image' || elementKind === 'file') {
-          const attrs: DryItem = {
-            'data-dry': `singleton::${name}::${field}`,
-            'data-dry-kind': elementKind,
-          };
-          if (isAssetKind(elementKind)) {
-            const arr = entry[baseField];
-            const idx = Number(rest[0]);
-            attrs['data-dry-value'] = assetValue(
-              Array.isArray(arr) ? arr[idx] : undefined
-            );
-          }
-          return attrs;
-        }
-        if (element.kind === 'object') {
-          return { 'data-dry': `singleton::${name}::${field}`, 'data-dry-kind': 'object' };
-        }
-        console.warn(
-          `[drystack] dry(): array "${baseField}" on singleton "${name}" is not an array of fields.text, fields.image, fields.file, or fields.object — skipping data-dry attribute.`
-        );
-        return {};
-      }
-
-      // "array.N.sub" — a sub-field of an array-of-object item. The element
-      // must be a fields.object and the sub-field itself a fields.text/image/file.
-      if (element.kind !== 'object') {
-        console.warn(
-          `[drystack] dry(): "${field}" on singleton "${name}" indexes a sub-field but array "${baseField}" is not an array of fields.object — skipping data-dry attribute.`
-        );
-        return {};
-      }
-      const subField = rest[1];
-      const subKind = getSyncableFieldKind(
-        (element as { fields: Record<string, ComponentSchema> }).fields[subField]
-      );
-      if (subKind !== 'text' && subKind !== 'image' && subKind !== 'file') {
-        console.warn(
-          `[drystack] dry(): sub-field "${subField}" of "${baseField}" on singleton "${name}" is not fields.text, fields.image, or fields.file — skipping data-dry attribute.`
+          `[drystack] dry(): "${field}" on singleton "${name}" could not be resolved against the schema — skipping data-dry attribute.`
         );
         return {};
       }
       const attrs: DryItem = {
         'data-dry': `singleton::${name}::${field}`,
-        'data-dry-kind': subKind,
+        'data-dry-kind': resolved.kind,
       };
-      if (isAssetKind(subKind)) {
-        const arr = entry[baseField];
-        const idx = Number(rest[0]);
-        const objItem = Array.isArray(arr) ? arr[idx] : undefined;
-        attrs['data-dry-value'] = assetValue(
-          objItem && typeof objItem === 'object'
-            ? (objItem as Record<string, unknown>)[subField]
-            : undefined
-        );
+      if (isAssetKind(resolved.kind)) {
+        attrs['data-dry-value'] = assetValue(resolved.value);
       }
       return attrs;
     },
