@@ -40,7 +40,7 @@ export function DrystackSetup(props: { config: GitHubConfig }) {
         }/settings/apps/new`}
         method="post"
       >
-        <Flex justifyContent="center">
+        <Flex as="a" href="/" justifyContent="center">
           <DrystackLogo />
         </Flex>
         <Text>Drystack doesn't have the required config.</Text>
