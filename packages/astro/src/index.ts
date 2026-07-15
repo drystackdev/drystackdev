@@ -19,6 +19,9 @@ import {
   serializeRedirectsFile,
   REDIRECTS_FILE_PATH,
 } from '@drystack/core/redirects';
+import { encryptValue } from '@drystack/core/api/encryption';
+import { DRY_MAP_PUBLIC_PATH } from '@drystack/core/api/generic';
+import { readDryMapRegistryFile, resetDryMapRegistryFile } from './dry';
 
 // Cloudflare's `_redirects` file caps out at 2,000 static rules (see
 // https://developers.cloudflare.com/workers/static-assets/redirects/) — the
@@ -190,6 +193,28 @@ function writeCmsRedirectsFile(root: string, clientDir: string) {
   appendFileSync(destPath, separator + body + '\n');
 }
 
+// Flushes dry.ts's build-time id→{data-dry,kind,value} registry (populated
+// only for storage.kind === 'github' — see dry.ts's readSingleton) to an
+// encrypted static asset. Empty registry (local mode, or no dry.item() calls
+// at all) means nothing to write. Encrypting with DRYSTACK_SECRET — the same
+// secret already required at runtime for refresh-token cookie encryption
+// (generic.ts) — means the deployed Worker can decrypt it back with zero new
+// key-management surface.
+async function writeDryMapFile(clientDir: string) {
+  const registry = readDryMapRegistryFile();
+  if (Object.keys(registry).length === 0) return;
+  const secret = process.env.DRYSTACK_SECRET;
+  if (!secret) {
+    throw new Error(
+      'drystack: DRYSTACK_SECRET must be set at build time to encrypt the dry-map (data-dry-id → field) registry — without it, the build would either fail or, worse, silently publish it unencrypted. Set the same DRYSTACK_SECRET used by the deployed Worker in the build environment.'
+    );
+  }
+  const encrypted = await encryptValue(JSON.stringify(registry), secret);
+  const destPath = join(clientDir, DRY_MAP_PUBLIC_PATH);
+  mkdirSync(join(clientDir, '_drystack'), { recursive: true });
+  writeFileSync(destPath, encrypted);
+}
+
 export default function drystack(options?: { path?: string }): AstroIntegration {
   const path = (options?.path ?? 'drystack').replace(/^\/+|\/+$/g, '');
   // Captured once per build/dev-server start. Cloudflare Pages runs a fresh
@@ -207,11 +232,17 @@ export default function drystack(options?: { path?: string }): AstroIntegration 
       'astro:config:done': ({ config }) => {
         projectRoot = fileURLToPath(config.root);
         clientOutDir = fileURLToPath(config.build.client);
+        // Fires once, before any page renders — clears out any dry-map
+        // registry file left over from a previous build so stale entries
+        // (possibly assigning different ids than this build will) never mix
+        // in. See dry.ts's resetDryMapRegistryFile.
+        resetDryMapRegistryFile();
       },
-      'astro:build:done': () => {
+      'astro:build:done': async () => {
         if (projectRoot && clientOutDir) {
           copyDrystackAssets(projectRoot, clientOutDir);
           writeCmsRedirectsFile(projectRoot, clientOutDir);
+          await writeDryMapFile(clientOutDir);
         }
       },
       'astro:config:setup': ({ injectRoute, injectScript, updateConfig, config }) => {

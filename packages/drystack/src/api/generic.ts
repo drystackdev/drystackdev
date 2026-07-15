@@ -10,6 +10,13 @@ import { handleGitHubAppCreation, localModeApiHandler } from '#api-handler';
 import { webcrypto } from '#webcrypto';
 import { bytesToHex } from '../hex';
 import { decryptValue, encryptValue } from './encryption';
+import { serializeRepoConfig } from '../app/repo-config';
+
+// Public path (relative to the site root) of the encrypted dry-map blob
+// written by @drystack/astro's astro:build:done hook — see index.ts's
+// writeDryMapFile. Shared here (not duplicated) so the writer and the
+// `github/dry-map` route below always agree on where to look.
+export const DRY_MAP_PUBLIC_PATH = '_drystack/dry-map.enc.json';
 
 export type APIRouteConfig = {
   /** @default process.env.DRYSTACK_GITHUB_CLIENT_ID */
@@ -26,6 +33,13 @@ export type APIRouteConfig = {
    * @default 'drystack'
    */
   basePath?: string;
+  /**
+   * Lets `github/dry-map` (see below) self-fetch the encrypted dry-map static
+   * asset the build wrote alongside the site — e.g. Cloudflare's `env.ASSETS`
+   * binding. Omitted on adapters/deployments with no such binding; the route
+   * just 404s in that case (never returns the map without it).
+   */
+  assetsFetcher?: { fetch(input: string | URL): Promise<Response> };
 };
 
 type InnerAPIRouteConfig = {
@@ -35,6 +49,7 @@ type InnerAPIRouteConfig = {
   config: Config;
   uiBasePath: string;
   apiBasePath: string;
+  assetsFetcher?: { fetch(input: string | URL): Promise<Response> };
 };
 
 const drystackRouteRegex =
@@ -63,6 +78,7 @@ export function makeGenericAPIRouteHandler(
       _config.secret ?? tryOrUndefined(() => process.env.DRYSTACK_SECRET),
     config: _config.config,
     basePath: _config.basePath,
+    assetsFetcher: _config.assetsFetcher,
   };
 
   const rawBasePath = (_config2.basePath ?? 'drystack').replace(
@@ -125,6 +141,7 @@ export function makeGenericAPIRouteHandler(
     config: _config2.config,
     uiBasePath,
     apiBasePath,
+    assetsFetcher: _config2.assetsFetcher,
   };
 
   return async function drystackAPIRoute(
@@ -143,6 +160,9 @@ export function makeGenericAPIRouteHandler(
     }
     if (joined === 'github/repo-not-found') {
       return githubRepoNotFound(req, config);
+    }
+    if (joined === 'github/dry-map') {
+      return githubDryMap(req, config);
     }
     if (joined === 'github/logout') {
       const cookies = cookie.parse(req.headers.get('cookie') ?? '');
@@ -270,7 +290,7 @@ async function getTokenCookies(
           httpOnly: true,
           maxAge: tokenData.refresh_token_expires_in,
           expires: new Date(
-            Date.now() + tokenData.refresh_token_expires_in * 100
+            Date.now() + tokenData.refresh_token_expires_in * 1000
           ),
           path: '/',
         }
@@ -347,6 +367,62 @@ async function githubRepoNotFound(
     return redirect(`${config.uiBasePath}/repo-not-found`, headers);
   }
   return githubLogin(req, config);
+}
+
+// The only server-side check anywhere in drystack that a GitHub token is
+// real (every other "auth" check — getAuth/getSyncAuth — just reads whether
+// a client-readable cookie is present, which is trivially spoofable). Hits
+// the repo directly, not just /user, so a valid token for an *unrelated*
+// GitHub account (no access to this repo) is correctly rejected too — a
+// private repo 404s for non-collaborators, a public one still requires the
+// token to be genuine to get a 200 from GitHub.
+async function verifyGitHubAccess(
+  token: string,
+  config: InnerAPIRouteConfig
+): Promise<boolean> {
+  if (config.config.storage.kind !== 'github') return false;
+  const res = await fetch(
+    `https://api.github.com/repos/${serializeRepoConfig(config.config.storage.repo)}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return res.ok;
+}
+
+// Verified editors only: decrypts and returns the build-time
+// data-dry-id → {data-dry, data-dry-kind, data-dry-value} registry so the
+// VEI client can patch the real attributes back onto `[data-dry-id]`
+// elements. See dry.ts (registry) and index.ts's writeDryMapFile (encrypted
+// static asset) in @drystack/astro — plan/bao-mat-co-che-dry.md.
+async function githubDryMap(
+  req: DrystackRequest,
+  config: InnerAPIRouteConfig
+): Promise<DrystackResponse> {
+  const cookies = cookie.parse(req.headers.get('cookie') ?? '');
+  const accessToken = cookies['drystack-gh-access-token'];
+  if (!accessToken || !(await verifyGitHubAccess(accessToken, config))) {
+    return { status: 401, body: 'Not authorized' };
+  }
+  if (!config.assetsFetcher) {
+    return { status: 404, body: 'Not Found' };
+  }
+  const assetRes = await config.assetsFetcher.fetch(
+    new URL(DRY_MAP_PUBLIC_PATH, req.url)
+  );
+  if (!assetRes.ok) {
+    return { status: 404, body: 'Not Found' };
+  }
+  const encrypted = await assetRes.text();
+  let decrypted: string;
+  try {
+    decrypted = await decryptValue(encrypted, config.secret);
+  } catch {
+    return { status: 500, body: 'Failed to decrypt dry-map' };
+  }
+  return {
+    status: 200,
+    headers: [['Content-Type', 'application/json']],
+    body: decrypted,
+  };
 }
 
 async function githubLogin(

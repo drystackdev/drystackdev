@@ -40,6 +40,10 @@
       "drystack-src": "./src/api/generic.ts",
       "default": "./dist/api/generic.js"
     },
+    "./api/encryption": {
+      "drystack-src": "./src/api/encryption.tsx",
+      "default": "./dist/api/encryption.js"
+    },
     "./renderer": {
       "drystack-src": "./src/renderer.tsx",
       "default": "./dist/renderer.js"

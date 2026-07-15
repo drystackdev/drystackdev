@@ -11,9 +11,7 @@ import { parseString } from 'set-cookie-parser';
 // simulation), so this is a dynamic import guarded by try/catch: it silently
 // falls through to the `import.meta.env.*` lookups below on every other
 // adapter (Node, etc.), where env vars come from `.env` files instead.
-async function getCloudflareEnv(): Promise<
-  Record<string, string | undefined> | undefined
-> {
+async function getCloudflareEnv(): Promise<Record<string, any> | undefined> {
   try {
     const cf: any = await import(/* @vite-ignore */ 'cloudflare:workers');
     return cf.env;
@@ -46,6 +44,12 @@ export function makeHandler(_config: APIRouteConfig) {
           tryOrUndefined(() => {
             return import.meta.env.DRYSTACK_SECRET;
           }),
+        // The `github/dry-map` route self-fetches its own deployed static
+        // assets through this — Cloudflare's `ASSETS` binding (declared in
+        // wrangler.jsonc) is a `Fetcher`, so `.fetch(url)` works the same as
+        // the global `fetch`. Undefined on adapters with no such binding;
+        // the route just 404s rather than ever serving the map unencrypted.
+        assetsFetcher: _config.assetsFetcher ?? envVarsForCf?.ASSETS,
       },
       {
         slugEnvName: 'PUBLIC_DRYSTACK_GITHUB_APP_SLUG',

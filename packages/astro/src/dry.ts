@@ -10,12 +10,100 @@ import type {
 import type { EntryWithResolvedLinkedFiles } from '@drystack/core/reader';
 import { getSyncableFieldKind, isAssetKind } from '@drystack/core/edit-sync';
 import { createConfiguredReader } from './reader';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 export type DryItem = {
   'data-dry': string;
   'data-dry-kind': 'text' | 'image' | 'file' | 'array' | 'object';
   'data-dry-value'?: string;
 };
+
+export type DryMapEntry = DryItem;
+
+// Populated as dry.item() resolves spots during `astro build`'s prerender
+// pass (storage.kind === 'github' only — see readSingleton below), read back
+// whole by the astro:build:done hook in index.ts and flushed to an encrypted
+// static asset — so production HTML never carries plaintext
+// data-dry/-kind/-value (would leak full field paths/schema to anonymous
+// visitors via view-source), only an opaque `data-dry-id`.
+//
+// Backed by a JSONL file, not just the in-memory Maps below: Astro/Vite loads
+// this module as *separate instances* for the page-rendering SSR bundle
+// (where dry.item() actually runs) and for the integration's own
+// astro:build:done hook code, so an in-memory-only registry never reaches the
+// hook — confirmed empirically (a first pass using only a Map produced an
+// empty registry every time). Both instances do run in the same OS process
+// with a real filesystem during prerendering (see reader.ts's
+// hasBuildTimeFilesystem), so a file bridges the gap reliably. The in-memory
+// Maps are still worth keeping alongside it — they give id numbering/dedup
+// *within* a single render pass, which is all one instance handles.
+const dryMapRegistry = new Map<string, DryMapEntry>();
+const dryIdBySpotKey = new Map<string, string>();
+const dryIdCounters = new Map<string, number>();
+
+function dryMapRegistryFilePath(): string {
+  return join(process.cwd(), '.astro', 'dry-map-registry.jsonl');
+}
+
+// Called once per build (astro:config:done, before any page renders) so a
+// previous build's entries — which may assign different ids to different
+// fields if the schema/pages changed — never leak into this one.
+export function resetDryMapRegistryFile(): void {
+  dryMapRegistry.clear();
+  dryIdBySpotKey.clear();
+  dryIdCounters.clear();
+  try {
+    mkdirSync(join(process.cwd(), '.astro'), { recursive: true });
+    writeFileSync(dryMapRegistryFilePath(), '');
+  } catch {
+    // Best-effort — see persistDryMapEntry below for why this must not throw.
+  }
+}
+
+// Called once, after all pages have rendered (astro:build:done), to build
+// the final id → entry map that gets encrypted and shipped.
+export function readDryMapRegistryFile(): Record<string, DryMapEntry> {
+  let raw: string;
+  try {
+    raw = readFileSync(dryMapRegistryFilePath(), 'utf8');
+  } catch {
+    return {};
+  }
+  const result: Record<string, DryMapEntry> = {};
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue;
+    const { id, entry } = JSON.parse(line) as { id: string; entry: DryMapEntry };
+    result[id] = entry;
+  }
+  return result;
+}
+
+// Swallows fs errors rather than throwing: this runs inline in dry.item(),
+// on the hot path of rendering a real page, and a page must still render
+// correctly (just without a working editor for this spot until the next
+// build) even if, say, .astro/ isn't writable for some reason.
+function persistDryMapEntry(id: string, entry: DryMapEntry) {
+  try {
+    mkdirSync(join(process.cwd(), '.astro'), { recursive: true });
+    appendFileSync(dryMapRegistryFilePath(), JSON.stringify({ id, entry }) + '\n');
+  } catch {
+    // See above.
+  }
+}
+
+function getOrCreateDryId(singletonName: string, entry: DryMapEntry): string {
+  const spotKey = entry['data-dry'];
+  const existing = dryIdBySpotKey.get(spotKey);
+  if (existing) return existing;
+  const n = dryIdCounters.get(singletonName) ?? 0;
+  dryIdCounters.set(singletonName, n + 1);
+  const id = `d:${singletonName}:${n}`;
+  dryIdBySpotKey.set(spotKey, id);
+  dryMapRegistry.set(id, entry);
+  persistDryMapEntry(id, entry);
+  return id;
+}
 
 type SchemaOf<S> = S extends Singleton<infer Schema> ? Schema : never;
 
@@ -36,7 +124,7 @@ export type DrySingleton<
     Record<string, ComponentSchema>
   >,
 > = EntryWithResolvedLinkedFiles<S> & {
-  item(field: DryFieldPath<S>): DryItem | {};
+  item(field: DryFieldPath<S>): DryItem | { 'data-dry-id': string } | {};
 };
 
 /**
@@ -163,6 +251,16 @@ async function readSingleton(
       };
       if (isAssetKind(resolved.kind)) {
         attrs['data-dry-value'] = assetValue(resolved.value);
+      }
+      // GitHub-mode pages are statically prerendered and served byte-identical
+      // to every visitor — emitting the real attrs would bake the full field
+      // path/kind/value into public production HTML. Route them through an
+      // opaque id instead; the real attrs are only handed back, post-auth, by
+      // the dry-map API route (see generic.ts) and patched onto the DOM by
+      // the editor client. Local mode never ships to production (confirmed
+      // dev-only), so it keeps the direct/legible attrs.
+      if (config.storage.kind === 'github') {
+        return { 'data-dry-id': getOrCreateDryId(name, attrs) };
       }
       return attrs;
     },

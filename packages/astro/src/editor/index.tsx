@@ -5,6 +5,7 @@ import { EditorRoot } from './EditorRoot';
 import {
   applyPendingEdits,
   discardEditsIfBuildIsNewer,
+  hydrateDryAttributesFromMap,
   subscribeToRemoteEdits,
 } from './bind';
 // Raw CSS string (Vite ?inline) — injected into the host page's <head> below.
@@ -28,6 +29,12 @@ export async function mount(
   buildVersion?: number
 ): Promise<void> {
   if (document.getElementById(ROOT_ID)) return;
+
+  // Must run first — discardEditsIfBuildIsNewer/applyPendingEdits below (and
+  // every other DOM lookup in bind.ts) key off the real `data-dry` attribute,
+  // which GitHub-mode production HTML doesn't carry until this patches it
+  // back in. See bind.ts's hydrateDryAttributesFromMap for why.
+  await hydrateDryAttributesFromMap(config);
 
   await discardEditsIfBuildIsNewer(config, buildVersion);
   await applyPendingEdits();

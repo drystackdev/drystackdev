@@ -1,4 +1,6 @@
 import type { Config } from '@drystack/core';
+import apiPath from 'virtual:drystack-path';
+import type { DryMapEntry } from '../dry';
 import {
   getAllEdits,
   publishEdit,
@@ -553,6 +555,46 @@ export function disableEditing() {
   });
   document.removeEventListener('input', handleInput, true);
   document.removeEventListener('click', handleAssetSpotClick, true);
+}
+
+// GitHub-mode production HTML never carries plaintext data-dry/-kind/-value
+// (see dry.ts) — only an opaque `data-dry-id`, to keep full field paths/kinds
+// out of view-source for anonymous visitors. Must run before anything else
+// touches `[data-dry]` (discardEditsIfBuildIsNewer/applyPendingEdits below
+// resolve pending IndexedDB edits by querying `[data-dry="<key>"]`, and would
+// find nothing if the real attributes aren't back on the elements yet).
+// Fetches the reverse map from the `github/dry-map` API route — which only
+// returns it once it verifies the caller's GitHub token server-side — and
+// patches the real attributes onto each `[data-dry-id]` element in place. If
+// the fetch 401s (not a real editor, e.g. a spoofed cookie) or the map is
+// missing, elements are left with only `data-dry-id`: inert, no data-dry, so
+// none of the editing logic below ever engages for them. Local mode already
+// ships the real attributes directly (see dry.ts), so this is a no-op there.
+export async function hydrateDryAttributesFromMap(
+  config: Config<any, any>
+): Promise<void> {
+  if (config.storage.kind !== 'github') return;
+  const elements = document.querySelectorAll<HTMLElement>('[data-dry-id]');
+  if (elements.length === 0) return;
+  let map: Record<string, DryMapEntry>;
+  try {
+    const res = await fetch(`/api/${apiPath}/github/dry-map`);
+    if (!res.ok) return;
+    map = await res.json();
+  } catch {
+    return;
+  }
+  for (const el of elements) {
+    const id = el.getAttribute('data-dry-id');
+    el.removeAttribute('data-dry-id');
+    const entry = id ? map[id] : undefined;
+    if (!entry) continue;
+    el.setAttribute('data-dry', entry['data-dry']);
+    el.setAttribute('data-dry-kind', entry['data-dry-kind']);
+    if (entry['data-dry-value'] !== undefined) {
+      el.setAttribute('data-dry-value', entry['data-dry-value']);
+    }
+  }
 }
 
 // Cloudflare Pages builds fresh on every deploy, so buildVersion (a build-time
