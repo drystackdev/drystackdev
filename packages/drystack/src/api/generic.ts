@@ -408,7 +408,7 @@ async function githubDryMap(
     return { status: 404, body: 'Not Found' };
   }
   const assetRes = await config.assetsFetcher.fetch(
-    new URL(DRY_MAP_PUBLIC_PATH, req.url)
+    new URL(`/${DRY_MAP_PUBLIC_PATH}`, req.url)
   );
   if (!assetRes.ok) {
     return { status: 404, body: 'Not Found' };

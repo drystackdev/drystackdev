@@ -68,7 +68,7 @@ import {
 } from './store';
 import { saveEdits, getCurrentBranchName, getGithubToken } from './save';
 import { isAssetKind } from '@drystack/core/edit-sync';
-import { CloudflareStatusCompact } from '@drystack/core/deploy-cloudflare-status';
+import { CloudflareStatusInline } from '@drystack/core/deploy-cloudflare-status';
 import { useVeiDeploy } from './deploy';
 
 // Loaded lazily (only once the visual editor actually enters edit mode) —
@@ -745,9 +745,19 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
           whole time edit mode is on (not just while something's focused/
           hovered — see the state above), so it's always there to glance at.
           Positioned/styled entirely in editor.css, independent of .dry-bar's
-          own bottom-left placement. */}
+          own bottom-left placement. In github mode it's prefixed with the
+          build/deploy status (CloudflareStatusInline — busy label while
+          Save's merge/deploy is running, then whatever Cloudflare's build WS
+          reports), folded into the same flat readout rather than a separate
+          pill below it. */}
       {editing && (
         <div className="dry-active-spot">
+          {isGithub && (
+            <>
+              <CloudflareStatusInline busy={deployBusy} busyLabel={deployLabel} />
+              {' - '}
+            </>
+          )}
           {activeSpot ? (
             <>
               <span className={`dry-active-spot-kind dry-active-spot-kind--${activeSpot.kind}`}>
@@ -758,22 +768,6 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
             </>
           ) : (
             <em className="dry-active-spot-empty">No item</em>
-          )}
-        </div>
-      )}
-
-      {/* Status readout — sits directly under the active-spot HUD above (same
-          top-left corner, same lifetime: on for as long as edit mode is).
-          Save now folds merge+deploy in (see runSave above), so this is the
-          only surviving trace of the old standalone deploy pill: the busy
-          label while a save is merging/deploying, and the Cloudflare build
-          pill (CloudflareStatusCompact) once it's idle. */}
-      {editing && isGithub && (
-        <div className="dry-status-hud">
-          {deployBusy ? (
-            <span className="dry-status-hud-busy">{deployLabel}</span>
-          ) : (
-            <CloudflareStatusCompact />
           )}
         </div>
       )}

@@ -172,18 +172,6 @@ body > .kui-scheme--auto {
   flex: none;
 }
 
-/* Brand-name chip in the deploy pill — same 40px height and fully-rounded ends
-   as the icon buttons it sits next to, so the row reads as one set of controls.
-   Width is bounded so a long brand label truncates instead of stretching the
-   bar off-screen. */
-.dry-brandchip {
-  height: 40px !important;
-  max-width: 220px !important;
-  padding: 0 14px !important;
-  border-radius: 999px !important;
-  outline: 1px solid var(--kui-color-alias-border-idle);
-}
-
 .dry-fab-icon {
   position: absolute;
   inset: 0;
@@ -339,31 +327,16 @@ body > .kui-scheme--auto {
   color: #f9a8d4;
 }
 
-/* Status readout — sits directly under .dry-active-spot (same top-left
-   corner, same on-for-the-whole-edit-session lifetime, see Toolbar.tsx),
-   showing Save's merge/deploy progress while busy and the Cloudflare build
-   pill (CloudflareStatusCompact, its own Keystar-styled chrome) once idle.
-   Unlike the plain debug-readout active-spot above, this one is meant to be
-   hovered (CloudflareStatusCompact's tooltip), so it keeps normal pointer
-   events instead of the `none` used above. */
-.dry-status-hud {
-  position: fixed;
-  top: 28px;
-  left: 0px;
-  z-index: 2147483000;
-  padding: 4px 8px;
-}
-.dry-status-hud-busy {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 4px;
-  background: #000;
-  color: #fff;
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-  font-size: 10px;
-  line-height: 1.5;
-  white-space: nowrap;
+/* Build/deploy status prefix — folded into .dry-active-spot's own line (see
+   Toolbar.tsx) rather than a separate pill underneath it, so it's just a
+   small icon + small text ahead of the path label, not another piece of UI
+   chrome. Inherits .dry-active-spot's font-size/pointer-events; only needs
+   its own icon+text alignment. */
+.dry-active-spot-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  vertical-align: middle;
 }
 
 /* Hover dropdown listing the singletons editable on the page. Rendered through

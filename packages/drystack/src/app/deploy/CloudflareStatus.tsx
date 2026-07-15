@@ -5,7 +5,6 @@ import { checkCircle2Icon } from '@keystar/ui/icon/icons/checkCircle2Icon';
 import { cloudIcon } from '@keystar/ui/icon/icons/cloudIcon';
 import { loader2Icon } from '@keystar/ui/icon/icons/loader2Icon';
 import { css, keyframes } from '@keystar/ui/style';
-import { Tooltip, TooltipTrigger } from '@keystar/ui/tooltip';
 import { Text } from '@keystar/ui/typography';
 import type { ReactElement } from 'react';
 
@@ -31,7 +30,7 @@ const toneColor: Record<Tone, 'neutralSecondary' | 'accent' | 'positive' | 'crit
 // just differ in how much of the label they show at once. English labels:
 // this is a system/status string, not site content — see CLAUDE.md language
 // convention (deploy toasts elsewhere stay Vietnamese; this doesn't).
-function useCloudflareStatusView(): {
+export function useCloudflareStatusView(): {
   icon: ReactElement;
   tone: Tone;
   spinning: boolean;
@@ -115,32 +114,36 @@ export function CloudflareStatus() {
   );
 }
 
-// VEI pill — space is tight, so this sits where the brand chip used to
-// (Toolbar.tsx moved the brand name into the Deploy button's own tooltip).
-// Reuses the brand chip's own ActionButton + "dry-brandchip" class (same
-// 40px height, same border-radius, same outlined Keystar chrome as the
-// Deploy button next to it) rather than a bare div, so it actually looks
-// like a matching control instead of flat text floating in the pill. No
-// onPress here either — purely a display. The label is always one of a
-// handful of short, similar-length strings so the pill doesn't jump around
-// as the status changes; the full sentence is still one hover away.
-export function CloudflareStatusCompact() {
+// VEI HUD — folded into the toolbar's plain-text active-spot readout (see
+// Toolbar.tsx's .dry-active-spot / editor.css's .dry-active-spot-status),
+// not a standalone control: previously rendered as an outlined ActionButton
+// (matching the brand chip's chrome) which read as a clickable button even
+// though it never had an onPress. Now it's just a small icon + small text,
+// same flat/un-styled treatment as the rest of that debug readout. `busy`/
+// `busyLabel` cover Save's merge/deploy window (see useVeiDeploy) — before
+// Cloudflare has anything of its own to report yet; once that clears this
+// reflects whatever the build WS says (useCloudflareStatusView).
+export function CloudflareStatusInline({
+  busy,
+  busyLabel,
+}: {
+  busy: boolean;
+  busyLabel: string;
+}) {
   const view = useCloudflareStatusView();
+  const icon = busy ? loader2Icon : view.icon;
+  const tone: Tone = busy ? 'notice' : view.tone;
+  const spinning = busy || view.spinning;
+  const label = busy ? busyLabel : view.shortLabel;
   return (
-    <TooltipTrigger>
-      <ActionButton
-        isDisabled={!view.hasEvent}
-        UNSAFE_className="dry-brandchip"
-        aria-label={view.fullLabel}
-      >
-        <Icon
-          src={view.icon}
-          color={toneColor[view.tone]}
-          UNSAFE_className={view.spinning ? spinningIconClassName : undefined}
-        />
-        <Text>{view.shortLabel}</Text>
-      </ActionButton>
-      <Tooltip>{view.fullLabel}</Tooltip>
-    </TooltipTrigger>
+    <span className="dry-active-spot-status" aria-label={busy ? busyLabel : view.fullLabel}>
+      <Icon
+        src={icon}
+        size="small"
+        color={toneColor[tone]}
+        UNSAFE_className={spinning ? spinningIconClassName : undefined}
+      />
+      {label}
+    </span>
   );
 }
