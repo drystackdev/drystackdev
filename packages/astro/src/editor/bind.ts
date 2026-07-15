@@ -640,7 +640,7 @@ function paintAssetSpot(el: HTMLElement, key: string, value: string, blob?: Uint
   // when `src`/`href` is about to be overwritten with a local blob: preview.
   el.setAttribute('data-dry-value', value);
   if (blob) {
-    const url = URL.createObjectURL(new Blob([blob]));
+    const url = URL.createObjectURL(new Blob([blob as any]));
     assetObjectUrls.set(key, url);
     el.setAttribute(attr, url);
   } else {
