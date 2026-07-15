@@ -344,8 +344,8 @@ body > .kui-scheme--auto {
 .dry-active-spot-kind {
   font-weight: 700;
   display: inline-block;
-  width: 3em;
   text-align: center;
+  margin-left: .5em;
 }
 .dry-active-spot-kind--text {
   color: #7dd3fc;
