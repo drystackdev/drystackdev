@@ -16,13 +16,7 @@ import type { Config } from '@drystack/core';
 import { toastQueue } from '@keystar/ui/toast';
 import { classifyChanges, merge3Text } from '@drystack/core/deploy-merge';
 import { fetchMergeBase } from '@drystack/core/deploy-merge-base';
-import {
-  readBrandRecord,
-  writeBrandRecord,
-  removeBrandRecord,
-  type BrandRecord,
-} from '@drystack/core/brand-store';
-import { formatBrandLabel, formatBrandRef } from '@drystack/core/brand-label';
+import { readBrandRecord, removeBrandRecord, type BrandRecord } from '@drystack/core/brand-store';
 import {
   getGithubTokenWithRefresh,
   parseRepo,
@@ -30,6 +24,7 @@ import {
   base64Encode,
   decodeBase64ToBytes,
   GithubGraphQLError,
+  createBrandRaw,
 } from './save';
 
 const GH_API = 'https://api.github.com';
@@ -171,12 +166,6 @@ const CreateCommitMutation = `
 const DeleteRefMutation = `
   mutation VeiDeleteRef($refId: ID!) {
     deleteRef(input: { refId: $refId }) { clientMutationId }
-  }
-`;
-
-const CreateRefMutation = `
-  mutation VeiCreateRef($input: CreateRefInput!) {
-    createRef(input: $input) { ref { id } }
   }
 `;
 
@@ -327,24 +316,14 @@ async function runDeploy(
     try {
       await githubGraphQL(token!, DeleteRefMutation, { refId: brandRefId });
       await removeBrandRecord(config as any);
-      const now = new Date();
-      const newRef = formatBrandRef(storage.branchPrefix, now, login);
-      const created = await githubGraphQL(token!, CreateRefMutation, {
-        input: {
-          name: `refs/heads/${newRef}`,
-          oid: newCommitOid,
-          repositoryId: repo.id,
-        },
+      newBrand = await createBrandRaw(config, {
+        token: token!,
+        repositoryId: repo.id,
+        login,
+        viewerName,
+        branchPrefix: storage.branchPrefix,
+        fromOid: newCommitOid,
       });
-      if (created?.createRef?.ref?.id) {
-        newBrand = {
-          ref: newRef,
-          label: formatBrandLabel(now, viewerName, 'Editor'),
-          login,
-          createdAt: now.getTime(),
-        };
-        await writeBrandRecord(config as any, newBrand);
-      }
     } catch {
       newBrand = null;
     }

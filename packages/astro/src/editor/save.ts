@@ -16,6 +16,12 @@ import { getAuth } from '@drystack/core/auth';
 // @ts-expect-error — provided by the drystack Astro integration's Vite plugin
 import apiPath from 'virtual:drystack-path';
 import { getAllEdits, publishClear, clearPendingBlobs } from './store';
+import {
+  readBrandRecord,
+  writeBrandRecord,
+  type BrandRecord,
+} from '@drystack/core/brand-store';
+import { formatBrandLabel, formatBrandRef } from '@drystack/core/brand-label';
 
 const textEncoder = new TextEncoder();
 
@@ -118,6 +124,115 @@ async function getDefaultBranch(token: string, owner: string, name: string) {
   const ref = data?.repository?.defaultBranchRef;
   if (!ref) throw new Error(`Could not find the default branch of ${owner}/${name}`);
   return { branchName: ref.name as string, oid: ref.target.oid as string };
+}
+
+const branchRefQuery = `
+  query GetBranchRef($owner: String!, $name: String!, $qualifiedName: String!) {
+    repository(owner: $owner, name: $name) {
+      ref(qualifiedName: $qualifiedName) {
+        name
+        target { oid }
+      }
+    }
+  }
+`;
+
+// Like getDefaultBranch, but for an arbitrary ref (e.g. a brand branch) —
+// returns null (rather than throwing) when the ref doesn't exist, since
+// callers use that to detect a deleted/rotated brand and recreate one.
+async function getBranchRef(
+  token: string,
+  owner: string,
+  name: string,
+  qualifiedName: string
+): Promise<{ branchName: string; oid: string } | null> {
+  const data = await githubGraphQL(token, branchRefQuery, { owner, name, qualifiedName });
+  const ref = data?.repository?.ref;
+  if (!ref) return null;
+  return { branchName: ref.name as string, oid: ref.target.oid as string };
+}
+
+const createBrandRefMutation = `
+  mutation CreateBrandRef($input: CreateRefInput!) {
+    createRef(input: $input) { ref { id } }
+  }
+`;
+
+// Raw-GraphQL brand creation, shared by ensureBrand (below) and deploy.ts's
+// post-merge brand rotation — the VEI has no urql client, so unlike the
+// admin's createBrand (brand.tsx) this talks to GitHub directly.
+export async function createBrandRaw(
+  config: Config<any, any>,
+  args: {
+    token: string;
+    repositoryId: string;
+    login: string;
+    viewerName: string;
+    branchPrefix?: string;
+    fromOid: string;
+  }
+): Promise<BrandRecord | null> {
+  const now = new Date();
+  const ref = formatBrandRef(args.branchPrefix, now, args.login);
+  const label = formatBrandLabel(now, args.viewerName, 'Editor');
+  const created = await githubGraphQL(args.token, createBrandRefMutation, {
+    input: {
+      name: `refs/heads/${ref}`,
+      oid: args.fromOid,
+      repositoryId: args.repositoryId,
+    },
+  });
+  if (!created?.createRef?.ref?.id) return null;
+  const record: BrandRecord = { ref, label, login: args.login, createdAt: now.getTime() };
+  await writeBrandRecord(config as any, record);
+  return record;
+}
+
+const repoAndViewerQuery = `
+  query VeiEnsureBrand($owner: String!, $name: String!) {
+    viewer { login name }
+    repository(owner: $owner, name: $name) {
+      id
+      defaultBranchRef { target { oid } }
+    }
+  }
+`;
+
+// The brand branch Save commits to. Reuses the locally-remembered brand if
+// GitHub still has it (mirrors useBrandGuard's adopt-or-recreate logic in
+// brand.tsx), otherwise creates a fresh one off the current default-branch
+// HEAD — unlike the admin app, nothing guarantees a brand already exists
+// before the VEI's Save runs (a user editing straight from the live site may
+// never have opened /drystack), so Save must be able to create its own.
+export async function ensureBrand(
+  config: Config<any, any>,
+  token: string,
+  owner: string,
+  name: string
+): Promise<BrandRecord> {
+  const existing = await readBrandRecord(config as any);
+  if (existing) {
+    const stillExists = await getBranchRef(token, owner, name, `refs/heads/${existing.ref}`);
+    if (stillExists) return existing;
+  }
+  const data = await githubGraphQL(token, repoAndViewerQuery, { owner, name });
+  const repo = data?.repository;
+  const login: string | undefined = data?.viewer?.login;
+  const viewerName: string = data?.viewer?.name ?? login ?? 'editor';
+  if (!repo?.id || !repo?.defaultBranchRef?.target?.oid || !login) {
+    throw new Error('Could not resolve the repository or GitHub viewer to create a brand branch.');
+  }
+  const storage = config.storage as { branchPrefix?: string };
+  const created = await createBrandRaw(config, {
+    token,
+    repositoryId: repo.id,
+    login,
+    viewerName,
+    branchPrefix: storage.branchPrefix,
+    fromOid: repo.defaultBranchRef.target.oid,
+  });
+  if (!created) throw new Error('Could not create a brand branch.');
+  return created;
 }
 
 const createCommitMutation = `
@@ -457,12 +572,13 @@ export async function getPendingDiffs(
   return collectFileDiffs(config);
 }
 
-// Returns the new commit's oid in github mode, or undefined when there was
-// nothing to commit or when in local mode. Either way, the source of truth
-// (git blob via the GitHub Contents API, or the local file) reflects the
-// write immediately — the caller re-fetches it via getLatestFieldValues right
-// after, so pending edits are cleared here without waiting for a Cloudflare
-// deploy to actually ship the change to the public site.
+// Returns the new commit's oid, or undefined when there was nothing to
+// commit. In local mode the write lands on the served file immediately, so
+// the caller can re-fetch via getLatestFieldValues right after. In github
+// mode this only commits to the caller's brand branch — the default branch
+// (what getLatestFieldValues/getCurrentBranchName read) doesn't see the
+// change until that brand is merged in (see deploy.ts's runDeploy, invoked
+// by the caller right after a successful save).
 export async function saveEdits(config: Config<any, any>): Promise<string | undefined> {
   const isGithub = config.storage.kind === 'github';
   let commitOid: string | undefined;
@@ -470,7 +586,10 @@ export async function saveEdits(config: Config<any, any>): Promise<string | unde
     const token = await getGithubTokenWithRefresh(config);
     if (!token) throw new Error('Not signed in to GitHub');
     const { owner, name } = parseRepo((config.storage as any).repo);
-    let branch = await getDefaultBranch(token, owner, name);
+    const brand = await ensureBrand(config, token, owner, name);
+    const brandQualifiedName = `refs/heads/${brand.ref}`;
+    let branch = await getBranchRef(token, owner, name, brandQualifiedName);
+    if (!branch) throw new Error(`Could not find brand branch "${brand.ref}" on GitHub.`);
     let files = await buildFileChanges(config, branch.branchName);
     if (files.length === 0) return undefined;
 
@@ -478,10 +597,10 @@ export async function saveEdits(config: Config<any, any>): Promise<string | unde
       githubGraphQL(token, createCommitMutation, {
         input: {
           branch: {
-            branchName: branch.branchName,
+            branchName: branch!.branchName,
             repositoryNameWithOwner: `${owner}/${name}`,
           },
-          expectedHeadOid: branch.oid,
+          expectedHeadOid: branch!.oid,
           message: { headline: 'Update content via visual editor' },
           fileChanges: {
             additions: files.map(f => ({
@@ -499,18 +618,16 @@ export async function saveEdits(config: Config<any, any>): Promise<string | unde
     } catch (err) {
       if (!(err instanceof GithubGraphQLError)) throw err;
       if (err.type === 'BRANCH_PROTECTION_RULE_VIOLATION') {
-        throw new Error(
-          `"${branch.branchName}" is a protected branch — changes must go through a pull request. Open the admin panel to create a branch for this edit instead.`
-        );
+        throw new Error(`"${branch.branchName}" is a protected branch — changes must go through a pull request.`);
       }
       if (err.type !== 'STALE_DATA') throw err;
-      // Someone else committed to the branch since we read it. Refetch the
-      // branch tip and re-read the files against it (picking up any
-      // unrelated concurrent commit, and re-applying our pending edits on
-      // top) then retry exactly once — a second failure means we're racing
+      // Someone else committed to the brand branch since we read it (e.g.
+      // another tab). Refetch the branch tip and re-read the files against
+      // it, then retry exactly once — a second failure means we're racing
       // too fast to safely auto-resolve, so surface it instead of retrying
       // forever.
-      branch = await getDefaultBranch(token, owner, name);
+      branch = await getBranchRef(token, owner, name, brandQualifiedName);
+      if (!branch) throw new Error(`Could not find brand branch "${brand.ref}" on GitHub.`);
       files = await buildFileChanges(config, branch.branchName);
       if (files.length === 0) return undefined;
       try {

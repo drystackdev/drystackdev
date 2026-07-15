@@ -339,6 +339,33 @@ body > .kui-scheme--auto {
   color: #f9a8d4;
 }
 
+/* Status readout — sits directly under .dry-active-spot (same top-left
+   corner, same on-for-the-whole-edit-session lifetime, see Toolbar.tsx),
+   showing Save's merge/deploy progress while busy and the Cloudflare build
+   pill (CloudflareStatusCompact, its own Keystar-styled chrome) once idle.
+   Unlike the plain debug-readout active-spot above, this one is meant to be
+   hovered (CloudflareStatusCompact's tooltip), so it keeps normal pointer
+   events instead of the `none` used above. */
+.dry-status-hud {
+  position: fixed;
+  top: 28px;
+  left: 0px;
+  z-index: 2147483000;
+  padding: 4px 8px;
+}
+.dry-status-hud-busy {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #000;
+  color: #fff;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 10px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
 /* Hover dropdown listing the singletons editable on the page. Rendered through
    a portal to <body> (see Toolbar) so the menu's overflow:hidden — needed for
    the collapse animation — never clips it. */

@@ -21,7 +21,7 @@ import {
 import apiPath from 'virtual:drystack-path';
 import { Badge } from '@keystar/ui/badge';
 import { ActionButton, Button, ButtonGroup } from '@keystar/ui/button';
-import { Dialog, DialogContainer } from '@keystar/ui/dialog';
+import { AlertDialog, Dialog, DialogContainer } from '@keystar/ui/dialog';
 import { Icon } from '@keystar/ui/icon';
 import { editIcon } from '@keystar/ui/icon/icons/editIcon';
 import { xIcon } from '@keystar/ui/icon/icons/xIcon';
@@ -29,13 +29,12 @@ import { saveIcon } from '@keystar/ui/icon/icons/saveIcon';
 import { eyeIcon } from '@keystar/ui/icon/icons/eyeIcon';
 import { externalLinkIcon } from '@keystar/ui/icon/icons/externalLinkIcon';
 import { rotateCcwIcon } from '@keystar/ui/icon/icons/rotateCcwIcon';
-import { rocketIcon } from '@keystar/ui/icon/icons/rocketIcon';
 import { slidersIcon } from '@keystar/ui/icon/icons/slidersIcon';
 import { VStack } from '@keystar/ui/layout';
 import { Content } from '@keystar/ui/slots';
 import { toastQueue } from '@keystar/ui/toast';
 import { Tooltip, TooltipTrigger } from '@keystar/ui/tooltip';
-import { Heading } from '@keystar/ui/typography';
+import { Heading, Text } from '@keystar/ui/typography';
 import {
   ChangePreviewDialog,
   ImageThumbFrame,
@@ -69,7 +68,6 @@ import {
 } from './store';
 import { saveEdits, getCurrentBranchName, getGithubToken } from './save';
 import { isAssetKind } from '@drystack/core/edit-sync';
-import { brandDisplayLabel } from '@drystack/core/brand-label';
 import { CloudflareStatusCompact } from '@drystack/core/deploy-cloudflare-status';
 import { useVeiDeploy } from './deploy';
 
@@ -238,18 +236,12 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   // viewport-relative and goes stale the instant the page scrolls.
   const arrayGearElRef = useRef<HTMLElement | null>(null);
 
-  // Deploy menu — a second pill (brand name + Deploy), github-only, mutually
-  // exclusive with the edit menu it sits beside.
+  // isGithub gates the brand/merge/deploy flow Save triggers automatically
+  // (see onSave/runSave below) — local mode has no branch concept and keeps
+  // its old instant, confirm-free save.
   const isGithub = config.storage.kind === 'github';
-  const [deployOpen, setDeployOpen] = useState(false);
-  const {
-    brand,
-    deploy,
-    refreshBrand,
-    isBusy: deployBusy,
-    label: deployLabel,
-    hasChanges: deployHasChanges,
-  } = useVeiDeploy(config);
+  const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
+  const { deploy, isBusy: deployBusy, label: deployLabel } = useVeiDeploy(config);
 
   // Hover dropdown state — the menu itself is portaled to <body>.
   const refWrapRef = useRef<HTMLDivElement>(null);
@@ -524,10 +516,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config]);
 
-  // Opening the edit/function menu closes the deploy menu (mutually
-  // exclusive).
   const startEditing = () => {
-    setDeployOpen(false);
     enableEditing(refreshCount);
     setSpots(readSpots());
     // Don't block entering edit mode on the network — repaint with the
@@ -549,35 +538,44 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     else startEditing();
   };
 
-  const toggleDeploy = () => {
-    setDeployOpen(prev => {
-      const next = !prev;
-      if (next) {
-        // Opening deploy closes the edit/function menu and exits edit mode
-        // (disableEditing keeps pending edits — see bind.ts). Refresh the brand
-        // shown in the pill in case another tab created/rotated it.
-        if (editing) stopEditing();
-        refreshBrand();
-      }
-      return next;
-    });
-  };
-
-  const onSave = async () => {
+  // The actual save — commits (brand, in github mode) then, when something
+  // landed there, merges that brand into the default branch (deploy.ts's
+  // runDeploy via the deploy() hook, which owns its own conflict/nothing/
+  // committed/error toasts) before re-syncing the DOM. That ordering matters:
+  // refreshFromLatestSource reads off the *default* branch, which only has
+  // the new content once the merge lands — running it right after the brand
+  // commit would flash stale pre-merge content.
+  const runSave = async () => {
     setSaving(true);
     try {
-      await saveEdits(config);
-      // The write (commit or local disk) reflects the true source
-      // immediately — re-sync the DOM from it rather than waiting for a
-      // Cloudflare deploy to actually ship the change to the public site.
+      const commitOid = await saveEdits(config);
+      let deployed = false;
+      if (isGithub && commitOid) {
+        await deploy();
+        deployed = true;
+      }
       await refreshFromLatestSource(config);
       await refreshCount();
-      toastQueue.positive('Changes saved', { timeout: 4000 });
+      // github's own deploy() toast is the final word on success/failure —
+      // only show the generic one when there was nothing to merge (local
+      // mode, or a github save with nothing pending).
+      if (!deployed) toastQueue.positive('Changes saved', { timeout: 4000 });
     } catch (err) {
       toastQueue.critical(err instanceof Error ? err.message : String(err));
     } finally {
       setSaving(false);
     }
+  };
+
+  // Github mode now folds merge+deploy into Save, so it gates behind a
+  // confirmation first — local mode has no branch/merge step and stays
+  // instant, matching its previous behavior.
+  const onSave = () => {
+    if (isGithub) {
+      setConfirmSaveOpen(true);
+      return;
+    }
+    void runSave();
   };
 
   const onReset = async () => {
@@ -649,8 +647,6 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   };
 
   const nothingToSave = pendingCount === 0;
-
-  const brandLabel = brand ? brandDisplayLabel(brand.label) : '';
 
   return (
     <div className="dry-bar">
@@ -745,54 +741,6 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
         </div>
       </div>
 
-      {/* Deploy menu — same unified pill as the edit menu above, sitting to its
-          right: collapsed it's just the rocket FAB; opening it expands the
-          Cloudflare status indicator + deploy action out to the right and
-          morphs the rocket into an ✕. The brand name isn't shown here (no
-          room for its variable length) — it's the Deploy button's tooltip. */}
-      {isGithub && (
-        <div className={`dry-menu${deployOpen ? ' is-open' : ''}`}>
-          <div className="dry-menu-pill">
-            <Button
-              prominence="high"
-              aria-label={deployOpen ? 'Đóng menu deploy' : 'Mở menu deploy'}
-              onPress={toggleDeploy}
-              UNSAFE_className="dry-fab"
-            >
-              <span
-                className={`dry-fab-icon dry-fab-icon--edit${deployOpen ? ' is-hidden' : ''}`}
-              >
-                <Icon src={rocketIcon} />
-              </span>
-              <span
-                className={`dry-fab-icon dry-fab-icon--x${deployOpen ? '' : ' is-hidden'}`}
-              >
-                <Icon src={xIcon} />
-              </span>
-            </Button>
-
-            <div className="dry-menu-actions">
-              <div className="dry-menu-actions-inner">
-                <CloudflareStatusCompact />
-
-                <TooltipTrigger>
-                  <Button
-                    aria-label="Deploy"
-                    prominence="high"
-                    onPress={deploy}
-                    isDisabled={deployBusy || !brand || !deployHasChanges}
-                    UNSAFE_className="dry-iconbtn"
-                  >
-                    <Icon src={rocketIcon} />
-                  </Button>
-                  <Tooltip>{deployBusy ? deployLabel : brand ? brandLabel : 'Chưa có brand'}</Tooltip>
-                </TooltipTrigger>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Active-spot indicator — a permanent top-left HUD label, on for the
           whole time edit mode is on (not just while something's focused/
           hovered — see the state above), so it's always there to glance at.
@@ -813,6 +761,48 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
           )}
         </div>
       )}
+
+      {/* Status readout — sits directly under the active-spot HUD above (same
+          top-left corner, same lifetime: on for as long as edit mode is).
+          Save now folds merge+deploy in (see runSave above), so this is the
+          only surviving trace of the old standalone deploy pill: the busy
+          label while a save is merging/deploying, and the Cloudflare build
+          pill (CloudflareStatusCompact) once it's idle. */}
+      {editing && isGithub && (
+        <div className="dry-status-hud">
+          {deployBusy ? (
+            <span className="dry-status-hud-busy">{deployLabel}</span>
+          ) : (
+            <CloudflareStatusCompact />
+          )}
+        </div>
+      )}
+
+      {/* Confirms before Save's now-heavier effect: it doesn't just write a
+          file, it merges the brand branch into main and that's what kicks
+          off a production deploy. Local mode has no merge/deploy step (see
+          onSave above) so never opens this. */}
+      <DialogContainer onDismiss={() => setConfirmSaveOpen(false)}>
+        {confirmSaveOpen && (
+          <AlertDialog
+            title="Lưu và deploy?"
+            tone="neutral"
+            cancelLabel="Huỷ"
+            primaryActionLabel="Lưu & Deploy"
+            autoFocusButton="cancel"
+            onCancel={() => setConfirmSaveOpen(false)}
+            onPrimaryAction={() => {
+              setConfirmSaveOpen(false);
+              void runSave();
+            }}
+          >
+            <Text>
+              Thao tác này sẽ lưu thay đổi, gộp vào nhánh chính (main) và deploy lên
+              production. Bạn có chắc chắn?
+            </Text>
+          </AlertDialog>
+        )}
+      </DialogContainer>
 
       {refOpen &&
         singletonList.length > 0 &&
