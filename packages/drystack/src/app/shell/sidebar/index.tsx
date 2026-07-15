@@ -1,53 +1,53 @@
-import { useLocalizedStringFormatter } from '@react-aria/i18n';
-import { DismissButton, useModalOverlay } from '@react-aria/overlays';
-import { useUpdateEffect } from '@react-aria/utils';
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import { DismissButton, useModalOverlay } from "@react-aria/overlays";
+import { useUpdateEffect } from "@react-aria/utils";
 import {
   OverlayTriggerState,
   useOverlayTriggerState,
-} from '@react-stately/overlays';
-import { typedKeys } from 'emery';
+} from "@react-stately/overlays";
+import { typedKeys } from "emery";
 import {
   ReactNode,
   createContext,
   useCallback,
   useContext,
   useRef,
-} from 'react';
+} from "react";
 
-import { Badge } from '@keystar/ui/badge';
-import { Divider, ScrollView, HStack, VStack } from '@keystar/ui/layout';
-import { NavList, NavItem, NavGroup } from '@keystar/ui/nav-list';
-import { Blanket } from '@keystar/ui/overlays';
-import { StatusLight } from '@keystar/ui/status-light';
+import { Badge } from "@keystar/ui/badge";
+import { Divider, ScrollView, HStack, VStack } from "@keystar/ui/layout";
+import { NavList, NavItem, NavGroup } from "@keystar/ui/nav-list";
+import { Blanket } from "@keystar/ui/overlays";
+import { StatusLight } from "@keystar/ui/status-light";
 import {
   breakpoints,
   css,
   tokenSchema,
   transition,
   useBreakpoint,
-} from '@keystar/ui/style';
-import { Text } from '@keystar/ui/typography';
-import { usePrevious } from '@keystar/ui/utils';
+} from "@keystar/ui/style";
+import { Text } from "@keystar/ui/typography";
+import { usePrevious } from "@keystar/ui/utils";
 
-import l10nMessages from '../../l10n';
-import { useRouter } from '../../router';
-import { ItemOrGroup, useNavItems } from '../../useNavItems';
-import { isGitHubConfig, isLocalConfig } from '../../utils';
-import { pluralize } from '../../pluralize';
+import l10nMessages from "../../l10n";
+import { useRouter } from "../../router";
+import { ItemOrGroup, useNavItems } from "../../useNavItems";
+import { isGitHubConfig, isLocalConfig } from "../../utils";
+import { pluralize } from "../../pluralize";
 
-import { useBrand } from '../common';
-import { SIDE_PANEL_ID } from '../constants';
-import { ThemeMenu, UserActions } from './components';
-import { CloudflareStatus } from '../../deploy/CloudflareStatus';
-import { CurrentBrandChip } from '../../deploy/CurrentBrandChip';
-import { DeployButton } from '../../deploy/DeployButton';
-import { useAppState, useConfig } from '../context';
+import { useBrand } from "../common";
+import { SIDE_PANEL_ID } from "../constants";
+import { ThemeMenu, UserActions } from "./components";
+import { CloudflareStatus } from "../../deploy/CloudflareStatus";
+import { CurrentBrandChip } from "../../deploy/CurrentBrandChip";
+import { DeployButton } from "../../deploy/DeployButton";
+import { useAppState, useConfig } from "../context";
 
 const SidebarContext = createContext<OverlayTriggerState | null>(null);
 export function useSidebar() {
   let context = useContext(SidebarContext);
   if (!context) {
-    throw new Error('useSidebar must be within a SidebarProvider');
+    throw new Error("useSidebar must be within a SidebarProvider");
   }
   return context;
 }
@@ -56,7 +56,7 @@ const breakpointNames = typedKeys(breakpoints);
 export function SidebarProvider(props: { children: ReactNode }) {
   const matchedBreakpoints = useBreakpoint();
   const state = useOverlayTriggerState({
-    defaultOpen: matchedBreakpoints.includes('desktop'),
+    defaultOpen: matchedBreakpoints.includes("desktop"),
   });
 
   let breakpointIndex = breakpointNames.indexOf(matchedBreakpoints[0]);
@@ -100,7 +100,7 @@ function SidebarHeader() {
       gap="regular"
       paddingY="regular"
       paddingX="medium"
-      height={{ mobile: 'element.large', tablet: 'element.xlarge' }}
+      height={{ mobile: "element.large", tablet: "element.xlarge" }}
     >
       <HStack
         flex
@@ -111,12 +111,12 @@ function SidebarHeader() {
           color: tokenSchema.color.foreground.neutralEmphasis,
 
           // ensure that the brand mark doesn't get squashed
-          '& :first-child': {
+          "& :first-child": {
             flexShrink: 0,
           },
         })}
       >
-        {brandMark}
+        <a href="/">{brandMark}</a>
       </HStack>
       {isLocal && <ThemeMenu />}
     </HStack>
@@ -173,7 +173,7 @@ export function SidebarDialog() {
   let { modalProps, underlayProps } = useModalOverlay(
     { isDismissable: true },
     state,
-    dialogRef
+    dialogRef,
   );
 
   return (
@@ -188,41 +188,41 @@ export function SidebarDialog() {
         className={css({
           backgroundColor: tokenSchema.color.background.surface,
           boxShadow: `${tokenSchema.size.shadow.large} ${tokenSchema.color.shadow.regular}`,
-          display: 'flex',
-          flexDirection: 'column',
+          display: "flex",
+          flexDirection: "column",
           inset: 0,
-          insetInlineEnd: 'auto',
+          insetInlineEnd: "auto",
           // ensure that there's always enough of gutter for the user to press
           // and exit the sidebar
           maxWidth: `calc(100% - ${tokenSchema.size.element.medium})`,
           minWidth: tokenSchema.size.scale[3000],
           outline: 0,
-          pointerEvents: 'none',
-          position: 'fixed',
-          transform: 'translateX(-100%)',
-          visibility: 'hidden',
+          pointerEvents: "none",
+          position: "fixed",
+          transform: "translateX(-100%)",
+          visibility: "hidden",
           zIndex: 10,
 
           // exit animation
           transition: [
-            transition('transform', {
-              easing: 'easeIn',
-              duration: 'short',
+            transition("transform", {
+              easing: "easeIn",
+              duration: "short",
               // delay: 'short',
             }),
-            transition('visibility', {
-              delay: 'regular',
+            transition("visibility", {
+              delay: "regular",
               duration: 0,
-              easing: 'linear',
+              easing: "linear",
             }),
-          ].join(', '),
+          ].join(", "),
 
-          '&[data-visible=true]': {
-            transform: 'translateX(0)',
+          "&[data-visible=true]": {
+            transform: "translateX(0)",
             // enter animation
-            transition: transition('transform', { easing: 'easeOut' }),
-            pointerEvents: 'auto',
-            visibility: 'visible',
+            transition: transition("transform", { easing: "easeOut" }),
+            pointerEvents: "auto",
+            visibility: "visible",
           },
         })}
       >
@@ -250,7 +250,7 @@ export function SidebarNav() {
           href={basePath}
           aria-current={isCurrent(basePath, { exact: true })}
         >
-          {stringFormatter.format('dashboard')}
+          {stringFormatter.format("dashboard")}
         </NavItem>
 
         {/* upload and trash/restore/permanent-delete all commit straight to
@@ -282,13 +282,13 @@ function useIsCurrent() {
   return useCallback(
     (href: string, { exact = false } = {}) => {
       if (exact) {
-        return href === router.pathname ? 'page' : undefined;
+        return href === router.pathname ? "page" : undefined;
       }
       return href === router.pathname || router.pathname.startsWith(`${href}/`)
-        ? 'page'
+        ? "page"
         : undefined;
     },
-    [router.pathname]
+    [router.pathname],
   );
 }
 
@@ -315,13 +315,13 @@ function NavItemOrGroup({ itemOrGroup }: { itemOrGroup: ItemOrGroup }) {
       return null;
     }
 
-    return typeof itemOrGroup.changed === 'number' ? (
+    return typeof itemOrGroup.changed === "number" ? (
       <Badge tone="accent" marginStart="auto">
         <Text>{itemOrGroup.changed}</Text>
         <Text visuallyHidden>
           {pluralize(itemOrGroup.changed, {
-            singular: 'change',
-            plural: 'changes',
+            singular: "change",
+            plural: "changes",
             inclusive: false,
           })}
         </Text>
