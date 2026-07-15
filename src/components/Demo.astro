@@ -103,7 +103,6 @@ const dry = await createDry(config).singleton.demo;
   <div {...dry.item("sections")} style="display:flex; flex-direction: column; gap: 1.5rem;">
     {dry.sections.map((section, i) => (
       <div
-        {...dry.item(`sections.${i}`)}
         style="display:flex; flex-direction: column; gap: 0.5rem; border: 1px solid #ccc; padding: 1rem;"
       >
         <h4 {...dry.item(`sections.${i}.title`)}>{section.title}</h4>
