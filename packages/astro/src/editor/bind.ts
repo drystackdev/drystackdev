@@ -382,6 +382,15 @@ export function enableEditing(onChange?: () => void) {
   editing = true;
   onChangeCallback = onChange;
   document.body.classList.add('editing');
+  // Defer enabling the outline's hover transition until the class-add above
+  // has actually painted — otherwise the browser treats this call itself as
+  // the first style change and animates from the outline-less pre-editing
+  // paint into blue (see editor.css's .dry-anim-ready comment).
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      document.body.classList.add('dry-anim-ready');
+    });
+  });
   document.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
     const key = el.getAttribute('data-dry');
     if (isAssetSpot(el)) {
@@ -416,7 +425,7 @@ export function enableEditing(onChange?: () => void) {
 
 export function disableEditing() {
   editing = false;
-  document.body.classList.remove('editing');
+  document.body.classList.remove('editing', 'dry-anim-ready');
   document.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
     if (isAssetSpot(el)) return;
     if (isArraySpot(el)) return;

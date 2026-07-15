@@ -17,9 +17,19 @@ body.editing [data-dry] {
   outline-offset: 0px;
   border-radius: 1px;
   cursor: text;
-  transition: outline-offset 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
 }
-body.editing [data-dry]:hover {
+/* enableEditing() only adds this once the just-applied outline above has
+   painted at least one frame (see bind.ts) — starting the transition any
+   earlier would animate from the pre-editing (outline-less) paint into blue,
+   flashing white/default before settling. */
+body.editing.dry-anim-ready [data-dry] {
+  transition: outline-color 0.2s ease-out, outline-offset 0.2s ease-out;
+}
+/* :focus keeps the emphasis outline while a spot is being typed into (it's
+   contentEditable), even after the pointer moves off it — otherwise moving
+   the mouse away mid-edit silently drops the highlight. */
+body.editing [data-dry]:hover,
+body.editing [data-dry]:focus {
   outline-color: rgba(0, 128, 255, 0.8);
   outline-offset: 5px;
 }
@@ -32,7 +42,7 @@ body.editing [data-dry]:hover {
 body.editing [data-dry-kind="image"] {
   cursor: pointer !important;
   position: relative;
-  transition: filter 0.15s ease,  outline-offset 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
+  transition: filter 0.15s ease, outline-offset 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
 }
 body.editing [data-dry-kind="image"]:hover {
   filter: brightness(0.85);
