@@ -43,7 +43,6 @@ export async function handleGitHubAppCreation(
 DRYSTACK_GITHUB_CLIENT_ID=${ghAppDataResult.client_id}
 DRYSTACK_GITHUB_CLIENT_SECRET=${ghAppDataResult.client_secret}
 DRYSTACK_SECRET=${randomBytes(40).toString('hex')}
-DRYSTACK_DRY_MAP_SECRET=${randomBytes(40).toString('hex')}
 ${
   slugEnvVarName
     ? `${slugEnvVarName}=${ghAppDataResult.slug} # https://github.com/apps/${ghAppDataResult.slug}\n`

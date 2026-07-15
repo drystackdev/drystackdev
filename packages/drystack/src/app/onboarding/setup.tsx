@@ -60,12 +60,6 @@ export function DrystackSetup(props: { config: GitHubConfig }) {
           </li>
         </Box>
         <Text>
-          Also set <code>DRYSTACK_DRY_MAP_SECRET</code> (any random string,
-          kept separate from <code>DRYSTACK_SECRET</code>) — required for the
-          visual editor's field map to decrypt in GitHub mode, though sign-in
-          works without it.
-        </Text>
-        <Text>
           If you haven't created your GitHub app for drystack, you can create
           one below.
         </Text>

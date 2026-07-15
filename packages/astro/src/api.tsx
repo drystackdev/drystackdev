@@ -45,17 +45,11 @@ export function makeHandler(_config: APIRouteConfig) {
           tryOrUndefined(() => {
             return import.meta.env.DRYSTACK_SECRET;
           }),
-        dryMapSecret:
-          _config.dryMapSecret ??
-          envVarsForCf?.DRYSTACK_DRY_MAP_SECRET ??
-          tryOrUndefined(() => {
-            return import.meta.env.DRYSTACK_DRY_MAP_SECRET;
-          }),
         // The `github/dry-map` route self-fetches its own deployed static
         // assets through this — Cloudflare's `ASSETS` binding (declared in
         // wrangler.jsonc) is a `Fetcher`, so `.fetch(url)` works the same as
         // the global `fetch`. Undefined on adapters with no such binding;
-        // the route just 404s rather than ever serving the map unencrypted.
+        // the route just 404s rather than ever serving the map.
         assetsFetcher: _config.assetsFetcher ?? envVarsForCf?.ASSETS,
       },
       {

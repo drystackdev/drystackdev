@@ -12,11 +12,11 @@ import { bytesToHex } from '../hex';
 import { decryptValue, encryptValue } from './encryption';
 import { serializeRepoConfig } from '../app/repo-config';
 
-// Public path (relative to the site root) of the encrypted dry-map blob
+// Public path (relative to the site root) of the dry-map static asset
 // written by @drystack/astro's astro:build:done hook — see index.ts's
 // writeDryMapFile. Shared here (not duplicated) so the writer and the
 // `github/dry-map` route below always agree on where to look.
-export const DRY_MAP_PUBLIC_PATH = '_drystack/dry-map.enc.json';
+export const DRY_MAP_PUBLIC_PATH = '_drystack/dry-map.json';
 
 export type APIRouteConfig = {
   /** @default process.env.DRYSTACK_GITHUB_CLIENT_ID */
@@ -25,14 +25,6 @@ export type APIRouteConfig = {
   clientSecret?: string;
   /** @default process.env.DRYSTACK_SECRET */
   secret?: string;
-  /**
-   * Decrypts the `github/dry-map` static asset (see @drystack/astro's
-   * writeDryMapFile) — kept separate from `secret` so a build-time leak of
-   * this one (the build necessarily has to see it) can't also decrypt
-   * refresh-token cookies encrypted with `secret`.
-   * @default process.env.DRYSTACK_DRY_MAP_SECRET
-   */
-  dryMapSecret?: string;
   localBaseDirectory?: string;
   config: Config<any, any>;
   /**
@@ -42,8 +34,8 @@ export type APIRouteConfig = {
    */
   basePath?: string;
   /**
-   * Lets `github/dry-map` (see below) self-fetch the encrypted dry-map static
-   * asset the build wrote alongside the site — e.g. Cloudflare's `env.ASSETS`
+   * Lets `github/dry-map` (see below) self-fetch the dry-map static asset
+   * the build wrote alongside the site — e.g. Cloudflare's `env.ASSETS`
    * binding. Omitted on adapters/deployments with no such binding; the route
    * just 404s in that case (never returns the map without it).
    */
@@ -54,7 +46,6 @@ type InnerAPIRouteConfig = {
   clientId: string;
   clientSecret: string;
   secret: string;
-  dryMapSecret: string | undefined;
   config: Config;
   uiBasePath: string;
   apiBasePath: string;
@@ -85,9 +76,6 @@ export function makeGenericAPIRouteHandler(
       tryOrUndefined(() => process.env.DRYSTACK_GITHUB_CLIENT_SECRET),
     secret:
       _config.secret ?? tryOrUndefined(() => process.env.DRYSTACK_SECRET),
-    dryMapSecret:
-      _config.dryMapSecret ??
-      tryOrUndefined(() => process.env.DRYSTACK_DRY_MAP_SECRET),
     config: _config.config,
     basePath: _config.basePath,
     assetsFetcher: _config.assetsFetcher,
@@ -150,7 +138,6 @@ export function makeGenericAPIRouteHandler(
     clientId: _config2.clientId,
     clientSecret: _config2.clientSecret,
     secret: _config2.secret,
-    dryMapSecret: _config2.dryMapSecret,
     config: _config2.config,
     uiBasePath,
     apiBasePath,
@@ -401,11 +388,13 @@ async function verifyGitHubAccess(
   return res.ok;
 }
 
-// Verified editors only: decrypts and returns the build-time
+// Verified editors only: returns the build-time
 // data-dry-id → {data-dry, data-dry-kind, data-dry-value} registry so the
 // VEI client can patch the real attributes back onto `[data-dry-id]`
-// elements. See dry.ts (registry) and index.ts's writeDryMapFile (encrypted
-// static asset) in @drystack/astro — plan/bao-mat-co-che-dry.md.
+// elements. See dry.ts (registry) and index.ts's writeDryMapFile (static
+// asset) in @drystack/astro. Not encrypted — the registry only reveals
+// field paths/kinds, not a site secret — but still gated behind GitHub auth
+// so anonymous visitors can't enumerate the schema.
 async function githubDryMap(
   req: DrystackRequest,
   config: InnerAPIRouteConfig
@@ -414,9 +403,6 @@ async function githubDryMap(
   const accessToken = cookies['drystack-gh-access-token'];
   if (!accessToken || !(await verifyGitHubAccess(accessToken, config))) {
     return { status: 401, body: 'Not authorized' };
-  }
-  if (!config.dryMapSecret) {
-    return { status: 500, body: 'DRYSTACK_DRY_MAP_SECRET is not configured' };
   }
   if (!config.assetsFetcher) {
     return { status: 404, body: 'Not Found' };
@@ -427,17 +413,10 @@ async function githubDryMap(
   if (!assetRes.ok) {
     return { status: 404, body: 'Not Found' };
   }
-  const encrypted = await assetRes.text();
-  let decrypted: string;
-  try {
-    decrypted = await decryptValue(encrypted, config.dryMapSecret);
-  } catch {
-    return { status: 500, body: 'Failed to decrypt dry-map' };
-  }
   return {
     status: 200,
     headers: [['Content-Type', 'application/json']],
-    body: decrypted,
+    body: await assetRes.text(),
   };
 }
 

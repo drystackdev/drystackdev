@@ -19,7 +19,6 @@ import {
   serializeRedirectsFile,
   REDIRECTS_FILE_PATH,
 } from '@drystack/core/redirects';
-import { encryptValue } from '@drystack/core/api/encryption';
 import { DRY_MAP_PUBLIC_PATH } from '@drystack/core/api/generic';
 import { readDryMapRegistryFile, resetDryMapRegistryFile } from './dry';
 
@@ -197,26 +196,17 @@ function writeCmsRedirectsFile(root: string, clientDir: string) {
 }
 
 // Flushes dry.ts's build-time id→{data-dry,kind,value} registry (populated
-// only for storage.kind === 'github' — see dry.ts's readSingleton) to an
-// encrypted static asset. Empty registry (local mode, or no dry.item() calls
-// at all) means nothing to write. Encrypted with its own DRYSTACK_DRY_MAP_SECRET
-// (distinct from DRYSTACK_SECRET, which stays runtime-only for refresh-token
-// cookie encryption in generic.ts) — the build environment necessarily has to
-// see *some* secret to produce this file, so it gets a dedicated one whose
-// compromise can't also decrypt GitHub refresh-token cookies.
+// only for storage.kind === 'github' — see dry.ts's readSingleton) to a
+// static asset, gated behind GitHub auth by the `github/dry-map` route
+// (generic.ts) — not encrypted, since the registry only reveals field
+// paths/kinds, not any actual site secret. Empty registry (local mode, or no
+// dry.item() calls at all) means nothing to write.
 async function writeDryMapFile(clientDir: string) {
   const registry = readDryMapRegistryFile();
   if (Object.keys(registry).length === 0) return;
-  const secret = process.env.DRYSTACK_DRY_MAP_SECRET;
-  if (!secret) {
-    throw new Error(
-      'drystack: DRYSTACK_DRY_MAP_SECRET must be set at build time to encrypt the dry-map (data-dry-id → field) registry — without it, the build would either fail or, worse, silently publish it unencrypted. Set the same DRYSTACK_DRY_MAP_SECRET used by the deployed Worker in the build environment (kept separate from DRYSTACK_SECRET so a build-time leak can\'t also decrypt refresh-token cookies).'
-    );
-  }
-  const encrypted = await encryptValue(JSON.stringify(registry), secret);
   const destPath = join(clientDir, DRY_MAP_PUBLIC_PATH);
   mkdirSync(join(clientDir, '_drystack'), { recursive: true });
-  writeFileSync(destPath, encrypted);
+  writeFileSync(destPath, JSON.stringify(registry));
 }
 
 export default function drystack(options?: { path?: string }): AstroIntegration {

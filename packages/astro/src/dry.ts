@@ -23,8 +23,9 @@ export type DryMapEntry = DryItem;
 
 // Populated as dry.item() resolves spots during `astro build`'s prerender
 // pass (storage.kind === 'github' only — see readSingleton below), read back
-// whole by the astro:build:done hook in index.ts and flushed to an encrypted
-// static asset — so production HTML never carries plaintext
+// whole by the astro:build:done hook in index.ts and flushed to a static
+// asset (gated behind GitHub auth by the `github/dry-map` route, generic.ts)
+// — so production HTML never carries plaintext
 // data-dry/-kind/-value (would leak full field paths/schema to anonymous
 // visitors via view-source), only an opaque `data-dry-id`.
 //
