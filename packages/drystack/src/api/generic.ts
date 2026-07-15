@@ -12,6 +12,14 @@ import { bytesToHex } from '../hex';
 import { decryptValue, encryptValue } from './encryption';
 import { serializeRepoConfig } from '../app/repo-config';
 
+// GitHub's REST API (api.github.com, as opposed to the OAuth endpoints on
+// github.com) rejects any request with no `User-Agent` header — 403 "Request
+// forbidden by administrative rules", not a 401 — regardless of how valid
+// the bearer token is. Cloudflare Workers' `fetch()` doesn't set one by
+// default (unlike a browser), so every api.github.com call here needs this
+// set explicitly or GitHub bounces it before even looking at the token.
+const GITHUB_API_USER_AGENT = 'drystack';
+
 // Public path (relative to the site root) of the dry-map static asset
 // written by @drystack/astro's astro:build:done hook — see index.ts's
 // writeDryMapFile. Shared here (not duplicated) so the writer and the
@@ -176,6 +184,7 @@ export function makeGenericAPIRouteHandler(
               Authorization: `Basic ${btoa(
                 config.clientId + ':' + config.clientSecret
               )}`,
+              'User-Agent': GITHUB_API_USER_AGENT,
             },
             body: JSON.stringify({ access_token }),
           }
@@ -383,7 +392,12 @@ async function verifyGitHubAccess(
   if (config.config.storage.kind !== 'github') return false;
   const res = await fetch(
     `https://api.github.com/repos/${serializeRepoConfig(config.config.storage.repo)}`,
-    { headers: { Authorization: `Bearer ${token}` } }
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'User-Agent': GITHUB_API_USER_AGENT,
+      },
+    }
   );
   return res.ok;
 }
