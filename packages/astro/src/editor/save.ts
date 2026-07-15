@@ -242,21 +242,25 @@ function mergeFieldEdits(
         [sub]: value,
       };
     }
-    // Mirror fields.image's serialize (omit the key when there's no image, see
-    // form/fields/image/index.tsx) for image sub-fields of an array-of-object:
-    // the reader's image.parse throws on a literal `null`, so an empty image
-    // must be absent from the YAML, not written as null/''.
+    // Mirror fields.image/fields.file's serialize (omit the key when there's
+    // no value, see form/fields/image|file/index.tsx) for image/file
+    // sub-fields of an array-of-object: the reader's image.parse/file.parse
+    // throws on a literal `null`, so an empty value must be absent from the
+    // YAML, not written as null/''.
     if (elementSchema?.kind === 'object') {
       const subFields = (elementSchema as {
         fields: Record<string, ComponentSchema>;
       }).fields;
-      const imageSubs = Object.entries(subFields)
-        .filter(([, s]) => getSyncableFieldKind(s) === 'image')
+      const assetSubs = Object.entries(subFields)
+        .filter(([, s]) => {
+          const k = getSyncableFieldKind(s);
+          return k === 'image' || k === 'file';
+        })
         .map(([k]) => k);
       return base.map(item => {
         if (typeof item !== 'object' || item === null) return item;
         const obj = { ...(item as Record<string, unknown>) };
-        for (const sub of imageSubs) {
+        for (const sub of assetSubs) {
           if (obj[sub] === null || obj[sub] === '' || obj[sub] === undefined) {
             delete obj[sub];
           }
@@ -266,8 +270,8 @@ function mergeFieldEdits(
     }
     return base;
   }
-  // fields.text / fields.image never have a nested path — one entry, keyed
-  // by the base field itself.
+  // fields.text / fields.image / fields.file never have a nested path — one
+  // entry, keyed by the base field itself.
   return fieldEdits.get(baseField);
 }
 
@@ -321,15 +325,17 @@ async function collectFileDiffs(
         data[baseField],
         schema[baseField]
       );
-      // fields.image's serialize() omits the key entirely when the value is
-      // null (see form/fields/image/index.tsx) — mirror that here so a
-      // cleared image doesn't get written back as `image: ''`.
-      if (kind === 'image' && merged === '') {
+      // fields.image/fields.file's serialize() omits the key entirely when
+      // the value is null (see form/fields/image|file/index.tsx) — mirror
+      // that here so a cleared image/file doesn't get written back as
+      // `field: ''`.
+      const isAsset = kind === 'image' || kind === 'file';
+      if (isAsset && merged === '') {
         delete data[baseField];
       } else {
         data[baseField] = merged;
       }
-      const validatedValue = kind === 'image' && merged === '' ? null : merged;
+      const validatedValue = isAsset && merged === '' ? null : merged;
       validateField(name, baseField, schema, kind, validatedValue, messages);
     }
     diffs.push({ path: filepath, before, after: dump(data) });

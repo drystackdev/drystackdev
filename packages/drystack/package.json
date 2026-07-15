@@ -68,6 +68,10 @@
       "drystack-src": "./src/app/media-library/VeiMediaHost.tsx",
       "default": "./dist/app/media-library/VeiMediaHost.js"
     },
+    "./file-manager-host": {
+      "drystack-src": "./src/app/file-manager/FileManagerHost.tsx",
+      "default": "./dist/app/file-manager/FileManagerHost.js"
+    },
     "./field-editor": {
       "drystack-src": "./src/app/field-editor.tsx",
       "default": "./dist/app/field-editor.js"

@@ -5,7 +5,7 @@ import { createConfiguredReader } from './reader';
 
 export type DryItem = {
   'data-dry': string;
-  'data-dry-kind': 'text' | 'image' | 'array' | 'object';
+  'data-dry-kind': 'text' | 'image' | 'file' | 'array' | 'object';
 };
 
 type SchemaOf<S> = S extends Singleton<infer Schema> ? Schema : never;
@@ -83,10 +83,10 @@ async function readSingleton(
       // Shared with the admin's edit-sync effects (SingletonPage.tsx) so both
       // surfaces recognize the same fields the same way. Supported path shapes:
       // flat top-level fields.text ('slug' formKind), fields.image ('image'
-      // columnKind), fields.array; one level into an array ("array.0" — a
-      // primitive item or an array-of-object item wrapper); and one level
-      // deeper into an array-of-object item's sub-field ("cards.0.title").
-      // See plan/vei-array-object.md.
+      // columnKind), fields.file ('file' columnKind), fields.array; one level
+      // into an array ("array.0" — a primitive item or an array-of-object item
+      // wrapper); and one level deeper into an array-of-object item's
+      // sub-field ("cards.0.title"). See plan/vei-array-object.md.
       const [baseField, ...rest] = field.split('.');
       const baseSchema = schema[baseField];
 
@@ -94,7 +94,7 @@ async function readSingleton(
         const kind = getSyncableFieldKind(baseSchema);
         if (!kind) {
           console.warn(
-            `[drystack] dry(): field "${field}" on singleton "${name}" is not fields.text, fields.image, or fields.array — skipping data-dry attribute.`
+            `[drystack] dry(): field "${field}" on singleton "${name}" is not fields.text, fields.image, fields.file, or fields.array — skipping data-dry attribute.`
           );
           return {};
         }
@@ -111,13 +111,13 @@ async function readSingleton(
       }
       const element = (baseSchema as { element: ComponentSchema }).element;
 
-      // "array.N" — a single item. A primitive element (fields.text/image)
+      // "array.N" — a single item. A primitive element (fields.text/image/file)
       // gets that element's kind and is edited inline; an object element marks
       // the item *wrapper* ('object' kind, a structural marker used by
       // bind.ts's template-clone, not itself contentEditable).
       if (rest.length === 1) {
         const elementKind = getSyncableFieldKind(element);
-        if (elementKind === 'text' || elementKind === 'image') {
+        if (elementKind === 'text' || elementKind === 'image' || elementKind === 'file') {
           return {
             'data-dry': `singleton::${name}::${field}`,
             'data-dry-kind': elementKind,
@@ -127,13 +127,13 @@ async function readSingleton(
           return { 'data-dry': `singleton::${name}::${field}`, 'data-dry-kind': 'object' };
         }
         console.warn(
-          `[drystack] dry(): array "${baseField}" on singleton "${name}" is not an array of fields.text, fields.image, or fields.object — skipping data-dry attribute.`
+          `[drystack] dry(): array "${baseField}" on singleton "${name}" is not an array of fields.text, fields.image, fields.file, or fields.object — skipping data-dry attribute.`
         );
         return {};
       }
 
       // "array.N.sub" — a sub-field of an array-of-object item. The element
-      // must be a fields.object and the sub-field itself a fields.text/image.
+      // must be a fields.object and the sub-field itself a fields.text/image/file.
       if (element.kind !== 'object') {
         console.warn(
           `[drystack] dry(): "${field}" on singleton "${name}" indexes a sub-field but array "${baseField}" is not an array of fields.object — skipping data-dry attribute.`
@@ -144,9 +144,9 @@ async function readSingleton(
       const subKind = getSyncableFieldKind(
         (element as { fields: Record<string, ComponentSchema> }).fields[subField]
       );
-      if (subKind !== 'text' && subKind !== 'image') {
+      if (subKind !== 'text' && subKind !== 'image' && subKind !== 'file') {
         console.warn(
-          `[drystack] dry(): sub-field "${subField}" of "${baseField}" on singleton "${name}" is not fields.text or fields.image — skipping data-dry attribute.`
+          `[drystack] dry(): sub-field "${subField}" of "${baseField}" on singleton "${name}" is not fields.text, fields.image, or fields.file — skipping data-dry attribute.`
         );
         return {};
       }

@@ -378,14 +378,14 @@ function SingletonPageInner(
 }
 
 // The edit-sync bus only carries strings (see edit-sync.ts's PendingEdit) —
-// fields.image's `null` (no image) is represented on the bus as '', the same
-// sentinel bind.ts's paintImage and the visual editor's save.ts already use.
-// fields.array's array value is JSON-encoded, matching the encoding used
-// everywhere else on the bus (see bind.ts's parseArrayValue and the visual
-// editor's Toolbar.tsx/save.ts). fields.text values are always strings
-// already, so they pass through as-is.
+// fields.image/fields.file's `null` (no value) is represented on the bus as
+// '', the same sentinel bind.ts's paintAssetSpot and the visual editor's
+// save.ts already use. fields.array's array value is JSON-encoded, matching
+// the encoding used everywhere else on the bus (see bind.ts's
+// parseArrayValue and the visual editor's Toolbar.tsx/save.ts). fields.text
+// values are always strings already, so they pass through as-is.
 function toBusValue(kind: SyncableFieldKind, value: unknown): string | undefined {
-  if (kind === 'image') {
+  if (kind === 'image' || kind === 'file') {
     if (value === null) return '';
     return typeof value === 'string' ? value : undefined;
   }
@@ -399,7 +399,7 @@ function fromBusValue(
   kind: SyncableFieldKind,
   busValue: string
 ): string | string[] | null {
-  if (kind === 'image') return busValue === '' ? null : busValue;
+  if (kind === 'image' || kind === 'file') return busValue === '' ? null : busValue;
   if (kind === 'array') {
     try {
       const parsed = JSON.parse(busValue);
@@ -727,7 +727,9 @@ function LocalSingletonPage(
           const value = (stateRef.current as Record<string, unknown>)[field];
           if (
             (kind === 'text' && typeof value !== 'string') ||
-            (kind === 'image' && typeof value !== 'string' && value !== null) ||
+            ((kind === 'image' || kind === 'file') &&
+              typeof value !== 'string' &&
+              value !== null) ||
             (kind === 'array' && !Array.isArray(value))
           ) {
             continue;

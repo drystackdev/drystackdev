@@ -455,6 +455,7 @@ export default config({
       schema: {
         text: fields.text({ label: "[field.Text]" }),
         image: fields.image({ label: "[field.Image]" }),
+        file: fields.file({ label: "[field.File]" }),
         array: fields.array(fields.text({ label: "[field.Array[]]" }), {
           label: "[field.Array]",
           itemLabel: (props) => props.value,
@@ -466,7 +467,8 @@ export default config({
         arrayObject: fields.array(
           fields.object({
             name: fields.text({ label: "Name of object" }),
-            image: fields.image({label: "Image"})
+            image: fields.image({label: "Image"}),
+            file: fields.file({label: "File"})
           }),
           {
             label: "[field.ArrayObject]",

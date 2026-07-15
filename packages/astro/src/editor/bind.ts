@@ -45,6 +45,19 @@ function isImageSpot(el: HTMLElement): boolean {
   return el.getAttribute('data-dry-kind') === 'image';
 }
 
+function isFileSpot(el: HTMLElement): boolean {
+  return el.getAttribute('data-dry-kind') === 'file';
+}
+
+// image and file spots share every editing behavior below (not
+// contentEditable, edited via the media-library picker, value lives in
+// data-dry-value with a pending-blob preview) — they only differ in which
+// native attribute (`src` vs `href`) carries the pristine SSR value. See
+// readAssetAttr/paintAssetSpot.
+function isAssetSpot(el: HTMLElement): boolean {
+  return isImageSpot(el) || isFileSpot(el);
+}
+
 function isArraySpot(el: HTMLElement): boolean {
   return el.getAttribute('data-dry-kind') === 'array';
 }
@@ -84,37 +97,47 @@ function getArrayItemChildren(container: HTMLElement, key: string): HTMLElement[
 // through template-clone) tells us how to read/paint every item — the
 // captured template is checked first since it survives even after the array
 // is edited down to zero items on screen. 'object' means each item is a
-// wrapper element carrying text/image sub-field spots (array-of-object).
+// wrapper element carrying text/image/file sub-field spots (array-of-object).
 function getArrayElementKind(
   container: HTMLElement,
   key: string
-): 'text' | 'image' | 'object' {
+): 'text' | 'image' | 'file' | 'object' {
   const kindOf = (el: HTMLElement | undefined) => {
     const k = el?.getAttribute('data-dry-kind');
-    return k === 'image' ? 'image' : k === 'object' ? 'object' : 'text';
+    return k === 'image' || k === 'file' || k === 'object' ? k : 'text';
   };
   const template = arrayTemplates.get(key);
   if (template) return kindOf(template);
   return kindOf(getArrayItemChildren(container, key)[0]);
 }
 
-// Reads one image/text spot's current live value off the DOM.
+// The native attribute carrying an asset spot's pristine SSR value — `src`
+// for an <img>, `href` for anything else (a file spot is typically an <a>
+// download link). Only meaningful before any JS has painted over it (see
+// paintAssetSpot, which always records the real value in data-dry-value
+// afterwards).
+function readAssetAttr(el: HTMLElement): string | null {
+  return el.tagName === 'A' ? el.getAttribute('href') : el.getAttribute('src');
+}
+
+// Reads one image/file/text spot's current live value off the DOM.
 function readSpotValue(el: HTMLElement): string {
-  if (el.getAttribute('data-dry-kind') !== 'image') return el.textContent ?? '';
-  // `data-dry-value` (set by paintImageSpot/applyEdit) is the real path;
-  // `src` alone can be a transient blob: preview URL once a pending image
-  // edit has been applied — reading that back as "the value" would leak
-  // the local object URL into a save. Only an item never touched by JS
-  // (straight from SSR) lacks the attribute, and its `src` is real then.
-  return el.getAttribute('data-dry-value') ?? el.getAttribute('src') ?? '';
+  if (!isAssetSpot(el)) return el.textContent ?? '';
+  // `data-dry-value` (set by paintAssetSpot/applyEdit) is the real path;
+  // `src`/`href` alone can be a transient blob: preview URL once a pending
+  // edit has been applied — reading that back as "the value" would leak the
+  // local object URL into a save. Only an item never touched by JS (straight
+  // from SSR) lacks the attribute, and its native attribute is real then.
+  return el.getAttribute('data-dry-value') ?? readAssetAttr(el) ?? '';
 }
 
 // Reconstructs one array-of-object item's value from its sub-field spots. The
 // item wrapper's own key (e.g. "…cards.0") prefixes each sub-field's key
-// ("…cards.0.title"); the trailing segment is the object field name. Image
-// sub-fields read null when empty, matching fields.image's null value so the
-// object shape lines up with the admin form / reader (one level deep — nested
-// object/array sub-fields are out of scope, see plan/vei-array-object.md).
+// ("…cards.0.title"); the trailing segment is the object field name. Image/
+// file sub-fields read null when empty, matching fields.image/fields.file's
+// null value so the object shape lines up with the admin form / reader (one
+// level deep — nested object/array sub-fields are out of scope, see
+// plan/vei-array-object.md).
 function readObjectItem(item: HTMLElement): Record<string, unknown> {
   const obj: Record<string, unknown> = {};
   const itemKey = item.getAttribute('data-dry');
@@ -125,7 +148,7 @@ function readObjectItem(item: HTMLElement): Record<string, unknown> {
     if (!k || !k.startsWith(prefix)) return;
     const sub = k.slice(prefix.length);
     if (sub.includes('.')) return; // one level only
-    if (el.getAttribute('data-dry-kind') === 'image') {
+    if (isAssetSpot(el)) {
       const v = readSpotValue(el);
       obj[sub] = v === '' ? null : v;
     } else {
@@ -199,9 +222,9 @@ function paintObjectItem(
     el.setAttribute('data-dry', subKey);
     if (sub.includes('.')) return; // only leaf (one-level) sub-fields are painted
     const value = obj?.[sub];
-    if (el.getAttribute('data-dry-kind') === 'image') {
-      revokeImageObjectUrl(subKey);
-      paintImageSpot(el, typeof value === 'string' ? value : '');
+    if (isAssetSpot(el)) {
+      revokeAssetObjectUrl(subKey);
+      paintAssetSpot(el, typeof value === 'string' ? value : '');
     } else {
       el.textContent = value == null ? '' : String(value);
       makeEditableIfEditing(el);
@@ -209,13 +232,15 @@ function paintObjectItem(
   });
 }
 
-// Revokes any object URLs held by an object item's image sub-field spots
+// Revokes any object URLs held by an object item's image/file sub-field spots
 // before that item is removed (shrink), so previews don't leak.
-function revokeObjectItemImages(item: HTMLElement): void {
-  item.querySelectorAll<HTMLElement>('[data-dry-kind="image"]').forEach(el => {
-    const k = el.getAttribute('data-dry');
-    if (k) revokeImageObjectUrl(k);
-  });
+function revokeObjectItemAssets(item: HTMLElement): void {
+  item
+    .querySelectorAll<HTMLElement>('[data-dry-kind="image"], [data-dry-kind="file"]')
+    .forEach(el => {
+      const k = el.getAttribute('data-dry');
+      if (k) revokeAssetObjectUrl(k);
+    });
 }
 
 // Reconciles a container's item elements to match `values`, by index —
@@ -242,17 +267,17 @@ function renderArray(container: HTMLElement, key: string, values: unknown[]): vo
     }
     const itemKey = `${key}.${i}`;
     el.setAttribute('data-dry', itemKey);
-    if (kind === 'image') {
-      revokeImageObjectUrl(itemKey);
-      paintImageSpot(el, (values[i] as string) ?? '');
+    if (kind === 'image' || kind === 'file') {
+      revokeAssetObjectUrl(itemKey);
+      paintAssetSpot(el, (values[i] as string) ?? '');
     } else {
       el.textContent = (values[i] as string) ?? '';
       makeEditableIfEditing(el);
     }
   }
   for (let i = values.length; i < items.length; i++) {
-    if (kind === 'image') revokeImageObjectUrl(`${key}.${i}`);
-    else if (kind === 'object') revokeObjectItemImages(items[i]);
+    if (kind === 'image' || kind === 'file') revokeAssetObjectUrl(`${key}.${i}`);
+    else if (kind === 'object') revokeObjectItemAssets(items[i]);
     items[i].remove();
   }
 }
@@ -269,27 +294,41 @@ export function getArrayValueFromDom(key: string): unknown[] | undefined {
 
 function handleInput(e: Event) {
   const el = (e.target as HTMLElement)?.closest<HTMLElement>('[data-dry]');
-  if (!el || isImageSpot(el) || isObjectItemSpot(el)) return;
+  if (!el || isAssetSpot(el) || isObjectItemSpot(el)) return;
   const key = el.getAttribute('data-dry');
   if (!key) return;
   publishEdit(key, el.textContent ?? '').then(() => onChangeCallback?.());
 }
 
-// Registered by the toolbar once the media-library host has mounted — clicking
-// an image spot in edit mode opens the same file-manager picker the admin's
-// fields.image input uses, rather than making the image contenteditable.
+// Registered by the toolbar once its admin-provider boundary is ready —
+// clicking an image/file spot in edit mode opens the same file-manager
+// picker the admin's fields.image/fields.file input uses, rather than making
+// the spot contenteditable.
 let onImageSpotClickCallback: ((key: string) => void) | undefined;
+let onFileSpotClickCallback: ((key: string) => void) | undefined;
 
 export function setImageSpotClickHandler(cb: ((key: string) => void) | undefined) {
   onImageSpotClickCallback = cb;
 }
 
-function handleImageSpotClick(e: MouseEvent) {
+export function setFileSpotClickHandler(cb: ((key: string) => void) | undefined) {
+  onFileSpotClickCallback = cb;
+}
+
+function handleAssetSpotClick(e: MouseEvent) {
   const el = (e.target as HTMLElement)?.closest<HTMLElement>('[data-dry]');
-  if (!el || !isImageSpot(el)) return;
-  e.preventDefault();
+  if (!el) return;
   const key = el.getAttribute('data-dry');
-  if (key) onImageSpotClickCallback?.(key);
+  if (!key) return;
+  if (isImageSpot(el)) {
+    e.preventDefault();
+    onImageSpotClickCallback?.(key);
+    return;
+  }
+  if (isFileSpot(el)) {
+    e.preventDefault();
+    onFileSpotClickCallback?.(key);
+  }
 }
 
 export function isEditing() {
@@ -302,10 +341,11 @@ export function enableEditing(onChange?: () => void) {
   document.body.classList.add('editing');
   document.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
     const key = el.getAttribute('data-dry');
-    if (isImageSpot(el)) {
-      // No pending edit was painted here, so the current `src` is the
-      // on-disk value — safe to snapshot now as the diff baseline.
-      if (key) rememberOriginal(key, el.getAttribute('src') ?? '');
+    if (isAssetSpot(el)) {
+      // No pending edit was painted here, so the current native attribute
+      // (src/href) is the on-disk value — safe to snapshot now as the diff
+      // baseline.
+      if (key) rememberOriginal(key, readAssetAttr(el) ?? '');
       return;
     }
     if (isArraySpot(el)) {
@@ -319,7 +359,7 @@ export function enableEditing(onChange?: () => void) {
       return;
     }
     // An array-of-object item wrapper is a structural marker only — its own
-    // text/image sub-field spots are enabled separately by the branches
+    // text/image/file sub-field spots are enabled separately by the branches
     // above/below as the loop reaches them.
     if (isObjectItemSpot(el)) return;
     if (key) rememberOriginal(key, el.textContent ?? '');
@@ -328,20 +368,20 @@ export function enableEditing(onChange?: () => void) {
     if (el.contentEditable !== 'plaintext-only') el.contentEditable = 'true';
   });
   document.addEventListener('input', handleInput, true);
-  document.addEventListener('click', handleImageSpotClick, true);
+  document.addEventListener('click', handleAssetSpotClick, true);
 }
 
 export function disableEditing() {
   editing = false;
   document.body.classList.remove('editing');
   document.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
-    if (isImageSpot(el)) return;
+    if (isAssetSpot(el)) return;
     if (isArraySpot(el)) return;
     if (isObjectItemSpot(el)) return;
     el.removeAttribute('contenteditable');
   });
   document.removeEventListener('input', handleInput, true);
-  document.removeEventListener('click', handleImageSpotClick, true);
+  document.removeEventListener('click', handleAssetSpotClick, true);
 }
 
 // Cloudflare Pages builds fresh on every deploy, so buildVersion (a build-time
@@ -380,30 +420,32 @@ export async function discardEditsIfBuildIsNewer(
   }
 }
 
-// Live object URLs currently painted onto an image spot, keyed by field key —
-// tracked so a later paint (or a reset/discard) can revoke the previous one
-// instead of leaking it.
-const imageObjectUrls = new Map<string, string>();
+// Live object URLs currently painted onto an image/file spot, keyed by field
+// key — tracked so a later paint (or a reset/discard) can revoke the
+// previous one instead of leaking it.
+const assetObjectUrls = new Map<string, string>();
 
-function revokeImageObjectUrl(key: string): void {
-  const existing = imageObjectUrls.get(key);
+function revokeAssetObjectUrl(key: string): void {
+  const existing = assetObjectUrls.get(key);
   if (existing) {
     URL.revokeObjectURL(existing);
-    imageObjectUrls.delete(key);
+    assetObjectUrls.delete(key);
   }
 }
 
-// Paints an image spot's `src` and records the real value (never a blob:
-// preview URL) in `data-dry-value` — `src` alone isn't a reliable read-back
-// source once a pending-blob preview has been painted over it (see
-// applyEdit below), but array items need to read *some* attribute off the
-// DOM to reconstruct their container's current value (see readArrayValues),
-// so this is the one place that intentionally survives a blob-URL repaint.
-function paintImageSpot(el: HTMLElement, value: string): void {
+// Paints an image/file spot's `src`/`href` and records the real value (never
+// a blob: preview URL) in `data-dry-value` — the native attribute alone isn't
+// a reliable read-back source once a pending-blob preview has been painted
+// over it (see applyEdit below), but array items need to read *some*
+// attribute off the DOM to reconstruct their container's current value (see
+// readArrayValues), so this is the one place that intentionally survives a
+// blob-URL repaint.
+function paintAssetSpot(el: HTMLElement, value: string): void {
   el.removeAttribute('srcset');
   el.hidden = !value;
+  const attr = el.tagName === 'A' ? 'href' : 'src';
   if (value) {
-    el.setAttribute('src', value);
+    el.setAttribute(attr, value);
     el.setAttribute('data-dry-value', value);
   } else {
     el.removeAttribute('data-dry-value');
@@ -431,9 +473,9 @@ function paintFetchedValue(
   pendingEdits: Map<string, string>
 ): void {
   resetOriginalValue(key, value);
-  if (isImageSpot(el)) {
-    revokeImageObjectUrl(key);
-    paintImageSpot(el, value);
+  if (isAssetSpot(el)) {
+    revokeAssetObjectUrl(key);
+    paintAssetSpot(el, value);
     return;
   }
   if (isArraySpot(el)) {
@@ -532,9 +574,9 @@ export function revertFieldToOriginal(key: string): void {
   document
     .querySelectorAll<HTMLElement>(`[data-dry="${CSS.escape(key)}"]`)
     .forEach(el => {
-      if (isImageSpot(el)) {
-        revokeImageObjectUrl(key);
-        paintImageSpot(el, original);
+      if (isAssetSpot(el)) {
+        revokeAssetObjectUrl(key);
+        paintAssetSpot(el, original);
         return;
       }
       if (isArraySpot(el)) {
@@ -567,25 +609,25 @@ export async function resetPendingEdits(): Promise<void> {
 // live cross-tab subscription, which paints one key at a time as edits
 // arrive from other tabs.
 //
-// Image values prefer the pending-blob cache (see edit-sync.ts) over the raw
-// path: a freshly picked/uploaded image isn't guaranteed servable at its path
-// yet (github mode needs a deploy to catch up), but its bytes are already
-// known locally. Exported so the toolbar's image-picker flow can paint a
-// freshly picked file immediately after publishing it, the same way a
-// same-key edit arriving from another tab gets painted below.
+// Image/file values prefer the pending-blob cache (see edit-sync.ts) over the
+// raw path: a freshly picked/uploaded file isn't guaranteed servable at its
+// path yet (github mode needs a deploy to catch up), but its bytes are
+// already known locally. Exported so the toolbar's image/file-picker flow
+// can paint a freshly picked file immediately after publishing it, the same
+// way a same-key edit arriving from another tab gets painted below.
 export async function applyEdit(key: string, value: string): Promise<void> {
   const els = document.querySelectorAll<HTMLElement>(
     `[data-dry="${CSS.escape(key)}"]`
   );
   let blob: Uint8Array | undefined;
-  if (Array.from(els).some(isImageSpot) && value) {
+  if (Array.from(els).some(isAssetSpot) && value) {
     blob = await getPendingBlob(value);
   }
   els.forEach(el => {
-    if (isImageSpot(el)) {
+    if (isAssetSpot(el)) {
       // Capture the on-disk value before overwriting it with the pending edit.
-      rememberOriginal(key, el.getAttribute('src') ?? '');
-      revokeImageObjectUrl(key);
+      rememberOriginal(key, readAssetAttr(el) ?? '');
+      revokeAssetObjectUrl(key);
       el.removeAttribute('srcset');
       el.hidden = !value;
       if (!value) {
@@ -593,16 +635,17 @@ export async function applyEdit(key: string, value: string): Promise<void> {
         return;
       }
       // `data-dry-value` always records `value` itself (the real path), even
-      // when `src` is about to be overwritten with a local blob: preview —
-      // see paintImageSpot/readArrayValues for why the two can't be the same
-      // attribute.
+      // when `src`/`href` is about to be overwritten with a local blob:
+      // preview — see paintAssetSpot/readArrayValues for why the two can't
+      // be the same attribute.
       el.setAttribute('data-dry-value', value);
+      const attr = el.tagName === 'A' ? 'href' : 'src';
       if (blob) {
         const url = URL.createObjectURL(new Blob([blob]));
-        imageObjectUrls.set(key, url);
-        el.setAttribute('src', url);
+        assetObjectUrls.set(key, url);
+        el.setAttribute(attr, url);
       } else {
-        el.setAttribute('src', value);
+        el.setAttribute(attr, value);
       }
       return;
     }

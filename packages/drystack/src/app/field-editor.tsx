@@ -9,3 +9,7 @@ export { FormValueContentFromPreviewProps } from '../form/form-from-preview';
 export { clientSideValidateProp } from '../form/errors';
 export { ArrayFieldListView } from '../form/fields/array/ui';
 export { valueToUpdater } from '../form/get-value';
+// Scopes the admin's ImageFieldInput/FileFieldInput "this entry's assets" tab
+// to a singleton's own directory — without it those inputs fall back to
+// library-only picking (see entry-form.tsx / form/fields/image/ui.tsx).
+export { EntryDirectoryProvider } from './entry-form';

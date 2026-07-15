@@ -13,7 +13,6 @@ import type { ArrayField, ComponentSchema, Config } from '@drystack/core';
 import { getSingletonPath } from '@drystack/core/path-utils';
 import {
   openMediaLibrary,
-  waitForMediaLibraryOpener,
   type MediaLibraryPick,
 } from '@drystack/core/media-library-bridge';
 // @ts-expect-error — provided by the drystack Astro integration's Vite plugin
@@ -34,7 +33,7 @@ import { VStack } from '@keystar/ui/layout';
 import { Content } from '@keystar/ui/slots';
 import { toastQueue } from '@keystar/ui/toast';
 import { Tooltip, TooltipTrigger } from '@keystar/ui/tooltip';
-import { Heading, Text } from '@keystar/ui/typography';
+import { Heading } from '@keystar/ui/typography';
 import {
   ChangePreviewDialog,
   ImageThumbFrame,
@@ -44,10 +43,8 @@ import {
   createGetPreviewProps,
   FormValueContentFromPreviewProps,
   clientSideValidateProp,
-  ArrayFieldListView,
-  valueToUpdater,
+  EntryDirectoryProvider,
 } from '@drystack/core/field-editor';
-import { getSyncableFieldKind } from '@drystack/core/edit-sync';
 import {
   enableEditing,
   disableEditing,
@@ -58,6 +55,7 @@ import {
   applyEdit,
   revertFieldToOriginal,
   setImageSpotClickHandler,
+  setFileSpotClickHandler,
 } from './bind';
 import {
   getAllEdits,
@@ -72,11 +70,15 @@ import { brandDisplayLabel } from '@drystack/core/brand-label';
 import { CloudflareStatusCompact } from '@drystack/core/deploy-cloudflare-status';
 import { useVeiDeploy } from './deploy';
 
-// Loaded lazily (only once the visual editor actually needs to open the
-// image picker) — this chunk pulls in urql + graphcache + the admin's file
-// manager, which would otherwise bloat every live-site page's JS payload.
-const VeiMediaHost = lazy(() =>
-  import('@drystack/core/media-host').then(m => ({ default: m.VeiMediaHost }))
+// Loaded lazily (only once the visual editor actually enters edit mode) —
+// this chunk pulls in urql + graphcache + the admin's field-editor/file-
+// manager components, which would otherwise bloat every live-site page's JS
+// payload.
+const VeiAdminProviders = lazy(() =>
+  import('@drystack/core/media-host').then(m => ({ default: m.VeiAdminProviders }))
+);
+const FileManagerHost = lazy(() =>
+  import('@drystack/core/file-manager-host').then(m => ({ default: m.FileManagerHost }))
 );
 
 type Spot = { key: string; name: string; field: string };
@@ -282,50 +284,83 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     };
   }, [editing]);
 
-  // The admin's media-library picker (VeiMediaHost) — lazy-mounted once an
-  // image spot is actually clicked, not on every page load (see the lazy()
-  // import above). `mediaHostBranch` only matters in github mode; resolved
-  // once, right before the first mount, into a ref rather than state since
-  // nothing needs to re-render off it changing.
-  const [mediaHostMounted, setMediaHostMounted] = useState(false);
-  const mediaHostBranchRef = useRef('');
+  // The admin provider boundary (VeiAdminProviders + FileManagerHost, lazy —
+  // see the lazy() imports above) — mounted whenever edit mode is on, not
+  // lazily per-click, so both the field-editor dialogs below and the image/
+  // file spot click handlers can assume it's either ready or not yet
+  // attempted, with no per-click mount race to arbitrate. `currentBranch`
+  // only matters in github mode.
+  type ProviderState =
+    | { status: 'idle' }
+    | { status: 'loading' }
+    | { status: 'ready'; currentBranch: string }
+    | { status: 'blocked'; message: string };
+  const [providerState, setProviderState] = useState<ProviderState>({ status: 'idle' });
+  // Lets long-lived effects (the image/file spot click handlers below) read
+  // the current provider status without re-subscribing their click handler
+  // every time it changes.
+  const providerStateRef = useRef(providerState);
+  providerStateRef.current = providerState;
 
-  // Mounts VeiMediaHost on first use and waits for its FileManagerHost to
-  // finish registering the picker (registerMediaLibraryOpener runs in an
-  // effect, one or more renders after the mount is requested — see
-  // waitForMediaLibraryOpener). Returns false (after surfacing a toast) if
-  // github mode has no admin session — mounting the host without one would
-  // hit the shell's own "not authenticated" redirect, which would navigate
-  // this live-site tab to the admin login page.
-  const ensureMediaHostMounted = async (): Promise<boolean> => {
-    if (!mediaHostMounted) {
-      if (isGithub) {
-        if (!getGithubToken()) {
-          toastQueue.critical('Cần đăng nhập admin để đổi ảnh.');
-          return false;
-        }
-        try {
-          mediaHostBranchRef.current = (await getCurrentBranchName(config)) ?? '';
-        } catch (err) {
-          toastQueue.critical(err instanceof Error ? err.message : String(err));
-          return false;
-        }
-      }
-      setMediaHostMounted(true);
+  useEffect(() => {
+    if (!editing) {
+      setProviderState({ status: 'idle' });
+      return;
     }
-    const ready = await waitForMediaLibraryOpener();
-    if (!ready) toastQueue.critical('Không thể mở thư viện media.');
-    return ready;
+    if (!isGithub) {
+      setProviderState({ status: 'ready', currentBranch: '' });
+      return;
+    }
+    // github mode needs an admin session — mounting the boundary without one
+    // would hit the shell's own "not authenticated" redirect, which would
+    // navigate this live-site tab to the admin login page.
+    if (!getGithubToken()) {
+      setProviderState({
+        status: 'blocked',
+        message: 'Cần đăng nhập admin để đổi ảnh/tệp.',
+      });
+      return;
+    }
+    let cancelled = false;
+    setProviderState({ status: 'loading' });
+    getCurrentBranchName(config)
+      .then(branch => {
+        if (!cancelled) setProviderState({ status: 'ready', currentBranch: branch ?? '' });
+      })
+      .catch(err => {
+        if (!cancelled) {
+          setProviderState({
+            status: 'blocked',
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [editing, isGithub, config]);
+
+  // Guards an image/file spot click or the array gear button: surfaces a
+  // toast and returns false unless the provider boundary is actually mounted
+  // and ready to serve openMediaLibrary()/the field-editor dialogs.
+  const requireProviderReady = (): boolean => {
+    const s = providerStateRef.current;
+    if (s.status === 'ready') return true;
+    toastQueue.critical(
+      s.status === 'blocked' ? s.message : 'Đang chuẩn bị, thử lại sau giây lát.'
+    );
+    return false;
   };
 
   // Wired to every fields.image spot's click (see bind.ts's
-  // handleImageSpotClick) — opens the exact same file-manager dialog the
+  // handleAssetSpotClick) — opens the exact same file-manager dialog the
   // admin's ImageFieldInput uses, scoped to this singleton's own assets
   // folder (matching EntryDirectoryProvider's convention in SingletonPage.tsx).
   useEffect(() => {
     const handler = async (key: string) => {
+      if (!requireProviderReady()) return;
       const [, singletonName] = key.split('::');
-      const pick = await pickAssetImage(config, singletonName, ensureMediaHostMounted);
+      const pick = await pickAsset(config, singletonName, 'image');
       if (!pick) return;
       await publishEdit(key, pick.path);
       await applyEdit(key, pick.path);
@@ -334,7 +369,23 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     setImageSpotClickHandler(handler);
     return () => setImageSpotClickHandler(undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config, isGithub, mediaHostMounted]);
+  }, [config]);
+
+  // Same as above, for fields.file spots — accepts any file type.
+  useEffect(() => {
+    const handler = async (key: string) => {
+      if (!requireProviderReady()) return;
+      const [, singletonName] = key.split('::');
+      const pick = await pickAsset(config, singletonName, 'any');
+      if (!pick) return;
+      await publishEdit(key, pick.path);
+      await applyEdit(key, pick.path);
+      refreshCount();
+    };
+    setFileSpotClickHandler(handler);
+    return () => setFileSpotClickHandler(undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config]);
 
   // Opening the edit/function menu closes the deploy menu (mutually
   // exclusive).
@@ -651,6 +702,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
               }, 140);
             }}
             onClick={() => {
+              if (!requireProviderReady()) return;
               setArrayDialogKey(arrayGearSpot.key);
               arrayGearElRef.current = null;
               setArrayGearSpot(null);
@@ -665,53 +717,57 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
         {reviewOpen && <VeiReviewDialog config={config} onChange={refreshCount} />}
       </DialogContainer>
 
-      <DialogContainer onDismiss={() => setArrayDialogKey(null)}>
-        {arrayDialogKey && (
-          <ArrayFieldDialog
-            config={config}
-            fieldKey={arrayDialogKey}
-            ensureMediaHostMounted={ensureMediaHostMounted}
-            onClose={() => setArrayDialogKey(null)}
-            onSaved={() => {
-              refreshCount();
-              setSpots(readSpots());
-            }}
-          />
-        )}
-      </DialogContainer>
-
-      {mediaHostMounted && (
+      {/* The admin provider boundary — mounted whenever edit mode is on (see
+          the providerState effect above). FileManagerHost makes
+          openMediaLibrary() available for both the inline image/file spot
+          click handlers and the field-editor dialog below; the array dialog
+          renders inside the boundary since its element schema may mount the
+          admin's real ImageFieldInput/FileFieldInput, which need this
+          context (useConfig/useMediaLibraryPreviewURL/tree data). */}
+      {providerState.status === 'ready' && (
         <Suspense fallback={null}>
-          <VeiMediaHost
+          <VeiAdminProviders
             config={config}
             basePath={adminBase}
-            currentBranch={mediaHostBranchRef.current}
-          />
+            currentBranch={providerState.currentBranch}
+          >
+            <FileManagerHost />
+            <DialogContainer onDismiss={() => setArrayDialogKey(null)}>
+              {arrayDialogKey && (
+                <ArrayFieldDialog
+                  config={config}
+                  fieldKey={arrayDialogKey}
+                  onClose={() => setArrayDialogKey(null)}
+                  onSaved={() => {
+                    refreshCount();
+                    setSpots(readSpots());
+                  }}
+                />
+              )}
+            </DialogContainer>
+          </VeiAdminProviders>
         </Suspense>
       )}
     </div>
   );
 }
 
-// The one image-picking primitive shared by every VEI image surface — the
-// single-image spot click (setImageSpotClickHandler below), the
-// array-of-image editor (ImageArrayEditor), and the array-of-object image
-// sub-field (VeiObjectImageInput). Mounts the media host, opens the same
-// file-manager dialog the admin's ImageFieldInput uses (scoped to this
-// singleton's assets folder), caches the picked bytes locally so previews and
-// saves can resolve before the file is servable, and returns the pick. Callers
-// differ only in what they do with the resulting path.
-async function pickAssetImage(
+// The one asset-picking primitive shared by the single-image and single-file
+// spot click handlers above — opens the same file-manager dialog the admin's
+// ImageFieldInput/FileFieldInput use (scoped to this singleton's assets
+// folder), caches the picked bytes locally so previews and saves can resolve
+// before the file is servable, and returns the pick. Callers differ only in
+// `accept`; the array/object dialog's own image/file sub-fields go through
+// the real ImageFieldInput/FileFieldInput instead (see ArrayFieldDialog).
+async function pickAsset(
   config: Config<any, any>,
   singletonName: string,
-  ensureMediaHostMounted: () => Promise<boolean>
+  accept: 'image' | 'any'
 ): Promise<MediaLibraryPick | undefined> {
-  const ready = await ensureMediaHostMounted();
-  if (!ready) return undefined;
   let picked: MediaLibraryPick | undefined;
   try {
     picked = await openMediaLibrary({
-      accept: 'image',
+      accept,
       local: {
         directory: `${getSingletonPath(config, singletonName)}/assets`,
         label: 'Trang này',
@@ -728,36 +784,21 @@ async function pickAssetImage(
 
 // Renders the array editor for one fields.array field, seeded from its
 // current live value (already up to date with any pending item/container
-// edits — see bind.ts's getArrayValueFromDom). Both array-of-fields.text and
-// array-of-fields.image reuse the admin's own field-rendering engine via
-// createGetPreviewProps (see field-editor.tsx) for the same underlying
-// state/update plumbing — the only difference is how each item is *edited*.
-// Text uses FormValueContentFromPreviewProps end to end (Add/Edit/Reorder/
-// Delete UI, for free). Image reuses ArrayFieldListView (the same row list,
-// drag-reorder and delete admin's ArrayFieldInput renders — see
-// packages/drystack/src/form/fields/array/ui.tsx) but swaps out the
-// Add/Edit *modal* content: the admin's own ArrayFieldAddItemModalContent/
-// ArrayEditItemModalContent render FormValueContentFromPreviewProps for the
-// element schema, which for fields.image mounts ImageFieldInput — a
-// component that reaches into admin-only React context (ConfigContext,
-// RouterProvider, a urql client — see
-// packages/drystack/src/app/media-library/VeiMediaHost.tsx's own provider
-// stack) this live-site editor never mounts. ImageArrayEditor opens the same
-// lightweight openMediaLibrary() bridge the single-image click flow already
-// uses instead, and writes the result back through the *same*
-// previewProps.onChange/elements[i].onChange plumbing ArrayFieldListView
-// itself uses, so add/remove/reorder still all go through the one shared
-// state machine.
+// edits — see bind.ts's getArrayValueFromDom). Renders the admin's own
+// ArrayFieldInput unmodified (via FormValueContentFromPreviewProps, since
+// fieldSchema.kind === 'array' and no Input override is set) — its Add/Edit
+// modals mount the real per-element Input (ImageFieldInput/FileFieldInput/
+// ObjectFieldInput/…), the same as inside the admin app, now that this
+// dialog is mounted inside the admin provider boundary (see Toolbar's
+// VeiAdminProviders). Config schema is never touched.
 function ArrayFieldDialog({
   config,
   fieldKey,
-  ensureMediaHostMounted,
   onClose,
   onSaved,
 }: {
   config: Config<any, any>;
   fieldKey: string;
-  ensureMediaHostMounted: () => Promise<boolean>;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -773,45 +814,18 @@ function ArrayFieldDialog({
   const [forceValidation, setForceValidation] = useState(false);
   const formId = useId();
 
-  const isImageArray =
-    !!fieldSchema && getSyncableFieldKind(fieldSchema.element) === 'image';
-  const isObjectArray = fieldSchema?.element.kind === 'object';
-
-  // Keep the picker context (config/singleton/media-host) reachable from the
-  // swapped image Input below without re-creating the component every render
-  // (which would remount — and blur — the field mid-edit).
-  const pickCtxRef = useRef({ config, singletonName: name, ensureMediaHostMounted });
-  pickCtxRef.current = { config, singletonName: name, ensureMediaHostMounted };
-  const VeiImageInput = useMemo(() => makeVeiObjectImageInput(pickCtxRef), []);
-
-  // For an array-of-object, hand the admin's ArrayFieldInput a *clone* of the
-  // element schema whose image sub-fields render our openMediaLibrary-based
-  // Input instead of the admin's ImageFieldInput — the latter reaches into
-  // ConfigContext/urql/RouterProvider this dialog never mounts (see
-  // VeiMediaHost / ImageArrayEditor's comment). Config schema is never
-  // mutated; only `.Input` is swapped, so parse/serialize/validate are
-  // untouched.
-  const editSchema = useMemo(() => {
-    if (!fieldSchema) return fieldSchema;
-    if (fieldSchema.element.kind !== 'object') return fieldSchema;
-    return {
-      ...fieldSchema,
-      element: withVeiObjectImageInputs(fieldSchema.element, VeiImageInput),
-    } as ArrayField<ComponentSchema>;
-  }, [fieldSchema, VeiImageInput]);
-
   const getPreviewProps = useMemo(
     () =>
-      editSchema
+      fieldSchema
         ? // ArrayField<ComponentSchema>'s element is the broad ComponentSchema
           // union, so ParsedValueForComponentSchema resolves to a wide
           // `readonly unknown[]`-ish type that setValue's updater doesn't
-          // structurally match — this dialog's scope (array-of-text/image or
-          // array-of-object of text/image, see plan/vei-array-object.md)
+          // structurally match — this dialog's scope (array-of-text/image/
+          // file or array-of-object of those, see plan/vei-array-object.md)
           // guarantees the runtime shape lines up.
-          createGetPreviewProps(editSchema, setValue as any, () => undefined)
+          createGetPreviewProps(fieldSchema, setValue as any, () => undefined)
         : undefined,
-    [editSchema]
+    [fieldSchema]
   );
 
   if (!fieldSchema || !getPreviewProps) return null;
@@ -843,32 +857,27 @@ function ArrayFieldDialog({
     <Dialog>
       <Heading>{fieldSchema.label}</Heading>
       <Content>
-        <VStack
-          id={formId}
-          elementType="form"
-          onSubmit={(event: FormEvent) => {
-            if (event.target !== event.currentTarget) return;
-            event.preventDefault();
-            onDone();
-          }}
-          gap="xxlarge"
-        >
-          {isImageArray ? (
-            <ImageArrayEditor
-              config={config}
-              singletonName={name}
-              fieldSchema={fieldSchema}
-              previewProps={previewProps}
-              ensureMediaHostMounted={ensureMediaHostMounted}
-            />
-          ) : (
+        {/* Scopes any image/file sub-field's "this entry's assets" tab to
+            this singleton's own directory, matching SingletonPage.tsx's own
+            EntryDirectoryProvider usage. */}
+        <EntryDirectoryProvider value={getSingletonPath(config, name)}>
+          <VStack
+            id={formId}
+            elementType="form"
+            onSubmit={(event: FormEvent) => {
+              if (event.target !== event.currentTarget) return;
+              event.preventDefault();
+              onDone();
+            }}
+            gap="xxlarge"
+          >
             <FormValueContentFromPreviewProps
               autoFocus
               {...previewProps}
               forceValidation={forceValidation}
             />
-          )}
-        </VStack>
+          </VStack>
+        </EntryDirectoryProvider>
       </Content>
       <ButtonGroup>
         <Button onPress={onClose}>Hủy</Button>
@@ -878,132 +887,6 @@ function ArrayFieldDialog({
       </ButtonGroup>
     </Dialog>
   );
-}
-
-// The array-of-fields.image editor — a plain thumbnail grid instead of the
-// admin's ArrayFieldInput/ImageFieldInput (see ArrayFieldDialog's comment for
-// why those can't mount here). Renders the exact same row list, drag-reorder
-// and delete UI as the admin's ArrayFieldInput (via ArrayFieldListView,
-// re-exported alongside it in field-editor.tsx) — only Add/Edit swap
-// openMediaLibrary() in for the modal that would otherwise mount
-// ImageFieldInput, writing back through the same previewProps.onChange /
-// elements[i].onChange plumbing ArrayFieldListView itself uses (see
-// preview-props.tsx's array() builder), so remove/reorder still flow through
-// the one shared state machine untouched. Picking caches bytes locally via
-// putPendingBlob (same as the single-image click flow) so ArrayFieldDialog's
-// onDone always publishes the real path — never a blob: URL.
-function ImageArrayEditor({
-  config,
-  singletonName,
-  fieldSchema,
-  previewProps,
-  ensureMediaHostMounted,
-}: {
-  config: Config<any, any>;
-  singletonName: string;
-  fieldSchema: ArrayField<ComponentSchema>;
-  // Same shape ArrayFieldListView/FormValueContentFromPreviewProps consume
-  // (see createGetPreviewProps) — loosely typed to avoid importing the full
-  // generic preview-props machinery for this one internal helper.
-  previewProps: any;
-  ensureMediaHostMounted: () => Promise<boolean>;
-}) {
-  const pickInto = async (onPicked: (path: string) => void) => {
-    const picked = await pickAssetImage(config, singletonName, ensureMediaHostMounted);
-    if (picked) onPicked(picked.path);
-  };
-
-  const addItem = () =>
-    pickInto(path => {
-      previewProps.onChange([
-        ...previewProps.elements.map((el: { key: string }) => ({ key: el.key })),
-        { key: undefined, value: valueToUpdater(path, fieldSchema.element) },
-      ]);
-    });
-
-  const editItem = (idx: number) =>
-    pickInto(path => {
-      previewProps.elements[idx].onChange(path);
-    });
-
-  return (
-    <VStack gap="medium">
-      <ActionButton alignSelf="start" onPress={addItem}>
-        Thêm ảnh
-      </ActionButton>
-      <ArrayFieldListView
-        {...previewProps}
-        autoFocus={false}
-        forceValidation={false}
-        aria-label={fieldSchema.label}
-        onOpenItem={editItem}
-      />
-    </VStack>
-  );
-}
-
-// Clones a fields.object element schema, swapping each fields.image sub-field's
-// `.Input` for a VEI-friendly one (openMediaLibrary bridge) — see
-// ArrayFieldDialog/ImageArrayEditor for why the admin's ImageFieldInput can't
-// mount in this dialog. Only `.Input` changes; parse/serialize/validate/
-// defaultValue are preserved so value semantics are identical.
-function withVeiObjectImageInputs(
-  element: ComponentSchema,
-  VeiImageInput: (props: any) => React.ReactElement
-): ComponentSchema {
-  if (element.kind !== 'object') return element;
-  const fields: Record<string, ComponentSchema> = {};
-  for (const [key, sub] of Object.entries(element.fields)) {
-    fields[key] =
-      getSyncableFieldKind(sub) === 'image'
-        ? ({ ...(sub as object), Input: VeiImageInput } as ComponentSchema)
-        : sub;
-  }
-  return { ...element, fields };
-}
-
-// The image sub-field input used inside the array-of-object dialog: mirrors
-// ImageArrayEditor's pickInto (ensureMediaHostMounted → openMediaLibrary →
-// putPendingBlob → onChange(path)) and previews pending-blob-first via
-// VeiImageThumb. `ctxRef` keeps config/singleton/media-host current without
-// changing the component's identity (a new identity each render would remount
-// and blur the field). Returns a stable component to hand to `.Input`.
-function makeVeiObjectImageInput(
-  ctxRef: React.MutableRefObject<{
-    config: Config<any, any>;
-    singletonName: string;
-    ensureMediaHostMounted: () => Promise<boolean>;
-  }>
-) {
-  return function VeiObjectImageInput(props: {
-    value: string | null;
-    onChange: (value: string | null) => void;
-    schema: { label?: string };
-  }): React.ReactElement {
-    const pick = async () => {
-      const { config, singletonName, ensureMediaHostMounted } = ctxRef.current;
-      const picked = await pickAssetImage(config, singletonName, ensureMediaHostMounted);
-      if (picked) props.onChange(picked.path);
-    };
-    return (
-      <VStack gap="medium">
-        {props.schema.label ? (
-          <Text size="small" weight="medium">
-            {props.schema.label}
-          </Text>
-        ) : null}
-        {props.value ? <VeiImageThumb path={props.value} /> : null}
-        <ButtonGroup>
-          <ActionButton onPress={pick}>
-            {props.value ? 'Đổi ảnh' : 'Chọn ảnh'}
-          </ActionButton>
-          {props.value ? (
-            <ActionButton onPress={() => props.onChange(null)}>Gỡ</ActionButton>
-          ) : null}
-        </ButtonGroup>
-      </VStack>
-    );
-  };
 }
 
 function VeiReviewDialog({

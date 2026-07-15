@@ -20,6 +20,14 @@ const dry = await createDry(config).singleton.demo;
     )
   }
 
+  {
+    dry.file && (
+      <a href={dry.file} {...dry.item("file")}>
+        Tải tệp demo
+      </a>
+    )
+  }
+
   <ul
     {...dry.item("array")}
     style="display: flex; flex-direction: column; gap: 1rem"
@@ -56,6 +64,9 @@ const dry = await createDry(config).singleton.demo;
             src={obj.image!}
             {...dry.item(`arrayObject.${idx}.image`)}
           />
+          <a href={obj.file ?? '#'} {...dry.item(`arrayObject.${idx}.file`)}>
+            Tải tệp
+          </a>
         </div>
       ))
     }

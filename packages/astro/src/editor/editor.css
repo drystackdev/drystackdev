@@ -37,6 +37,13 @@ body.editing [data-dry-kind="image"] {
 body.editing [data-dry-kind="image"]:hover {
   filter: brightness(0.85);
 }
+
+/* fields.file spots — same "click to change" affordance as fields.image
+   (see bind.ts's handleAssetSpotClick), minus the brightness dim (a file spot
+   is typically a download link or filename, not an image preview). */
+body.editing [data-dry-kind="file"] {
+  cursor: pointer !important;
+}
 .dry-spot-flash {
   outline: 2px solid #f59e0b !important;
   outline-offset: 2px;
