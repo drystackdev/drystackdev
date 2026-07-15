@@ -245,6 +245,18 @@ export function getSyncableFieldKind(
   return undefined;
 }
 
+// A syncable field whose value is edited via the media-library picker
+// (rather than contenteditable text or the array template-clone binding).
+// Shared so every place that dispatches on "is this an image/file field"
+// (dry.ts, bind.ts, Toolbar.tsx, save.ts, SingletonPage.tsx,
+// computeFieldChanges.ts) agrees, instead of each hand-rolling the same
+// `kind === 'image' || kind === 'file'` check.
+export function isAssetKind(
+  kind: string | undefined | null
+): kind is 'image' | 'file' {
+  return kind === 'image' || kind === 'file';
+}
+
 // --- Cross-tab bus -----------------------------------------------------
 
 export type EditBusMessage =

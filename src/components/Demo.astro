@@ -20,13 +20,9 @@ const dry = await createDry(config).singleton.demo;
     )
   }
 
-  {
-    dry.file && (
-      <a href={dry.file} {...dry.item("file")}>
-        Tải tệp demo
-      </a>
-    )
-  }
+  <a href={dry.file ?? undefined} hidden={!dry.file} {...dry.item("file")}>
+    Tải tệp demo
+  </a>
 
   <ul
     {...dry.item("array")}

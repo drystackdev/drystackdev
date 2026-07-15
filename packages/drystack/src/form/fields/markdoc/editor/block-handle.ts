@@ -372,9 +372,9 @@ export function blockHandle() {
     },
     appendTransaction(transactions, _oldState, newState) {
       const pos = dragState.emptiedGridCellPos;
-      dragState.emptiedGridCellPos = null; // one-shot: only ever applies to the drop it was armed for
       if (pos == null) return null;
       if (!transactions.some(tr => tr.getMeta('uiEvent') === 'drop')) return null;
+      dragState.emptiedGridCellPos = null; // one-shot: only consumed once matched to the drop it was armed for
 
       const mapped = transactions.reduce((p, tr) => tr.mapping.map(p), pos);
       const cell = newState.doc.nodeAt(mapped);

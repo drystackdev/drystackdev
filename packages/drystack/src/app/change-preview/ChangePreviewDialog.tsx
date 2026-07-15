@@ -314,7 +314,7 @@ function FileNameCell({ path }: { path: string }) {
       <Text color="neutralSecondary">{stringFormatter.format('noFile')}</Text>
     );
   }
-  const filename = path.split('/').pop() || path;
+  const filename = path.replace(/\/+$/, '').split('/').pop() || path;
   return (
     <Flex alignItems="center" gap="small">
       <Icon src={fileIcon} />

@@ -14,6 +14,7 @@ import { getSingletonPath } from '@drystack/core/path-utils';
 import { getAuth } from '@drystack/core/auth';
 import {
   openMediaLibrary,
+  waitForMediaLibraryOpener,
   type MediaLibraryPick,
 } from '@drystack/core/media-library-bridge';
 // @ts-expect-error — provided by the drystack Astro integration's Vite plugin
@@ -67,6 +68,7 @@ import {
   getPendingBlob,
 } from './store';
 import { saveEdits, getCurrentBranchName, getGithubToken } from './save';
+import { isAssetKind } from '@drystack/core/edit-sync';
 import { brandDisplayLabel } from '@drystack/core/brand-label';
 import { CloudflareStatusCompact } from '@drystack/core/deploy-cloudflare-status';
 import { useVeiDeploy } from './deploy';
@@ -109,8 +111,7 @@ async function getPendingChanges(config: Config<any, any>): Promise<FieldChange[
         `[data-dry="${CSS.escape(e.key)}"]`
       );
       const dryKind = el?.getAttribute('data-dry-kind');
-      const kind: 'text' | 'image' | 'file' =
-        dryKind === 'image' ? 'image' : dryKind === 'file' ? 'file' : 'text';
+      const kind: 'text' | 'image' | 'file' = isAssetKind(dryKind) ? dryKind : 'text';
       const fieldSchema = config.singletons?.[name]?.schema?.[field] as
         | { label?: string }
         | undefined;
@@ -303,6 +304,16 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   // every time it changes.
   const providerStateRef = useRef(providerState);
   providerStateRef.current = providerState;
+  // Caches a successful github resolution for the lifetime of this page load
+  // (the visual editor mounts once and is never torn down) so toggling edit
+  // mode off/on doesn't re-hit the network and remount VeiAdminProviders
+  // every time — only the first resolution per page load pays that cost.
+  const resolvedProviderRef = useRef<{ currentBranch: string } | null>(null);
+  // Re-runs the resolution below on demand — requireProviderReady calls this
+  // when blocked, so a click while blocked also kicks off a retry instead of
+  // only toasting forever (the previous auth failure isn't retried
+  // otherwise; only toggling edit mode off/on used to force one).
+  const resolveProviderRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     if (!editing) {
@@ -313,42 +324,52 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       setProviderState({ status: 'ready', currentBranch: '' });
       return;
     }
-    // github mode needs an admin session — mounting the boundary without one
-    // would hit the shell's own "not authenticated" redirect, which would
-    // navigate this live-site tab to the admin login page. The access-token
-    // cookie is short-lived (GitHub's OAuth expiry, a few hours) and nothing
-    // else refreshes it while the user only ever visits this live-site
-    // toolbar (never the admin SPA, which is where the urql authExchange
-    // that normally handles this lives) — so try a silent refresh off the
-    // still-valid, much longer-lived refresh-token cookie before bouncing
-    // the user to re-auth.
     let cancelled = false;
-    setProviderState({ status: 'loading' });
-    const ensureToken = getGithubToken()
-      ? Promise.resolve(true)
-      : getAuth(config, adminBase).then(auth => !!auth);
-    ensureToken.then(hasToken => {
-      if (cancelled) return;
-      if (!hasToken) {
-        setProviderState({
-          status: 'blocked',
-          message: 'Cần đăng nhập admin để đổi ảnh/tệp.',
-        });
+    const resolve = () => {
+      if (resolvedProviderRef.current) {
+        setProviderState({ status: 'ready', currentBranch: resolvedProviderRef.current.currentBranch });
         return;
       }
-      getCurrentBranchName(config)
-        .then(branch => {
-          if (!cancelled) setProviderState({ status: 'ready', currentBranch: branch ?? '' });
-        })
-        .catch(err => {
-          if (!cancelled) {
-            setProviderState({
-              status: 'blocked',
-              message: err instanceof Error ? err.message : String(err),
-            });
-          }
-        });
-    });
+      // github mode needs an admin session — mounting the boundary without
+      // one would hit the shell's own "not authenticated" redirect, which
+      // would navigate this live-site tab to the admin login page. The
+      // access-token cookie is short-lived (GitHub's OAuth expiry, a few
+      // hours) and nothing else refreshes it while the user only ever
+      // visits this live-site toolbar (never the admin SPA, which is where
+      // the urql authExchange that normally handles this lives) — so try a
+      // silent refresh off the still-valid, much longer-lived refresh-token
+      // cookie before bouncing the user to re-auth.
+      setProviderState({ status: 'loading' });
+      const ensureToken = getGithubToken()
+        ? Promise.resolve(true)
+        : getAuth(config, adminBase).then(auth => !!auth);
+      ensureToken.then(hasToken => {
+        if (cancelled) return;
+        if (!hasToken) {
+          setProviderState({
+            status: 'blocked',
+            message: 'Cần đăng nhập admin để đổi ảnh/tệp.',
+          });
+          return;
+        }
+        getCurrentBranchName(config)
+          .then(branch => {
+            if (cancelled) return;
+            resolvedProviderRef.current = { currentBranch: branch ?? '' };
+            setProviderState({ status: 'ready', currentBranch: branch ?? '' });
+          })
+          .catch(err => {
+            if (!cancelled) {
+              setProviderState({
+                status: 'blocked',
+                message: err instanceof Error ? err.message : String(err),
+              });
+            }
+          });
+      });
+    };
+    resolveProviderRef.current = resolve;
+    resolve();
     return () => {
       cancelled = true;
     };
@@ -356,48 +377,51 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
 
   // Guards an image/file spot click or the array gear button: surfaces a
   // toast and returns false unless the provider boundary is actually mounted
-  // and ready to serve openMediaLibrary()/the field-editor dialogs.
+  // and ready to serve openMediaLibrary()/the field-editor dialogs. Kicks off
+  // a fresh resolution attempt when blocked, so the *next* click has a chance
+  // of succeeding instead of replaying the same stale failure forever.
   const requireProviderReady = (): boolean => {
     const s = providerStateRef.current;
     if (s.status === 'ready') return true;
+    if (s.status === 'blocked') resolveProviderRef.current();
     toastQueue.critical(
       s.status === 'blocked' ? s.message : 'Đang chuẩn bị, thử lại sau giây lát.'
     );
     return false;
   };
 
-  // Wired to every fields.image spot's click (see bind.ts's
+  // Wired to every fields.image/fields.file spot's click (see bind.ts's
   // handleAssetSpotClick) — opens the exact same file-manager dialog the
-  // admin's ImageFieldInput uses, scoped to this singleton's own assets
-  // folder (matching EntryDirectoryProvider's convention in SingletonPage.tsx).
+  // admin's ImageFieldInput/FileFieldInput uses, scoped to this singleton's
+  // own assets folder (matching EntryDirectoryProvider's convention in
+  // SingletonPage.tsx). Waits for FileManagerHost's opener to actually be
+  // registered (it mounts lazily alongside the provider boundary — see the
+  // lazy() imports above — so a click landing right as providerState flips
+  // to 'ready' can otherwise race its own mount) before opening the picker.
   useEffect(() => {
-    const handler = async (key: string) => {
-      if (!requireProviderReady()) return;
-      const [, singletonName] = key.split('::');
-      const pick = await pickAsset(config, singletonName, 'image');
-      if (!pick) return;
-      await publishEdit(key, pick.path);
-      await applyEdit(key, pick.path);
-      refreshCount();
+    const registerHandler = (
+      accept: 'image' | 'any',
+      setHandler: (cb: ((key: string) => void) | undefined) => void
+    ) => {
+      const handler = async (key: string) => {
+        if (!requireProviderReady()) return;
+        if (!(await waitForMediaLibraryOpener())) return;
+        const [, singletonName] = key.split('::');
+        const pick = await pickAsset(config, singletonName, accept);
+        if (!pick) return;
+        await publishEdit(key, pick.path);
+        await applyEdit(key, pick.path);
+        refreshCount();
+      };
+      setHandler(handler);
+      return () => setHandler(undefined);
     };
-    setImageSpotClickHandler(handler);
-    return () => setImageSpotClickHandler(undefined);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config]);
-
-  // Same as above, for fields.file spots — accepts any file type.
-  useEffect(() => {
-    const handler = async (key: string) => {
-      if (!requireProviderReady()) return;
-      const [, singletonName] = key.split('::');
-      const pick = await pickAsset(config, singletonName, 'any');
-      if (!pick) return;
-      await publishEdit(key, pick.path);
-      await applyEdit(key, pick.path);
-      refreshCount();
+    const cleanupImage = registerHandler('image', setImageSpotClickHandler);
+    const cleanupFile = registerHandler('any', setFileSpotClickHandler);
+    return () => {
+      cleanupImage();
+      cleanupFile();
     };
-    setFileSpotClickHandler(handler);
-    return () => setFileSpotClickHandler(undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config]);
 

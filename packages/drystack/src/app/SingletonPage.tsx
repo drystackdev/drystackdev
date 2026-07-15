@@ -56,6 +56,7 @@ import {
   editKey,
   getAllEdits,
   getSyncableFieldKind,
+  isAssetKind,
   parseEditKey,
   publishDelete,
   publishEdit,
@@ -385,7 +386,7 @@ function SingletonPageInner(
 // parseArrayValue and the visual editor's Toolbar.tsx/save.ts). fields.text
 // values are always strings already, so they pass through as-is.
 function toBusValue(kind: SyncableFieldKind, value: unknown): string | undefined {
-  if (kind === 'image' || kind === 'file') {
+  if (isAssetKind(kind)) {
     if (value === null) return '';
     return typeof value === 'string' ? value : undefined;
   }
@@ -399,7 +400,7 @@ function fromBusValue(
   kind: SyncableFieldKind,
   busValue: string
 ): string | string[] | null {
-  if (kind === 'image' || kind === 'file') return busValue === '' ? null : busValue;
+  if (isAssetKind(kind)) return busValue === '' ? null : busValue;
   if (kind === 'array') {
     try {
       const parsed = JSON.parse(busValue);
@@ -727,9 +728,7 @@ function LocalSingletonPage(
           const value = (stateRef.current as Record<string, unknown>)[field];
           if (
             (kind === 'text' && typeof value !== 'string') ||
-            ((kind === 'image' || kind === 'file') &&
-              typeof value !== 'string' &&
-              value !== null) ||
+            (isAssetKind(kind) && typeof value !== 'string' && value !== null) ||
             (kind === 'array' && !Array.isArray(value))
           ) {
             continue;

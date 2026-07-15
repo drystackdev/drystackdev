@@ -14,6 +14,7 @@ import {
   type EditBusMessage,
 } from './store';
 import { getLatestFieldValues } from './save';
+import { isAssetKind } from '@drystack/core/edit-sync';
 
 const BUILD_VERSION_KEY = 'buildVersion';
 
@@ -100,10 +101,18 @@ function collectDrySpots(root: HTMLElement, prefix: string): HTMLElement[] {
   return spots;
 }
 
+// Cheaper existence check than collectDrySpots(...).length > 0 for callers
+// that only need a boolean — `[data-dry^="prefix"]` lets the engine stop at
+// the first match instead of collecting every match just to measure it.
+function hasDrySpot(root: HTMLElement, prefix: string): boolean {
+  if (root.getAttribute('data-dry')?.startsWith(prefix)) return true;
+  return root.querySelector(`[data-dry^="${CSS.escape(prefix)}"]`) !== null;
+}
+
 function getArrayItemChildren(container: HTMLElement, key: string): HTMLElement[] {
   const prefix = `${key}.`;
   return Array.from(container.children).filter(
-    (child): child is HTMLElement => collectDrySpots(child as HTMLElement, prefix).length > 0
+    (child): child is HTMLElement => hasDrySpot(child as HTMLElement, prefix)
   );
 }
 
@@ -132,13 +141,20 @@ function getArrayElementKind(
   return k === 'image' || k === 'file' || k === 'object' ? k : 'text';
 }
 
-// The native attribute carrying an asset spot's pristine SSR value — `src`
-// for an <img>, `href` for anything else (a file spot is typically an <a>
-// download link). Only meaningful before any JS has painted over it (see
-// paintAssetSpot, which always records the real value in data-dry-value
-// afterwards).
+// The native attribute an asset spot's kind carries its value in — `src` for
+// an image, `href` for a file (typically an <a> download link). Dispatches
+// on data-dry-kind, same as every other decision in this file, rather than
+// the element's tag name, so it stays correct even if a future spot renders
+// its kind on an unexpected element.
+function nativeAssetAttr(el: HTMLElement): 'src' | 'href' {
+  return isImageSpot(el) ? 'src' : 'href';
+}
+
+// The native attribute carrying an asset spot's pristine SSR value. Only
+// meaningful before any JS has painted over it (see paintAssetSpot, which
+// always records the real value in data-dry-value afterwards).
 function readAssetAttr(el: HTMLElement): string | null {
-  return el.tagName === 'A' ? el.getAttribute('href') : el.getAttribute('src');
+  return el.getAttribute(nativeAssetAttr(el));
 }
 
 // Reads one image/file/text spot's current live value off the DOM.
@@ -238,16 +254,18 @@ function makeEditableIfEditing(el: HTMLElement): void {
 // a recognized kind, turning the *whole wrapper's* text into one big
 // contenteditable blob instead of leaving its individual sub-field spots
 // alone.
-function paintObjectItem(
+async function paintObjectItem(
   item: HTMLElement,
   key: string,
   i: number,
-  obj: Record<string, unknown>
-): void {
+  obj: Record<string, unknown>,
+  resolveBlobs = false
+): Promise<void> {
   if (item.getAttribute('data-dry-kind') === 'object') {
     item.setAttribute('data-dry', `${key}.${i}`);
   }
   const itemPrefix = `${key}.`;
+  const paints: Promise<void>[] = [];
   item.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
     const k = el.getAttribute('data-dry');
     if (!k || !k.startsWith(itemPrefix)) return;
@@ -263,13 +281,15 @@ function paintObjectItem(
     if (sub.includes('.')) return; // only leaf (one-level) sub-fields are painted
     const value = obj?.[sub];
     if (isAssetSpot(el)) {
-      revokeAssetObjectUrl(subKey);
-      paintAssetSpot(el, typeof value === 'string' ? value : '');
+      paints.push(
+        paintAssetValue(el, subKey, typeof value === 'string' ? value : '', resolveBlobs)
+      );
     } else {
       el.textContent = value == null ? '' : String(value);
       makeEditableIfEditing(el);
     }
   });
+  await Promise.all(paints);
 }
 
 // Revokes any object URLs held by an object item's image/file sub-field spots
@@ -289,10 +309,16 @@ function revokeObjectItemAssets(item: HTMLElement): void {
 // framework-agnostic: no VDOM diffing, just direct DOM surgery on whatever
 // markup the page author wrote. `values` is string[] for array-of-primitive,
 // object[] for array-of-object (see getArrayElementKind).
-function renderArray(container: HTMLElement, key: string, values: unknown[]): void {
+async function renderArray(
+  container: HTMLElement,
+  key: string,
+  values: unknown[],
+  resolveBlobs = false
+): Promise<void> {
   const items = captureArrayTemplate(container, key);
   const template = arrayTemplates.get(key);
   const kind = getArrayElementKind(container, key);
+  const paints: Promise<void>[] = [];
   for (let i = 0; i < values.length; i++) {
     let el = items[i];
     if (!el) {
@@ -302,7 +328,9 @@ function renderArray(container: HTMLElement, key: string, values: unknown[]): vo
       items[i] = el;
     }
     if (kind === 'object') {
-      paintObjectItem(el, key, i, (values[i] ?? {}) as Record<string, unknown>);
+      paints.push(
+        paintObjectItem(el, key, i, (values[i] ?? {}) as Record<string, unknown>, resolveBlobs)
+      );
       continue;
     }
     const itemKey = `${key}.${i}`;
@@ -310,19 +338,19 @@ function renderArray(container: HTMLElement, key: string, values: unknown[]): vo
     // descendant inside author-supplied wrapper markup — see collectDrySpots.
     const spot = collectDrySpots(el, `${key}.`)[0] ?? el;
     spot.setAttribute('data-dry', itemKey);
-    if (kind === 'image' || kind === 'file') {
-      revokeAssetObjectUrl(itemKey);
-      paintAssetSpot(spot, (values[i] as string) ?? '');
+    if (isAssetKind(kind)) {
+      paints.push(paintAssetValue(spot, itemKey, (values[i] as string) ?? '', resolveBlobs));
     } else {
       spot.textContent = (values[i] as string) ?? '';
       makeEditableIfEditing(spot);
     }
   }
   for (let i = values.length; i < items.length; i++) {
-    if (kind === 'image' || kind === 'file') revokeAssetObjectUrl(`${key}.${i}`);
+    if (isAssetKind(kind)) revokeAssetObjectUrl(`${key}.${i}`);
     else if (kind === 'object') revokeObjectItemAssets(items[i]);
     items[i].remove();
   }
+  await Promise.all(paints);
 }
 
 // Reads a fields.array field's current live value straight off the DOM
@@ -346,16 +374,16 @@ function handleInput(e: Event) {
 // Registered by the toolbar once its admin-provider boundary is ready —
 // clicking an image/file spot in edit mode opens the same file-manager
 // picker the admin's fields.image/fields.file input uses, rather than making
-// the spot contenteditable.
-let onImageSpotClickCallback: ((key: string) => void) | undefined;
-let onFileSpotClickCallback: ((key: string) => void) | undefined;
+// the spot contenteditable. Keyed by data-dry-kind so a future asset kind
+// only needs a new map entry, not a parallel var/setter/branch.
+const assetSpotClickCallbacks: Partial<Record<'image' | 'file', (key: string) => void>> = {};
 
 export function setImageSpotClickHandler(cb: ((key: string) => void) | undefined) {
-  onImageSpotClickCallback = cb;
+  assetSpotClickCallbacks.image = cb;
 }
 
 export function setFileSpotClickHandler(cb: ((key: string) => void) | undefined) {
-  onFileSpotClickCallback = cb;
+  assetSpotClickCallbacks.file = cb;
 }
 
 function handleAssetSpotClick(e: MouseEvent) {
@@ -363,15 +391,10 @@ function handleAssetSpotClick(e: MouseEvent) {
   if (!el) return;
   const key = el.getAttribute('data-dry');
   if (!key) return;
-  if (isImageSpot(el)) {
-    e.preventDefault();
-    onImageSpotClickCallback?.(key);
-    return;
-  }
-  if (isFileSpot(el)) {
-    e.preventDefault();
-    onFileSpotClickCallback?.(key);
-  }
+  const kind = el.getAttribute('data-dry-kind');
+  if (kind !== 'image' && kind !== 'file') return;
+  e.preventDefault();
+  assetSpotClickCallbacks[kind]?.(key);
 }
 
 export function isEditing() {
@@ -394,10 +417,19 @@ export function enableEditing(onChange?: () => void) {
   document.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
     const key = el.getAttribute('data-dry');
     if (isAssetSpot(el)) {
-      // No pending edit was painted here, so the current native attribute
-      // (src/href) is the on-disk value — safe to snapshot now as the diff
+      // No pending edit was painted here yet, so the current value (prefers
+      // SSR's data-dry-value — see dry.ts's assetValue — over the native
+      // src/href, which may just be author-supplied placeholder markup for
+      // the empty case) is the on-disk value — safe to snapshot as the diff
       // baseline.
-      if (key) rememberOriginal(key, readAssetAttr(el) ?? '');
+      const value = readSpotValue(el);
+      if (key) rememberOriginal(key, value);
+      // An empty asset spot is `hidden` server-side (see dry.ts/paintAssetSpot)
+      // so regular visitors never see a dead link/broken image — but that
+      // would also make it unclickable here, leaving no way to set a first
+      // value via VEI. Reveal it for the duration of edit mode instead;
+      // disableEditing re-hides it below if it's still empty on exit.
+      if (!value) el.hidden = false;
       return;
     }
     if (isArraySpot(el)) {
@@ -427,7 +459,12 @@ export function disableEditing() {
   editing = false;
   document.body.classList.remove('editing', 'dry-anim-ready');
   document.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
-    if (isAssetSpot(el)) return;
+    if (isAssetSpot(el)) {
+      // Re-hide any spot enableEditing revealed for editing that's still
+      // empty, so a regular (non-editing) view doesn't show it.
+      if (!readSpotValue(el)) el.hidden = true;
+      return;
+    }
     if (isArraySpot(el)) return;
     if (isObjectItemSpot(el)) return;
     el.removeAttribute('contenteditable');
@@ -488,20 +525,64 @@ function revokeAssetObjectUrl(key: string): void {
 // Paints an image/file spot's `src`/`href` and records the real value (never
 // a blob: preview URL) in `data-dry-value` — the native attribute alone isn't
 // a reliable read-back source once a pending-blob preview has been painted
-// over it (see applyEdit below), but array items need to read *some*
-// attribute off the DOM to reconstruct their container's current value (see
-// readArrayValues), so this is the one place that intentionally survives a
-// blob-URL repaint.
-function paintAssetSpot(el: HTMLElement, value: string): void {
+// over it, but array items need to read *some* attribute off the DOM to
+// reconstruct their container's current value (see readArrayValues), so this
+// is the one place that intentionally survives a blob-URL repaint.
+//
+// `key` revokes this spot's previous object URL (if any) before painting —
+// callers no longer do this themselves, so a blob preview (`blob`, a locally
+// cached pending upload's bytes — see putPendingBlob/getPendingBlob) never
+// needs the caller to also manage `assetObjectUrls`.
+function paintAssetSpot(el: HTMLElement, key: string, value: string, blob?: Uint8Array): void {
+  revokeAssetObjectUrl(key);
   el.removeAttribute('srcset');
-  el.hidden = !value;
-  const attr = el.tagName === 'A' ? 'href' : 'src';
-  if (value) {
-    el.setAttribute(attr, value);
-    el.setAttribute('data-dry-value', value);
-  } else {
+  // Stays visible while editing even when empty, so it's still clickable to
+  // set a first value (e.g. right after a Reset/discard lands back on empty
+  // while edit mode is still on) — enableEditing/disableEditing handle the
+  // same visibility for spots this function never repaints (the initial SSR
+  // state on mode entry/exit).
+  el.hidden = !value && !editing;
+  const attr = nativeAssetAttr(el);
+  if (!value) {
+    // Clear the native attribute too, not just data-dry-value — readSpotValue
+    // falls back to readAssetAttr() (the native src/href) whenever
+    // data-dry-value is absent, so a stale href/src left in place here would
+    // make a cleared array-of-object file/image sub-field reappear as
+    // "already selected" the next time the array dialog re-reads the DOM
+    // (getArrayValueFromDom → readObjectItem → readSpotValue).
+    el.removeAttribute(attr);
     el.removeAttribute('data-dry-value');
+    return;
   }
+  // `data-dry-value` always records `value` itself (the real path), even
+  // when `src`/`href` is about to be overwritten with a local blob: preview.
+  el.setAttribute('data-dry-value', value);
+  if (blob) {
+    const url = URL.createObjectURL(new Blob([blob]));
+    assetObjectUrls.set(key, url);
+    el.setAttribute(attr, url);
+  } else {
+    el.setAttribute(attr, value);
+  }
+}
+
+// Resolves `value`'s pending-blob preview (a freshly picked/uploaded file's
+// bytes, cached locally since it isn't guaranteed servable at its real path
+// yet — github mode needs a deploy to catch up) when `resolveBlobs` is true,
+// then paints it the same way applyEdit's single-field path already does.
+// `resolveBlobs` is false for callers whose values are always real,
+// already-servable paths (paintFetchedValue, revertFieldToOriginal) — no
+// blob lookup needed there, and skipping it keeps this a plain synchronous
+// paint for them (no `await` is ever reached, so nothing needs to change at
+// those call sites beyond passing `key`).
+async function paintAssetValue(
+  el: HTMLElement,
+  key: string,
+  value: string,
+  resolveBlobs: boolean
+): Promise<void> {
+  const blob = resolveBlobs && value ? await getPendingBlob(value) : undefined;
+  paintAssetSpot(el, key, value, blob);
 }
 
 // Paints a value fetched straight from source (never a pending edit — see
@@ -526,8 +607,7 @@ function paintFetchedValue(
 ): void {
   resetOriginalValue(key, value);
   if (isAssetSpot(el)) {
-    revokeAssetObjectUrl(key);
-    paintAssetSpot(el, value);
+    paintAssetSpot(el, key, value);
     return;
   }
   if (isArraySpot(el)) {
@@ -627,8 +707,7 @@ export function revertFieldToOriginal(key: string): void {
     .querySelectorAll<HTMLElement>(`[data-dry="${CSS.escape(key)}"]`)
     .forEach(el => {
       if (isAssetSpot(el)) {
-        revokeAssetObjectUrl(key);
-        paintAssetSpot(el, original);
+        paintAssetSpot(el, key, original);
         return;
       }
       if (isArraySpot(el)) {
@@ -675,42 +754,30 @@ export async function applyEdit(key: string, value: string): Promise<void> {
   if (Array.from(els).some(isAssetSpot) && value) {
     blob = await getPendingBlob(value);
   }
+  const pending: Promise<void>[] = [];
   els.forEach(el => {
     if (isAssetSpot(el)) {
-      // Capture the on-disk value before overwriting it with the pending edit.
-      rememberOriginal(key, readAssetAttr(el) ?? '');
-      revokeAssetObjectUrl(key);
-      el.removeAttribute('srcset');
-      el.hidden = !value;
-      if (!value) {
-        el.removeAttribute('data-dry-value');
-        return;
-      }
-      // `data-dry-value` always records `value` itself (the real path), even
-      // when `src`/`href` is about to be overwritten with a local blob:
-      // preview — see paintAssetSpot/readArrayValues for why the two can't
-      // be the same attribute.
-      el.setAttribute('data-dry-value', value);
-      const attr = el.tagName === 'A' ? 'href' : 'src';
-      if (blob) {
-        const url = URL.createObjectURL(new Blob([blob]));
-        assetObjectUrls.set(key, url);
-        el.setAttribute(attr, url);
-      } else {
-        el.setAttribute(attr, value);
-      }
+      // Capture the on-disk value before overwriting it with the pending
+      // edit — prefers data-dry-value over the native src/href, same reason
+      // as enableEditing's baseline capture above.
+      rememberOriginal(key, readSpotValue(el));
+      paintAssetSpot(el, key, value, blob);
       return;
     }
     if (isArraySpot(el)) {
       // Capture the on-disk value before overwriting it with the pending edit.
       rememberOriginal(key, JSON.stringify(readArrayValues(el, key)));
       const parsed = parseArrayValue(value);
-      if (parsed) renderArray(el, key, parsed);
+      // resolveBlobs: true — an array/object item's freshly picked file may
+      // not be servable at its real path yet either (same reason as the
+      // asset branch above), so it previews from its own pending blob too.
+      if (parsed) pending.push(renderArray(el, key, parsed, true));
       return;
     }
     rememberOriginal(key, el.textContent ?? '');
     el.textContent = value;
   });
+  await Promise.all(pending);
 }
 
 // Paints the last known fetched-from-source value (see refreshFromLatestSource)

@@ -1,6 +1,7 @@
 import isEqual from 'fast-deep-equal';
 import { ComponentSchema, ObjectField } from '../../form/api';
 import { FieldChange } from './ChangePreviewDialog';
+import { isAssetKind } from '../edit-sync';
 
 function stringifyFieldValue(value: unknown): string {
   if (value === undefined || value === null) return '';
@@ -31,8 +32,7 @@ export function computeFieldChanges(
       field.kind === 'form'
         ? (field as { columnKind?: string }).columnKind
         : undefined;
-    const kind: FieldChange['kind'] =
-      columnKind === 'image' ? 'image' : columnKind === 'file' ? 'file' : 'text';
+    const kind: FieldChange['kind'] = isAssetKind(columnKind) ? columnKind : 'text';
     changes.push({
       key,
       label,

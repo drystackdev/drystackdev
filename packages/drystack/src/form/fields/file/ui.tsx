@@ -5,11 +5,12 @@ import { fileCodeIcon } from '@keystar/ui/icon/icons/fileCodeIcon';
 import { Flex, Box } from '@keystar/ui/layout';
 import { Text } from '@keystar/ui/typography';
 
-import { useId, useReducer } from 'react';
+import { useId, useReducer, useState } from 'react';
 import { FormFieldInputProps } from '../../api';
 import { openMediaLibrary } from '../../../app/media-library/bridge';
 import { useMediaLibraryPreviewURL } from '../../../app/media-library/useMediaLibraryPreviewURL';
 import { useEntryDirectoryContext } from '../../../app/entry-form';
+import { useObjectURL } from '../image/ui';
 
 // TODO: button labels ("Choose from library", "Remove", "Download") need i18n support
 export function FileFieldInput(
@@ -21,7 +22,19 @@ export function FileFieldInput(
 ) {
   const { value } = props;
   const [blurred, onBlur] = useReducer(() => true, false);
-  const objectUrl = useMediaLibraryPreviewURL(value);
+  // caches the bytes for a file picked/uploaded in this session, since a
+  // brand new upload isn't in the tree yet — useMediaLibraryPreviewURL
+  // resolves via tree sha and can't find it until the tree next refreshes
+  const [freshUpload, setFreshUpload] = useState<{
+    path: string;
+    content: Uint8Array;
+  } | null>(null);
+  const freshObjectUrl = useObjectURL(
+    freshUpload && freshUpload.path === value ? freshUpload.content : null,
+    undefined
+  );
+  const treeObjectUrl = useMediaLibraryPreviewURL(value);
+  const objectUrl = freshObjectUrl ?? treeObjectUrl;
   const entryDirectory = useEntryDirectoryContext();
   const labelId = useId();
   const descriptionId = useId();
@@ -56,6 +69,7 @@ export function FileFieldInput(
             });
             onBlur();
             if (picked) {
+              setFreshUpload({ path: picked.path, content: picked.content });
               props.onChange(picked.path);
             }
           }}
@@ -67,6 +81,7 @@ export function FileFieldInput(
             <ActionButton
               prominence="low"
               onPress={() => {
+                setFreshUpload(null);
                 props.onChange(null);
                 onBlur();
               }}

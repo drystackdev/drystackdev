@@ -8,6 +8,7 @@ import { loadDataFile } from '@drystack/core/required-files';
 import { dump } from '@drystack/core/yaml';
 import {
   getSyncableFieldKind,
+  isAssetKind,
   type SyncableFieldKind,
 } from '@drystack/core/edit-sync';
 import { clientSideValidateProp } from '@drystack/core/field-editor';
@@ -269,10 +270,7 @@ function mergeFieldEdits(
         fields: Record<string, ComponentSchema>;
       }).fields;
       const assetSubs = Object.entries(subFields)
-        .filter(([, s]) => {
-          const k = getSyncableFieldKind(s);
-          return k === 'image' || k === 'file';
-        })
+        .filter(([, s]) => isAssetKind(getSyncableFieldKind(s)))
         .map(([k]) => k);
       return base.map(item => {
         if (typeof item !== 'object' || item === null) return item;
@@ -346,7 +344,7 @@ async function collectFileDiffs(
       // the value is null (see form/fields/image|file/index.tsx) — mirror
       // that here so a cleared image/file doesn't get written back as
       // `field: ''`.
-      const isAsset = kind === 'image' || kind === 'file';
+      const isAsset = isAssetKind(kind);
       if (isAsset && merged === '') {
         delete data[baseField];
       } else {

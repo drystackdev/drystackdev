@@ -1,11 +1,12 @@
 import type { Collection, Config, ComponentSchema, Singleton } from '@drystack/core';
 import type { EntryWithResolvedLinkedFiles } from '@drystack/core/reader';
-import { getSyncableFieldKind } from '@drystack/core/edit-sync';
+import { getSyncableFieldKind, isAssetKind } from '@drystack/core/edit-sync';
 import { createConfiguredReader } from './reader';
 
 export type DryItem = {
   'data-dry': string;
   'data-dry-kind': 'text' | 'image' | 'file' | 'array' | 'object';
+  'data-dry-value'?: string;
 };
 
 type SchemaOf<S> = S extends Singleton<infer Schema> ? Schema : never;
@@ -64,6 +65,17 @@ export function dry<
   return { singleton };
 }
 
+// fields.image/fields.file store `string | null`. Rendered into
+// `data-dry-value` so bind.ts's readSpotValue (editor/bind.ts) never has to
+// fall back to the element's native src/href to know the real value — a page
+// author's own placeholder markup for the "empty" case (e.g. `href={obj.file
+// ?? '#'}`, see Demo.astro) would otherwise be misread as a real, selected
+// file. Always a string (never undefined) so the attribute is present even
+// when empty, matching how bind.ts paints it after a client-side edit.
+function assetValue(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
 async function readSingleton(
   config: Config<any, any>,
   reader: Awaited<ReturnType<typeof createConfiguredReader>>,
@@ -98,7 +110,14 @@ async function readSingleton(
           );
           return {};
         }
-        return { 'data-dry': `singleton::${name}::${field}`, 'data-dry-kind': kind };
+        const attrs: DryItem = {
+          'data-dry': `singleton::${name}::${field}`,
+          'data-dry-kind': kind,
+        };
+        if (isAssetKind(kind)) {
+          attrs['data-dry-value'] = assetValue(entry[field]);
+        }
+        return attrs;
       }
 
       // Nested paths only index into a fields.array (one item deep, then at
@@ -118,10 +137,18 @@ async function readSingleton(
       if (rest.length === 1) {
         const elementKind = getSyncableFieldKind(element);
         if (elementKind === 'text' || elementKind === 'image' || elementKind === 'file') {
-          return {
+          const attrs: DryItem = {
             'data-dry': `singleton::${name}::${field}`,
             'data-dry-kind': elementKind,
           };
+          if (isAssetKind(elementKind)) {
+            const arr = entry[baseField];
+            const idx = Number(rest[0]);
+            attrs['data-dry-value'] = assetValue(
+              Array.isArray(arr) ? arr[idx] : undefined
+            );
+          }
+          return attrs;
         }
         if (element.kind === 'object') {
           return { 'data-dry': `singleton::${name}::${field}`, 'data-dry-kind': 'object' };
@@ -150,7 +177,21 @@ async function readSingleton(
         );
         return {};
       }
-      return { 'data-dry': `singleton::${name}::${field}`, 'data-dry-kind': subKind };
+      const attrs: DryItem = {
+        'data-dry': `singleton::${name}::${field}`,
+        'data-dry-kind': subKind,
+      };
+      if (isAssetKind(subKind)) {
+        const arr = entry[baseField];
+        const idx = Number(rest[0]);
+        const objItem = Array.isArray(arr) ? arr[idx] : undefined;
+        attrs['data-dry-value'] = assetValue(
+          objItem && typeof objItem === 'object'
+            ? (objItem as Record<string, unknown>)[subField]
+            : undefined
+        );
+      }
+      return attrs;
     },
   });
   return result;
