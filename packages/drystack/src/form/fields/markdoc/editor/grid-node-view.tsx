@@ -336,13 +336,13 @@ const cellClass = css({
 const CORNER_HANDLE_SIZE = 24;
 
 // bottom-right corner grip — dragging it resizes both the column span
-// (horizontal) and row span (vertical) in one gesture. Centered on the
-// cell's corner point (offset by half its own size) rather than floating
-// out in the gap, so it reads as attached to the corner.
+// (horizontal) and row span (vertical) in one gesture. Sits just inside the
+// cell's corner (a small inset from each edge) rather than straddling it, so
+// the icon reads as fully contained in the item instead of spilling out.
 const resizeHandleClass = css({
   position: "absolute",
-  insetInlineEnd: -(CORNER_HANDLE_SIZE / 2),
-  insetBlockEnd: -(CORNER_HANDLE_SIZE / 2),
+  insetInlineEnd: 1,
+  insetBlockEnd: 1,
   width: CORNER_HANDLE_SIZE,
   height: CORNER_HANDLE_SIZE,
   display: "flex",

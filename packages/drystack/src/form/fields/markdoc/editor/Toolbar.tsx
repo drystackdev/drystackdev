@@ -1,7 +1,7 @@
-import { setBlockType, toggleMark, wrapIn } from 'prosemirror-commands';
-import { MarkType, NodeType } from 'prosemirror-model';
-import { Command, EditorState, TextSelection } from 'prosemirror-state';
-import { liftTarget } from 'prosemirror-transform';
+import { setBlockType, toggleMark, wrapIn } from "prosemirror-commands";
+import { MarkType, NodeType } from "prosemirror-model";
+import { Command, EditorState, TextSelection } from "prosemirror-state";
+import { liftTarget } from "prosemirror-transform";
 import {
   HTMLAttributes,
   ReactElement,
@@ -9,63 +9,64 @@ import {
   memo,
   useMemo,
   useState,
-} from 'react';
+} from "react";
 
-import { ActionButton } from '@keystar/ui/button';
+import { ActionButton } from "@keystar/ui/button";
 import {
   EditorToolbar,
   EditorToolbarButton,
   EditorToolbarGroup,
   EditorToolbarItem,
   EditorToolbarSeparator,
-} from '@keystar/ui/editor';
-import { Icon } from '@keystar/ui/icon';
-import { alignCenterIcon } from '@keystar/ui/icon/icons/alignCenterIcon';
-import { alignJustifyIcon } from '@keystar/ui/icon/icons/alignJustifyIcon';
-import { alignLeftIcon } from '@keystar/ui/icon/icons/alignLeftIcon';
-import { alignRightIcon } from '@keystar/ui/icon/icons/alignRightIcon';
-import { boldIcon } from '@keystar/ui/icon/icons/boldIcon';
-import { chevronDownIcon } from '@keystar/ui/icon/icons/chevronDownIcon';
-import { codeIcon } from '@keystar/ui/icon/icons/codeIcon';
-import { italicIcon } from '@keystar/ui/icon/icons/italicIcon';
-import { listIcon } from '@keystar/ui/icon/icons/listIcon';
-import { listOrderedIcon } from '@keystar/ui/icon/icons/listOrderedIcon';
-import { minusIcon } from '@keystar/ui/icon/icons/minusIcon';
-import { plusIcon } from '@keystar/ui/icon/icons/plusIcon';
-import { quoteIcon } from '@keystar/ui/icon/icons/quoteIcon';
-import { removeFormattingIcon } from '@keystar/ui/icon/icons/removeFormattingIcon';
-import { strikethroughIcon } from '@keystar/ui/icon/icons/strikethroughIcon';
-import { tableIcon } from '@keystar/ui/icon/icons/tableIcon';
-import { columnsIcon } from '@keystar/ui/icon/icons/columnsIcon';
-import { underlineIcon } from '@keystar/ui/icon/icons/underlineIcon';
-import { MenuTrigger, Menu } from '@keystar/ui/menu';
-import { Picker, Item } from '@keystar/ui/picker';
-import { breakpointQueries, css, tokenSchema } from '@keystar/ui/style';
-import { Tooltip, TooltipTrigger } from '@keystar/ui/tooltip';
-import { Text, Kbd } from '@keystar/ui/typography';
+} from "@keystar/ui/editor";
+import { Icon } from "@keystar/ui/icon";
+import { alignCenterIcon } from "@keystar/ui/icon/icons/alignCenterIcon";
+import { alignJustifyIcon } from "@keystar/ui/icon/icons/alignJustifyIcon";
+import { alignLeftIcon } from "@keystar/ui/icon/icons/alignLeftIcon";
+import { alignRightIcon } from "@keystar/ui/icon/icons/alignRightIcon";
+import { boldIcon } from "@keystar/ui/icon/icons/boldIcon";
+import { chevronDownIcon } from "@keystar/ui/icon/icons/chevronDownIcon";
+import { codeIcon } from "@keystar/ui/icon/icons/codeIcon";
+import { italicIcon } from "@keystar/ui/icon/icons/italicIcon";
+import { listIcon } from "@keystar/ui/icon/icons/listIcon";
+import { listOrderedIcon } from "@keystar/ui/icon/icons/listOrderedIcon";
+import { minusIcon } from "@keystar/ui/icon/icons/minusIcon";
+import { plusIcon } from "@keystar/ui/icon/icons/plusIcon";
+import { quoteIcon } from "@keystar/ui/icon/icons/quoteIcon";
+import { removeFormattingIcon } from "@keystar/ui/icon/icons/removeFormattingIcon";
+import { strikethroughIcon } from "@keystar/ui/icon/icons/strikethroughIcon";
+import { tableIcon } from "@keystar/ui/icon/icons/tableIcon";
+import { columnsIcon } from "@keystar/ui/icon/icons/columnsIcon";
+import { underlineIcon } from "@keystar/ui/icon/icons/underlineIcon";
+import { MenuTrigger, Menu } from "@keystar/ui/menu";
+import { Picker, Item } from "@keystar/ui/picker";
+import { breakpointQueries, css, tokenSchema } from "@keystar/ui/style";
+import { Tooltip, TooltipTrigger } from "@keystar/ui/tooltip";
+import { Text, Kbd } from "@keystar/ui/typography";
 
 import {
   useEditorDispatchCommand,
   useEditorSchema,
   useEditorState,
   useEditorViewRef,
-} from './editor-view';
-import { toggleList } from './lists';
-import { insertNode, insertTable, toggleCodeBlock } from './commands/misc';
-import { insertGrid } from './grid';
-import { EditorSchema } from './schema';
-import { ImageToolbarButton } from './images';
-import { useEntryLayoutSplitPaneContext } from '../../../../app/entry-form';
-import { itemRenderer } from './autocomplete/insert-menu';
-import { LinkDialog } from './popovers/link-toolbar';
-import { DialogContainer } from '@keystar/ui/dialog';
-import { linkIcon } from '@keystar/ui/icon/icons/linkIcon';
-import { markAround } from './popovers';
-import { useEditorKeydownListener } from './keydown';
+} from "./editor-view";
+import { toggleList } from "./lists";
+import { insertNode, insertTable, toggleCodeBlock } from "./commands/misc";
+import { insertGrid } from "./grid";
+import { EditorSchema } from "./schema";
+import { ImageToolbarButton } from "./images";
+import { useEntryLayoutSplitPaneContext } from "../../../../app/entry-form";
+import { itemRenderer } from "./autocomplete/insert-menu";
+import { LinkDialog } from "./popovers/link-toolbar";
+import { DialogContainer } from "@keystar/ui/dialog";
+import { linkIcon } from "@keystar/ui/icon/icons/linkIcon";
+import { markAround } from "./popovers";
+import { useEditorKeydownListener } from "./keydown";
+import { gridInsertIcon } from "#icons/gridInsertIcon";
 
 export function ToolbarButton(props: {
   children: ReactNode;
-  'aria-label': string;
+  "aria-label": string;
   isSelected?: (editorState: EditorState) => boolean;
   isDisabled?: (editorState: EditorState) => boolean;
   command: Command;
@@ -77,7 +78,7 @@ export function ToolbarButton(props: {
   return useMemo(
     () => (
       <EditorToolbarButton
-        aria-label={props['aria-label']}
+        aria-label={props["aria-label"]}
         isSelected={isSelected}
         isDisabled={isDisabled}
         onPress={() => {
@@ -87,7 +88,7 @@ export function ToolbarButton(props: {
         {props.children}
       </EditorToolbarButton>
     ),
-    [isDisabled, isSelected, props, runCommand]
+    [isDisabled, isSelected, props, runCommand],
   );
 }
 
@@ -95,13 +96,13 @@ function LinkButton(props: { link: MarkType }) {
   const [text, setText] = useState<null | string>(null);
   const runCommand = useEditorDispatchCommand();
   const viewRef = useEditorViewRef();
-  useEditorKeydownListener(event => {
-    if (event.metaKey && (event.key === 'k' || event.key === 'K')) {
+  useEditorKeydownListener((event) => {
+    if (event.metaKey && (event.key === "k" || event.key === "K")) {
       const { state } = viewRef.current!;
       if (!isMarkActive(props.link)(state)) {
         event.preventDefault();
         setText(
-          state.doc.textBetween(state.selection.from, state.selection.to)
+          state.doc.textBetween(state.selection.from, state.selection.to),
         );
         return true;
       }
@@ -126,8 +127,8 @@ function LinkButton(props: { link: MarkType }) {
                     state.tr.removeMark(
                       aroundFrom.from,
                       aroundTo?.to ?? aroundFrom.to,
-                      props.link
-                    )
+                      props.link,
+                    ),
                   );
                 }
                 return true;
@@ -138,7 +139,7 @@ function LinkButton(props: { link: MarkType }) {
               if (dispatch) {
                 const text = state.doc.textBetween(
                   state.selection.from,
-                  state.selection.to
+                  state.selection.to,
                 );
                 setText(text);
               }
@@ -162,7 +163,7 @@ function LinkButton(props: { link: MarkType }) {
             <LinkDialog
               href=""
               text={text}
-              onSubmit={attrs => {
+              onSubmit={(attrs) => {
                 setText(null);
                 runCommand(toggleMark(props.link, attrs));
               }}
@@ -171,12 +172,12 @@ function LinkButton(props: { link: MarkType }) {
         </DialogContainer>
       </>
     ),
-    [props.link, runCommand, text]
+    [props.link, runCommand, text],
   );
 }
 
 export const Toolbar = memo(function Toolbar(
-  props: HTMLAttributes<HTMLDivElement>
+  props: HTMLAttributes<HTMLDivElement>,
 ) {
   const schema = useEditorSchema();
   const { nodes, marks, config } = schema;
@@ -223,7 +224,7 @@ export const Toolbar = memo(function Toolbar(
                       const { $from, $to } = state.selection;
                       const range = $from.blockRange(
                         $to,
-                        node => node.type === nodes.blockquote
+                        (node) => node.type === nodes.blockquote,
                       );
                       if (!range) return false;
                       const target = liftTarget(range);
@@ -242,7 +243,7 @@ export const Toolbar = memo(function Toolbar(
                 </ToolbarButton>
                 <Tooltip>
                   <Text>Quote</Text>
-                  <Kbd>{'>⎵'}</Kbd>
+                  <Kbd>{">⎵"}</Kbd>
                 </Tooltip>
               </TooltipTrigger>
             )}
@@ -280,7 +281,7 @@ export const Toolbar = memo(function Toolbar(
                   aria-label="Grid"
                   command={insertGrid(nodes.grid)}
                 >
-                  <Icon src={columnsIcon} />
+                  <Icon src={gridInsertIcon} />
                 </ToolbarButton>
                 <Tooltip>
                   <Text>Grid</Text>
@@ -303,9 +304,9 @@ const ToolbarContainer = ({ children }: { children: ReactNode }) => {
     <div
       data-layout={entryLayoutPane}
       className={css({
-        alignItems: 'center',
-        boxSizing: 'border-box',
-        display: 'flex',
+        alignItems: "center",
+        boxSizing: "border-box",
+        display: "flex",
         height: tokenSchema.size.element.medium,
 
         [breakpointQueries.above.mobile]: {
@@ -313,7 +314,7 @@ const ToolbarContainer = ({ children }: { children: ReactNode }) => {
         },
 
         '&[data-layout="main"]': {
-          marginInline: 'auto',
+          marginInline: "auto",
           maxWidth: 800,
           minWidth: 0,
           paddingInline: tokenSchema.size.space.medium,
@@ -338,14 +339,14 @@ const ToolbarWrapper = (props: HTMLAttributes<HTMLDivElement>) => {
       {...props}
       data-layout={entryLayoutPane}
       className={css({
-        backdropFilter: 'blur(8px)',
-        backgroundClip: 'padding-box',
+        backdropFilter: "blur(8px)",
+        backgroundClip: "padding-box",
         backgroundColor: `color-mix(in srgb, transparent, ${tokenSchema.color.background.canvas} 90%)`,
         borderBottom: `${tokenSchema.size.border.regular} solid color-mix(in srgb, transparent, ${tokenSchema.color.foreground.neutral} 10%)`,
         borderStartEndRadius: tokenSchema.size.radius.medium,
         borderStartStartRadius: tokenSchema.size.radius.medium,
         minWidth: 0,
-        position: 'sticky',
+        position: "sticky",
         top: 0,
         zIndex: 2,
 
@@ -363,22 +364,22 @@ const ToolbarScrollArea = (props: { children: ReactNode }) => {
     <div
       data-layout={entryLayoutPane}
       className={css({
-        alignItems: 'center',
-        display: 'flex',
+        alignItems: "center",
+        display: "flex",
         flex: 1,
         gap: tokenSchema.size.space.regular,
         paddingInline: tokenSchema.size.space.medium,
         minWidth: 0,
-        overflowX: 'auto',
+        overflowX: "auto",
 
         // avoid cropping focus rings
         marginBlock: `calc(${tokenSchema.size.alias.focusRing} * -1)`,
         paddingBlock: tokenSchema.size.alias.focusRing,
 
         // hide scrollbars
-        msOverflowStyle: 'none', // for Internet Explorer, Edge
-        scrollbarWidth: 'none', // for Firefox
-        '&::-webkit-scrollbar': { display: 'none' }, // for Chrome, Safari, and Opera
+        msOverflowStyle: "none", // for Internet Explorer, Edge
+        scrollbarWidth: "none", // for Firefox
+        "&::-webkit-scrollbar": { display: "none" }, // for Chrome, Safari, and Opera
 
         '&[data-layout="main"]': {
           paddingInline: 0,
@@ -388,15 +389,15 @@ const ToolbarScrollArea = (props: { children: ReactNode }) => {
     />
   );
 };
-type HeadingState = 'normal' | 1 | 2 | 3 | 4 | 5 | 6;
+type HeadingState = "normal" | 1 | 2 | 3 | 4 | 5 | 6;
 const headingMenuVals = new Map<string | number, HeadingState>([
-  ['normal', 'normal'],
-  ['1', 1],
-  ['2', 2],
-  ['3', 3],
-  ['4', 4],
-  ['5', 5],
-  ['6', 6],
+  ["normal", "normal"],
+  ["1", 1],
+  ["2", 2],
+  ["3", 3],
+  ["4", 4],
+  ["5", 5],
+  ["6", 6],
 ]);
 
 type HeadingItem = { name: string; id: string | number };
@@ -404,39 +405,39 @@ type HeadingItem = { name: string; id: string | number };
 function getHeadingMenuState(
   state: EditorState,
   headingType: NodeType,
-  paragraphType: NodeType
-): HeadingState | 'disabled' {
-  let activeLevel: HeadingState | 'disabled' | undefined;
+  paragraphType: NodeType,
+): HeadingState | "disabled" {
+  let activeLevel: HeadingState | "disabled" | undefined;
   for (const range of state.selection.ranges) {
-    state.doc.nodesBetween(range.$from.pos, range.$to.pos, node => {
+    state.doc.nodesBetween(range.$from.pos, range.$to.pos, (node) => {
       if (node.type === headingType) {
         const level = node.attrs.level;
         if (activeLevel === undefined) {
           activeLevel = level;
         } else if (activeLevel !== level) {
-          activeLevel = 'disabled';
+          activeLevel = "disabled";
         }
       }
       if (node.type === paragraphType) {
         if (activeLevel === undefined) {
-          activeLevel = 'normal';
-        } else if (activeLevel !== 'normal') {
-          activeLevel = 'disabled';
+          activeLevel = "normal";
+        } else if (activeLevel !== "normal") {
+          activeLevel = "disabled";
         }
       }
     });
-    if (activeLevel === 'disabled') {
+    if (activeLevel === "disabled") {
       break;
     }
   }
-  return activeLevel ?? 'disabled';
+  return activeLevel ?? "disabled";
 }
 
 const HeadingMenu = (props: { headingType: NodeType }) => {
   const { nodes, config } = useEditorSchema();
   const items = useMemo(() => {
-    let resolvedItems: HeadingItem[] = [{ name: 'Paragraph', id: 'normal' }];
-    config.heading.levels.forEach(level => {
+    let resolvedItems: HeadingItem[] = [{ name: "Paragraph", id: "normal" }];
+    config.heading.levels.forEach((level) => {
       resolvedItems.push({ name: `Heading ${level}`, id: level.toString() });
     });
     return resolvedItems;
@@ -445,7 +446,7 @@ const HeadingMenu = (props: { headingType: NodeType }) => {
   const menuState = getHeadingMenuState(
     state,
     props.headingType,
-    nodes.paragraph
+    nodes.paragraph,
   );
   const runCommand = useEditorDispatchCommand();
 
@@ -457,25 +458,25 @@ const HeadingMenu = (props: { headingType: NodeType }) => {
         prominence="low"
         aria-label="Text block"
         items={items}
-        isDisabled={menuState === 'disabled'}
-        selectedKey={menuState === 'disabled' ? 'normal' : menuState.toString()}
-        onSelectionChange={selected => {
+        isDisabled={menuState === "disabled"}
+        selectedKey={menuState === "disabled" ? "normal" : menuState.toString()}
+        onSelectionChange={(selected) => {
           let key = headingMenuVals.get(selected!);
-          if (key === 'normal') {
+          if (key === "normal") {
             runCommand(setBlockType(nodes.paragraph));
           } else if (key) {
             runCommand(
               setBlockType(props.headingType, {
                 level: parseInt(key as any),
-              })
+              }),
             );
           }
         }}
       >
-        {item => <Item key={item.id}>{item.name}</Item>}
+        {(item) => <Item key={item.id}>{item.name}</Item>}
       </Picker>
     ),
-    [items, menuState, nodes.paragraph, props.headingType, runCommand]
+    [items, menuState, nodes.paragraph, props.headingType, runCommand],
   );
 };
 
@@ -486,12 +487,12 @@ function InsertBlockMenu() {
   const schema = useEditorSchema();
 
   const items = useMemo(
-    () => schema.insertMenuItems.filter(x => x.forToolbar),
-    [schema.insertMenuItems]
+    () => schema.insertMenuItems.filter((x) => x.forToolbar),
+    [schema.insertMenuItems],
   );
   const idToItem = useMemo(
-    () => new Map(items.map(item => [item.id, item])),
-    [items]
+    () => new Map(items.map((item) => [item.id, item])),
+    [items],
   );
 
   if (items.length === 0) {
@@ -502,7 +503,7 @@ function InsertBlockMenu() {
     <MenuTrigger align="end">
       <TooltipTrigger>
         <ActionButton
-          marginEnd={entryLayoutPane === 'main' ? undefined : 'medium'}
+          marginEnd={entryLayoutPane === "main" ? undefined : "medium"}
         >
           <Icon src={plusIcon} />
           <Icon src={chevronDownIcon} />
@@ -513,7 +514,7 @@ function InsertBlockMenu() {
         </Tooltip>
       </TooltipTrigger>
       <Menu
-        onAction={id => {
+        onAction={(id) => {
           const command = idToItem.get(id as string)?.command;
           if (command) {
             commandDispatch(command);
@@ -531,7 +532,7 @@ const isMarkActive = (markType: MarkType) => (state: EditorState) => {
   if (state.selection instanceof TextSelection && state.selection.empty) {
     if (!state.selection.$cursor) return false;
     return !!markType.isInSet(
-      state.storedMarks || state.selection.$cursor.marks()
+      state.storedMarks || state.selection.$cursor.marks(),
     );
   }
   for (const range of state.selection.ranges) {
@@ -557,8 +558,8 @@ function InlineMarks() {
     }[] = [];
     if (schema.marks.bold) {
       marks.push({
-        key: 'bold',
-        label: 'Bold',
+        key: "bold",
+        label: "Bold",
         icon: boldIcon,
         shortcut: `B`,
         command: toggleMark(schema.marks.bold),
@@ -568,8 +569,8 @@ function InlineMarks() {
 
     if (schema.marks.italic) {
       marks.push({
-        key: 'italic',
-        label: 'Italic',
+        key: "italic",
+        label: "Italic",
         icon: italicIcon,
         shortcut: `I`,
         command: toggleMark(schema.marks.italic),
@@ -578,8 +579,8 @@ function InlineMarks() {
     }
     if (schema.marks.underline) {
       marks.push({
-        key: 'underline',
-        label: 'Underline',
+        key: "underline",
+        label: "Underline",
         icon: underlineIcon,
         shortcut: `U`,
         command: toggleMark(schema.marks.underline),
@@ -588,8 +589,8 @@ function InlineMarks() {
     }
     if (schema.marks.strikethrough) {
       marks.push({
-        key: 'strikethrough',
-        label: 'Strikethrough',
+        key: "strikethrough",
+        label: "Strikethrough",
         icon: strikethroughIcon,
         command: toggleMark(schema.marks.strikethrough),
         isSelected: isMarkActive(schema.marks.strikethrough),
@@ -597,8 +598,8 @@ function InlineMarks() {
     }
     if (schema.marks.code) {
       marks.push({
-        key: 'code',
-        label: 'Code',
+        key: "code",
+        label: "Code",
         icon: codeIcon,
         command: toggleMark(schema.marks.code),
         isSelected: isMarkActive(schema.marks.code),
@@ -606,7 +607,7 @@ function InlineMarks() {
     }
 
     for (const [name, componentConfig] of Object.entries(schema.components)) {
-      if (componentConfig.kind !== 'mark') continue;
+      if (componentConfig.kind !== "mark") continue;
       marks.push({
         key: name,
         label: componentConfig.label,
@@ -617,8 +618,8 @@ function InlineMarks() {
     }
 
     marks.push({
-      key: 'clearFormatting',
-      label: 'Clear formatting',
+      key: "clearFormatting",
+      label: "Clear formatting",
       icon: removeFormattingIcon,
       command: removeAllMarks(),
       isSelected: () => false,
@@ -626,10 +627,10 @@ function InlineMarks() {
     return marks;
   }, [schema]);
   const selectedKeys = useMemoStringified(
-    inlineMarks.filter(val => val.isSelected(state)).map(val => val.key)
+    inlineMarks.filter((val) => val.isSelected(state)).map((val) => val.key),
   );
   const disabledKeys = useMemoStringified(
-    inlineMarks.filter(val => !val.command(state)).map(val => val.key)
+    inlineMarks.filter((val) => !val.command(state)).map((val) => val.key),
   );
 
   return useMemo(() => {
@@ -637,8 +638,8 @@ function InlineMarks() {
       <EditorToolbarGroup
         aria-label="Text formatting"
         value={selectedKeys}
-        onChange={key => {
-          const mark = inlineMarks.find(mark => mark.key === key);
+        onChange={(key) => {
+          const mark = inlineMarks.find((mark) => mark.key === key);
           if (mark) {
             runCommand(mark.command);
           }
@@ -646,14 +647,14 @@ function InlineMarks() {
         disabledKeys={disabledKeys}
         selectionMode="multiple"
       >
-        {inlineMarks.map(mark => (
+        {inlineMarks.map((mark) => (
           <TooltipTrigger key={mark.key}>
             <EditorToolbarItem value={mark.key} aria-label={mark.label}>
               <Icon src={mark.icon} />
             </EditorToolbarItem>
             <Tooltip>
               <Text>{mark.label}</Text>
-              {'shortcut' in mark && <Kbd meta>{mark.shortcut}</Kbd>}
+              {"shortcut" in mark && <Kbd meta>{mark.shortcut}</Kbd>}
             </Tooltip>
           </TooltipTrigger>
         ))}
@@ -672,9 +673,9 @@ function getActiveListType(state: EditorState, schema: EditorSchema) {
   for (let i = sharedDepth; i > 0; i--) {
     const node = state.selection.$from.node(i);
     if (node.type === schema.nodes.ordered_list) {
-      return 'ordered_list' as const;
+      return "ordered_list" as const;
     } else if (node.type === schema.nodes.unordered_list) {
-      return 'unordered_list' as const;
+      return "unordered_list" as const;
     }
   }
   return null;
@@ -695,15 +696,15 @@ function ListButtons() {
   const items = useMemo(() => {
     return [
       !!schema.nodes.unordered_list && {
-        label: 'Bullet list',
-        key: 'unordered_list',
-        shortcut: '-',
+        label: "Bullet list",
+        key: "unordered_list",
+        shortcut: "-",
         icon: listIcon,
       },
       !!schema.nodes.ordered_list && {
-        label: 'Numbered list',
-        key: 'ordered_list',
-        shortcut: '1.',
+        label: "Numbered list",
+        key: "ordered_list",
+        shortcut: "1.",
         icon: listOrderedIcon,
       },
     ].filter(removeFalse);
@@ -711,8 +712,8 @@ function ListButtons() {
 
   const disabledKeys = useMemo(() => {
     return [
-      !canWrapInOrderedList && 'ordered_list',
-      !canWrapInUnorderedList && 'unordered_list',
+      !canWrapInOrderedList && "ordered_list",
+      !canWrapInUnorderedList && "unordered_list",
     ].filter(removeFalse);
   }, [canWrapInOrderedList, canWrapInUnorderedList]);
 
@@ -725,8 +726,8 @@ function ListButtons() {
       <EditorToolbarGroup
         aria-label="Lists"
         value={activeListType}
-        onChange={key => {
-          const format = key as 'ordered_list' | 'unordered_list';
+        onChange={(key) => {
+          const format = key as "ordered_list" | "unordered_list";
           const type = schema.nodes[format];
           if (type) {
             dispatchCommand(toggleList(type));
@@ -735,7 +736,7 @@ function ListButtons() {
         disabledKeys={disabledKeys}
         selectionMode="single"
       >
-        {items.map(item => (
+        {items.map((item) => (
           <TooltipTrigger key={item.key}>
             <EditorToolbarItem value={item.key} aria-label={item.label}>
               <Icon src={item.icon} />
@@ -755,18 +756,18 @@ function removeFalse<T>(val: T): val is Exclude<T, false> {
   return val !== false;
 }
 
-type TextAlignValue = 'left' | 'center' | 'right' | 'justify';
+type TextAlignValue = "left" | "center" | "right" | "justify";
 
 const TEXT_ALIGN_ITEMS = [
-  { key: 'left', label: 'Align left', icon: alignLeftIcon },
-  { key: 'center', label: 'Align center', icon: alignCenterIcon },
-  { key: 'right', label: 'Align right', icon: alignRightIcon },
-  { key: 'justify', label: 'Justify', icon: alignJustifyIcon },
+  { key: "left", label: "Align left", icon: alignLeftIcon },
+  { key: "center", label: "Align center", icon: alignCenterIcon },
+  { key: "right", label: "Align right", icon: alignRightIcon },
+  { key: "justify", label: "Justify", icon: alignJustifyIcon },
 ] as const;
 
 function nodeSupportsTextAlign(node: { type: NodeType }) {
   const attrs = node.type.spec.attrs;
-  return !!attrs && 'textAlign' in attrs;
+  return !!attrs && "textAlign" in attrs;
 }
 
 // sets the `textAlign` attr on every alignable block (paragraph, heading) that
@@ -801,7 +802,7 @@ function getTextAlignState(state: EditorState): {
   let align: string | null | undefined;
   let found = false;
   let mixed = false;
-  state.doc.nodesBetween(from, to, node => {
+  state.doc.nodesBetween(from, to, (node) => {
     if (nodeSupportsTextAlign(node)) {
       found = true;
       const nodeAlign = (node.attrs.textAlign as string | null) ?? null;
@@ -811,7 +812,7 @@ function getTextAlignState(state: EditorState): {
   });
   if (!found) return { isDisabled: true, selected: null };
   if (mixed) return { isDisabled: false, selected: null };
-  return { isDisabled: false, selected: (align ?? 'left') as TextAlignValue };
+  return { isDisabled: false, selected: (align ?? "left") as TextAlignValue };
 }
 
 // a single icon button (mirroring the active block's current alignment,
@@ -822,9 +823,10 @@ function AlignmentControls() {
   const state = useEditorState();
   const runCommand = useEditorDispatchCommand();
   const { isDisabled, selected } = getTextAlignState(state);
-  const current = selected ?? 'left';
+  const current = selected ?? "left";
   const currentItem =
-    TEXT_ALIGN_ITEMS.find(item => item.key === current) ?? TEXT_ALIGN_ITEMS[0];
+    TEXT_ALIGN_ITEMS.find((item) => item.key === current) ??
+    TEXT_ALIGN_ITEMS[0];
 
   return useMemo(
     () => (
@@ -841,11 +843,13 @@ function AlignmentControls() {
             selectionMode="single"
             disallowEmptySelection
             selectedKeys={[current]}
-            onAction={key => {
-              runCommand(setTextAlign(key === 'left' ? null : (key as TextAlignValue)));
+            onAction={(key) => {
+              runCommand(
+                setTextAlign(key === "left" ? null : (key as TextAlignValue)),
+              );
             }}
           >
-            {TEXT_ALIGN_ITEMS.map(item => (
+            {TEXT_ALIGN_ITEMS.map((item) => (
               <Item key={item.key} textValue={item.label}>
                 <Icon src={item.icon} />
                 <Text>{item.label}</Text>
@@ -858,7 +862,7 @@ function AlignmentControls() {
         </Tooltip>
       </TooltipTrigger>
     ),
-    [isDisabled, current, currentItem, runCommand]
+    [isDisabled, current, currentItem, runCommand],
   );
 }
 
@@ -879,7 +883,7 @@ function typeInSelection(type: NodeType) {
   return (state: EditorState) => {
     let hasBlock = false;
     for (const range of state.selection.ranges) {
-      state.doc.nodesBetween(range.$from.pos, range.$to.pos, node => {
+      state.doc.nodesBetween(range.$from.pos, range.$to.pos, (node) => {
         if (node.type === type) {
           hasBlock = true;
         }
