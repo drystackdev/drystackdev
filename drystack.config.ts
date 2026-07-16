@@ -453,52 +453,9 @@ export default config({
     demo: singleton({
       label: "Demo Vistual Editing Inline",
       schema: {
-        text: fields.text({ label: "[field.Text]" }),
-        image: fields.image({ label: "[field.Image]" }),
-        file: fields.file({ label: "[field.File]" }),
-        array: fields.array(fields.text({ label: "[field.Array[]]" }), {
-          label: "[field.Array]",
-          itemLabel: (props) => props.value,
+        content: fields.content({
+          label: "content",
         }),
-        arrayImg: fields.array(fields.image({ label: "[field.ArrayImg[]]" }), {
-          label: "[field.ArrayImg]",
-          itemLabel: (props) => props.value || "",
-        }),
-        arrayObject: fields.array(
-          fields.object({
-            name: fields.text({ label: "Name of object" }),
-            image: fields.image({label: "Image"}),
-            file: fields.file({label: "File"})
-          }),
-          {
-            label: "[field.ArrayObject]",
-            itemLabel: (props) => props.fields.name.value || "",
-          },
-        ),
-        info: fields.object(
-          {
-            label: fields.text({ label: "Nhãn (object lồng ở top-level)" }),
-            thumb: fields.image({ label: "Ảnh (trong object top-level)" }),
-            links: fields.array(fields.text({ label: "Link" }), {
-              label: "Links (array lồng trong object)",
-              itemLabel: (props) => props.value || "",
-            }),
-          },
-          { label: "[field.Object] — object đứng độc lập ở top-level" },
-        ),
-        sections: fields.array(
-          fields.object({
-            title: fields.text({ label: "Tiêu đề section" }),
-            items: fields.array(fields.text({ label: "Mục" }), {
-              label: "Items (array lồng trong object trong array)",
-              itemLabel: (props) => props.value || "",
-            }),
-          }),
-          {
-            label: "[field.ArrayObjectArray] — array > object > array",
-            itemLabel: (props) => props.fields.title.value || "",
-          },
-        ),
       },
     }),
   },

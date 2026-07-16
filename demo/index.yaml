@@ -1,33 +1,3 @@
-text: Nội dung text 123456
-image: /assets/IMG_8873.JPG
-file: /demo/assets/test-doc.txt
-array:
-  - item đầu tiên được chỉnh sửa trên server
-  - item thứ 2
-  - item thứ 3
-arrayImg:
-  - /assets/IMG_8873.JPG
-  - /assets/IMG_8972.JPG
-arrayObject:
-  - name: Văn bản đầu tiên
-    image: /assets/IMG_8873.JPG
-    file: /demo/assets/test-doc.txt
-  - name: Văn bản thứ 2
-    image: /assets/IMG_8972.JPG
-    file: /demo/assets/test-doc.txt
-  - name: Văn bản thứ 3
-    image: /assets/IMG_8873.JPG
-info:
-  label: Nhan SAVED VIA VEI
-  thumb: /assets/IMG_8873.JPG
-  links:
-    - Link đầu tiên
-    - Link thứ 2
-sections:
-  - title: Section đầu tiên
-    items:
-      - Mục 1.1
-      - Muc 1.2 SAVED VIA VEI
-  - title: Section thứ 2
-    items:
-      - Mục 2.1
+content:
+  wordCount: 2
+  charCount: 9
