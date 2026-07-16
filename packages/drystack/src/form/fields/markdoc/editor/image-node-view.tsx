@@ -52,26 +52,29 @@ type DragState = {
 };
 
 export function useImageObjectUrl(node: ProseMirrorNode): string | undefined {
-  const [url, setUrl] = useState<string | undefined>(undefined);
+  const [blobUrl, setBlobUrl] = useState<string | undefined>(undefined);
   const src: Uint8Array = node.attrs.src;
   const filename: string = node.attrs.filename;
+  const srcUrl: string = node.attrs.srcUrl;
   useEffect(() => {
     let cancelled = false;
     let created: string | undefined;
     const setFromBytes = (bytes: Uint8Array) => {
+      if (cancelled) return;
       const blob = new Blob([bytes as BlobPart], {
         type: filename.endsWith('.svg') ? 'image/svg+xml' : undefined,
       });
       created = URL.createObjectURL(blob);
-      setUrl(created);
+      setBlobUrl(created);
     };
+    setBlobUrl(undefined);
     if (src.byteLength > 0) {
       setFromBytes(src);
     } else {
       // parsed from stored HTML without embedded bytes; the media library
       // directory is the source of truth for the actual file content
       resolveMediaLibraryBytes(filename).then(bytes => {
-        if (cancelled || !bytes) return;
+        if (!bytes) return;
         setFromBytes(bytes);
       });
     }
@@ -80,7 +83,15 @@ export function useImageObjectUrl(node: ProseMirrorNode): string | undefined {
       if (created) URL.revokeObjectURL(created);
     };
   }, [src, filename]);
-  return url;
+
+  // Bytes win when there are any — they're the only copy of an image that was
+  // inserted or replaced this session, and of an unsaved edit generally. But
+  // they're not always reachable: a node parsed from a live page whose assets
+  // couldn't be listed has none, and no resolver to find them either. Its
+  // `srcUrl` already renders on that very page, so use it rather than emitting
+  // a src-less <img>. Also covers the gap before the blob URL exists, since
+  // the effect above only runs after the first paint.
+  return blobUrl ?? (srcUrl || undefined);
 }
 
 // `float` (left/right) is applied to the outer, ProseMirror-tracked node

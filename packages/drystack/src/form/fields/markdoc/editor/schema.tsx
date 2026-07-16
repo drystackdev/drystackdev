@@ -39,7 +39,10 @@ import { getCustomMarkSpecs, getCustomNodeSpecs } from './custom-components';
 import { EditorConfig } from '../config';
 import { toSerialized } from './props-serialization';
 import { getInitialPropsValue } from '../../../initial-values';
-import { openMediaLibrary } from '../../../../app/media-library/bridge';
+import {
+  openMediaLibrary,
+  UNHYDRATED_MEDIA_BYTES,
+} from '../../../../app/media-library/bridge';
 import { imageAttrsForPick } from './image-pick';
 import { base64UrlEncode, base64UrlDecode } from '#base64';
 import { ImageNodeView, imageContainerAlignStyle } from './image-node-view';
@@ -447,6 +450,13 @@ const nodeSpecs = {
     inline: true,
     attrs: {
       src: {},
+      // The URL this image was parsed from (html/parse.ts) — empty for a node
+      // inserted this session, which has real bytes instead. Kept because bytes
+      // are not always reachable: the visual editor parses a live page whose
+      // assets/ listing can come back empty (no GitHub token yet, a failed
+      // request), and without this the node has neither bytes nor a URL and
+      // renders as a src-less <img>. See useImageObjectUrl.
+      srcUrl: { default: '' },
       filename: {},
       alt: { default: '' },
       title: { default: '' },
@@ -497,17 +507,26 @@ const nodeSpecs = {
         align: node.attrs.align,
       };
       const style = imageLayoutStyleString(layout);
+      // A node with no bytes (parsed from stored HTML, untouched since) has
+      // nothing to base64 — point at its original URL so a copied image is
+      // still an image, and carry `srcUrl` across so pasting it back doesn't
+      // land a node with neither bytes nor URL.
+      const src =
+        node.attrs.src.byteLength > 0 || !node.attrs.srcUrl
+          ? `data:${
+              node.attrs.filename.endsWith('.svg')
+                ? 'image/svg+xml'
+                : 'application/octet-stream'
+            };base64,${base64UrlEncode(node.attrs.src)}`
+          : node.attrs.srcUrl;
       return [
         'img',
         {
-          src: `data:${
-            node.attrs.filename.endsWith('.svg')
-              ? 'image/svg+xml'
-              : 'application/octet-stream'
-          };base64,${base64UrlEncode(node.attrs.src)}`,
+          src,
           alt: node.attrs.alt,
           title: node.attrs.title,
           'data-filename': node.attrs.filename,
+          ...(node.attrs.srcUrl ? { 'data-dry-src': node.attrs.srcUrl } : {}),
           ...(node.attrs.align ? { 'data-align': node.attrs.align } : {}),
           ...(style ? { style } : {}),
         },
@@ -520,13 +539,19 @@ const nodeSpecs = {
           if (typeof node === 'string') return false;
           const src = node.getAttribute('src');
           const filename = node.getAttribute('data-filename');
-          if (!src?.startsWith('data:') || !filename) return false;
-          const srcAsUint8Array = base64UrlDecode(
-            src.replace(/^data:[a-z/-]+;base64,/, '')
-          );
+          if (!filename) return false;
+          const srcUrl = node.getAttribute('data-dry-src') ?? '';
+          // `data-filename` is only ever written by this node's own toDOM, so
+          // reaching here without a data: URL means a bytes-less node made the
+          // round trip — it carries its URL in `data-dry-src` instead.
+          if (!src?.startsWith('data:') && !srcUrl) return false;
+          const srcAsUint8Array = src?.startsWith('data:')
+            ? base64UrlDecode(src.replace(/^data:[a-z/-]+;base64,/, ''))
+            : UNHYDRATED_MEDIA_BYTES;
           const layout = imageLayoutFromElement(node as HTMLElement);
           return {
             src: srcAsUint8Array,
+            srcUrl,
             filename,
             alt: node.getAttribute('alt') ?? '',
             title: node.getAttribute('title') ?? '',

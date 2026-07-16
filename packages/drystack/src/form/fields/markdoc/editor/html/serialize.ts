@@ -139,14 +139,17 @@ function getLeafContent(
         children: [],
       };
     }
-    // loaded from stored HTML with no embedded bytes and untouched this
-    // session — keep pointing at the shared media library directory so
-    // pre-existing content keeps working without a migration
+    // Loaded from stored HTML with no embedded bytes and untouched this
+    // session — write back the exact src it was parsed with, so an image
+    // nobody edited survives a save byte-for-byte even if its bytes were never
+    // hydrated. Only a node that never had a src to begin with (a library
+    // reference picked this session) falls through to the shared directory,
+    // which is where its bytes actually live.
     return {
       kind: 'element',
       tag: 'img',
       attrs: {
-        src: `/${MEDIA_LIBRARY_DIRECTORY}/${filename}`,
+        src: node.attrs.srcUrl || `/${MEDIA_LIBRARY_DIRECTORY}/${filename}`,
         alt: alt ?? '',
         ...(title ? { title } : {}),
         ...layoutAttrs,

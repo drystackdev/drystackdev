@@ -91,6 +91,10 @@ function inlineNodeToProseMirror(
     return [
       schema.nodes.image.createChecked({
         src: content,
+        // Verbatim, so an untouched image serializes back to the exact src it
+        // came in with, and so the node view has something to render when
+        // `content` is unhydrated.
+        srcUrl: src,
         filename,
         alt: el.getAttribute('alt') ?? '',
         title: el.getAttribute('title') ?? '',

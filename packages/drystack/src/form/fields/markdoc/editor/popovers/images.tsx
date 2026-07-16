@@ -168,6 +168,10 @@ export function ImagePopover(props: {
                     const { tr } = state;
                     tr.setNodeAttribute(props.pos, 'src', src);
                     tr.setNodeAttribute(props.pos, 'filename', filename);
+                    // The old image's URL, which is what `srcUrl` still holds,
+                    // is now wrong for this node — and for a library reference
+                    // (no bytes) it would be the only src the serializer sees.
+                    tr.setNodeAttribute(props.pos, 'srcUrl', '');
                     if (nextHeight != null) {
                       tr.setNodeAttribute(props.pos, 'height', nextHeight);
                     }
