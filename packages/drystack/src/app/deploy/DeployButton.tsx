@@ -7,6 +7,7 @@ import { alertCircleIcon } from '@keystar/ui/icon/icons/alertCircleIcon';
 import { alertTriangleIcon } from '@keystar/ui/icon/icons/alertTriangleIcon';
 import { loader2Icon } from '@keystar/ui/icon/icons/loader2Icon';
 import { rocketIcon } from '@keystar/ui/icon/icons/rocketIcon';
+import { Flex } from '@keystar/ui/layout';
 import { css, keyframes } from '@keystar/ui/style';
 import { toastQueue } from '@keystar/ui/toast';
 import { Text } from '@keystar/ui/typography';
@@ -115,11 +116,19 @@ export function DeployButton() {
         width="100%"
         onPress={() => deploy()}
       >
-        <Icon
-          src={cf.icon}
-          color={toneColor[cf.tone]}
-          UNSAFE_className={cf.spinning ? spinningIconClassName : undefined}
-        />
+        <Flex
+          position="absolute"
+          insetStart="regular"
+          insetTop={0}
+          insetBottom={0}
+          alignItems="center"
+        >
+          <Icon
+            src={cf.icon}
+            color={toneColor[cf.tone]}
+            UNSAFE_className={cf.spinning ? spinningIconClassName : undefined}
+          />
+        </Flex>
         <Icon
           src={statusIcons[status]}
           UNSAFE_className={isSpinning ? spinningIconClassName : undefined}

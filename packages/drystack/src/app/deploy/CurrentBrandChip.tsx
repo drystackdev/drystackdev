@@ -22,7 +22,7 @@ export function CurrentBrandChip() {
   return (
     <ActionButton
       isDisabled={!brand}
-      width="100%"
+      flex={1}
       minWidth={0}
       onPress={() => {
         if (!brand) return;
