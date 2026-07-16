@@ -45,7 +45,9 @@ export type ConflictFileState = {
 };
 
 export type DeployState =
-  | { kind: 'idle'; error?: string }
+  // `pullRequestURL` is only set for errors the editor can't resolve in-app
+  // (a protected default branch): it's the escape hatch, not a general field.
+  | { kind: 'idle'; error?: string; pullRequestURL?: string }
   | { kind: 'loading'; label: string }
   | { kind: 'conflicts'; files: ConflictFileState[] }
   | { kind: 'merged'; commitOid: string; branch: string };
@@ -322,8 +324,28 @@ export function useDeploy() {
       });
 
       const gqlError = result.error?.graphQLErrors[0]?.originalError;
-      if (gqlError && 'type' in gqlError && gqlError.type === 'STALE_DATA') {
-        return 'retry'; // main moved again while we were merging — redo from scratch
+      if (gqlError && 'type' in gqlError) {
+        if (gqlError.type === 'STALE_DATA') {
+          return 'retry'; // main moved again while we were merging — redo from scratch
+        }
+        if (gqlError.type === 'BRANCH_PROTECTION_RULE_VIOLATION') {
+          // The default branch requires a pull request, so no amount of
+          // retrying gets this commit in. Unlike updating.tsx's
+          // `needs-new-branch`, moving to another branch isn't a fix here: the
+          // brand *is* the other branch, and main is the one destination
+          // Deploy has. The brand still holds every change (nothing was
+          // committed), so the only way forward is a PR opened by hand.
+          setState({
+            kind: 'idle',
+            error:
+              'Nhánh mặc định được bảo vệ — thay đổi phải vào qua pull request. ' +
+              'Brand vẫn giữ nguyên các thay đổi, hãy mở pull request để gộp.',
+            pullRequestURL: `https://github.com/${repoInfo!.owner}/${repoInfo!.name}/compare/${encodeURIComponent(
+              repoInfo!.defaultBranch
+            )}...${encodeURIComponent(brand!.ref)}?expand=1`,
+          });
+          return 'done';
+        }
       }
       const target = result.data?.createCommitOnBranch?.ref?.target;
       // createCommitMutation's `target` doesn't select __typename (no

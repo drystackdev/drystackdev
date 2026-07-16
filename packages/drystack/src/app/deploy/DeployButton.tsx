@@ -70,9 +70,20 @@ export function DeployButton() {
   }, [state, reset]);
 
   useEffect(() => {
-    if (state.kind === 'idle' && state.error) {
-      toastQueue.critical(state.error, { timeout: 6000 });
-    }
+    if (state.kind !== 'idle' || !state.error) return;
+    const { pullRequestURL } = state;
+    // A protected default branch needs the editor to go open a PR, so that
+    // toast sticks around until dismissed instead of timing out mid-read.
+    toastQueue.critical(
+      state.error,
+      pullRequestURL
+        ? {
+            actionLabel: 'Mở pull request',
+            onAction: () => window.open(pullRequestURL, '_blank', 'noopener'),
+            shouldCloseOnAction: true,
+          }
+        : { timeout: 6000 }
+    );
   }, [state]);
 
   // Notify once the moment Cloudflare finishes a build that was in progress —
