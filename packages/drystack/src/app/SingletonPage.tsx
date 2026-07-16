@@ -53,6 +53,7 @@ import {
 import { notFound } from './not-found';
 import { delDraft, getDraft, setDraft } from './persistence';
 import {
+  createLatestGuard,
   editKey,
   getAllEdits,
   getPendingBlobsUnder,
@@ -64,6 +65,7 @@ import {
   spliceValueEdit,
   stashContentBlobs,
   subscribeEdits,
+  type LatestGuard,
   type StashedBlobs,
   type SyncableFieldKind,
 } from './edit-sync';
@@ -679,6 +681,21 @@ function LocalSingletonPage(
     ],
     []
   );
+  // A content field's incoming-edit resolution (contentFromBusValue) and
+  // outgoing-publish (stashContentBlobs) are both async with no natural
+  // ordering — a slower older chain can finish after a faster newer one and
+  // overwrite it. `applyGuardRef` guards state writes from the mount
+  // catch-up effect and the live subscribeEdits handler below (they share
+  // one instance so a stale mount-time resolution can't clobber a newer live
+  // one, and vice versa); `publishGuardRef` guards the debounced publish
+  // effect's own overlapping timers.
+  const applyGuardRef = useRef<LatestGuard>(createLatestGuard());
+  const publishGuardRef = useRef<LatestGuard>(createLatestGuard());
+  // Fields a 'delete'/'clear' message wanted to fold into committedOverrides
+  // but couldn't yet (see below) because their content resolution was still
+  // in flight — settled by the subscribeEdits 'set' handler once that
+  // resolution actually lands.
+  const deferredCommitRef = useRef<Set<string>>(new Set());
   if (!lastSyncedRef.current) {
     lastSyncedRef.current = {};
     for (const [field, fieldSchema] of Object.entries(singletonConfig.schema)) {
@@ -727,13 +744,27 @@ function LocalSingletonPage(
         if (lastSyncedRef.current![field] === edit.value) continue;
         lastSyncedRef.current![field] = edit.value;
         if (kind === 'content') {
-          updates[baseField] = await contentFromBusValue(
-            fieldSchema as unknown as ContentFieldSchema,
-            edit.value,
-            `${singletonPath}/assets`,
-            ownContentValues(baseField)
-          );
-          if (cancelled) return;
+          // Guarded and caught, unlike a plain `await`: a rejection here
+          // (e.g. IndexedDB unavailable) must not abort this loop and drop
+          // every other field's edit queued after it, and a slower
+          // resolution here losing to a faster one from the live
+          // subscribeEdits handler below must not overwrite it.
+          const token = applyGuardRef.current.claim(baseField);
+          try {
+            const value = await contentFromBusValue(
+              fieldSchema as unknown as ContentFieldSchema,
+              edit.value,
+              `${singletonPath}/assets`,
+              ownContentValues(baseField)
+            );
+            if (cancelled) return;
+            if (applyGuardRef.current.isCurrent(baseField, token)) {
+              updates[baseField] = value;
+            }
+          } catch {
+            // Leave this field's state as-is; the edit is still on the bus
+            // and will be retried by the next mount or live message.
+          }
           continue;
         }
         updates[baseField] = fromBusValue(kind, edit.value);
@@ -799,13 +830,28 @@ function LocalSingletonPage(
       // debounce just adds one imperceptible 200ms hop for it.
       timers.push(
         setTimeout(async () => {
+          // Claimed here, not at schedule time: a slower earlier timer's
+          // stash can still be in flight when a newer one already fired and
+          // published — this makes the older one drop its stale publish
+          // instead of overwriting the newer content once its stash finally
+          // resolves.
+          const token = publishGuardRef.current.claim(field);
           if (serialized) {
-            await stashContentBlobs(
-              serialized.other,
-              `${singletonPath}/assets`,
-              stashedBlobsRef.current
-            );
+            try {
+              await stashContentBlobs(
+                serialized.other,
+                `${singletonPath}/assets`,
+                stashedBlobsRef.current
+              );
+            } catch {
+              // A blob failed to write — publishing now would embed an
+              // image reference the bus can't resolve yet (see
+              // stashContentBlobs). Leave the bus untouched; the field
+              // stays dirty and the next state change retries the stash.
+              return;
+            }
           }
+          if (!publishGuardRef.current.isCurrent(field, token)) return;
           publishEdit(editKey('singleton', singleton, field), busValue);
         }, 200)
       );
@@ -837,18 +883,34 @@ function LocalSingletonPage(
         lastSyncedRef.current![field] = msg.value;
         if (kind === 'content') {
           // Async, unlike every other kind: rehydrating the body's images
-          // means a read from the blob store first. Ordering against a
-          // concurrent message is already handled the same way as elsewhere —
-          // lastSyncedRef is stamped above, and a later message simply
-          // publishes over whatever this resolves to.
+          // means a read from the blob store first. lastSyncedRef being
+          // stamped above only dedupes reprocessing the same value — it
+          // doesn't gate which resolved promise's result actually gets
+          // written, so applyGuardRef (shared with the mount catch-up
+          // effect above) is what makes an older, slower-resolving message
+          // lose to a newer, faster one instead of overwriting it.
+          const token = applyGuardRef.current.claim(baseField);
           contentFromBusValue(
             baseSchema as unknown as ContentFieldSchema,
             msg.value,
             `${singletonPath}/assets`,
             ownContentValues(baseField)
-          ).then(next => {
-            onPreviewPropsChange(s => ({ ...s, [baseField]: next }));
-          });
+          )
+            .then(next => {
+              if (!applyGuardRef.current.isCurrent(baseField, token)) return;
+              onPreviewPropsChange(s => ({ ...s, [baseField]: next }));
+              // A 'delete'/'clear' for this field arrived while this
+              // resolution was still in flight and deferred committing it
+              // (see below) rather than freezing the stale pre-resolution
+              // value as the new baseline — settle it now with the fresh one.
+              if (deferredCommitRef.current.delete(baseField)) {
+                setCommittedOverrides(prev => ({ ...prev, [baseField]: next }));
+              }
+            })
+            .catch(() => {
+              // Blob-store read failed; leave state as-is, the edit stays
+              // on the bus for the next message/mount to retry.
+            });
           return;
         }
         if (field === baseField) {
@@ -889,7 +951,8 @@ function LocalSingletonPage(
       setCommittedOverrides(prev => {
         let next: Record<string, unknown> | undefined;
         for (const field of fields) {
-          const kind = getSyncableFieldKind(singletonConfig.schema[field]);
+          const fieldSchema = singletonConfig.schema[field];
+          const kind = getSyncableFieldKind(fieldSchema);
           if (!kind) continue;
           const value = (stateRef.current as Record<string, unknown>)[field];
           // Shape-check what the bus-decodable kinds are supposed to hold.
@@ -902,6 +965,19 @@ function LocalSingletonPage(
             (kind === 'object' &&
               (typeof value !== 'object' || value === null || Array.isArray(value)))
           ) {
+            continue;
+          }
+          // A content field's own async resolution (contentFromBusValue) can
+          // still be in flight for this field: lastSyncedRef already holds
+          // the newer bus value (stamped synchronously when the 'set'
+          // message arrived), but `state` hasn't caught up to it yet.
+          // Freezing today's stale `value` as the new baseline would desync
+          // `state` from `effectiveInitialState` permanently once the
+          // resolution lands — defer instead; the 'set' handler above
+          // commits it once that resolution actually settles.
+          const busValue = toBusValue(kind, value, fieldSchema);
+          if (busValue === undefined || lastSyncedRef.current![field] !== busValue) {
+            deferredCommitRef.current.add(field);
             continue;
           }
           if (prev[field] === value) continue;
@@ -946,13 +1022,29 @@ function LocalSingletonPage(
     if (updateResult.kind !== 'updated') return;
     for (const [field, fieldSchema] of Object.entries(singletonConfig.schema)) {
       const kind = getSyncableFieldKind(fieldSchema);
+      if (!kind) continue;
       // Content included: this tab now mirrors a content field's pending edit
       // into its own form state, so the save above wrote that same body out
       // rather than the stale one it used to. Dropping the key is what makes
       // the edit stop showing as unreviewed in the visual editor.
-      if (kind) {
-        publishDelete(editKey('singleton', singleton, field));
+      //
+      // But only once `state` has actually caught up to whatever's on the
+      // bus: a content field's incoming edit can still be resolving
+      // asynchronously (contentFromBusValue) when Save runs — lastSyncedRef
+      // is already stamped with that edit's bus value, but `state` (what
+      // was just saved) isn't yet. Deleting the key in that window would
+      // make the in-flight edit unrecoverable: the save wrote the stale
+      // body, and the bus key that would let anything catch up to the real
+      // one is gone. Keep the key until state genuinely matches it.
+      const busValue = toBusValue(
+        kind,
+        (stateRef.current as Record<string, unknown>)[field],
+        fieldSchema
+      );
+      if (busValue !== undefined && lastSyncedRef.current![field] !== busValue) {
+        continue;
       }
+      publishDelete(editKey('singleton', singleton, field));
     }
   }, [updateResult, singleton, singletonConfig.schema]);
 

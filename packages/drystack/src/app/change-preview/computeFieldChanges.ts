@@ -1,8 +1,14 @@
 import isEqual from 'fast-deep-equal';
 import { ComponentSchema, ObjectField } from '../../form/api';
-import { FieldChange, summarizeContentChange } from './ChangePreviewDialog';
+import {
+  FieldChange,
+  prettifyContentHtml,
+  summarizeContentChange,
+} from './ChangePreviewDialog';
 import { getSyncableFieldKind, isAssetKind } from '../edit-sync';
 import type { ContentSummary } from '../../form/fields/content';
+
+const textDecoder = new TextDecoder();
 
 // A content field's form value is a ProseMirror editor state; its serialize()
 // hands back the { wordCount, charCount } summary as `value` (the HTML body
@@ -19,6 +25,21 @@ function contentSummaryOf(
     }
   ).serialize;
   return serialize(value).value as ContentSummary;
+}
+
+// The same serialize() call's other half — the real HTML body, for the diff
+// view (see FieldChange.diffBefore/diffAfter).
+function contentHtmlOf(
+  fieldSchema: ComponentSchema,
+  value: unknown
+): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  const serialize = (
+    fieldSchema as unknown as {
+      serialize(v: unknown): { content: Uint8Array };
+    }
+  ).serialize;
+  return textDecoder.decode(serialize(value).content);
 }
 
 function stringifyFieldValue(value: unknown): string {
@@ -57,6 +78,8 @@ export function computeFieldChanges(
         kind: 'text',
         before: summarizeContentChange(contentSummaryOf(field, before)),
         after: summarizeContentChange(contentSummaryOf(field, after)),
+        diffBefore: prettifyContentHtml(contentHtmlOf(field, before) ?? ''),
+        diffAfter: prettifyContentHtml(contentHtmlOf(field, after) ?? ''),
       });
       continue;
     }

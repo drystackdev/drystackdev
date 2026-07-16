@@ -44,6 +44,7 @@ import { Heading, Text } from "@keystar/ui/typography";
 import {
   ChangePreviewDialog,
   ImageThumbFrame,
+  prettifyContentHtml,
   summarizeContentChange,
   type FieldChange,
 } from "@drystack/core/change-preview";
@@ -153,6 +154,8 @@ async function getPendingChanges(
       isContent
         ? {
             ...c,
+            diffBefore: prettifyContentHtml(c.before),
+            diffAfter: prettifyContentHtml(c.after),
             before: summarizeContentChange(c.before),
             after: summarizeContentChange(c.after),
           }

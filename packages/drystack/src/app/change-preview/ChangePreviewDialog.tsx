@@ -80,7 +80,25 @@ export type FieldChange = {
   kind: 'text' | 'image' | 'file';
   before: string;
   after: string;
+  // fields.content only: the row's `before`/`after` are a word/character-
+  // count summary (see summarizeContentChange) so two different bodies can
+  // read identically there — a pure markup change (retagging <h6> to <p>)
+  // touches no words. The diff view needs the real markup to show anything
+  // in that case, so callers that have it (both computeFieldChanges.ts and
+  // Toolbar.tsx) attach it here instead, pre-split one element per line via
+  // prettifyContentHtml.
+  diffBefore?: string;
+  diffAfter?: string;
 };
+
+// Breaks HTML into one tag/text-run per line so diffLines (a line diff) has
+// something meaningful to compare — without this a content field's body is
+// one giant line, and the whole thing shows as a single del+add regardless
+// of how small the real change is. Not a real HTML formatter, just enough
+// structure for a readable line diff.
+export function prettifyContentHtml(html: string): string {
+  return html.replace(/></g, '>\n<');
+}
 
 // How a fields.content body reads in this dialog: its word/character counts,
 // never its markup. Both callers route a content field's before/after through
@@ -123,18 +141,31 @@ export function ChangePreviewDialog({
 
   // Discarding the last remaining row leaves nothing to review, so close
   // rather than sitting on an empty "No changes" panel the user has to
-  // dismiss by hand. Gated on having *had* changes: a dialog opened when
-  // there was nothing pending still shows that message, which is an answer to
-  // a question the user asked, not a leftover.
+  // dismiss by hand. Gated on the user actually having discarded a row here
+  // (not merely on the list having been non-empty before): `changes` is live
+  // and can also drain to zero because another tab/surface saved the same
+  // entry, publishing bus deletes for those fields — that's an external
+  // event the user reading this dialog didn't ask for, and closing out from
+  // under them would just be disruptive.
   const hadChangesRef = useRef(false);
+  const discardingRef = useRef(false);
   useEffect(() => {
     if (!changes) return;
     if (changes.length > 0) {
       hadChangesRef.current = true;
       return;
     }
-    if (hadChangesRef.current) dismiss();
+    if (hadChangesRef.current && discardingRef.current) {
+      discardingRef.current = false;
+      dismiss();
+    }
   }, [changes, dismiss]);
+  const handleDelete = onDelete
+    ? (key: string) => {
+        discardingRef.current = true;
+        onDelete(key);
+      }
+    : undefined;
 
   return (
     <Dialog size="large" aria-label={dialogTitle}>
@@ -151,7 +182,7 @@ export function ChangePreviewDialog({
                 key={c.key}
                 change={c}
                 defaultOpen={i === 0}
-                onDelete={onDelete}
+                onDelete={handleDelete}
                 renderImage={renderImage}
               />
             ))}
@@ -178,7 +209,10 @@ function FieldDiffView({
 }) {
   const [open, setOpen] = useState(!!defaultOpen);
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
-  const lines = diffLines(change.before, change.after);
+  const lines = diffLines(
+    change.diffBefore ?? change.before,
+    change.diffAfter ?? change.after
+  );
   return (
     <div className={accordionItem}>
       <div className={accordionHead}>

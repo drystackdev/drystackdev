@@ -6,9 +6,11 @@ import {
 } from "@drystack/core/field-editor";
 import { getSingletonPath } from "@drystack/core/path-utils";
 import {
+  createLatestGuard,
   getPendingBlobsUnder,
   publishEdit,
   stashContentBlobs,
+  type LatestGuard,
   type StashedBlobs,
 } from "./store";
 import { setContentSpotPainter } from "./bind";
@@ -77,6 +79,13 @@ function InlineContentEditor({
   const assetsRef = useRef<ReadonlyMap<string, Uint8Array>>(new Map());
   // Images this editor has already published bytes for — see stashContentBlobs.
   const stashedRef = useRef<StashedBlobs>(new Set());
+  // Both the painter below and onChange's publish start a fresh async chain
+  // (an IndexedDB blob read, or a stash-then-publish) with no debounce or
+  // cancellation — typing fast, or two paints arriving close together, can
+  // let an older chain resolve after a newer one and overwrite it. One
+  // shared instance since painter (apply) and onChange (publish) both write
+  // to this same editor's `state`/the bus and must agree on what's latest.
+  const guardRef = useRef<LatestGuard>(createLatestGuard());
 
   // Reads the element's current HTML and turns it into an editor state, with
   // this entry's own assets/ bytes hydrated first (see listAssetFiles for why
@@ -143,9 +152,15 @@ function InlineContentEditor({
       // that embedded an image this editor has never seen, whose bytes exist
       // nowhere else yet. Names already known keep their bytes, so this only
       // ever grows the map.
+      //
+      // Claimed before the read: two paints arriving close together each
+      // start their own chain, and without this an older one resolving
+      // after a newer one would setState back to stale content.
+      const token = guardRef.current.claim(key);
       getPendingBlobsUnder(assetsDir)
         .catch(() => new Map<string, Uint8Array>())
         .then((pending) => {
+          if (!guardRef.current.isCurrent(key, token)) return;
           const other = new Map([...assetsRef.current, ...pending]);
           assetsRef.current = other;
           setState(parseHtml(schema, html, other));
@@ -164,10 +179,24 @@ function InlineContentEditor({
         // One serialize for both halves of what a content edit publishes: the
         // HTML body, and the bytes of any image embedded in it that isn't on
         // disk yet. The bytes go first — see stashContentBlobs.
+        //
+        // Unthrottled — every keystroke starts its own stash-then-publish
+        // chain. Claimed up front so a slow chain (e.g. a large embedded
+        // image's stash) that's still running when a later keystroke's
+        // chain already published drops its own publish instead of
+        // overwriting the bus with older text.
+        const token = guardRef.current.claim(key);
         const out = schema.serialize(next);
         stashContentBlobs(out.other, assetsDir, stashedRef.current)
-          .then(() => publishEdit(key, textDecoder.decode(out.content)))
-          .then(onChange);
+          .then(() => {
+            if (!guardRef.current.isCurrent(key, token)) return;
+            return publishEdit(key, textDecoder.decode(out.content)).then(onChange);
+          })
+          .catch(() => {
+            // A blob failed to stash — publishing now would embed an image
+            // reference the bus can't resolve yet (see stashContentBlobs).
+            // Leave the bus untouched; the next keystroke retries the stash.
+          });
       }}
       entryDirectory={getSingletonPath(config, singletonName)}
     />

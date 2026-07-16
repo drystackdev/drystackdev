@@ -333,6 +333,12 @@ export type StashedBlobs = Set<string>;
 // body: a receiver woken by the broadcast reads the bytes it references
 // straight away, so publishing first leaves a window where those images
 // resolve to nothing (see above for what that silently does to them).
+//
+// Marks a name stashed only *after* its write commits — marking it first (the
+// original bug here) means a rejected `putPendingBlob` (quota exceeded, tx
+// error) permanently skips that name on every later retry, since `stashed`
+// already claims it's on disk. A rejection here propagates to the caller,
+// which must not publish the body in that case (see toBusValue callers).
 export async function stashContentBlobs(
   other: ReadonlyMap<string, Uint8Array>,
   assetsDir: string,
@@ -341,10 +347,38 @@ export async function stashContentBlobs(
   await Promise.all(
     [...other].map(async ([name, bytes]) => {
       if (stashed.has(name)) return;
-      stashed.add(name);
       await putPendingBlob(`${assetsDir}/${name}`, bytes);
+      stashed.add(name);
     })
   );
+}
+
+// Per-key monotonic token so an async publish/apply chain can tell whether
+// it's still the most recent one issued for that key before writing its
+// result — several content-sync call sites (SingletonPage.tsx,
+// InlineContentEditors.tsx) start a fresh async chain (IndexedDB read +
+// schema round-trip) per keystroke/message with no cancellation, so a slower
+// older chain can otherwise finish after a faster newer one and overwrite it
+// with stale content. `claim` at the point the async work starts; `isCurrent`
+// right before committing its result — if the token has moved on, drop the
+// result instead of applying it.
+export type LatestGuard = {
+  claim(key: string): number;
+  isCurrent(key: string, token: number): boolean;
+};
+
+export function createLatestGuard(): LatestGuard {
+  const seq = new Map<string, number>();
+  return {
+    claim(key) {
+      const next = (seq.get(key) ?? 0) + 1;
+      seq.set(key, next);
+      return next;
+    },
+    isCurrent(key, token) {
+      return seq.get(key) === token;
+    },
+  };
 }
 
 // Splices one leaf edit into a nested array/object value tree, walking
