@@ -1,0 +1,30 @@
+text: Nội dung
+content:
+  wordCount: 86
+  charCount: 429
+image: /assets/IMG_8972.JPG
+file: /assets/IMG_8972.JPG
+array:
+  - Item 1
+  - Item 2
+  - Item 3
+arrayImg:
+  - /assets/IMG_8972.JPG
+  - /assets/IMG_8972.JPG
+  - /assets/IMG_8972.JPG
+arrayObject:
+  - name: Item 1
+    image: /assets/IMG_8972.JPG
+    file: /assets/IMG_8972.JPG
+info:
+  label: Nội dung object
+  thumb: /assets/IMG_8972.JPG
+  links:
+    - '#'
+    - '##'
+    - '###'
+sections:
+  - title: Item 1
+    items:
+      - Item array 1
+      - Item array 2
