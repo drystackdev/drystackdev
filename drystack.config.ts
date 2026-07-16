@@ -453,32 +453,51 @@ export default config({
     demo: singleton({
       label: "Demo Vistual Editing Inline",
       schema: {
-        heading: fields.text({ label: "Tiêu đề (text)" }),
-        content: fields.content({
-          label: "Nội dung (content)",
+        text: fields.text({ label: "[field.Text]" }),
+        content: fields.content({label: "[field.Content]"}),
+        image: fields.image({ label: "[field.Image]" }),
+        file: fields.file({ label: "[field.File]" }),
+        array: fields.array(fields.text({ label: "[field.Array[]]" }), {
+          label: "[field.Array]",
+          itemLabel: (props) => props.value,
         }),
-        coverImage: fields.image({ label: "Ảnh bìa (image)" }),
-        attachment: fields.file({ label: "Tệp đính kèm (file)" }),
-        tags: fields.array(fields.text({ label: "Tag" }), {
-          label: "Danh sách text (array of text)",
-          itemLabel: (props) => props.value || "Tag mới",
+        arrayImg: fields.array(fields.image({ label: "[field.ArrayImg[]]" }), {
+          label: "[field.ArrayImg]",
+          itemLabel: (props) => props.value || "",
         }),
-        profile: fields.object(
-          {
-            name: fields.text({ label: "Tên" }),
-            avatar: fields.image({ label: "Ảnh đại diện" }),
-          },
-          { label: "Hồ sơ (object)" },
-        ),
-        cards: fields.array(
+        arrayObject: fields.array(
           fields.object({
-            title: fields.text({ label: "Tiêu đề" }),
-            desc: fields.text({ label: "Mô tả", multiline: true }),
-            icon: fields.image({ label: "Icon" }),
+            name: fields.text({ label: "Name of object" }),
+            image: fields.image({ label: "Image" }),
+            file: fields.file({ label: "File" }),
           }),
           {
-            label: "Danh sách thẻ (array of object)",
-            itemLabel: (props) => props.fields.title.value || "Thẻ mới",
+            label: "[field.ArrayObject]",
+            itemLabel: (props) => props.fields.name.value || "",
+          },
+        ),
+        info: fields.object(
+          {
+            label: fields.text({ label: "Nhãn (object lồng ở top-level)" }),
+            thumb: fields.image({ label: "Ảnh (trong object top-level)" }),
+            links: fields.array(fields.text({ label: "Link" }), {
+              label: "Links (array lồng trong object)",
+              itemLabel: (props) => props.value || "",
+            }),
+          },
+          { label: "[field.Object] — object đứng độc lập ở top-level" },
+        ),
+        sections: fields.array(
+          fields.object({
+            title: fields.text({ label: "Tiêu đề section" }),
+            items: fields.array(fields.text({ label: "Mục" }), {
+              label: "Items (array lồng trong object trong array)",
+              itemLabel: (props) => props.value || "",
+            }),
+          }),
+          {
+            label: "[field.ArrayObjectArray] — array > object > array",
+            itemLabel: (props) => props.fields.title.value || "",
           },
         ),
       },
