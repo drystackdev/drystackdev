@@ -44,6 +44,65 @@ const schemeClasses = {
   dark: SCHEME_DARK,
 };
 
+// Marks each mount node this file has adopted. Only needed to tell one content
+// spot from another — see isEditorChrome.
+const MOUNT_ATTR = 'data-drystack-inline-content';
+
+/**
+ * Whether `el` belongs to the editor's own UI rather than the live page: this
+ * toolbar, the menus/dialogs/tooltips its buttons portal to <body>, and the
+ * node popovers under the visual editor's root. Every one of them renders under
+ * a <KeystarProvider>, whose wrapper div always carries THEME_DEFAULT, and
+ * nothing on the host page ever does.
+ *
+ * The exception is the mount nodes, which get THEME_DEFAULT of their own (see
+ * tokenClassesFor) despite being page elements — so they're excluded, which is
+ * also what lets clicking into one content spot dismiss another's toolbar.
+ */
+function isEditorChrome(el: Element) {
+  return !!el.closest(`.${THEME_DEFAULT}`) && !el.closest(`[${MOUNT_ATTR}]`);
+}
+
+/**
+ * Whether `mount`'s toolbar should be on screen: false until the user starts
+ * working in that editor, true until they move on.
+ *
+ * An inline editor mounts for every content spot the moment edit mode turns on,
+ * so an unconditional toolbar means every spot on the page floats one over
+ * whatever content sits above it, before the user has asked for any of them.
+ *
+ * Deliberately not the editor's focus state: react-aria focuses a button when
+ * it's pressed, so a toolbar tied to `view.hasFocus()` would unmount itself out
+ * from under the very click it's there to receive. This tracks where
+ * interaction *lands* instead — inside this mount shows the toolbar, editor
+ * chrome (including the overlays a press opens) leaves it alone, anywhere else
+ * hides it.
+ */
+function useToolbarVisible(mount: HTMLElement) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const update = (event: Event) => {
+      const el = event.target instanceof Element ? event.target : null;
+      if (el && mount.contains(el)) {
+        setVisible(true);
+      } else if (!el || !isEditorChrome(el)) {
+        setVisible(false);
+      }
+    };
+    // Both events, because either can happen without the other: clicking the
+    // page's own (unfocusable) text fires no focusin anywhere, and tabbing away
+    // fires no pointerdown. Capture, so a host page that stops propagation on
+    // either one can't strand the toolbar on screen.
+    document.addEventListener('focusin', update, true);
+    document.addEventListener('pointerdown', update, true);
+    return () => {
+      document.removeEventListener('focusin', update, true);
+      document.removeEventListener('pointerdown', update, true);
+    };
+  }, [mount]);
+  return visible;
+}
+
 // The classes that define Keystar's design tokens (`--kui-*`) on whatever
 // element carries them.
 //
@@ -163,10 +222,14 @@ export function InlineDocumentEditor({
   useEffect(() => {
     const classes = [prosemirrorStyles, ...tokenClassesFor(colorScheme)];
     mount.classList.add(...classes);
+    mount.setAttribute(MOUNT_ATTR, '');
     return () => {
       mount.classList.remove(...classes);
+      mount.removeAttribute(MOUNT_ATTR);
     };
   }, [mount, colorScheme]);
+
+  const toolbarVisible = useToolbarVisible(mount);
 
   const mediaScope = useMemo(
     () =>
@@ -180,7 +243,7 @@ export function InlineDocumentEditor({
     <MediaScopeProvider value={mediaScope}>
       <EditorContextProvider value={editorContext}>
         <ProseMirrorEditor value={value} onChange={onChange} mount={mount}>
-          <FloatingToolbar anchor={mount} id={id} />
+          {toolbarVisible && <FloatingToolbar anchor={mount} id={id} />}
           <NodeViews state={value} />
           <EditorPopoverDecoration state={value} />
           <AutocompleteDecoration />
