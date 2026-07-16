@@ -453,9 +453,34 @@ export default config({
     demo: singleton({
       label: "Demo Vistual Editing Inline",
       schema: {
+        heading: fields.text({ label: "Tiêu đề (text)" }),
         content: fields.content({
-          label: "content",
+          label: "Nội dung (content)",
         }),
+        coverImage: fields.image({ label: "Ảnh bìa (image)" }),
+        attachment: fields.file({ label: "Tệp đính kèm (file)" }),
+        tags: fields.array(fields.text({ label: "Tag" }), {
+          label: "Danh sách text (array of text)",
+          itemLabel: (props) => props.value || "Tag mới",
+        }),
+        profile: fields.object(
+          {
+            name: fields.text({ label: "Tên" }),
+            avatar: fields.image({ label: "Ảnh đại diện" }),
+          },
+          { label: "Hồ sơ (object)" },
+        ),
+        cards: fields.array(
+          fields.object({
+            title: fields.text({ label: "Tiêu đề" }),
+            desc: fields.text({ label: "Mô tả", multiline: true }),
+            icon: fields.image({ label: "Icon" }),
+          }),
+          {
+            label: "Danh sách thẻ (array of object)",
+            itemLabel: (props) => props.fields.title.value || "Thẻ mới",
+          },
+        ),
       },
     }),
   },

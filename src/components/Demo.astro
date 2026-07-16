@@ -1,18 +1,115 @@
 ---
 import { dry as createDry } from "@drystack/astro/dry";
 import config from "../../drystack.config";
-import Image from "astro/components/Image.astro";
+import { Image } from "astro:assets";
 
 const dry = await createDry(config).singleton.demo;
 ---
 
 <main>
-  <div {...dry.item("content")} set:html={dry.content} />
+  <section>
+    <h2>Text field</h2>
+    <p {...dry.item("heading")}>{dry.heading}</p>
+  </section>
+
+  <section>
+    <h2>Content field (rich text)</h2>
+    <div {...dry.item("content")} set:html={dry.content} />
+  </section>
+
+  <section>
+    <h2>Image field</h2>
+    {
+      dry.coverImage ? (
+        <Image
+          {...dry.item("coverImage")}
+          src={dry.coverImage}
+          alt=""
+          width={300}
+          height={200}
+        />
+      ) : (
+        <div {...dry.item("coverImage")} class="empty-spot">
+          Chưa có ảnh
+        </div>
+      )
+    }
+  </section>
+
+  <section>
+    <h2>File field</h2>
+    {
+      dry.attachment ? (
+        <a {...dry.item("attachment")} href={dry.attachment} download>
+          Tải tệp đính kèm
+        </a>
+      ) : (
+        <span {...dry.item("attachment")} class="empty-spot">
+          Chưa có tệp
+        </span>
+      )
+    }
+  </section>
+
+  <section>
+    <h2>Array of text</h2>
+    <ul class="tag-list" {...dry.item("tags")}>
+      {dry.tags.map((tag, i) => (
+        <li {...dry.item(`tags.${i}`)}>{tag}</li>
+      ))}
+    </ul>
+  </section>
+
+  <section>
+    <h2>Object field</h2>
+    <div class="profile" {...dry.item("profile")}>
+      {dry.profile.avatar ? (
+        <Image
+          {...dry.item("profile.avatar")}
+          src={dry.profile.avatar}
+          alt=""
+          width={80}
+          height={80}
+        />
+      ) : (
+        <div {...dry.item("profile.avatar")} class="empty-spot avatar">
+          Chưa có ảnh
+        </div>
+      )}
+      <p {...dry.item("profile.name")}>{dry.profile.name}</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Array of object</h2>
+    <div class="imglist" {...dry.item("cards")}>
+      {dry.cards.map((card, i) => (
+        <article class="card" {...dry.item(`cards.${i}`)}>
+          {card.icon ? (
+            <Image
+              {...dry.item(`cards.${i}.icon`)}
+              src={card.icon}
+              alt=""
+              width={64}
+              height={64}
+            />
+          ) : (
+            <div {...dry.item(`cards.${i}.icon`)} class="empty-spot">
+              Chưa có icon
+            </div>
+          )}
+          <p {...dry.item(`cards.${i}.title`)}>{card.title}</p>
+          <p {...dry.item(`cards.${i}.desc`)}>{card.desc}</p>
+        </article>
+      ))}
+    </div>
+  </section>
 </main>
 
 <style>
   .imglist {
     display: flex;
+    flex-wrap: wrap;
     gap: 1rem;
     & > img {
       width: 200px;
@@ -30,9 +127,72 @@ const dry = await createDry(config).singleton.demo;
     flex-direction: column;
     gap: 2rem;
   }
+  section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  section h2 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.6;
+  }
   img {
-    object-fit: contain;
-    width: 300px;
-    height: auto;
+    object-fit: cover;
+  }
+  .empty-spot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 120px;
+    min-height: 80px;
+    border: 1px dashed color-mix(in srgb, currentColor 30%, transparent);
+    border-radius: 0.5rem;
+    font-size: 0.85rem;
+    opacity: 0.5;
+    padding: 0.5rem;
+  }
+  .empty-spot.avatar {
+    min-width: 80px;
+    min-height: 80px;
+    border-radius: 999px;
+  }
+  .tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    & > li {
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      background: color-mix(in srgb, currentColor 8%, transparent);
+      font-size: 0.9rem;
+    }
+  }
+  .profile {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    & img {
+      width: 80px;
+      height: 80px;
+      border-radius: 999px;
+    }
+  }
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem;
+    border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+    border-radius: 0.75rem;
+    flex: 1 1 200px;
+    & img {
+      width: 64px;
+      height: 64px;
+    }
   }
 </style>
