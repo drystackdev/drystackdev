@@ -1,5 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { flushSync } from "react-dom";
+import { useEffect, useRef, useState } from "react";
 import type { Config, ComponentSchema } from "@drystack/core";
 import {
   InlineDocumentEditor,
@@ -9,7 +8,6 @@ import { getSingletonPath } from "@drystack/core/path-utils";
 import { publishEdit } from "./store";
 import { setContentSpotPainter } from "./bind";
 import { listAssetFiles } from "./save";
-import { withViewTransition } from "./view-transition";
 
 const textDecoder = new TextDecoder();
 
@@ -81,20 +79,7 @@ function InlineContentEditor({
       .then((other) => {
         if (cancelled) return;
         assetsRef.current = other;
-        const parsed = parseHtml(schema, html, other);
-        // The swap to ProseMirror's markup happens here, a fetch's worth of
-        // time after the visitor clicked Edit — so it reads as the page
-        // lurching on its own rather than as a response to anything. Hand it
-        // to a view transition to dissolve instead.
-        //
-        // flushSync, because the transition snapshots the new DOM as soon as
-        // this callback returns: the child's ProseMirror view mounts in a
-        // layout effect, which React would otherwise commit *after* the
-        // snapshot was already taken, leaving the transition to cross-fade the
-        // old markup into itself and the real swap to snap in afterwards.
-        withViewTransition(() => {
-          flushSync(() => setState(parsed));
-        });
+        setState(parseHtml(schema, html, other));
       });
     return () => {
       cancelled = true;
@@ -113,29 +98,15 @@ function InlineContentEditor({
   // this element would go blank the moment edit mode turned off. Repaint it
   // from the final state.
   //
-  // The repaint has to land in the same frame as the destroy, which rules out
-  // both of the obvious placements:
-  //
-  //  - A passive cleanup runs after React has yielded, so the browser is free
-  //    to paint the emptied element first. That blank frame collapses the
-  //    field to zero height and snaps the rest of the page up and back — the
-  //    hard jolt on leaving edit mode, worst on long content fields.
-  //  - A layout cleanup runs too *early*: React destroys a deleted subtree
-  //    parent-first, so this would write the HTML before the child
-  //    ProseMirrorEditor's destroy() wipes it right back out (which is exactly
-  //    what silently blanked the field when this was tried before).
-  //
-  // Queueing from a layout cleanup threads between the two: microtasks run
-  // once the whole commit — destroy() included — unwinds, and always before
-  // the browser paints.
-  useLayoutEffect(() => {
+  // Must stay a plain useEffect: the child ProseMirrorEditor destroys its
+  // view in a *layout* effect cleanup, and only a passive cleanup here is
+  // guaranteed to run after that. A previous attempt to make this a
+  // useLayoutEffect (to fix an unrelated race) silently wiped the whole field
+  // on every edit-mode toggle.
+  useEffect(() => {
     return () => {
       const latest = stateRef.current;
-      if (!latest) return;
-      const html = serializeHtml(schema, latest);
-      queueMicrotask(() => {
-        el.innerHTML = html;
-      });
+      if (latest) el.innerHTML = serializeHtml(schema, latest);
     };
   }, [el, schema]);
 

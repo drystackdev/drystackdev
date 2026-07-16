@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { EditorState } from 'prosemirror-state';
 import { KeystarProvider, useProvider } from '@keystar/ui/core';
@@ -160,12 +160,7 @@ export function InlineDocumentEditor({
   const editorContext = useMemo(() => ({ id }), [id]);
   const { colorScheme } = useProvider();
 
-  // Layout, not passive: these have to be on the node in the same frame the
-  // view below mounts into it (and off it in the same frame it's destroyed),
-  // or the swap between the page's own markup and ProseMirror's takes two
-  // paints. Cleanup ordering is safe here — React destroys a subtree
-  // parent-first, so the classes come off ahead of the child's view.destroy().
-  useLayoutEffect(() => {
+  useEffect(() => {
     const classes = [prosemirrorStyles, ...tokenClassesFor(colorScheme)];
     mount.classList.add(...classes);
     return () => {
