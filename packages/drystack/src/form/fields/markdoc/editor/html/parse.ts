@@ -5,8 +5,10 @@ import { imageLayoutFromElement } from '../image-layout';
 import {
   parseGridColumnSpan,
   parseGridColumns,
+  parseGridRowSpan,
   parsePlaceContent,
   parseGridGap,
+  parseGridRows,
 } from '../grid';
 
 type ParseState = {
@@ -274,6 +276,7 @@ function gridFromElement(
   if (!schema.nodes.grid || !schema.nodes.grid_cell) return null;
   const gridStyle = el.getAttribute('style') ?? '';
   const columns = parseGridColumns(gridStyle);
+  const rows = parseGridRows(gridStyle);
   const cells: ProseMirrorNode[] = [];
   for (const child of Array.from(el.children)) {
     if (
@@ -286,6 +289,7 @@ function gridFromElement(
     const cell = schema.nodes.grid_cell.createAndFill(
       {
         span: parseGridColumnSpan(style, columns),
+        rowSpan: parseGridRowSpan(style, rows),
         place: parsePlaceContent(style),
       },
       blockChildren(child, state)
@@ -294,7 +298,7 @@ function gridFromElement(
   }
   if (!cells.length) return null;
   const gap = parseGridGap(gridStyle);
-  return schema.nodes.grid.createAndFill({ gap, columns }, cells);
+  return schema.nodes.grid.createAndFill({ gap, columns, rows }, cells);
 }
 
 function blocksFromChildNodes(

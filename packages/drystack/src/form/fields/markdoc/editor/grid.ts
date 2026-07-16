@@ -10,11 +10,19 @@ import { NodeSelection, Selection } from "prosemirror-state";
 // a single column (see GRID_RESPONSIVE_CSS).
 export const GRID_DEFAULT_COLUMNS = 24;
 export const GRID_DEFAULT_SPAN = 12;
+export const GRID_DEFAULT_ROW_SPAN = 1;
 export const GRID_DEFAULT_GAP = "0.5em";
+// explicit row-track count — an even split of the grid's height into N equal
+// (`1fr`) rows. `1` (the default) behaves the same as leaving it unset: a
+// single auto-sized row that grows with content.
+export const GRID_DEFAULT_ROWS = 1;
 export const GRID_MOBILE_BREAKPOINT = 720;
 
 // column-count presets offered in the grid toolbar
 export const GRID_COLUMN_OPTIONS = [6, 12, 16, 24] as const;
+
+// row-count presets offered in the grid toolbar
+export const GRID_ROW_OPTIONS = [1, 2, 3, 4, 6] as const;
 
 // gap presets offered in the grid toolbar (0.25em … 3rem)
 export const GRID_GAP_OPTIONS = [
@@ -35,9 +43,13 @@ export type GridPlace = `${GridPlaceAxis} ${GridPlaceAxis}` | null;
 
 // inline style for the grid container `<div data-dry-grid>`. Kept in one
 // place so the HTML serializer and the clipboard `toDOM` fallback agree.
-// `gap` is a per-grid attribute, editable from the toolbar.
-export function gridContainerStyle(gap: string, columns: number): string {
-  return `display:grid;grid-template-columns:repeat(${columns},1fr);gap:${gap}`;
+// `gap` and `rows` are per-grid attributes, editable from the toolbar.
+export function gridContainerStyle(
+  gap: string,
+  columns: number,
+  rows: number = GRID_DEFAULT_ROWS,
+): string {
+  return `display:grid;grid-template-columns:repeat(${columns},1fr);grid-template-rows:repeat(${rows},1fr);gap:${gap}`;
 }
 
 export function parseGridGap(style: string): string {
@@ -56,6 +68,16 @@ export function parseGridColumns(style: string): number {
   return match ? clampColumns(parseInt(match[1], 10)) : GRID_DEFAULT_COLUMNS;
 }
 
+export function clampRows(rows: number): number {
+  if (!Number.isFinite(rows)) return GRID_DEFAULT_ROWS;
+  return Math.max(1, Math.min(24, Math.round(rows)));
+}
+
+export function parseGridRows(style: string): number {
+  const match = /grid-template-rows\s*:\s*repeat\(\s*(\d+)/i.exec(style);
+  return match ? clampRows(parseInt(match[1], 10)) : GRID_DEFAULT_ROWS;
+}
+
 // One media rule, emitted once per document (see the serializer). Needs
 // `!important` to beat the inline `grid-template-columns` on the container.
 // When the container drops to a single column, every cell's `grid-column:
@@ -65,21 +87,24 @@ export const GRID_RESPONSIVE_CSS = `@media(max-width:${GRID_MOBILE_BREAKPOINT}px
 
 export function cellStyleString(attrs: {
   span: number;
+  rowSpan: number;
   place: GridPlace;
 }): string {
-  let style = `grid-column:span ${attrs.span}`;
+  let style = `grid-column:span ${attrs.span};grid-row:span ${attrs.rowSpan}`;
   if (attrs.place) {
     style += `;display:grid;place-content:${attrs.place}`;
   }
   return style;
 }
 
+// generic "clamp a span to [1, max]" — used for both a cell's column span
+// (against the grid's `columns`) and its row span (against `rows`)
 export function clampSpan(
   span: number,
-  columns: number = GRID_DEFAULT_COLUMNS,
+  max: number = GRID_DEFAULT_COLUMNS,
 ): number {
-  if (!Number.isFinite(span)) return Math.min(GRID_DEFAULT_SPAN, columns);
-  return Math.max(1, Math.min(columns, Math.round(span)));
+  if (!Number.isFinite(span)) return Math.min(GRID_DEFAULT_SPAN, max);
+  return Math.max(1, Math.min(max, Math.round(span)));
 }
 
 export function parseGridColumnSpan(
@@ -90,6 +115,16 @@ export function parseGridColumnSpan(
   return match
     ? clampSpan(parseInt(match[1], 10), columns)
     : Math.min(GRID_DEFAULT_SPAN, columns);
+}
+
+export function parseGridRowSpan(
+  style: string,
+  rows: number = GRID_DEFAULT_ROWS,
+): number {
+  const match = /grid-row\s*:\s*span\s*(\d+)/i.exec(style);
+  return match
+    ? clampSpan(parseInt(match[1], 10), rows)
+    : Math.min(GRID_DEFAULT_ROW_SPAN, rows);
 }
 
 export function parsePlaceContent(style: string): GridPlace {
@@ -302,6 +337,21 @@ export function setGridColumns(gridPos: number, columns: number): Command {
         }
       });
       dispatch(tr);
+    }
+    return true;
+  };
+}
+
+// unlike columns, rows have no per-cell attribute to rescale — cells don't
+// carry a row span, they just auto-flow — so this is a plain attribute set.
+export function setGridRows(gridPos: number, rows: number): Command {
+  return (state, dispatch) => {
+    const grid = state.doc.nodeAt(gridPos);
+    if (!grid || grid.type.name !== "grid") return false;
+    const nextRows = clampRows(rows);
+    if (nextRows === grid.attrs.rows) return false;
+    if (dispatch) {
+      dispatch(state.tr.setNodeAttribute(gridPos, "rows", nextRows));
     }
     return true;
   };

@@ -225,6 +225,71 @@ const popoverComponents: Record<
   ),
 } satisfies Partial<Record<keyof EditorSchema['nodes'], NodePopoverRenderer>>;
 
+// A table living inside a grid cell (`grid > grid_cell > table`) sits under
+// two popover-worthy ancestors, but the plain ancestor walk in
+// `getPopoverDecoration` stops at the first match — the table — so the
+// enclosing grid's controls (add/delete item, layout, settings) become
+// unreachable while editing that table. This merges both toolbars into one
+// instead of picking one over the other.
+function TableInGridPopover(props: {
+  grid: { node: Node; pos: number };
+  table: { node: Node; pos: number };
+  state: EditorState;
+}) {
+  const dispatchCommand = useEditorDispatchCommand();
+  return (
+    <Flex gap="regular" padding="regular" alignItems="center">
+      <GridItemControls
+        node={props.grid.node}
+        state={props.state}
+        pos={props.grid.pos}
+      />
+      {isSelectionInTableCell(props.state) && (
+        <>
+          <Divider orientation="vertical" />
+          <CellOptionsMenu node={props.table.node} />
+        </>
+      )}
+      <Divider orientation="vertical" />
+      <TooltipTrigger>
+        <ActionButton
+          prominence="low"
+          onPress={() => {
+            dispatchCommand((state, dispatch) => {
+              if (dispatch) {
+                dispatch(
+                  state.tr.delete(
+                    props.table.pos,
+                    props.table.pos + props.table.node.nodeSize
+                  )
+                );
+              }
+              return true;
+            });
+          }}
+        >
+          <Icon src={trash2Icon} />
+        </ActionButton>
+        <Tooltip tone="critical">Remove table</Tooltip>
+      </TooltipTrigger>
+    </Flex>
+  );
+}
+
+// Walks ancestors from `fromDepth` up looking for an enclosing `grid` node —
+// used to detect the table-in-grid case above. Depth-generic (rather than
+// just checking the immediate parent) since a table sits a couple of levels
+// under its grid (`grid > grid_cell > table`).
+function findGridAncestor($pos: ResolvedPos, fromDepth: number) {
+  for (let i = fromDepth; i > 0; i--) {
+    const node = $pos.node(i);
+    if (node.type.name === 'grid') {
+      return { node, pos: $pos.start(i) - 1 };
+    }
+  }
+  return null;
+}
+
 export function markAround($pos: ResolvedPos, markType: MarkType) {
   const { parent, parentOffset } = $pos;
   const start = parent.childAfter(parentOffset);
@@ -313,6 +378,12 @@ type PopoverDecoration =
       mark: Mark;
       from: number;
       to: number;
+    }
+  | {
+      adaptToBoundary: EditorPopoverProps['adaptToBoundary'] & {};
+      kind: 'table-in-grid';
+      grid: { node: Node; pos: number };
+      table: { node: Node; pos: number };
     };
 
 function InlineComponentPopover(props: {
@@ -607,6 +678,20 @@ function getPopoverDecoration(state: EditorState): PopoverDecoration | null {
       component !== undefined &&
       (!component.shouldShow || component.shouldShow(editorSchema))
     ) {
+      if (node.type.name === 'table') {
+        const gridAncestor = findGridAncestor(
+          state.selection.$from,
+          state.selection.$from.depth
+        );
+        if (gridAncestor) {
+          return {
+            adaptToBoundary: 'flip',
+            kind: 'table-in-grid',
+            grid: gridAncestor,
+            table: { node, pos: state.selection.from },
+          };
+        }
+      }
       return {
         adaptToBoundary: popoverAdaptToBoundary(node),
         kind: 'node',
@@ -630,12 +715,24 @@ function getPopoverDecoration(state: EditorState): PopoverDecoration | null {
       component !== undefined &&
       (!component.shouldShow || component.shouldShow(editorSchema))
     ) {
+      const pos = $pos.start(i) - 1;
+      if (node.type.name === 'table') {
+        const gridAncestor = findGridAncestor($pos, i - 1);
+        if (gridAncestor) {
+          return {
+            adaptToBoundary: 'flip',
+            kind: 'table-in-grid',
+            grid: gridAncestor,
+            table: { node, pos },
+          };
+        }
+      }
       return {
         adaptToBoundary: popoverAdaptToBoundary(node),
         kind: 'node',
         node,
         component,
-        pos: $pos.start(i) - 1,
+        pos,
       };
     }
   }
@@ -650,11 +747,15 @@ function PopoverInner(props: {
   const from =
     props.decoration.kind === 'node'
       ? props.decoration.pos
-      : props.decoration.from;
+      : props.decoration.kind === 'table-in-grid'
+        ? props.decoration.table.pos
+        : props.decoration.from;
   const to =
     props.decoration.kind === 'node'
       ? props.decoration.pos + props.decoration.node.nodeSize
-      : props.decoration.to;
+      : props.decoration.kind === 'table-in-grid'
+        ? props.decoration.table.pos + props.decoration.table.node.nodeSize
+        : props.decoration.to;
 
   const reference = useEditorReferenceElement(from, to);
   const editorViewRef = useEditorViewRef();
@@ -682,7 +783,13 @@ function PopoverInner(props: {
         // the toolbar
         UNSAFE_style={isImage ? { zIndex: 2 } : undefined}
       >
-        {props.decoration.kind === 'node' ? (
+        {props.decoration.kind === 'table-in-grid' ? (
+          <TableInGridPopover
+            grid={props.decoration.grid}
+            table={props.decoration.table}
+            state={props.state}
+          />
+        ) : props.decoration.kind === 'node' ? (
           <props.decoration.component
             {...props.decoration}
             state={props.state}

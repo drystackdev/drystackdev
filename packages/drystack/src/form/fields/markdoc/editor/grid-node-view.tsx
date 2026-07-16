@@ -14,7 +14,7 @@ import type { EditorState } from "prosemirror-state";
 import { css, tokenSchema } from "@keystar/ui/style";
 
 import { useEditorViewRef, useEditorState } from "./editor-view";
-import { GRID_DEFAULT_COLUMNS, clampSpan } from "./grid";
+import { GRID_DEFAULT_COLUMNS, GRID_DEFAULT_ROWS, clampSpan } from "./grid";
 
 // A ProseMirror editor is a *single* contenteditable, so `document.activeElement`
 // is always the editor root — never an individual cell. That means CSS
@@ -41,6 +41,7 @@ type NodeViewProps = {
 // has no border/padding — the dashed edit affordance lives on each cell.
 export function GridNodeView(props: NodeViewProps) {
   const columns: number = props.node.attrs.columns ?? GRID_DEFAULT_COLUMNS;
+  const rows: number = props.node.attrs.rows ?? GRID_DEFAULT_ROWS;
   return (
     <div
       className={gridClass}
@@ -49,6 +50,7 @@ export function GridNodeView(props: NodeViewProps) {
         // track count is per-grid (node attr), so it lives inline rather than
         // in the static class
         gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+        gridTemplateRows: `repeat(${rows}, 1fr)`,
       }}
       data-dry-grid=""
     >
@@ -59,16 +61,23 @@ export function GridNodeView(props: NodeViewProps) {
 
 type Drag = {
   startX: number;
+  startY: number;
   startWidth: number;
-  pitch: number;
-  gap: number;
+  startHeight: number;
+  columnGap: number;
+  rowGap: number;
+  colPitch: number;
+  rowPitch: number;
   columns: number;
+  rows: number;
   lastSpan: number;
+  lastRowSpan: number;
 };
 
 export function GridCellView(props: NodeViewProps) {
   const { node, children, getPos } = props;
   const span: number = node.attrs.span;
+  const rowSpan: number = node.attrs.rowSpan;
   const place: string | null = node.attrs.place;
 
   // is the caret/selection currently inside this cell? drives the accent
@@ -83,19 +92,33 @@ export function GridCellView(props: NodeViewProps) {
   getPosRef.current = getPos;
   const cellRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<Drag | null>(null);
-  // live "span / columns" readout, shown only while a resize drag is active
+  // live "span/columns  rowSpan/rows" readout, shown only while a resize
+  // drag is active
   const [resizeLabel, setResizeLabel] = useState<{
     span: number;
     columns: number;
+    rowSpan: number;
+    rows: number;
   } | null>(null);
 
-  const commitSpan = useCallback(
-    (nextSpan: number) => {
+  const commitSpans = useCallback(
+    (nextSpan: number, nextRowSpan: number) => {
       const view = viewRef.current;
       const pos = getPosRef.current();
       if (!view || pos == null) return;
-      if (view.state.doc.nodeAt(pos)?.attrs.span === nextSpan) return;
-      view.dispatch(view.state.tr.setNodeAttribute(pos, "span", nextSpan));
+      const current = view.state.doc.nodeAt(pos);
+      if (!current) return;
+      if (current.attrs.span === nextSpan && current.attrs.rowSpan === nextRowSpan) {
+        return;
+      }
+      let tr = view.state.tr;
+      if (current.attrs.span !== nextSpan) {
+        tr = tr.setNodeAttribute(pos, "span", nextSpan);
+      }
+      if (current.attrs.rowSpan !== nextRowSpan) {
+        tr = tr.setNodeAttribute(pos, "rowSpan", nextRowSpan);
+      }
+      view.dispatch(tr);
     },
     [viewRef],
   );
@@ -105,18 +128,29 @@ export function GridCellView(props: NodeViewProps) {
       const drag = dragRef.current;
       if (!drag) return;
       const dx = event.clientX - drag.startX;
-      // (width + gap) / pitch == the unit count; snap to whole 1/N steps
-      const next = clampSpan(
-        (drag.startWidth + dx + drag.gap) / drag.pitch,
+      const dy = event.clientY - drag.startY;
+      // (size + gap) / pitch == the unit count; snap to whole 1/N steps
+      const nextSpan = clampSpan(
+        (drag.startWidth + dx + drag.columnGap) / drag.colPitch,
         drag.columns,
       );
-      if (next !== drag.lastSpan) {
-        drag.lastSpan = next;
-        commitSpan(next);
-        setResizeLabel({ span: next, columns: drag.columns });
+      const nextRowSpan = clampSpan(
+        (drag.startHeight + dy + drag.rowGap) / drag.rowPitch,
+        drag.rows,
+      );
+      if (nextSpan !== drag.lastSpan || nextRowSpan !== drag.lastRowSpan) {
+        drag.lastSpan = nextSpan;
+        drag.lastRowSpan = nextRowSpan;
+        commitSpans(nextSpan, nextRowSpan);
+        setResizeLabel({
+          span: nextSpan,
+          columns: drag.columns,
+          rowSpan: nextRowSpan,
+          rows: drag.rows,
+        });
       }
     },
-    [commitSpan],
+    [commitSpans],
   );
 
   const onDragEnd = useCallback(() => {
@@ -135,35 +169,46 @@ export function GridCellView(props: NodeViewProps) {
       if (!cell) return;
       const rect = cell.getBoundingClientRect();
       const gridEl = cell.closest("[data-dry-grid]") as HTMLElement | null;
-      const gap = gridEl
-        ? parseFloat(getComputedStyle(gridEl).columnGap) || 16
-        : 16;
-      // the grid's track count lives on the parent grid node — read it off
+      const computed = gridEl ? getComputedStyle(gridEl) : null;
+      const columnGap = (computed && parseFloat(computed.columnGap)) || 16;
+      const rowGap = (computed && parseFloat(computed.rowGap)) || 16;
+      // the grid's track counts live on the parent grid node — read them off
       // ProseMirror state so the drag snaps (and the readout reads) against
-      // this grid's own column count
+      // this grid's own column/row count
       const view = viewRef.current;
       const pos = getPosRef.current();
       let columns = GRID_DEFAULT_COLUMNS;
+      let rows = GRID_DEFAULT_ROWS;
       if (view && pos != null) {
         const parent = view.state.doc.resolve(pos).parent;
-        if (parent.type.name === "grid") columns = parent.attrs.columns;
+        if (parent.type.name === "grid") {
+          columns = parent.attrs.columns;
+          rows = parent.attrs.rows;
+        }
       }
       const startSpan = clampSpan(node.attrs.span, columns);
+      const startRowSpan = clampSpan(node.attrs.rowSpan, rows);
       dragRef.current = {
         startX: event.clientX,
+        startY: event.clientY,
         startWidth: rect.width,
+        startHeight: rect.height,
+        columnGap,
+        rowGap,
         // px per grid unit, gap included, derived from the cell's own size so
         // we never need to reason about where the row wraps
-        pitch: (rect.width + gap) / startSpan,
-        gap,
+        colPitch: (rect.width + columnGap) / startSpan,
+        rowPitch: (rect.height + rowGap) / startRowSpan,
         columns,
+        rows,
         lastSpan: startSpan,
+        lastRowSpan: startRowSpan,
       };
-      setResizeLabel({ span: startSpan, columns });
+      setResizeLabel({ span: startSpan, columns, rowSpan: startRowSpan, rows });
       window.addEventListener("pointermove", onDragMove);
       window.addEventListener("pointerup", onDragEnd);
     },
-    [node.attrs.span, onDragMove, onDragEnd, viewRef],
+    [node.attrs.span, node.attrs.rowSpan, onDragMove, onDragEnd, viewRef],
   );
 
   useEffect(() => {
@@ -183,6 +228,7 @@ export function GridCellView(props: NodeViewProps) {
       className={cellClass}
       style={innerStyle}
       data-span={span}
+      data-row-span={rowSpan}
       data-active={isActive || undefined}
     >
       {/* when the cell is placed (display:grid + place-content), wrap the
@@ -195,17 +241,39 @@ export function GridCellView(props: NodeViewProps) {
           contentEditable={false}
           aria-hidden="true"
         >
-          {resizeLabel.span}/{resizeLabel.columns}
+          {resizeLabel.span}/{resizeLabel.columns} · {resizeLabel.rowSpan}/
+          {resizeLabel.rows}
         </span>
       )}
+      {/* single corner handle drives both dimensions — dragging horizontally
+          resizes the column span, vertically the row span */}
       <span
         contentEditable={false}
         className={resizeHandleClass}
         data-resize-grip=""
         onPointerDown={startDrag}
         aria-hidden="true"
-      />
+      >
+        <GridResizeIcon />
+      </span>
     </div>
+  );
+}
+
+// diagonal resize-corner glyph for the grid item's resize grip
+function GridResizeIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+      <path d="M0 0h24v24H0z" fill="none" />
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={1.5}
+        d="m16 18l2-2m-7 2l7-7M6 18L18 6"
+      />
+    </svg>
   );
 }
 
@@ -240,40 +308,42 @@ const cellClass = css({
   },
 });
 
+// bottom-right corner grip — dragging it resizes both the column span
+// (horizontal) and row span (vertical) in one gesture, straddling the
+// cell's corner (sitting in the grid gap) with a wide enough hit zone to
+// grab easily
 const resizeHandleClass = css({
   position: "absolute",
-  top: 0,
-  bottom: 0,
-  // straddle the cell's right edge (sitting in the grid gap) with a wide
-  // enough hit zone to grab easily
-  insetInlineEnd: `calc(${tokenSchema.size.space.regular} * -0.5)`,
-  width: tokenSchema.size.space.large,
+  insetInlineEnd: `calc(${tokenSchema.size.space.regular} * -1)`,
+  insetBlockEnd: `calc(${tokenSchema.size.space.regular} * -1)`,
+  width: tokenSchema.size.space.xlarge,
+  height: tokenSchema.size.space.xlarge,
   display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  cursor: "col-resize",
+  alignItems: "flex-end",
+  justifyContent: "flex-end",
+  padding: tokenSchema.size.space.small,
+  cursor: "nwse-resize",
   touchAction: "none",
   zIndex: 2,
   // hidden until the cell is hovered/focused (revealed by `cellClass`)
   opacity: 0,
   transition: "opacity 0.15s",
-  // a vertical grip; highlighted when the grip itself is hovered
-  "&::after": {
-    content: '""',
-    height: "calc(100% - 8px)",
-    minHeight: 20,
-    width: tokenSchema.size.space.xsmall,
-    borderRadius: tokenSchema.size.radius.full,
-    backgroundColor: tokenSchema.color.border.emphasis,
-    transition: "background-color 0.15s, transform 0.15s",
+  color: tokenSchema.color.border.emphasis,
+  "& svg": {
+    width: tokenSchema.size.icon.small,
+    height: tokenSchema.size.icon.small,
+    transition: "color 0.15s, transform 0.15s",
   },
-  "&:hover::after": {
-    backgroundColor: tokenSchema.color.alias.borderSelected,
-    transform: "scaleX(1.6)",
+  "&:hover": {
+    color: tokenSchema.color.alias.borderSelected,
+  },
+  "&:hover svg": {
+    transform: "scale(1.15)",
   },
 });
 
-// the "span / columns" pill shown at the cell's top-right while resizing
+// the "span/columns  rowSpan/rows" pill shown at the cell's top-right while
+// resizing
 const resizeBadgeClass = css({
   position: "absolute",
   top: tokenSchema.size.space.small,

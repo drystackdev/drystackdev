@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { ReactElement, useState } from "react";
 import { Node } from "prosemirror-model";
 import { EditorState } from "prosemirror-state";
 
@@ -8,14 +8,14 @@ import {
   DialogContainer,
   DialogTrigger,
 } from "@keystar/ui/dialog";
-import { Icon } from "@keystar/ui/icon";
 import { plusIcon } from "@keystar/ui/icon/icons/plusIcon";
-import { settingsIcon } from "@keystar/ui/icon/icons/settingsIcon";
+import { Icon } from "@keystar/ui/icon";
 import { trash2Icon } from "@keystar/ui/icon/icons/trash2Icon";
 import { xIcon } from "@keystar/ui/icon/icons/xIcon";
 import { Divider, Flex } from "@keystar/ui/layout";
 import { Picker, Item } from "@keystar/ui/picker";
 import { css, tokenSchema } from "@keystar/ui/style";
+import { Text } from "@keystar/ui/typography";
 import { TooltipTrigger, Tooltip } from "@keystar/ui/tooltip";
 
 import { useEditorDispatchCommand, useEditorState } from "../editor-view";
@@ -26,15 +26,53 @@ import {
   gridHasContent,
   setFocusedCellPlace,
   setGridColumns,
+  setGridRows,
   GridPlace,
   GRID_GAP_OPTIONS,
   GRID_COLUMN_OPTIONS,
+  GRID_ROW_OPTIONS,
 } from "../grid";
 
+// Not in @keystar/ui's bundled (Tabler-derived) icon set, so drawn directly
+// rather than through <Icon> — that wrapper assumes a 24×24 stroke-only
+// glyph, but this one is a filled 16×16 shape.
+function GridSettingsIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="1em"
+      height="1em"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+    >
+      <path d="M0 0h16v16H0z" fill="none" />
+      <path
+        fill="currentColor"
+        d="M2 10h3a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1m9-9h3a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 9a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1zm0-10a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h3a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2zM2 9a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h3a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2zm7 2a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-3a2 2 0 0 1-2-2zM0 2a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm5.354.854a.5.5 0 1 0-.708-.708L3 3.793l-.646-.647a.5.5 0 1 0-.708.708l1 1a.5.5 0 0 0 .708 0z"
+      />
+    </svg>
+  );
+}
+
+// Keystar's `Picker` stacks its label above the field (no `labelPosition`
+// prop in this version) — this puts the label to the left instead, matching
+// the settings panel's row layout, and lets the field itself stay narrow
+// since these are all short values (a track count, a CSS length).
+function SettingRow(props: { label: string; children: ReactElement }) {
+  return (
+    <Flex direction="row" alignItems="center" justifyContent="space-between">
+      <Text>{props.label}</Text>
+      {props.children}
+    </Flex>
+  );
+}
+
+const settingFieldWidth = 90;
+
 // The gear opens a settings panel (keystar's Menu has no nested submenus, so
-// the grid-wide controls — columns, gap — live in a popover instead of as
-// separate toolbar buttons). Add/delete item live as their own +/x buttons on
-// the toolbar (see GridPopover).
+// the grid-wide controls — columns, rows, gap — live in a popover instead of
+// as separate toolbar buttons). Add/delete item live as their own +/x
+// buttons on the toolbar (see GridPopover).
 function GridSettingsMenu(props: {
   node: Node;
   state: EditorState;
@@ -42,46 +80,67 @@ function GridSettingsMenu(props: {
 }) {
   const runCommand = useEditorDispatchCommand();
   const columns = String(props.node.attrs.columns);
+  const rows = String(props.node.attrs.rows);
   const gap = props.node.attrs.gap as string;
   return (
     <DialogTrigger type="popover" hideArrow>
       <ActionButton prominence="low" aria-label="Grid settings">
-        <Icon src={settingsIcon} />
+        <GridSettingsIcon />
       </ActionButton>
       <Flex
         direction="column"
-        gap="large"
+        gap="regular"
         padding="large"
         UNSAFE_style={{ minWidth: 200 }}
       >
-        <Picker
-          label="Columns"
-          selectedKey={columns}
-          onSelectionChange={(key) => {
-            runCommand(setGridColumns(props.pos, parseInt(String(key), 10)));
-          }}
-        >
-          {GRID_COLUMN_OPTIONS.map((cols) => (
-            <Item key={String(cols)}>{String(cols)}</Item>
-          ))}
-        </Picker>
-        <Picker
-          label="Gap"
-          selectedKey={gap}
-          onSelectionChange={(key) => {
-            const value = String(key);
-            runCommand((state, dispatch) => {
-              if (dispatch) {
-                dispatch(state.tr.setNodeAttribute(props.pos, "gap", value));
-              }
-              return true;
-            });
-          }}
-        >
-          {GRID_GAP_OPTIONS.map((g) => (
-            <Item key={g}>{g}</Item>
-          ))}
-        </Picker>
+        <SettingRow label="Column">
+          <Picker
+            aria-label="Column"
+            selectedKey={columns}
+            onSelectionChange={(key) => {
+              runCommand(setGridColumns(props.pos, parseInt(String(key), 10)));
+            }}
+            UNSAFE_style={{ width: settingFieldWidth }}
+          >
+            {GRID_COLUMN_OPTIONS.map((cols) => (
+              <Item key={String(cols)}>{String(cols)}</Item>
+            ))}
+          </Picker>
+        </SettingRow>
+        <SettingRow label="Row">
+          <Picker
+            aria-label="Row"
+            selectedKey={rows}
+            onSelectionChange={(key) => {
+              runCommand(setGridRows(props.pos, parseInt(String(key), 10)));
+            }}
+            UNSAFE_style={{ width: settingFieldWidth }}
+          >
+            {GRID_ROW_OPTIONS.map((r) => (
+              <Item key={String(r)}>{String(r)}</Item>
+            ))}
+          </Picker>
+        </SettingRow>
+        <SettingRow label="Spacing">
+          <Picker
+            aria-label="Spacing"
+            selectedKey={gap}
+            onSelectionChange={(key) => {
+              const value = String(key);
+              runCommand((state, dispatch) => {
+                if (dispatch) {
+                  dispatch(state.tr.setNodeAttribute(props.pos, "gap", value));
+                }
+                return true;
+              });
+            }}
+            UNSAFE_style={{ width: settingFieldWidth }}
+          >
+            {GRID_GAP_OPTIONS.map((g) => (
+              <Item key={g}>{g.replace("em", "")}</Item>
+            ))}
+          </Picker>
+        </SettingRow>
       </Flex>
     </DialogTrigger>
   );

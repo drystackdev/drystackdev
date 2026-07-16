@@ -344,7 +344,11 @@ function proseMirrorToHtmlNode(
       tag: 'div',
       attrs: {
         'data-dry-grid': '',
-        style: gridContainerStyle(node.attrs.gap, node.attrs.columns),
+        style: gridContainerStyle(
+          node.attrs.gap,
+          node.attrs.columns,
+          node.attrs.rows
+        ),
       },
       children: blocks(node.content),
     };
@@ -369,7 +373,11 @@ function proseMirrorToHtmlNode(
       tag: 'div',
       attrs: {
         'data-dry-cell': '',
-        style: cellStyleString({ span: node.attrs.span, place: node.attrs.place }),
+        style: cellStyleString({
+          span: node.attrs.span,
+          rowSpan: node.attrs.rowSpan,
+          place: node.attrs.place,
+        }),
       },
       children: blocks(node.content),
     };

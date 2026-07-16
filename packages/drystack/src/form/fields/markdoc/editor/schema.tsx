@@ -52,12 +52,16 @@ import {
   cellStyleString,
   parseGridColumnSpan,
   parseGridColumns,
+  parseGridRowSpan,
   parsePlaceContent,
   parseGridGap,
+  parseGridRows,
   gridContainerStyle,
   GRID_DEFAULT_SPAN,
+  GRID_DEFAULT_ROW_SPAN,
   GRID_DEFAULT_GAP,
   GRID_DEFAULT_COLUMNS,
+  GRID_DEFAULT_ROWS,
 } from './grid';
 import {
   imageLayoutFromElement,
@@ -593,6 +597,8 @@ const nodeSpecs = {
       gap: { default: GRID_DEFAULT_GAP },
       // number of grid tracks (configurable per grid via the settings popover)
       columns: { default: GRID_DEFAULT_COLUMNS },
+      // number of explicit (equal-height) row tracks — see GRID_DEFAULT_ROWS
+      rows: { default: GRID_DEFAULT_ROWS },
     },
     insertMenu: {
       label: 'Grid',
@@ -608,12 +614,17 @@ const nodeSpecs = {
         tag: 'div[data-dry-grid]',
         getAttrs(dom) {
           if (typeof dom === 'string') {
-            return { gap: GRID_DEFAULT_GAP, columns: GRID_DEFAULT_COLUMNS };
+            return {
+              gap: GRID_DEFAULT_GAP,
+              columns: GRID_DEFAULT_COLUMNS,
+              rows: GRID_DEFAULT_ROWS,
+            };
           }
           const style = dom.getAttribute('style') ?? '';
           return {
             gap: parseGridGap(style),
             columns: parseGridColumns(style),
+            rows: parseGridRows(style),
           };
         },
       },
@@ -623,7 +634,11 @@ const nodeSpecs = {
         'div',
         {
           'data-dry-grid': '',
-          style: gridContainerStyle(node.attrs.gap, node.attrs.columns),
+          style: gridContainerStyle(
+            node.attrs.gap,
+            node.attrs.columns,
+            node.attrs.rows
+          ),
         },
         0,
       ];
@@ -634,31 +649,42 @@ const nodeSpecs = {
     isolating: true,
     attrs: {
       span: { default: GRID_DEFAULT_SPAN },
+      rowSpan: { default: GRID_DEFAULT_ROW_SPAN },
       place: { default: null },
     },
     reactNodeView: {
       component: GridCellView,
-      // the `grid-column` span must live on the ProseMirror-tracked container
-      // (the actual grid item), not several layers of React content deep
-      // inside it — same reasoning as the image node's `containerStyle`
-      containerStyle: node => ({ gridColumn: `span ${node.attrs.span}` }),
+      // the `grid-column`/`grid-row` span must live on the ProseMirror-tracked
+      // container (the actual grid item), not several layers of React content
+      // deep inside it — same reasoning as the image node's `containerStyle`
+      containerStyle: node => ({
+        gridColumn: `span ${node.attrs.span}`,
+        gridRow: `span ${node.attrs.rowSpan}`,
+      }),
     },
     parseDOM: [
       {
         tag: 'div[data-dry-cell]',
         getAttrs(dom) {
           if (typeof dom === 'string') {
-            return { span: GRID_DEFAULT_SPAN, place: null };
+            return {
+              span: GRID_DEFAULT_SPAN,
+              rowSpan: GRID_DEFAULT_ROW_SPAN,
+              place: null,
+            };
           }
           const style = dom.getAttribute('style') ?? '';
-          // clamp the span against the parent grid's own column count (read
-          // off the container) so a pasted cell can't exceed its grid
+          // clamp the spans against the parent grid's own column/row count
+          // (read off the container) so a pasted cell can't exceed its grid
           const gridEl = dom.closest('[data-dry-grid]');
+          const gridStyle = gridEl?.getAttribute('style') ?? '';
           const columns = gridEl
-            ? parseGridColumns(gridEl.getAttribute('style') ?? '')
+            ? parseGridColumns(gridStyle)
             : GRID_DEFAULT_COLUMNS;
+          const rows = gridEl ? parseGridRows(gridStyle) : GRID_DEFAULT_ROWS;
           return {
             span: parseGridColumnSpan(style, columns),
+            rowSpan: parseGridRowSpan(style, rows),
             place: parsePlaceContent(style),
           };
         },
@@ -671,6 +697,7 @@ const nodeSpecs = {
           'data-dry-cell': '',
           style: cellStyleString({
             span: node.attrs.span,
+            rowSpan: node.attrs.rowSpan,
             place: node.attrs.place,
           }),
         },
