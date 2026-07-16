@@ -27,7 +27,10 @@ type ContentFieldSchema = {
   // (see the field's own inlineParse). Both produce the same HTML on the way
   // back out.
   inlineParse(html: string, other: ReadonlyMap<string, Uint8Array>): EditorState;
-  serialize(value: EditorState): {
+  serialize(
+    value: EditorState,
+    extra?: { slug?: undefined; entryDirectory?: string },
+  ): {
     value: unknown;
     content: Uint8Array;
     other: Map<string, Uint8Array>;
@@ -42,8 +45,14 @@ function parseHtml(
   return schema.inlineParse(html, other);
 }
 
-function serializeHtml(schema: ContentFieldSchema, state: EditorState): string {
-  return textDecoder.decode(schema.serialize(state).content);
+function serializeHtml(
+  schema: ContentFieldSchema,
+  state: EditorState,
+  entryDirectory: string,
+): string {
+  return textDecoder.decode(
+    schema.serialize(state, { entryDirectory }).content,
+  );
 }
 
 type Spot = {
@@ -70,7 +79,8 @@ function InlineContentEditor({
 }) {
   const { el, key, schema, singletonName } = spot;
   const [state, setState] = useState<EditorState | null>(null);
-  const assetsDir = `${getSingletonPath(config, singletonName)}/assets`;
+  const entryDir = getSingletonPath(config, singletonName);
+  const assetsDir = `${entryDir}/assets`;
   // This entry's assets/ bytes, kept for the lifetime of the editor: every
   // later re-parse (see the painter below) needs them just as much as the
   // first one does, and re-fetching per paint would be pointless network.
@@ -136,9 +146,9 @@ function InlineContentEditor({
   useEffect(() => {
     return () => {
       const latest = stateRef.current;
-      if (latest) el.innerHTML = serializeHtml(schema, latest);
+      if (latest) el.innerHTML = serializeHtml(schema, latest, entryDir);
     };
-  }, [el, schema]);
+  }, [el, schema, entryDir]);
 
   // Lets bind.ts hand this view any paint aimed at the element — a Reset, a
   // fresh value fetched from source, an edit arriving from another tab —

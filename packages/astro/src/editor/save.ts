@@ -15,7 +15,12 @@ import { clientSideValidateProp } from '@drystack/core/field-editor';
 import { getAuth } from '@drystack/core/auth';
 // @ts-expect-error — provided by the drystack Astro integration's Vite plugin
 import apiPath from 'virtual:drystack-path';
-import { getAllEdits, publishClear, clearPendingBlobs } from './store';
+import {
+  getAllEdits,
+  publishClear,
+  clearPendingBlobs,
+  getPendingBlobsUnder,
+} from './store';
 import {
   readBrandRecord,
   writeBrandRecord,
@@ -520,7 +525,10 @@ type ContentFieldSchema = {
       slug: string | undefined;
     }
   ): unknown;
-  serialize(value: unknown): {
+  serialize(
+    value: unknown,
+    extra?: { slug?: undefined; entryDirectory?: string }
+  ): {
     value: unknown;
     content: Uint8Array;
     other: Map<string, Uint8Array>;
@@ -550,14 +558,29 @@ async function collectContentFieldDiffs(
   githubBranchName?: string
 ): Promise<FileDiff[]> {
   const dir = getSingletonPath(config, singletonName);
-  const assets = await listAssetFiles(config, singletonName, githubBranchName);
+  // Both the saved-on-disk bytes AND any freshly-embedded image that only
+  // exists in the pending-blob store (IndexedDB) yet — mirrors the inline
+  // editor's own mount hydration (InlineContentEditors.tsx). Without the
+  // pending half, an image inserted this session parses back with 0 bytes,
+  // and serialize() then silently repoints it to /media-library/ and drops
+  // its bytes instead of writing them beside the entry (see listAssetFiles).
+  const [saved, pending] = await Promise.all([
+    listAssetFiles(config, singletonName, githubBranchName),
+    getPendingBlobsUnder(`${dir}/assets`).catch(
+      () => new Map<string, Uint8Array>()
+    ),
+  ]);
+  // Pending wins: it's the newer copy of any name present in both.
+  const assets = new Map([...saved, ...pending]);
   const state = fieldSchema.parse(undefined, {
     content: textEncoder.encode(html),
     other: assets,
     external: new Map(),
     slug: undefined,
   });
-  const out = fieldSchema.serialize(state);
+  // entryDirectory so embedded-image srcs are written as live-resolvable
+  // public paths (`/<dir>/assets/<name>`) rather than bare filenames.
+  const out = fieldSchema.serialize(state, { entryDirectory: dir });
 
   data[baseField] = out.value;
 

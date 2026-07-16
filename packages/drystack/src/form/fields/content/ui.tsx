@@ -21,8 +21,11 @@ export function parseToEditorStateHTML(
   return createEditorState(doc);
 }
 
-export function serializeFromEditorStateHTML(value: EditorState) {
+export function serializeFromEditorStateHTML(
+  value: EditorState,
+  entryDirectory?: string
+) {
   const other = new Map<string, Uint8Array>();
-  const html = serializeFromEditorStateToHTML(value.doc, other);
+  const html = serializeFromEditorStateToHTML(value.doc, other, entryDirectory);
   return { value: html, other };
 }

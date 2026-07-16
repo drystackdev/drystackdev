@@ -69,9 +69,17 @@ function inlineNodeToProseMirror(
     const src = el.getAttribute('src') ?? '';
     const prefix = `/${MEDIA_LIBRARY_DIRECTORY}/`;
     const isLegacyLibraryReference = src.startsWith(prefix);
-    const filename = decodeURIComponent(
+    const decoded = decodeURIComponent(
       isLegacyLibraryReference ? src.slice(prefix.length) : src
     );
+    if (!decoded) return [];
+    // The serializer writes an entry-scoped image's src as a public path
+    // (`/<entryDir>/assets/<name>`, see serialize.ts) so it resolves on the
+    // live site, but `other` is keyed by the bare filename — so hydrate by
+    // basename. This also tolerates older/looser prefixes (e.g. `/assets/…`).
+    const filename = isLegacyLibraryReference
+      ? decoded
+      : decoded.slice(decoded.lastIndexOf('/') + 1);
     if (!filename) return [];
     // legacy images keep resolving lazily via `resolveMediaLibraryBytes`
     // (see schema.tsx); new images are resolved synchronously here from

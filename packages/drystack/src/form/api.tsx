@@ -189,6 +189,11 @@ export type AssetsFormField<
     value: ParsedValue,
     extra: {
       slug: string | undefined;
+      // Repo-relative directory of the entry being serialized. Used by
+      // fields.content to write embedded-image srcs as live-resolvable public
+      // paths (`/<entryDirectory>/assets/<name>`); other assets fields ignore
+      // it. Optional so callers that lack the directory still type-check.
+      entryDirectory?: string | undefined;
     }
   ): {
     value: FormFieldStoredValue;
@@ -235,6 +240,7 @@ export type ContentFormField<
     value: ParsedValue,
     extra: {
       slug: string | undefined;
+      entryDirectory?: string | undefined;
     }
   ): {
     value: FormFieldStoredValue;

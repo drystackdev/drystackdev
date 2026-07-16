@@ -77,7 +77,12 @@ export function serializeEntryToFiles(args: {
     fields.object(args.schema),
     args.slug?.field,
     args.slug?.value,
-    true
+    true,
+    // Where this entry's parent-less extra files (incl. a content field's
+    // assets/) land — basePath is already the full entry dir (slug included),
+    // matching how those files are written below, so fields.content can emit
+    // public image srcs that resolve on the live site.
+    args.basePath
   );
   let dataContent = textEncoder.encode(dump(stateWithExtraFilesRemoved));
 

@@ -9,7 +9,12 @@ export function serializeProps(
   // note you might have a slug without a slug field when serializing props inside a component block or etc. in the editor
   slugField: string | undefined,
   slug: string | undefined,
-  shouldSuggestFilenamePrefix: boolean
+  shouldSuggestFilenamePrefix: boolean,
+  // Repo-relative directory of the entry being serialized (e.g. `demo`), used
+  // by fields.content to emit live-resolvable image srcs — see its serialize.
+  // Matches where this function's own `assets/<key>` files land once the
+  // caller prepends the entry dir (updating.tsx's serializeEntryToFiles).
+  entryDirectory?: string
 ) {
   const extraFiles: {
     path: string;
@@ -42,7 +47,7 @@ export function serializeProps(
           return forYaml;
         }
         if (schema.formKind === 'content' || schema.formKind === 'assets') {
-          const out = schema.serialize(value, { slug });
+          const out = schema.serialize(value, { slug, entryDirectory });
           if (out.content !== undefined && schema.contentExtension) {
             extraFiles.push({
               path:

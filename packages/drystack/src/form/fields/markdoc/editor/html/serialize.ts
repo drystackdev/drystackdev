@@ -60,6 +60,14 @@ type SerializationState = {
   // the responsive media rule for grids is emitted once per document (on the
   // first grid encountered) — see the `grid` case in `proseMirrorToHtmlNode`
   gridStyleEmitted: boolean;
+  // Repo-relative directory of the entry this document belongs to (e.g.
+  // `demo`, `blog/my-post`). An entry-scoped image is written to
+  // `<entryDirectory>/assets/<name>` (see serialize-props.ts/save.ts), so its
+  // src must be the matching public path `/<entryDirectory>/assets/<name>` to
+  // resolve on the live site. Left undefined by callers that don't know the
+  // directory — the src then falls back to the bare filename (still
+  // round-trips through parse.ts's basename lookup, just won't render live).
+  entryDirectory: string | undefined;
 };
 
 function uniqueFilename(
@@ -121,7 +129,9 @@ function getLeafContent(
         kind: 'element',
         tag: 'img',
         attrs: {
-          src: key,
+          src: state.entryDirectory
+            ? `/${state.entryDirectory}/assets/${key}`
+            : key,
           alt: alt ?? '',
           ...(title ? { title } : {}),
           ...layoutAttrs,
@@ -360,12 +370,14 @@ function proseMirrorToHtmlNode(
 
 export function serializeFromEditorStateToHTML(
   node: ProseMirrorNode,
-  other: Map<string, Uint8Array>
+  other: Map<string, Uint8Array>,
+  entryDirectory?: string
 ): string {
   const state: SerializationState = {
     schema: getEditorSchema(node.type.schema),
     other,
     gridStyleEmitted: false,
+    entryDirectory,
   };
   return renderNode(proseMirrorToHtmlNode(node, state));
 }
