@@ -239,30 +239,24 @@ const layoutCellActiveClass = css(layoutCellClass, {
   },
 });
 
-export function GridPopover(props: {
+// The grid-wide controls (settings, item layout, add/delete item) — shared
+// between the grid's own popover and the merged table-in-grid popover (see
+// `TableInGridPopover` in `popovers/index.tsx`), which needs these alongside
+// the table's own controls since a table's popover otherwise shadows its
+// enclosing grid's.
+export function GridItemControls(props: {
   node: Node;
   state: EditorState;
   pos: number;
 }) {
   const runCommand = useEditorDispatchCommand();
-  const state = useEditorState();
-  const [confirmOpen, setConfirmOpen] = useState(false);
   // "delete item" targets the focused cell — disabled until one is focused
-  const hasCell = findGridCell(state) !== null;
-
-  const deleteGrid = () => {
-    runCommand((s, dispatch) => {
-      if (dispatch) {
-        dispatch(s.tr.delete(props.pos, props.pos + props.node.nodeSize));
-      }
-      return true;
-    });
-  };
+  const hasCell = findGridCell(props.state) !== null;
 
   return (
-    <Flex gap="regular" padding="regular" alignItems="center">
-      <GridSettingsMenu node={props.node} state={state} pos={props.pos} />
-      <GridLayoutMenu state={state} />
+    <>
+      <GridSettingsMenu node={props.node} state={props.state} pos={props.pos} />
+      <GridLayoutMenu state={props.state} />
       <TooltipTrigger>
         <ActionButton
           prominence="low"
@@ -284,6 +278,31 @@ export function GridPopover(props: {
         </ActionButton>
         <Tooltip>Delete item</Tooltip>
       </TooltipTrigger>
+    </>
+  );
+}
+
+export function GridPopover(props: {
+  node: Node;
+  state: EditorState;
+  pos: number;
+}) {
+  const runCommand = useEditorDispatchCommand();
+  const state = useEditorState();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const deleteGrid = () => {
+    runCommand((s, dispatch) => {
+      if (dispatch) {
+        dispatch(s.tr.delete(props.pos, props.pos + props.node.nodeSize));
+      }
+      return true;
+    });
+  };
+
+  return (
+    <Flex gap="regular" padding="regular" alignItems="center">
+      <GridItemControls node={props.node} state={state} pos={props.pos} />
       <Divider orientation="vertical" />
       <TooltipTrigger>
         <ActionButton

@@ -319,7 +319,14 @@ function proseMirrorToHtmlNode(
     };
   }
   if (node.type === schema.nodes.table_row) {
-    return { kind: 'element', tag: 'tr', children: blocks(node.content) };
+    return {
+      kind: 'element',
+      tag: 'tr',
+      attrs: node.attrs.heightPx
+        ? { style: `height:${node.attrs.heightPx}px` }
+        : undefined,
+      children: blocks(node.content),
+    };
   }
   if (node.type === schema.nodes.table_header) {
     return { kind: 'element', tag: 'th', attrs: cellSpanAttrs(node), children: blocks(node.content) };

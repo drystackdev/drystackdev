@@ -223,6 +223,13 @@ function widthPercentFromStyle(style: string): number | null {
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 
+function heightPxFromStyle(style: string): number | null {
+  const match = /(?:^|;)\s*height\s*:\s*([\d.]+)px/.exec(style);
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
 function cellSpanAttrs(el: Element) {
   const colspan = parseInt(el.getAttribute('colspan') ?? '', 10);
   const rowspan = parseInt(el.getAttribute('rowspan') ?? '', 10);
@@ -253,7 +260,10 @@ function tableRow(el: Element, state: ParseState): ProseMirrorNode | null {
       if (cell) cells.push(cell);
     }
   }
-  return schema.nodes.table_row.createAndFill({}, cells);
+  return schema.nodes.table_row.createAndFill(
+    { heightPx: heightPxFromStyle(el.getAttribute('style') ?? '') },
+    cells
+  );
 }
 
 function gridFromElement(

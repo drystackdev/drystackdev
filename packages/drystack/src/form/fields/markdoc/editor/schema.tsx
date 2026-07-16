@@ -154,6 +154,22 @@ function widthPercentFromStyle(style: string): number | null {
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 
+function heightPxFromStyle(style: string): number | null {
+  const match = /(?:^|;)\s*height\s*:\s*([\d.]+)px/.exec(style);
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function getRowHeightAttrs(dom: HTMLElement | string) {
+  if (typeof dom === 'string') return { heightPx: null };
+  return { heightPx: heightPxFromStyle(dom.style.cssText) };
+}
+
+function rowHeightDOMAttrs(node: ProsemirrorNode): Record<string, string> {
+  return node.attrs.heightPx ? { style: `height:${node.attrs.heightPx}px` } : {};
+}
+
 function getCellSpanAttrs(dom: HTMLElement | string) {
   if (typeof dom === 'string') {
     return { colspan: 1, rowspan: 1, widthPercent: null };
@@ -419,9 +435,14 @@ const nodeSpecs = {
     content: '(table_cell | table_header)*',
     tableRole: 'row',
     allowGapCursor: false,
-    parseDOM: [{ tag: 'tr' }],
-    toDOM() {
-      return ['tr', 0];
+    attrs: {
+      // this row's own height, in px — set by dragging the row-resize handle
+      // (table-row-resize.ts). `null` (auto) lets the row size to its content.
+      heightPx: { default: null },
+    },
+    parseDOM: [{ tag: 'tr', getAttrs: getRowHeightAttrs }],
+    toDOM(node) {
+      return ['tr', rowHeightDOMAttrs(node), 0];
     },
   },
   table_cell: {

@@ -28,6 +28,7 @@ import { tableCellFocusHighlight } from './popovers/table';
 import { reactNodeViews } from './react-node-views';
 import { getEditorSchema } from './schema';
 import { tableColumnResizing } from './table-column-resize';
+import { tableRowResizing } from './table-row-resize';
 import { trailingParagraph } from './trailing-paragraph';
 import { ySyncPlugin, yCursorPlugin, yUndoPlugin } from 'y-prosemirror';
 import { Awareness } from 'y-protocols/awareness.js';
@@ -101,6 +102,7 @@ export function createEditorState(
       reactNodeViews(doc.type.schema),
       autocompleteDecoration(),
       tableColumnResizing(),
+      tableRowResizing(),
       tableEditing(),
       tableCellFocusHighlight(),
       codeBlockSyntaxHighlighting(),

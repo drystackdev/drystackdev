@@ -200,6 +200,7 @@ export function reactNodeViews(schema: Schema) {
             const reactNodeViewSpec = getReactNodeViewSpec(type);
 
             const dom = document.createElement(type.isInline ? 'span' : 'div');
+            dom.setAttribute('data-node-type', type.name);
             const applyContainerStyle = (n: Node) => {
               const style = reactNodeViewSpec?.containerStyle?.(n);
               if (!style) return;
