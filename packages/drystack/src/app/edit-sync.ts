@@ -184,6 +184,39 @@ export async function getPendingBlob(path: string): Promise<Uint8Array | undefin
   });
 }
 
+// Every pending blob stored directly under `dir`, keyed by its name relative
+// to it (`<dir>/foo.png` → `foo.png`). That relative keying is what a content
+// field's `other` map wants (see the field's parse/serialize, whose keys are
+// relative to `<entryDir>/assets`), so the result drops straight into a parse
+// without re-keying at the call site. Flat: a name still containing a `/` sits
+// in a subdirectory, which the admin never writes embedded images into.
+export async function getPendingBlobsUnder(
+  dir: string
+): Promise<Map<string, Uint8Array>> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(BLOB_STORE_NAME, 'readonly');
+    const store = tx.objectStore(BLOB_STORE_NAME);
+    const keysReq = store.getAllKeys();
+    const valsReq = store.getAll();
+    tx.oncomplete = () => {
+      const out = new Map<string, Uint8Array>();
+      const keys = keysReq.result;
+      const vals = valsReq.result;
+      const prefix = `${dir}/`;
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+        if (typeof key !== 'string' || !key.startsWith(prefix)) continue;
+        const name = key.slice(prefix.length);
+        if (name.includes('/')) continue;
+        out.set(name, vals[i]);
+      }
+      resolve(out);
+    };
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 export async function deletePendingBlob(path: string): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
@@ -259,24 +292,59 @@ export function getSyncableFieldKind(
   return undefined;
 }
 
-// Whether the admin form's own live mirroring (SingletonPage.tsx's
-// toBusValue/fromBusValue effects) can carry a field of this kind.
+// --- Carrying a content field over the bus ------------------------------
 //
-// Everything but 'content'. The bus carries strings, and every other kind's
-// form value either is one or JSON-encodes to one losslessly. A content
-// field's form value is a ProseMirror EditorState, and converting it in
-// either direction means a serialize/parse round trip through the field's
-// schema that also needs the entry's own asset bytes — parsing without them
-// silently repoints every embedded image (see the visual editor's
-// listAssetFiles). That's a real capability, not a nicety, and this layer has
-// no access to those bytes.
+// Every kind above is bus-syncable, content included. The other kinds are
+// easy: the bus carries strings, and their form values either are one or
+// JSON-encode to one losslessly. A content field's form value is a ProseMirror
+// EditorState, so each side converts via a serialize/parse round trip through
+// the field's own schema — the body travels as raw HTML, matching what the
+// visual editor already publishes and what save.ts already expects to read.
 //
-// The visual editor is unaffected: it edits content fields inline and writes
-// them straight to disk/GitHub on Save (it hydrates the assets itself). Only
-// *live* admin↔visual-editor mirroring of a content field is out — each side
-// sees the other's content edits after a save + reload, not as they're typed.
-export function isBusSyncableKind(kind: SyncableFieldKind): boolean {
-  return kind !== 'content';
+// The catch is embedded images. `parse` resolves each `<img>`'s bytes out of
+// the `other` map handed to it, and a filename missing from that map parses to
+// a zero-byte node (markdoc/editor/html/parse.ts's UNHYDRATED_IMAGE_BYTES)
+// that serializes back out as `/media-library/<name>` — silently repointing
+// the image to the shared library. So a receiver must never parse incoming
+// HTML with a half-populated map. Both surfaces build `other` the same way:
+//
+//   1. Images already in the receiver's own doc, harvested from its current
+//      state via serialize().other — bytes it necessarily already holds.
+//   2. Images the *sender* just embedded, which exist nowhere on disk yet.
+//      The publisher stashes those into the `blobs` store beside the HTML
+//      (keyed by their eventual repo path, `<entryDir>/assets/<filename>`,
+//      the same path save.ts writes them to); the receiver reads them back
+//      with getPendingBlobsUnder.
+//
+// (2) is what makes this safe rather than lossy: without it, typing in one
+// surface after inserting an image in the other would repoint that image on
+// the very next keystroke.
+
+// Names already handed to putPendingBlob this session, so republishing a body
+// doesn't rewrite every image it embeds on every keystroke. A filename is
+// minted per inserted image and its bytes don't change afterwards, so having
+// stashed one once is enough. Owned by whichever surface is publishing (one
+// set per mounted editor / form).
+export type StashedBlobs = Set<string>;
+
+// Writes the embedded image bytes that have to accompany a content field's
+// HTML on the bus — `other` as returned by the field's own serialize(), whose
+// keys are relative to `<entryDir>/assets`. Await this *before* publishing the
+// body: a receiver woken by the broadcast reads the bytes it references
+// straight away, so publishing first leaves a window where those images
+// resolve to nothing (see above for what that silently does to them).
+export async function stashContentBlobs(
+  other: ReadonlyMap<string, Uint8Array>,
+  assetsDir: string,
+  stashed: StashedBlobs
+): Promise<void> {
+  await Promise.all(
+    [...other].map(async ([name, bytes]) => {
+      if (stashed.has(name)) return;
+      stashed.add(name);
+      await putPendingBlob(`${assetsDir}/${name}`, bytes);
+    })
+  );
 }
 
 // Splices one leaf edit into a nested array/object value tree, walking

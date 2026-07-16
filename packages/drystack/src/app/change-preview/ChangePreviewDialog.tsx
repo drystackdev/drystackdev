@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { useLocalizedStringFormatter } from '@react-aria/i18n';
 import { ActionButton, Button, ButtonGroup } from '@keystar/ui/button';
 import { Dialog, useDialogContainer } from '@keystar/ui/dialog';
@@ -12,6 +12,8 @@ import { css } from '@keystar/ui/style';
 import { Tooltip, TooltipTrigger } from '@keystar/ui/tooltip';
 import { Heading, Text } from '@keystar/ui/typography';
 import l10nMessages from '../l10n';
+import { summarizeContent } from '../collection-table/format-helpers';
+import type { ContentSummary } from '../../form/fields/content';
 
 // Raw markup styling for the accordion — kept as scoped emotion classes
 // (rather than a global stylesheet like VEI's old editor.css) so this
@@ -80,6 +82,24 @@ export type FieldChange = {
   after: string;
 };
 
+// How a fields.content body reads in this dialog: its word/character counts,
+// never its markup. Both callers route a content field's before/after through
+// this, so the row reads the same in the admin and the visual editor — each
+// used to show its own idea of the raw value (the admin the editor state's
+// JSON, VEI the body's HTML), which was unreadable and inconsistent between
+// them. Accepts either the body's HTML or the { wordCount, charCount } summary
+// the field's own serialize() precomputes; both count the same way.
+//
+// Callers must decide *whether* a field changed from the real value, never
+// from this string: two different bodies can share a summary — turning an
+// <h6> into a <p> touches no words — and filtering on summaries would silently
+// drop such an edit from the list.
+export function summarizeContentChange(
+  value: string | ContentSummary | undefined
+): string {
+  return summarizeContent(value);
+}
+
 // `changes: null` means still loading (VEI reads its list from IndexedDB
 // asynchronously; the admin already has everything in memory and never
 // passes null). `onDelete`, when provided, adds a discard action per row —
@@ -100,6 +120,21 @@ export function ChangePreviewDialog({
   const { dismiss } = useDialogContainer();
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const dialogTitle = title ?? stringFormatter.format('reviewChanges');
+
+  // Discarding the last remaining row leaves nothing to review, so close
+  // rather than sitting on an empty "No changes" panel the user has to
+  // dismiss by hand. Gated on having *had* changes: a dialog opened when
+  // there was nothing pending still shows that message, which is an answer to
+  // a question the user asked, not a leftover.
+  const hadChangesRef = useRef(false);
+  useEffect(() => {
+    if (!changes) return;
+    if (changes.length > 0) {
+      hadChangesRef.current = true;
+      return;
+    }
+    if (hadChangesRef.current) dismiss();
+  }, [changes, dismiss]);
 
   return (
     <Dialog size="large" aria-label={dialogTitle}>

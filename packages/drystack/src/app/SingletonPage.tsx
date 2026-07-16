@@ -55,14 +55,16 @@ import { delDraft, getDraft, setDraft } from './persistence';
 import {
   editKey,
   getAllEdits,
+  getPendingBlobsUnder,
   getSyncableFieldKind,
-  isBusSyncableKind,
   isAssetKind,
   parseEditKey,
   publishDelete,
   publishEdit,
   spliceValueEdit,
+  stashContentBlobs,
   subscribeEdits,
+  type StashedBlobs,
   type SyncableFieldKind,
 } from './edit-sync';
 import * as s from 'superstruct';
@@ -382,8 +384,70 @@ function SingletonPageInner(
 
 // A field value as it lives in the admin form's own state — wider than
 // `PendingEdit`'s bus-string, since a fields.array/fields.object value here
-// is the real array/object, not its JSON-encoded bus form.
+// is the real array/object, not its JSON-encoded bus form. fields.content is
+// the exception and isn't covered: its form value is the editor's own state
+// object, which never passes through fromBusValue (see contentFromBusValue).
 type FieldValue = string | string[] | Record<string, unknown> | null;
+
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
+
+// The narrow slice of a fields.content schema this file drives. Typed
+// structurally — mirroring the visual editor's InlineContentEditors.tsx — so
+// the admin page doesn't pull the field's own module graph in. The state
+// itself stays opaque: this module only round-trips it through these two.
+type ContentFieldSchema = {
+  parse(
+    value: unknown,
+    extra: {
+      content: Uint8Array;
+      other: ReadonlyMap<string, Uint8Array>;
+      external: ReadonlyMap<string, ReadonlyMap<string, Uint8Array>>;
+      slug: undefined;
+    }
+  ): unknown;
+  serialize(value: unknown): {
+    value: unknown;
+    content: Uint8Array;
+    other: Map<string, Uint8Array>;
+  };
+};
+
+// Rebuilds a content field's form value from the raw HTML on the bus.
+// Parsing with an `other` map missing any image the HTML names silently
+// repoints it — edit-sync.ts spells out how — so this assembles the map from
+// every source that can hold one, weakest first:
+//
+//   `ownValues`  the field's value in this form, mined for the bytes of the
+//                images it embeds. Pass the entry's *loaded* value as well as
+//                its current one: the loaded one stands in for a read of the
+//                entry's assets/ directory (it embeds exactly what was on disk
+//                at load), which is what covers an image the user has since
+//                deleted here but the sender still shows.
+//   blob store   images the sender embedded that exist nowhere else yet.
+async function contentFromBusValue(
+  fieldSchema: ContentFieldSchema,
+  html: string,
+  assetsDir: string,
+  ownValues: readonly unknown[]
+): Promise<unknown> {
+  const other = new Map<string, Uint8Array>();
+  for (const value of ownValues) {
+    if (value === undefined) continue;
+    for (const [name, bytes] of fieldSchema.serialize(value).other) {
+      other.set(name, bytes);
+    }
+  }
+  for (const [name, bytes] of await getPendingBlobsUnder(assetsDir)) {
+    other.set(name, bytes);
+  }
+  return fieldSchema.parse(undefined, {
+    content: textEncoder.encode(html),
+    other,
+    external: new Map(),
+    slug: undefined,
+  });
+}
 
 // The edit-sync bus only carries strings (see edit-sync.ts's PendingEdit) —
 // fields.image/fields.file's `null` (no value) is represented on the bus as
@@ -393,7 +457,20 @@ type FieldValue = string | string[] | Record<string, unknown> | null;
 // parseArrayValue/parseObjectValue and the visual editor's
 // Toolbar.tsx/save.ts). fields.text values are always strings already, so
 // they pass through as-is.
-function toBusValue(kind: SyncableFieldKind, value: unknown): string | undefined {
+function toBusValue(
+  kind: SyncableFieldKind,
+  value: unknown,
+  fieldSchema: ComponentSchema
+): string | undefined {
+  // fields.content travels as raw HTML, the same encoding the visual editor
+  // publishes and save.ts reads back. Its embedded image bytes ride along
+  // separately — see stashContentBlobs, which the publish effect pairs with
+  // this.
+  if (kind === 'content') {
+    return textDecoder.decode(
+      (fieldSchema as unknown as ContentFieldSchema).serialize(value).content
+    );
+  }
   if (isAssetKind(kind)) {
     if (value === null) return '';
     return typeof value === 'string' ? value : undefined;
@@ -409,7 +486,13 @@ function toBusValue(kind: SyncableFieldKind, value: unknown): string | undefined
   return typeof value === 'string' ? value : undefined;
 }
 
-function fromBusValue(kind: SyncableFieldKind, busValue: string): FieldValue {
+// Every bus-decodable kind — i.e. all but 'content', whose value needs the
+// entry's image bytes and an async round trip through the field's own schema
+// (contentFromBusValue). Callers dispatch content away before reaching here.
+function fromBusValue(
+  kind: Exclude<SyncableFieldKind, 'content'>,
+  busValue: string
+): FieldValue {
   if (isAssetKind(kind)) return busValue === '' ? null : busValue;
   if (kind === 'array') {
     try {
@@ -444,8 +527,14 @@ function applyContainerPathEdit(
   baseSchema: ComponentSchema
 ): unknown {
   const path = field.slice(baseField.length + 1).split('.');
-  return spliceValueEdit(current, path, baseSchema, leafSchema => {
+  return spliceValueEdit(current, path, baseSchema, (leafSchema, prevLeaf) => {
     const leafKind = getSyncableFieldKind(leafSchema);
+    // A content field nested inside a container is left alone: nothing
+    // publishes such a key today (dry() only tags top-level content spots, and
+    // save.ts only resolves a content filename for one), so a key that reaches
+    // here is malformed. Writing the raw HTML in as if it were a text leaf
+    // would put a string where the form expects an editor state.
+    if (leafKind === 'content') return prevLeaf;
     return leafKind ? fromBusValue(leafKind, busValue) : busValue;
   });
 }
@@ -481,8 +570,11 @@ function LocalSingletonPage(
   // content saved from elsewhere doesn't keep showing as locally unsaved.
   // Reset alongside `state` whenever the tree genuinely reloads (below):
   // the fresh `initialState` prop already carries these values then.
+  // Values are whatever the form state holds for that field, content's
+  // editor-state object included — this only ever spreads them back over
+  // `initialState`, never inspects them.
   const [committedOverrides, setCommittedOverrides] = useState<
-    Record<string, FieldValue>
+    Record<string, unknown>
   >({});
 
   useShowRestoredDraftMessage(draft, state, localTreeKey);
@@ -570,12 +662,33 @@ function LocalSingletonPage(
   // effect's deps) — assigned fresh every render.
   const stateRef = useRef(state);
   stateRef.current = state;
+  // Embedded content images already written to the bus's blob store — see
+  // stashContentBlobs.
+  const stashedBlobsRef = useRef<StashedBlobs>(new Set());
+  // The values of `field` this form can mine for embedded image bytes when
+  // rebuilding an incoming content edit — see contentFromBusValue for why the
+  // as-loaded value is in here and not just the current one. Reads through
+  // refs: the long-lived subscribeEdits callback below must see the newest of
+  // both without re-subscribing.
+  const initialStateRef = useRef(initialState);
+  initialStateRef.current = initialState;
+  const ownContentValues = useCallback(
+    (field: string): unknown[] => [
+      (initialStateRef.current as Record<string, unknown> | null)?.[field],
+      (stateRef.current as Record<string, unknown>)[field],
+    ],
+    []
+  );
   if (!lastSyncedRef.current) {
     lastSyncedRef.current = {};
     for (const [field, fieldSchema] of Object.entries(singletonConfig.schema)) {
       const kind = getSyncableFieldKind(fieldSchema);
       if (!kind) continue;
-      const busValue = toBusValue(kind, (state as Record<string, unknown>)[field]);
+      const busValue = toBusValue(
+        kind,
+        (state as Record<string, unknown>)[field],
+        fieldSchema
+      );
       if (busValue !== undefined) lastSyncedRef.current[field] = busValue;
     }
   }
@@ -596,7 +709,8 @@ function LocalSingletonPage(
   // mergeFieldEdits precedence.
   useEffect(() => {
     let cancelled = false;
-    getAllEdits().then(edits => {
+    (async () => {
+      const edits = await getAllEdits();
       if (cancelled) return;
       const relevant = edits.filter(edit => {
         const { type, name } = parseEditKey(edit.key);
@@ -607,10 +721,21 @@ function LocalSingletonPage(
         const { field } = parseEditKey(edit.key);
         const baseField = field.split('.')[0];
         if (field !== baseField) continue;
-        const kind = getSyncableFieldKind(singletonConfig.schema[baseField]);
-        if (!kind || !isBusSyncableKind(kind)) continue;
+        const fieldSchema = singletonConfig.schema[baseField];
+        const kind = getSyncableFieldKind(fieldSchema);
+        if (!kind) continue;
         if (lastSyncedRef.current![field] === edit.value) continue;
         lastSyncedRef.current![field] = edit.value;
+        if (kind === 'content') {
+          updates[baseField] = await contentFromBusValue(
+            fieldSchema as unknown as ContentFieldSchema,
+            edit.value,
+            `${singletonPath}/assets`,
+            ownContentValues(baseField)
+          );
+          if (cancelled) return;
+          continue;
+        }
         updates[baseField] = fromBusValue(kind, edit.value);
       }
       for (const edit of relevant) {
@@ -636,18 +761,35 @@ function LocalSingletonPage(
       if (Object.keys(updates).length > 0) {
         onPreviewPropsChange(s => ({ ...s, ...updates }));
       }
-    });
+    })();
     return () => {
       cancelled = true;
     };
-  }, [singleton, singletonConfig.schema, onPreviewPropsChange]);
+  }, [
+    singleton,
+    singletonConfig.schema,
+    singletonPath,
+    ownContentValues,
+    onPreviewPropsChange,
+  ]);
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
     for (const [field, fieldSchema] of Object.entries(singletonConfig.schema)) {
       const kind = getSyncableFieldKind(fieldSchema);
-      if (!kind || !isBusSyncableKind(kind)) continue;
-      const busValue = toBusValue(kind, (state as Record<string, unknown>)[field]);
+      if (!kind) continue;
+      const value = (state as Record<string, unknown>)[field];
+      // One serialize for a content field, reused for both halves of what it
+      // publishes: the HTML body and the embedded image bytes that have to be
+      // readable before it. Serializing the whole doc per keystroke is what
+      // the visual editor's own inline editor already does.
+      const serialized =
+        kind === 'content'
+          ? (fieldSchema as unknown as ContentFieldSchema).serialize(value)
+          : undefined;
+      const busValue = serialized
+        ? textDecoder.decode(serialized.content)
+        : toBusValue(kind, value, fieldSchema);
       if (busValue === undefined) continue;
       if (lastSyncedRef.current![field] === busValue) continue;
       lastSyncedRef.current![field] = busValue;
@@ -656,13 +798,20 @@ function LocalSingletonPage(
       // A picked image only fires this once (no keystrokes), so the same
       // debounce just adds one imperceptible 200ms hop for it.
       timers.push(
-        setTimeout(() => {
+        setTimeout(async () => {
+          if (serialized) {
+            await stashContentBlobs(
+              serialized.other,
+              `${singletonPath}/assets`,
+              stashedBlobsRef.current
+            );
+          }
           publishEdit(editKey('singleton', singleton, field), busValue);
         }, 200)
       );
     }
     return () => timers.forEach(clearTimeout);
-  }, [state, singleton, singletonConfig.schema]);
+  }, [state, singleton, singletonConfig.schema, singletonPath]);
 
   useEffect(() => {
     return subscribeEdits(msg => {
@@ -676,7 +825,7 @@ function LocalSingletonPage(
         const baseField = field.split('.')[0];
         const baseSchema = singletonConfig.schema[baseField];
         const kind = getSyncableFieldKind(baseSchema);
-        if (!kind || !isBusSyncableKind(kind)) return;
+        if (!kind) return;
         // Don't stomp on what the user is actively typing — the field's
         // wrapper div carries data-field (object/ui.tsx) for exactly this
         // check. Last-write-wins once they move on: either their own next
@@ -686,6 +835,22 @@ function LocalSingletonPage(
         );
         if (fieldEl?.contains(document.activeElement)) return;
         lastSyncedRef.current![field] = msg.value;
+        if (kind === 'content') {
+          // Async, unlike every other kind: rehydrating the body's images
+          // means a read from the blob store first. Ordering against a
+          // concurrent message is already handled the same way as elsewhere —
+          // lastSyncedRef is stamped above, and a later message simply
+          // publishes over whatever this resolves to.
+          contentFromBusValue(
+            baseSchema as unknown as ContentFieldSchema,
+            msg.value,
+            `${singletonPath}/assets`,
+            ownContentValues(baseField)
+          ).then(next => {
+            onPreviewPropsChange(s => ({ ...s, [baseField]: next }));
+          });
+          return;
+        }
         if (field === baseField) {
           onPreviewPropsChange(s => ({
             ...s,
@@ -722,11 +887,14 @@ function LocalSingletonPage(
             })()
           : Object.keys(singletonConfig.schema);
       setCommittedOverrides(prev => {
-        let next: Record<string, FieldValue> | undefined;
+        let next: Record<string, unknown> | undefined;
         for (const field of fields) {
           const kind = getSyncableFieldKind(singletonConfig.schema[field]);
-          if (!kind || !isBusSyncableKind(kind)) continue;
+          if (!kind) continue;
           const value = (stateRef.current as Record<string, unknown>)[field];
+          // Shape-check what the bus-decodable kinds are supposed to hold.
+          // 'content' is exempt: its value is the editor's own state object,
+          // which this layer deliberately treats as opaque.
           if (
             (kind === 'text' && typeof value !== 'string') ||
             (isAssetKind(kind) && typeof value !== 'string' && value !== null) ||
@@ -736,15 +904,20 @@ function LocalSingletonPage(
           ) {
             continue;
           }
-          const typedValue = value as FieldValue;
-          if (prev[field] === typedValue) continue;
+          if (prev[field] === value) continue;
           next ??= { ...prev };
-          next[field] = typedValue;
+          next[field] = value;
         }
         return next ?? prev;
       });
     });
-  }, [singleton, singletonConfig.schema, onPreviewPropsChange]);
+  }, [
+    singleton,
+    singletonConfig.schema,
+    singletonPath,
+    ownContentValues,
+    onPreviewPropsChange,
+  ]);
 
   const previewProps = usePreviewProps(
     schema,
@@ -773,11 +946,11 @@ function LocalSingletonPage(
     if (updateResult.kind !== 'updated') return;
     for (const [field, fieldSchema] of Object.entries(singletonConfig.schema)) {
       const kind = getSyncableFieldKind(fieldSchema);
-      // A content field's pending edit is deliberately spared: this tab never
-      // received it (see isBusSyncableKind), so its own save just wrote the
-      // *old* body over it. Dropping the key here would silently throw away
-      // work the visual editor can still save itself.
-      if (kind && isBusSyncableKind(kind)) {
+      // Content included: this tab now mirrors a content field's pending edit
+      // into its own form state, so the save above wrote that same body out
+      // rather than the stale one it used to. Dropping the key is what makes
+      // the edit stop showing as unreviewed in the visual editor.
+      if (kind) {
         publishDelete(editKey('singleton', singleton, field));
       }
     }

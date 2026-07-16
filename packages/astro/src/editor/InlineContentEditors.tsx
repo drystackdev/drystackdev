@@ -5,7 +5,12 @@ import {
   type ContentEditorState as EditorState,
 } from "@drystack/core/field-editor";
 import { getSingletonPath } from "@drystack/core/path-utils";
-import { publishEdit } from "./store";
+import {
+  getPendingBlobsUnder,
+  publishEdit,
+  stashContentBlobs,
+  type StashedBlobs,
+} from "./store";
 import { setContentSpotPainter } from "./bind";
 import { listAssetFiles } from "./save";
 
@@ -61,10 +66,17 @@ function InlineContentEditor({
 }) {
   const { el, key, schema, singletonName } = spot;
   const [state, setState] = useState<EditorState | null>(null);
+  const assetsDir = `${getSingletonPath(config, singletonName)}/assets`;
   // This entry's assets/ bytes, kept for the lifetime of the editor: every
   // later re-parse (see the painter below) needs them just as much as the
   // first one does, and re-fetching per paint would be pointless network.
+  //
+  // Seeded from disk *and* from the bus's blob store, because an image the
+  // admin has embedded but not yet saved exists only in the latter — parsing
+  // its HTML without those bytes would repoint the image (see edit-sync.ts).
   const assetsRef = useRef<ReadonlyMap<string, Uint8Array>>(new Map());
+  // Images this editor has already published bytes for — see stashContentBlobs.
+  const stashedRef = useRef<StashedBlobs>(new Set());
 
   // Reads the element's current HTML and turns it into an editor state, with
   // this entry's own assets/ bytes hydrated first (see listAssetFiles for why
@@ -74,17 +86,24 @@ function InlineContentEditor({
   useEffect(() => {
     let cancelled = false;
     const html = el.innerHTML;
-    listAssetFiles(config, singletonName)
-      .catch(() => new Map<string, Uint8Array>())
-      .then((other) => {
-        if (cancelled) return;
-        assetsRef.current = other;
-        setState(parseHtml(schema, html, other));
-      });
+    Promise.all([
+      listAssetFiles(config, singletonName).catch(
+        () => new Map<string, Uint8Array>(),
+      ),
+      getPendingBlobsUnder(assetsDir).catch(
+        () => new Map<string, Uint8Array>(),
+      ),
+    ]).then(([saved, pending]) => {
+      if (cancelled) return;
+      // Pending wins: it's the newer copy of any name present in both.
+      const other = new Map([...saved, ...pending]);
+      assetsRef.current = other;
+      setState(parseHtml(schema, html, other));
+    });
     return () => {
       cancelled = true;
     };
-  }, [config, el, schema, singletonName]);
+  }, [config, el, schema, singletonName, assetsDir]);
 
   // Cleanup closures capture their variables at effect-setup time, so the
   // repaint below has to read the *latest* state through a ref rather than
@@ -119,9 +138,20 @@ function InlineContentEditor({
     return setContentSpotPainter(key, (html) => {
       // assetsRef, not an empty map — re-parsing without this entry's bytes
       // would repoint every embedded image (see listAssetFiles).
-      setState(parseHtml(schema, html, assetsRef.current));
+      //
+      // Re-read the blob store first: an incoming paint can be an admin edit
+      // that embedded an image this editor has never seen, whose bytes exist
+      // nowhere else yet. Names already known keep their bytes, so this only
+      // ever grows the map.
+      getPendingBlobsUnder(assetsDir)
+        .catch(() => new Map<string, Uint8Array>())
+        .then((pending) => {
+          const other = new Map([...assetsRef.current, ...pending]);
+          assetsRef.current = other;
+          setState(parseHtml(schema, html, other));
+        });
     });
-  }, [key, schema]);
+  }, [key, schema, assetsDir]);
 
   if (!state) return null;
 
@@ -131,7 +161,13 @@ function InlineContentEditor({
       value={state}
       onChange={(next) => {
         setState(next);
-        publishEdit(key, serializeHtml(schema, next)).then(onChange);
+        // One serialize for both halves of what a content edit publishes: the
+        // HTML body, and the bytes of any image embedded in it that isn't on
+        // disk yet. The bytes go first — see stashContentBlobs.
+        const out = schema.serialize(next);
+        stashContentBlobs(out.other, assetsDir, stashedRef.current)
+          .then(() => publishEdit(key, textDecoder.decode(out.content)))
+          .then(onChange);
       }}
       entryDirectory={getSingletonPath(config, singletonName)}
     />

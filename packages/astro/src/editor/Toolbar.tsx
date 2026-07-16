@@ -44,6 +44,7 @@ import { Heading, Text } from "@keystar/ui/typography";
 import {
   ChangePreviewDialog,
   ImageThumbFrame,
+  summarizeContentChange,
   type FieldChange,
 } from "@drystack/core/change-preview";
 import {
@@ -138,11 +139,25 @@ async function getPendingChanges(
         key: e.key,
         label: fieldSchema?.label ?? field,
         kind,
+        isContent: dryKind === "content",
         before: getOriginalValue(e.key) ?? "",
         after: e.value,
       };
     })
-    .filter((c) => c.before !== c.after);
+    // On the raw bodies, before any summarizing below — two different bodies
+    // can share a word/character count (an <h6> turned into a <p> touches no
+    // words), and filtering on the summary would drop that edit from the list
+    // while it's still pending.
+    .filter((c) => c.before !== c.after)
+    .map(({ isContent, ...c }) =>
+      isContent
+        ? {
+            ...c,
+            before: summarizeContentChange(c.before),
+            after: summarizeContentChange(c.after),
+          }
+        : c,
+    );
 }
 
 const adminBase = `/${String(apiPath).replace(/^\/+|\/+$/g, "")}`;
