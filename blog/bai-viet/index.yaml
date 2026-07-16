@@ -3,9 +3,9 @@ excerpt: Mô tả cho bài viết
 keywords: blog
 cover: /blog/bai-viet/assets/image.png
 date: 2026-07-13
-publish: false
+publish: true
 body:
   wordCount: 72
   charCount: 316
 createdAt: '2026-07-14T06:14:40.711Z'
-updatedAt: '2026-07-16T19:28:16.151Z'
+updatedAt: '2026-07-16T20:17:34.330Z'
