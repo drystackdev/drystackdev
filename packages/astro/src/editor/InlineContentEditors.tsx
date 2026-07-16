@@ -61,10 +61,12 @@ function InlineContentEditor({
   config,
   spot,
   onChange,
+  currentBranch,
 }: {
   config: Config<any, any>;
   spot: Spot;
   onChange: () => void;
+  currentBranch: string;
 }) {
   const { el, key, schema, singletonName } = spot;
   const [state, setState] = useState<EditorState | null>(null);
@@ -96,7 +98,7 @@ function InlineContentEditor({
     let cancelled = false;
     const html = el.innerHTML;
     Promise.all([
-      listAssetFiles(config, singletonName).catch(
+      listAssetFiles(config, singletonName, currentBranch || undefined).catch(
         () => new Map<string, Uint8Array>(),
       ),
       getPendingBlobsUnder(assetsDir).catch(
@@ -112,7 +114,7 @@ function InlineContentEditor({
     return () => {
       cancelled = true;
     };
-  }, [config, el, schema, singletonName, assetsDir]);
+  }, [config, el, schema, singletonName, assetsDir, currentBranch]);
 
   // Cleanup closures capture their variables at effect-setup time, so the
   // repaint below has to read the *latest* state through a ref rather than
@@ -239,9 +241,11 @@ function readContentSpots(config: Config<any, any>): Spot[] {
 export function InlineContentEditors({
   config,
   onChange,
+  currentBranch,
 }: {
   config: Config<any, any>;
   onChange: () => void;
+  currentBranch: string;
 }) {
   // Read once per mount: the spots are server-rendered and this component's
   // whole lifetime is one edit-mode session.
@@ -254,6 +258,7 @@ export function InlineContentEditors({
           config={config}
           spot={spot}
           onChange={onChange}
+          currentBranch={currentBranch}
         />
       ))}
     </>

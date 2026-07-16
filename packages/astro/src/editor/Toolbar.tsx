@@ -956,7 +956,11 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
                 dialog, so these mount for as long as edit mode is on. They
                 live inside the boundary because the content editor can open
                 the media library for embedded images. */}
-            <InlineContentEditors config={config} onChange={refreshCount} />
+            <InlineContentEditors
+              config={config}
+              onChange={refreshCount}
+              currentBranch={providerState.currentBranch}
+            />
             <DialogContainer onDismiss={() => setArrayDialogKey(null)}>
               {arrayDialogKey && (
                 <ContainerFieldDialog
