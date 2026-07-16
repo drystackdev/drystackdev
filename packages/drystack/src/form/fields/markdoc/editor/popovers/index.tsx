@@ -34,6 +34,14 @@ type NodePopoverRenderer = (props: {
   pos: number;
 }) => ReactElement | null;
 
+// "Remove table" icon (a table with a torn/cut corner) — not in @keystar/ui's
+// bundled set, but drawn in the same 24×24 stroke convention as its other
+// icons, so it goes through <Icon> like any of them. Used only for the two
+// table-specific remove buttons below — other node types keep `trash2Icon`.
+const tableDeleteIcon = (
+  <path d="M21 12V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7m9-12H3m6-6v18m8-4l4 4m0-4l-4 4" />
+);
+
 function ExtraAttributesMenuItem(props: {
   schema: Record<string, ComponentSchema>;
   name: string;
@@ -177,7 +185,7 @@ const popoverComponents: Record<
               });
             }}
           >
-            <Icon src={trash2Icon} />
+            <Icon src={tableDeleteIcon} />
           </ActionButton>
           <Tooltip tone="critical">Remove</Tooltip>
         </TooltipTrigger>
@@ -268,7 +276,7 @@ function TableInGridPopover(props: {
             });
           }}
         >
-          <Icon src={trash2Icon} />
+          <Icon src={tableDeleteIcon} />
         </ActionButton>
         <Tooltip tone="critical">Remove table</Tooltip>
       </TooltipTrigger>

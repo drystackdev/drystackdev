@@ -11,7 +11,7 @@ import { listIcon } from '@keystar/ui/icon/icons/listIcon';
 import { listOrderedIcon } from '@keystar/ui/icon/icons/listOrderedIcon';
 import { quoteIcon } from '@keystar/ui/icon/icons/quoteIcon';
 import { tableIcon } from '@keystar/ui/icon/icons/tableIcon';
-import { columnsIcon } from '@keystar/ui/icon/icons/columnsIcon';
+import { gridInsertIcon } from '#icons/gridInsertIcon';
 import { separatorHorizontalIcon } from '@keystar/ui/icon/icons/separatorHorizontalIcon';
 import {
   DOMOutputSpec,
@@ -601,9 +601,9 @@ const nodeSpecs = {
       rows: { default: GRID_DEFAULT_ROWS },
     },
     insertMenu: {
-      label: 'Grid',
+      label: 'Grid Layout',
       description: 'Insert a multi-column layout',
-      icon: columnsIcon,
+      icon: gridInsertIcon,
       command: insertGrid,
     },
     reactNodeView: {

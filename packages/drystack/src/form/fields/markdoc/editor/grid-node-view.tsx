@@ -59,7 +59,12 @@ export function GridNodeView(props: NodeViewProps) {
   );
 }
 
+// which dimension(s) a given handle drives — the corner handle drives both,
+// the edge strips drive only their own axis
+type ResizeAxis = "column" | "row" | "both";
+
 type Drag = {
+  axis: ResizeAxis;
   startX: number;
   startY: number;
   startWidth: number;
@@ -108,7 +113,10 @@ export function GridCellView(props: NodeViewProps) {
       if (!view || pos == null) return;
       const current = view.state.doc.nodeAt(pos);
       if (!current) return;
-      if (current.attrs.span === nextSpan && current.attrs.rowSpan === nextRowSpan) {
+      if (
+        current.attrs.span === nextSpan &&
+        current.attrs.rowSpan === nextRowSpan
+      ) {
         return;
       }
       let tr = view.state.tr;
@@ -129,15 +137,22 @@ export function GridCellView(props: NodeViewProps) {
       if (!drag) return;
       const dx = event.clientX - drag.startX;
       const dy = event.clientY - drag.startY;
-      // (size + gap) / pitch == the unit count; snap to whole 1/N steps
-      const nextSpan = clampSpan(
-        (drag.startWidth + dx + drag.columnGap) / drag.colPitch,
-        drag.columns,
-      );
-      const nextRowSpan = clampSpan(
-        (drag.startHeight + dy + drag.rowGap) / drag.rowPitch,
-        drag.rows,
-      );
+      // (size + gap) / pitch == the unit count; snap to whole 1/N steps.
+      // An edge strip only drives its own axis — the other stays put.
+      const nextSpan =
+        drag.axis === "row"
+          ? drag.lastSpan
+          : clampSpan(
+              (drag.startWidth + dx + drag.columnGap) / drag.colPitch,
+              drag.columns,
+            );
+      const nextRowSpan =
+        drag.axis === "column"
+          ? drag.lastRowSpan
+          : clampSpan(
+              (drag.startHeight + dy + drag.rowGap) / drag.rowPitch,
+              drag.rows,
+            );
       if (nextSpan !== drag.lastSpan || nextRowSpan !== drag.lastRowSpan) {
         drag.lastSpan = nextSpan;
         drag.lastRowSpan = nextRowSpan;
@@ -161,7 +176,7 @@ export function GridCellView(props: NodeViewProps) {
   }, [onDragMove]);
 
   const startDrag = useCallback(
-    (event: ReactPointerEvent) => {
+    (event: ReactPointerEvent, axis: ResizeAxis) => {
       if (event.button !== 0) return;
       event.preventDefault();
       event.stopPropagation();
@@ -189,6 +204,7 @@ export function GridCellView(props: NodeViewProps) {
       const startSpan = clampSpan(node.attrs.span, columns);
       const startRowSpan = clampSpan(node.attrs.rowSpan, rows);
       dragRef.current = {
+        axis,
         startX: event.clientX,
         startY: event.clientY,
         startWidth: rect.width,
@@ -245,13 +261,29 @@ export function GridCellView(props: NodeViewProps) {
           {resizeLabel.rows}
         </span>
       )}
-      {/* single corner handle drives both dimensions — dragging horizontally
-          resizes the column span, vertically the row span */}
+      {/* invisible edge strips — hover to reveal, drag to resize a single
+          axis (right edge: columns, bottom edge: rows) */}
+      <span
+        contentEditable={false}
+        className={edgeHandleRightClass}
+        data-resize-grip=""
+        onPointerDown={(event) => startDrag(event, "column")}
+        aria-hidden="true"
+      />
+      <span
+        contentEditable={false}
+        className={edgeHandleBottomClass}
+        data-resize-grip=""
+        onPointerDown={(event) => startDrag(event, "row")}
+        aria-hidden="true"
+      />
+      {/* corner handle drives both dimensions at once — dragging
+          horizontally resizes the column span, vertically the row span */}
       <span
         contentEditable={false}
         className={resizeHandleClass}
         data-resize-grip=""
-        onPointerDown={startDrag}
+        onPointerDown={(event) => startDrag(event, "both")}
         aria-hidden="true"
       >
         <GridResizeIcon />
@@ -260,18 +292,14 @@ export function GridCellView(props: NodeViewProps) {
   );
 }
 
-// diagonal resize-corner glyph for the grid item's resize grip
+// dot-grid resize-corner glyph for the grid item's resize grip
 function GridResizeIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
       <path d="M0 0h24v24H0z" fill="none" />
       <path
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={1.5}
-        d="m16 18l2-2m-7 2l7-7M6 18L18 6"
+        fill="currentColor"
+        d="M22 22h-2v-2h2zm0-4h-2v-2h2zm-4 4h-2v-2h2zm0-4h-2v-2h2zm-4 4h-2v-2h2zm8-8h-2v-2h2z"
       />
     </svg>
   );
@@ -297,41 +325,39 @@ const cellClass = css({
   boxSizing: "border-box",
   minWidth: 0,
   outline: `1px dashed ${tokenSchema.color.border.muted}`,
-  outlineOffset: -1,
-  "&[data-active]": {
-    outline: `1.5px solid ${tokenSchema.color.foreground.accent}`,
-    outlineOffset: 1,
-  },
   // the resize grip appears while the cell is hovered or is the active item
   "&:hover [data-resize-grip], &[data-active] [data-resize-grip]": {
     opacity: 1,
   },
 });
 
+// diameter of the corner handle — the two edge strips below stop short of
+// it (rather than overlapping) so each handle owns a clean hit zone
+const CORNER_HANDLE_SIZE = 24;
+
 // bottom-right corner grip — dragging it resizes both the column span
-// (horizontal) and row span (vertical) in one gesture, straddling the
-// cell's corner (sitting in the grid gap) with a wide enough hit zone to
-// grab easily
+// (horizontal) and row span (vertical) in one gesture. Centered on the
+// cell's corner point (offset by half its own size) rather than floating
+// out in the gap, so it reads as attached to the corner.
 const resizeHandleClass = css({
   position: "absolute",
-  insetInlineEnd: `calc(${tokenSchema.size.space.regular} * -1)`,
-  insetBlockEnd: `calc(${tokenSchema.size.space.regular} * -1)`,
-  width: tokenSchema.size.space.xlarge,
-  height: tokenSchema.size.space.xlarge,
+  insetInlineEnd: -(CORNER_HANDLE_SIZE / 2),
+  insetBlockEnd: -(CORNER_HANDLE_SIZE / 2),
+  width: CORNER_HANDLE_SIZE,
+  height: CORNER_HANDLE_SIZE,
   display: "flex",
-  alignItems: "flex-end",
-  justifyContent: "flex-end",
-  padding: tokenSchema.size.space.small,
+  alignItems: "center",
+  justifyContent: "center",
   cursor: "nwse-resize",
   touchAction: "none",
-  zIndex: 2,
+  zIndex: 3,
   // hidden until the cell is hovered/focused (revealed by `cellClass`)
   opacity: 0,
   transition: "opacity 0.15s",
   color: tokenSchema.color.border.emphasis,
   "& svg": {
-    width: tokenSchema.size.icon.small,
-    height: tokenSchema.size.icon.small,
+    width: "100%",
+    height: "100%",
     transition: "color 0.15s, transform 0.15s",
   },
   "&:hover": {
@@ -340,6 +366,44 @@ const resizeHandleClass = css({
   "&:hover svg": {
     transform: "scale(1.15)",
   },
+});
+
+// right-edge strip — invisible until hovered, drags to resize the column
+// span only. Runs the full height of the cell; where it overlaps the corner
+// handle's zone, the corner wins (higher z-index) so the two don't fight
+// over the same pixels.
+const edgeHandleRightClass = css({
+  position: "absolute",
+  top: 0,
+  bottom: 0,
+  insetInlineEnd: `calc(${tokenSchema.size.space.small} * -1)`,
+  width: tokenSchema.size.space.regular,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "col-resize",
+  touchAction: "none",
+  zIndex: 2,
+  opacity: 0,
+  transition: "opacity 0.15s",
+});
+
+// bottom-edge strip — mirrors the right-edge strip, resizing the row span
+// only. Runs the full width of the cell; same corner overlap handling.
+const edgeHandleBottomClass = css({
+  position: "absolute",
+  left: 0,
+  right: 0,
+  insetBlockEnd: `calc(${tokenSchema.size.space.small} * -1)`,
+  height: tokenSchema.size.space.regular,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "row-resize",
+  touchAction: "none",
+  zIndex: 2,
+  opacity: 0,
+  transition: "opacity 0.15s",
 });
 
 // the "span/columns  rowSpan/rows" pill shown at the cell's top-right while

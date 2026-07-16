@@ -10,7 +10,6 @@ import {
 } from "@keystar/ui/dialog";
 import { plusIcon } from "@keystar/ui/icon/icons/plusIcon";
 import { Icon } from "@keystar/ui/icon";
-import { trash2Icon } from "@keystar/ui/icon/icons/trash2Icon";
 import { xIcon } from "@keystar/ui/icon/icons/xIcon";
 import { Divider, Flex } from "@keystar/ui/layout";
 import { Picker, Item } from "@keystar/ui/picker";
@@ -32,6 +31,13 @@ import {
   GRID_COLUMN_OPTIONS,
   GRID_ROW_OPTIONS,
 } from "../grid";
+
+// "Remove grid" icon (a layout box with a torn corner) — not in @keystar/ui's
+// bundled set, but drawn in the same 24×24 stroke convention as its other
+// icons, so it goes through <Icon> like any of them.
+const gridDeleteIcon = (
+  <path d="M12 3v17a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1H3m13 4l5 5m-5 0l5-5" />
+);
 
 // Not in @keystar/ui's bundled (Tabler-derived) icon set, so drawn directly
 // rather than through <Icon> — that wrapper assumes a 24×24 stroke-only
@@ -87,61 +93,70 @@ function GridSettingsMenu(props: {
       <ActionButton prominence="low" aria-label="Grid settings">
         <GridSettingsIcon />
       </ActionButton>
-      <Flex
-        direction="column"
-        gap="regular"
-        padding="large"
-        UNSAFE_style={{ minWidth: 200 }}
-      >
-        <SettingRow label="Column">
-          <Picker
-            aria-label="Column"
-            selectedKey={columns}
-            onSelectionChange={(key) => {
-              runCommand(setGridColumns(props.pos, parseInt(String(key), 10)));
-            }}
-            UNSAFE_style={{ width: settingFieldWidth }}
-          >
-            {GRID_COLUMN_OPTIONS.map((cols) => (
-              <Item key={String(cols)}>{String(cols)}</Item>
-            ))}
-          </Picker>
-        </SettingRow>
-        <SettingRow label="Row">
-          <Picker
-            aria-label="Row"
-            selectedKey={rows}
-            onSelectionChange={(key) => {
-              runCommand(setGridRows(props.pos, parseInt(String(key), 10)));
-            }}
-            UNSAFE_style={{ width: settingFieldWidth }}
-          >
-            {GRID_ROW_OPTIONS.map((r) => (
-              <Item key={String(r)}>{String(r)}</Item>
-            ))}
-          </Picker>
-        </SettingRow>
-        <SettingRow label="Spacing">
-          <Picker
-            aria-label="Spacing"
-            selectedKey={gap}
-            onSelectionChange={(key) => {
-              const value = String(key);
-              runCommand((state, dispatch) => {
-                if (dispatch) {
-                  dispatch(state.tr.setNodeAttribute(props.pos, "gap", value));
-                }
-                return true;
-              });
-            }}
-            UNSAFE_style={{ width: settingFieldWidth }}
-          >
-            {GRID_GAP_OPTIONS.map((g) => (
-              <Item key={g}>{g.replace("em", "")}</Item>
-            ))}
-          </Picker>
-        </SettingRow>
-      </Flex>
+      {(close: () => void) => (
+        <Flex
+          direction="column"
+          gap="regular"
+          padding="large"
+          UNSAFE_style={{ minWidth: 200 }}
+        >
+          <SettingRow label="Column">
+            <Picker
+              aria-label="Column"
+              selectedKey={columns}
+              onSelectionChange={(key) => {
+                runCommand(
+                  setGridColumns(props.pos, parseInt(String(key), 10))
+                );
+                close();
+              }}
+              UNSAFE_style={{ width: settingFieldWidth }}
+            >
+              {GRID_COLUMN_OPTIONS.map((cols) => (
+                <Item key={String(cols)}>{String(cols)}</Item>
+              ))}
+            </Picker>
+          </SettingRow>
+          <SettingRow label="Row">
+            <Picker
+              aria-label="Row"
+              selectedKey={rows}
+              onSelectionChange={(key) => {
+                runCommand(setGridRows(props.pos, parseInt(String(key), 10)));
+                close();
+              }}
+              UNSAFE_style={{ width: settingFieldWidth }}
+            >
+              {GRID_ROW_OPTIONS.map((r) => (
+                <Item key={String(r)}>{String(r)}</Item>
+              ))}
+            </Picker>
+          </SettingRow>
+          <SettingRow label="Spacing">
+            <Picker
+              aria-label="Spacing"
+              selectedKey={gap}
+              onSelectionChange={(key) => {
+                const value = String(key);
+                runCommand((state, dispatch) => {
+                  if (dispatch) {
+                    dispatch(
+                      state.tr.setNodeAttribute(props.pos, "gap", value)
+                    );
+                  }
+                  return true;
+                });
+                close();
+              }}
+              UNSAFE_style={{ width: settingFieldWidth }}
+            >
+              {GRID_GAP_OPTIONS.map((g) => (
+                <Item key={g}>{g.replace("em", "")}</Item>
+              ))}
+            </Picker>
+          </SettingRow>
+        </Flex>
+      )}
     </DialogTrigger>
   );
 }
@@ -374,7 +389,7 @@ export function GridPopover(props: {
             }
           }}
         >
-          <Icon src={trash2Icon} />
+          <Icon src={gridDeleteIcon} />
         </ActionButton>
         <Tooltip tone="critical">Remove grid</Tooltip>
       </TooltipTrigger>
