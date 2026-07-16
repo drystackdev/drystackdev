@@ -81,6 +81,7 @@ import {
 import { computeFieldChanges } from './change-preview/computeFieldChanges';
 import { AdminImageThumb } from './change-preview/AdminImageThumb';
 import { parseEntry, useItemData } from './useItemData';
+import { ResetEntryDataButton } from './reset-entry-data';
 import {
   getBranchPrefix,
   getCollection,
@@ -1046,6 +1047,16 @@ function ItemPageOuterWrapper(props: ItemPageWrapperProps) {
     return { slug: props.itemSlug, field: collectionConfig.slugField };
   }, [collectionConfig.slugField, props.itemSlug]);
 
+  const itemBasePath = getCollectionItemPath(
+    props.config,
+    props.collection,
+    props.itemSlug
+  );
+  // bumped after a successful "reset entry data" write so the ErrorBoundary
+  // below clears its caught error and re-mounts its children, giving
+  // useItemData a chance to load the now-valid data it just wrote
+  const [resetNonce, setResetNonce] = useState(0);
+
   const draftData = useData(
     useCallback(async () => {
       try {
@@ -1080,11 +1091,7 @@ function ItemPageOuterWrapper(props: ItemPageWrapperProps) {
 
   const itemData = useItemData({
     config: props.config,
-    dirpath: getCollectionItemPath(
-      props.config,
-      props.collection,
-      props.itemSlug
-    ),
+    dirpath: itemBasePath,
     schema: collectionConfig.schema,
     format,
     slug: slugInfo,
@@ -1101,10 +1108,25 @@ function ItemPageOuterWrapper(props: ItemPageWrapperProps) {
       }
     >
       <ErrorBoundary
+        resetKeys={[resetNonce]}
         fallback={message => (
           <ItemPageShell {...props}>
             <PageBody>
-              <Notice tone="critical">{message}</Notice>
+              <Flex direction="column" gap="large" alignItems="start">
+                <Notice tone="critical">{message}</Notice>
+                <ResetEntryDataButton
+                  config={props.config}
+                  schema={collectionConfig.schema}
+                  basePath={itemBasePath}
+                  format={format}
+                  slug={
+                    collectionConfig.slugField
+                      ? { field: collectionConfig.slugField, value: props.itemSlug }
+                      : undefined
+                  }
+                  onReset={() => setResetNonce(n => n + 1)}
+                />
+              </Flex>
             </PageBody>
           </ItemPageShell>
         )}

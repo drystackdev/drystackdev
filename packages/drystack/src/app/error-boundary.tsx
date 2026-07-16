@@ -4,6 +4,12 @@ import { isNotFoundError } from './not-found';
 type ErrorBoundaryProps = {
   fallback: ReactNode | ((message: string) => ReactNode);
   children: ReactNode;
+  // Changing any value in this array (e.g. after a "reset entry data" action
+  // fixes the underlying cause) clears a caught error and lets `children`
+  // mount again — without this, a thrown error permanently unmounts
+  // `children`, so nothing children do (retrying a fetch, refreshing data)
+  // can ever recover the boundary on its own.
+  resetKeys?: readonly unknown[];
 };
 
 type ErrorBoundaryState = {
@@ -24,6 +30,16 @@ export class ErrorBoundary extends React.Component<
       throw err;
     }
     return { message: String(err) };
+  }
+
+  componentDidUpdate(prevProps: ErrorBoundaryProps) {
+    if (
+      this.state.message !== null &&
+      prevProps.resetKeys?.length === this.props.resetKeys?.length &&
+      prevProps.resetKeys?.some((key, i) => key !== this.props.resetKeys![i])
+    ) {
+      this.setState({ message: null });
+    }
   }
 
   render() {

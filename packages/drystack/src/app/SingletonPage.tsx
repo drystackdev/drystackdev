@@ -43,6 +43,7 @@ import { computeFieldChanges } from './change-preview/computeFieldChanges';
 import { AdminImageThumb } from './change-preview/AdminImageThumb';
 import { parseEntry, useItemData } from './useItemData';
 import { serializeEntryToFiles, useUpsertItem } from './updating';
+import { ResetEntryDataButton } from './reset-entry-data';
 import { Icon } from '@keystar/ui/icon';
 import { ForkRepoDialog } from './fork-repo';
 import {
@@ -1140,9 +1141,17 @@ function SingletonPageWrapper(props: { singleton: string; config: Config }) {
       <PageRoot>
         {header}
         <PageBody>
-          <Notice margin="xxlarge" tone="critical">
-            {itemData.error.message}
-          </Notice>
+          <Flex direction="column" gap="large" alignItems="start" margin="xxlarge">
+            <Notice tone="critical">{itemData.error.message}</Notice>
+            <ResetEntryDataButton
+              config={props.config}
+              schema={singletonConfig.schema}
+              basePath={dirpath}
+              format={format}
+              slug={undefined}
+              onReset={() => {}}
+            />
+          </Flex>
         </PageBody>
       </PageRoot>
     );
