@@ -70,7 +70,15 @@ export function parseRepo(repo: string | { owner: string; name: string }) {
 }
 
 type FileToWrite = { path: string; contents: Uint8Array };
-export type FileDiff = { path: string; before: string; after: string };
+export type FileDiff = {
+  path: string;
+  before: string;
+  after: string;
+  // The exact bytes to write, when they can't be recovered by encoding
+  // `after` — an image embedded in a fields.content body. `before`/`after`
+  // are left as human-readable placeholders for the diff UI in that case.
+  contents?: Uint8Array;
+};
 
 const textDecoder = new TextDecoder();
 
@@ -285,6 +293,87 @@ async function readCurrentFile(
   );
 }
 
+// Every file under a singleton's own `assets/` directory, keyed the way a
+// fields.content field's `other` map expects: a path relative to that
+// directory (mirrors the admin's own getFilesForAssetsOrContentField in
+// app/useItemData.ts).
+//
+// The visual editor must hydrate this *before* parsing a content field's HTML
+// into an editor state. An <img src="foo.png"> whose bytes aren't in the map
+// parses into a node carrying 0 bytes (html/parse.ts's UNHYDRATED_IMAGE_BYTES),
+// and serializing that node back writes `src="/media-library/foo.png"`
+// instead (html/serialize.ts only keeps the entry-scoped path when it has
+// real bytes to write beside it) — so skipping this would silently repoint
+// every embedded image to the shared library the first time anyone typed in
+// the field.
+//
+// Flat listing only: the admin writes embedded images directly into
+// `assets/`, never a subdirectory of it.
+export async function listAssetFiles(
+  config: Config<any, any>,
+  singletonName: string,
+  githubBranchName?: string
+): Promise<Map<string, Uint8Array>> {
+  const dir = `${getSingletonPath(config, singletonName)}/assets`;
+  const out = new Map<string, Uint8Array>();
+  if (config.storage.kind === 'local') {
+    const treeRes = await fetch(`/api/${apiPath}/tree`, {
+      headers: { 'no-cors': '1' },
+    });
+    if (!treeRes.ok) throw new Error('Could not read the current file tree');
+    const entries: { path: string; sha: string }[] = await treeRes.json();
+    await Promise.all(
+      entries
+        .filter(e => e.path.startsWith(`${dir}/`))
+        .map(async e => {
+          const res = await fetch(`/api/${apiPath}/blob/${e.sha}/${e.path}`, {
+            headers: { 'no-cors': '1' },
+          });
+          if (!res.ok) return;
+          out.set(e.path.slice(dir.length + 1), new Uint8Array(await res.arrayBuffer()));
+        })
+    );
+    return out;
+  }
+  if (config.storage.kind === 'github') {
+    const token = await getGithubTokenWithRefresh(config);
+    if (!token) throw new Error('Not signed in to GitHub');
+    const { owner, name } = parseRepo((config.storage as any).repo);
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+    };
+    const res = await fetch(
+      `https://api.github.com/repos/${owner}/${name}/contents/${dir}?ref=${githubBranchName}`,
+      { headers }
+    );
+    // A singleton with no embedded images has no assets/ directory at all —
+    // an expected state, not a failure.
+    if (res.status === 404) return out;
+    if (!res.ok) throw new Error('Could not list assets from GitHub');
+    const listing = await res.json();
+    if (!Array.isArray(listing)) return out;
+    await Promise.all(
+      listing
+        .filter((e: any) => e.type === 'file')
+        .map(async (e: any) => {
+          // The contents API inlines base64 only below 1MB and omits it
+          // above; the blobs API has no such cutoff, so go straight there.
+          const blobRes = await fetch(
+            `https://api.github.com/repos/${owner}/${name}/git/blobs/${e.sha}`,
+            { headers: { ...headers, Accept: 'application/vnd.github.raw' } }
+          );
+          if (!blobRes.ok) return;
+          out.set(e.name, new Uint8Array(await blobRes.arrayBuffer()));
+        })
+    );
+    return out;
+  }
+  throw new Error(
+    `dry(): MVP 1 does not support storage.kind "${(config.storage as any).kind}"`
+  );
+}
+
 // Every pending edit must satisfy its own field's schema.validate before it's
 // allowed to reach disk/GitHub — the visual editor writes raw DOM text/paths
 // straight into YAML, so without this a required/min-length/pattern field
@@ -413,6 +502,95 @@ function mergeFieldEdits(
   return stripEmptyAssetLeaves(base, baseSchema);
 }
 
+function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+// The slice of a fields.content schema the save path drives — see the
+// matching structural type in InlineContentEditors.tsx.
+type ContentFieldSchema = {
+  parse(
+    value: unknown,
+    extra: {
+      content: Uint8Array | undefined;
+      other: ReadonlyMap<string, Uint8Array>;
+      external: ReadonlyMap<string, ReadonlyMap<string, Uint8Array>>;
+      slug: string | undefined;
+    }
+  ): unknown;
+  serialize(value: unknown): {
+    value: unknown;
+    content: Uint8Array;
+    other: Map<string, Uint8Array>;
+  };
+};
+
+// A fields.content edit spans more than one file, unlike every other kind.
+// Its HTML body lives in its own `<singletonDir>/<field>.html` (the field's
+// `contentExtension`), the entry's YAML gets only the lightweight
+// { wordCount, charCount } summary, and any image embedded in the body is a
+// third file under `<singletonDir>/assets/`. All of them are returned here
+// and committed together — both the local /update API and GitHub's
+// createCommitOnBranch already take a multi-file write.
+//
+// The bus carries the body as raw HTML, but the summary and the embedded
+// image bytes only exist on the far side of a parse → serialize round trip
+// through the field's own schema, so that's what this does rather than
+// hand-rolling a word count. `other` must be hydrated first — see
+// listAssetFiles for what silently breaks otherwise.
+async function collectContentFieldDiffs(
+  config: Config<any, any>,
+  singletonName: string,
+  baseField: string,
+  html: string,
+  fieldSchema: ContentFieldSchema,
+  data: Record<string, unknown>,
+  githubBranchName?: string
+): Promise<FileDiff[]> {
+  const dir = getSingletonPath(config, singletonName);
+  const assets = await listAssetFiles(config, singletonName, githubBranchName);
+  const state = fieldSchema.parse(undefined, {
+    content: textEncoder.encode(html),
+    other: assets,
+    external: new Map(),
+    slug: undefined,
+  });
+  const out = fieldSchema.serialize(state);
+
+  data[baseField] = out.value;
+
+  const diffs: FileDiff[] = [];
+  const contentPath = `${dir}/${baseField}.html`;
+  const rawBefore = await readCurrentFile(config, contentPath, githubBranchName);
+  diffs.push({
+    path: contentPath,
+    before: rawBefore ? textDecoder.decode(rawBefore) : '',
+    after: textDecoder.decode(out.content),
+  });
+
+  // Only images whose bytes actually changed (or are new). Every existing
+  // image round-trips back out of serialize() byte-identical now that its
+  // bytes were hydrated on the way in, so without this filter each save would
+  // rewrite every asset the body references.
+  //
+  // Removing an image from the body leaves its file orphaned rather than
+  // deleting it: harmless, and pruning it safely would mean proving no other
+  // field references it (what the admin's own required-files pass does).
+  for (const [key, bytes] of out.other) {
+    const existing = assets.get(key);
+    if (existing && bytesEqual(existing, bytes)) continue;
+    diffs.push({
+      path: `${dir}/assets/${key}`,
+      before: existing ? `(image, ${existing.length} bytes)` : '',
+      after: `(image, ${bytes.length} bytes)`,
+      contents: bytes,
+    });
+  }
+  return diffs;
+}
+
 // Reads each singleton file the pending edits touch and returns its current
 // (before) text alongside the text it would become once edits are applied.
 // Powers both saving (encode `after`) and the review diff dialog.
@@ -454,13 +632,36 @@ async function collectFileDiffs(
       string,
       ComponentSchema
     >;
+    // Collected separately from the entry's own data file: a content edit
+    // also writes its .html body (and any embedded image) alongside it.
+    const extraDiffs: FileDiff[] = [];
     for (const [baseField, fieldEdits] of byBaseField) {
+      const kind = getSyncableFieldKind(schema[baseField] as any);
+      if (kind === 'content') {
+        // Only a whole-field edit is possible — the inline editor owns the
+        // element as one unit and publishes the body under the base field's
+        // own key, never a nested path.
+        const html = fieldEdits.get(baseField);
+        if (html === undefined) continue;
+        extraDiffs.push(
+          ...(await collectContentFieldDiffs(
+            config,
+            name,
+            baseField,
+            html,
+            schema[baseField] as unknown as ContentFieldSchema,
+            data,
+            githubBranchName
+          ))
+        );
+        continue;
+      }
       const merged = mergeFieldEdits(schema[baseField], baseField, fieldEdits, data[baseField]);
       // fields.image/fields.file's serialize() omits the key entirely when
       // the value is null (see form/fields/image|file/index.tsx) — mirror
       // that here so a cleared image/file doesn't get written back as
       // `field: ''`.
-      const isAsset = isAssetKind(getSyncableFieldKind(schema[baseField] as any));
+      const isAsset = isAssetKind(kind);
       if (isAsset && merged === '') {
         delete data[baseField];
       } else {
@@ -470,6 +671,7 @@ async function collectFileDiffs(
       validateField(name, baseField, schema, validatedValue, messages);
     }
     diffs.push({ path: filepath, before, after: dump(data) });
+    diffs.push(...extraDiffs);
   }
   if (messages.length > 0) {
     throw new Error(messages.join('; '));
@@ -484,7 +686,7 @@ async function buildFileChanges(
   const diffs = await collectFileDiffs(config, githubBranchName);
   return diffs.map(d => ({
     path: d.path,
-    contents: textEncoder.encode(d.after),
+    contents: d.contents ?? textEncoder.encode(d.after),
   }));
 }
 
@@ -554,6 +756,19 @@ export async function getLatestFieldValues(
       result[field] = JSON.stringify(value);
     }
   }
+
+  // A content field's real value isn't in the data file at all — that only
+  // holds its { wordCount, charCount } summary — so it needs its own read of
+  // the sibling .html body. Driven off the schema rather than `data`'s keys:
+  // a body can exist before the summary does.
+  const dir = getSingletonPath(config, singletonName);
+  await Promise.all(
+    Object.entries(schema).map(async ([field, fieldSchema]) => {
+      if (getSyncableFieldKind(fieldSchema as any) !== 'content') return;
+      const raw = await readCurrentFile(config, `${dir}/${field}.html`, branch);
+      if (raw) result[field] = textDecoder.decode(raw);
+    })
+  );
   return result;
 }
 

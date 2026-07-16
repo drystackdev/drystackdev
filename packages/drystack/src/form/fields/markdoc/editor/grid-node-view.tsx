@@ -1,4 +1,4 @@
-import { Node as ProseMirrorNode } from 'prosemirror-model';
+import { Node as ProseMirrorNode } from "prosemirror-model";
 import {
   CSSProperties,
   PointerEvent as ReactPointerEvent,
@@ -7,14 +7,14 @@ import {
   useEffect,
   useRef,
   useState,
-} from 'react';
+} from "react";
 
-import type { EditorState } from 'prosemirror-state';
+import type { EditorState } from "prosemirror-state";
 
-import { css, tokenSchema } from '@keystar/ui/style';
+import { css, tokenSchema } from "@keystar/ui/style";
 
-import { useEditorViewRef, useEditorState } from './editor-view';
-import { GRID_DEFAULT_COLUMNS, clampSpan } from './grid';
+import { useEditorViewRef, useEditorState } from "./editor-view";
+import { GRID_DEFAULT_COLUMNS, clampSpan } from "./grid";
 
 // A ProseMirror editor is a *single* contenteditable, so `document.activeElement`
 // is always the editor root — never an individual cell. That means CSS
@@ -95,9 +95,9 @@ export function GridCellView(props: NodeViewProps) {
       const pos = getPosRef.current();
       if (!view || pos == null) return;
       if (view.state.doc.nodeAt(pos)?.attrs.span === nextSpan) return;
-      view.dispatch(view.state.tr.setNodeAttribute(pos, 'span', nextSpan));
+      view.dispatch(view.state.tr.setNodeAttribute(pos, "span", nextSpan));
     },
-    [viewRef]
+    [viewRef],
   );
 
   const onDragMove = useCallback(
@@ -108,7 +108,7 @@ export function GridCellView(props: NodeViewProps) {
       // (width + gap) / pitch == the unit count; snap to whole 1/N steps
       const next = clampSpan(
         (drag.startWidth + dx + drag.gap) / drag.pitch,
-        drag.columns
+        drag.columns,
       );
       if (next !== drag.lastSpan) {
         drag.lastSpan = next;
@@ -116,12 +116,12 @@ export function GridCellView(props: NodeViewProps) {
         setResizeLabel({ span: next, columns: drag.columns });
       }
     },
-    [commitSpan]
+    [commitSpan],
   );
 
   const onDragEnd = useCallback(() => {
-    window.removeEventListener('pointermove', onDragMove);
-    window.removeEventListener('pointerup', onDragEnd);
+    window.removeEventListener("pointermove", onDragMove);
+    window.removeEventListener("pointerup", onDragEnd);
     dragRef.current = null;
     setResizeLabel(null);
   }, [onDragMove]);
@@ -134,7 +134,7 @@ export function GridCellView(props: NodeViewProps) {
       const cell = cellRef.current;
       if (!cell) return;
       const rect = cell.getBoundingClientRect();
-      const gridEl = cell.closest('[data-dry-grid]') as HTMLElement | null;
+      const gridEl = cell.closest("[data-dry-grid]") as HTMLElement | null;
       const gap = gridEl
         ? parseFloat(getComputedStyle(gridEl).columnGap) || 16
         : 16;
@@ -146,7 +146,7 @@ export function GridCellView(props: NodeViewProps) {
       let columns = GRID_DEFAULT_COLUMNS;
       if (view && pos != null) {
         const parent = view.state.doc.resolve(pos).parent;
-        if (parent.type.name === 'grid') columns = parent.attrs.columns;
+        if (parent.type.name === "grid") columns = parent.attrs.columns;
       }
       const startSpan = clampSpan(node.attrs.span, columns);
       dragRef.current = {
@@ -160,21 +160,21 @@ export function GridCellView(props: NodeViewProps) {
         lastSpan: startSpan,
       };
       setResizeLabel({ span: startSpan, columns });
-      window.addEventListener('pointermove', onDragMove);
-      window.addEventListener('pointerup', onDragEnd);
+      window.addEventListener("pointermove", onDragMove);
+      window.addEventListener("pointerup", onDragEnd);
     },
-    [node.attrs.span, onDragMove, onDragEnd, viewRef]
+    [node.attrs.span, onDragMove, onDragEnd, viewRef],
   );
 
   useEffect(() => {
     return () => {
-      window.removeEventListener('pointermove', onDragMove);
-      window.removeEventListener('pointerup', onDragEnd);
+      window.removeEventListener("pointermove", onDragMove);
+      window.removeEventListener("pointerup", onDragEnd);
     };
   }, [onDragMove, onDragEnd]);
 
   const innerStyle: CSSProperties = place
-    ? { display: 'grid', placeContent: place as CSSProperties['placeContent'] }
+    ? { display: "grid", placeContent: place as CSSProperties["placeContent"] }
     : {};
 
   return (
@@ -190,7 +190,11 @@ export function GridCellView(props: NodeViewProps) {
           items — Chromium drops the caret from an *empty* editable grid item */}
       {place ? <div className={placeContentClass}>{children}</div> : children}
       {resizeLabel && (
-        <span className={resizeBadgeClass} contentEditable={false} aria-hidden="true">
+        <span
+          className={resizeBadgeClass}
+          contentEditable={false}
+          aria-hidden="true"
+        >
           {resizeLabel.span}/{resizeLabel.columns}
         </span>
       )}
@@ -206,11 +210,10 @@ export function GridCellView(props: NodeViewProps) {
 }
 
 const gridClass = css({
-  display: 'grid',
+  display: "grid",
   // `gap` and `grid-template-columns` are applied inline from the node attrs;
   // no border/padding on the container itself
-  alignItems: 'stretch',
-  marginBlock: '1em',
+  alignItems: "stretch",
 });
 
 // the single in-flow grid item that `place-content` positions when a cell is
@@ -221,73 +224,62 @@ const placeContentClass = css({
 });
 
 const cellClass = css({
-  position: 'relative',
-  // fill the grid item (the PM-tracked container stretches to the row's
-  // height via `align-items: stretch`) so vertical `place-content` has room
-  // to work across cells of differing content height
-  height: '100%',
-  boxSizing: 'border-box',
-  minHeight: tokenSchema.size.scale[600],
+  position: "relative",
+  height: "100%",
+  boxSizing: "border-box",
   minWidth: 0,
-  borderRadius: tokenSchema.size.radius.small,
-  padding: tokenSchema.size.space.small,
   outline: `1px dashed ${tokenSchema.color.border.muted}`,
   outlineOffset: -1,
-  // the cell holding the caret gets a solid, saturated primary/accent outline
-  // (foreground.accent = the strong indigo, not the faint indigo6 border
-  // token) so it's obvious which item is the active target. `data-active` is
-  // set from editor state — CSS `:focus-within` can't work here (see
-  // isSelectionInsideCell)
-  '&[data-active]': {
+  "&[data-active]": {
     outline: `1.5px solid ${tokenSchema.color.foreground.accent}`,
     outlineOffset: 1,
   },
   // the resize grip appears while the cell is hovered or is the active item
-  '&:hover [data-resize-grip], &[data-active] [data-resize-grip]': {
+  "&:hover [data-resize-grip], &[data-active] [data-resize-grip]": {
     opacity: 1,
   },
 });
 
 const resizeHandleClass = css({
-  position: 'absolute',
+  position: "absolute",
   top: 0,
   bottom: 0,
   // straddle the cell's right edge (sitting in the grid gap) with a wide
   // enough hit zone to grab easily
   insetInlineEnd: `calc(${tokenSchema.size.space.regular} * -0.5)`,
   width: tokenSchema.size.space.large,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  cursor: 'col-resize',
-  touchAction: 'none',
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "col-resize",
+  touchAction: "none",
   zIndex: 2,
   // hidden until the cell is hovered/focused (revealed by `cellClass`)
   opacity: 0,
-  transition: 'opacity 0.15s',
+  transition: "opacity 0.15s",
   // a vertical grip; highlighted when the grip itself is hovered
-  '&::after': {
+  "&::after": {
     content: '""',
-    height: 'calc(100% - 8px)',
+    height: "calc(100% - 8px)",
     minHeight: 20,
     width: tokenSchema.size.space.xsmall,
     borderRadius: tokenSchema.size.radius.full,
     backgroundColor: tokenSchema.color.border.emphasis,
-    transition: 'background-color 0.15s, transform 0.15s',
+    transition: "background-color 0.15s, transform 0.15s",
   },
-  '&:hover::after': {
+  "&:hover::after": {
     backgroundColor: tokenSchema.color.alias.borderSelected,
-    transform: 'scaleX(1.6)',
+    transform: "scaleX(1.6)",
   },
 });
 
 // the "span / columns" pill shown at the cell's top-right while resizing
 const resizeBadgeClass = css({
-  position: 'absolute',
+  position: "absolute",
   top: tokenSchema.size.space.small,
   insetInlineEnd: tokenSchema.size.space.small,
   zIndex: 3,
-  pointerEvents: 'none',
+  pointerEvents: "none",
   paddingBlock: tokenSchema.size.space.xsmall,
   paddingInline: tokenSchema.size.space.small,
   borderRadius: tokenSchema.size.radius.small,
@@ -296,7 +288,6 @@ const resizeBadgeClass = css({
   fontSize: tokenSchema.typography.text.small.size,
   fontWeight: tokenSchema.typography.fontWeight.medium,
   lineHeight: 1,
-  fontVariantNumeric: 'tabular-nums',
-  whiteSpace: 'nowrap',
+  fontVariantNumeric: "tabular-nums",
+  whiteSpace: "nowrap",
 });
-

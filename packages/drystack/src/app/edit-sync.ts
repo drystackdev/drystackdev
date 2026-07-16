@@ -8,6 +8,7 @@
 // immediate notification to already-open tabs instead of waiting for their
 // next poll/reload.
 import type { ArrayField, ComponentSchema, ObjectField } from '..';
+import { isContentEditorField } from '../form/fields/content/is-content-field';
 
 const DB_NAME = 'drystack-edits';
 const STORE_NAME = 'edits';
@@ -221,19 +222,26 @@ export function parseEditKey(
   return { type, name, field };
 }
 
-export type SyncableFieldKind = 'text' | 'image' | 'file' | 'array' | 'object';
+export type SyncableFieldKind =
+  | 'text'
+  | 'image'
+  | 'file'
+  | 'array'
+  | 'object'
+  | 'content';
 
 // A field counts as syncable when its schema is `kind: 'form'` and either
 // `formKind: 'slug'` (fields.text — this fork, and the name field inside
-// fields.slug share that tag), `columnKind: 'image'` (fields.image), or
-// `columnKind: 'file'` (fields.file), or when it's `kind: 'array'`
+// fields.slug share that tag), `columnKind: 'image'` (fields.image),
+// `columnKind: 'file'` (fields.file), or it's the HTML rich-text
+// fields.content (see isContentEditorField), or when it's `kind: 'array'`
 // (fields.array) or `kind: 'object'` (fields.object — standalone at any
 // depth, not just top-level). Shared by the admin's publish effect
 // (SingletonPage.tsx) and the visual editor's dry() helper so both recognize
 // the same fields, and dispatch on how a field's value gets edited/painted
-// (contenteditable text, media-library picker, or a container's recursive
-// read/paint — see bind.ts's readContainerValue/paintContainerValue), the
-// same way.
+// (contenteditable text, media-library picker, a live ProseMirror mount for
+// 'content', or a container's recursive read/paint — see bind.ts's
+// readContainerValue/paintContainerValue), the same way.
 export function getSyncableFieldKind(
   fieldSchema: ComponentSchema | undefined
 ): SyncableFieldKind | undefined {
@@ -244,7 +252,31 @@ export function getSyncableFieldKind(
   if ((fieldSchema as { formKind?: string }).formKind === 'slug') return 'text';
   if ((fieldSchema as { columnKind?: string }).columnKind === 'image') return 'image';
   if ((fieldSchema as { columnKind?: string }).columnKind === 'file') return 'file';
+  // Checked after the columnKind branches above: fields.content shares
+  // `formKind: 'assets'` with fields.image/fields.file's underlying tag, so
+  // only the `htmlContentEditor` marker distinguishes it.
+  if (isContentEditorField(fieldSchema)) return 'content';
   return undefined;
+}
+
+// Whether the admin form's own live mirroring (SingletonPage.tsx's
+// toBusValue/fromBusValue effects) can carry a field of this kind.
+//
+// Everything but 'content'. The bus carries strings, and every other kind's
+// form value either is one or JSON-encodes to one losslessly. A content
+// field's form value is a ProseMirror EditorState, and converting it in
+// either direction means a serialize/parse round trip through the field's
+// schema that also needs the entry's own asset bytes — parsing without them
+// silently repoints every embedded image (see the visual editor's
+// listAssetFiles). That's a real capability, not a nicety, and this layer has
+// no access to those bytes.
+//
+// The visual editor is unaffected: it edits content fields inline and writes
+// them straight to disk/GitHub on Save (it hydrates the assets itself). Only
+// *live* admin↔visual-editor mirroring of a content field is out — each side
+// sees the other's content edits after a save + reload, not as they're typed.
+export function isBusSyncableKind(kind: SyncableFieldKind): boolean {
+  return kind !== 'content';
 }
 
 // Splices one leaf edit into a nested array/object value tree, walking

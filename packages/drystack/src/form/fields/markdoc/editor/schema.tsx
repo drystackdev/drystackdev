@@ -743,16 +743,46 @@ export type EditorSchema = {
   components: Record<string, ContentComponent>;
   insertMenuItems: InsertMenuItem[];
   format: 'mdx' | 'markdoc';
+  // See createEditorSchema's `hostTypography`. Read by node views that would
+  // otherwise impose the editor's own look on content the host page styles
+  // itself (image-node-view.tsx's border radius).
+  hostTypography: boolean;
 };
 
+/**
+ * `hostTypography` builds a schema for an editor mounted onto a page that
+ * already has its own typography — the visual editor's inline fields.content
+ * spots, which edit the live site's own element in place (see
+ * form/fields/content/inline.tsx).
+ *
+ * It drops the editor's own block spacing from what the nodes render, so the
+ * host page's rules decide the layout instead. Only that: the other classes
+ * these specs emit are editing affordances (selection outlines, the
+ * ProseMirror-blockParent marker, the table classes that column resizing
+ * measures against) with no typographic opinion of their own, and dropping
+ * those would break editing rather than improve fidelity.
+ *
+ * Without it, a paragraph's `margin-block: 1em` beats the host's own `p` rule
+ * on specificity — a class against an element selector — so text visibly
+ * shifts the moment edit mode turns on.
+ */
 export function createEditorSchema(
   config: EditorConfig,
   components: Record<string, ContentComponent>,
-  isMDX: boolean
+  isMDX: boolean,
+  opts?: { hostTypography?: boolean }
 ) {
+  const paragraph: EditorNodeSpec = opts?.hostTypography
+    ? {
+        ...nodeSpecs.paragraph,
+        toDOM(node) {
+          return ['p', withTextAlign({}, node.attrs.textAlign), 0];
+        },
+      }
+    : nodeSpecs.paragraph;
   const nodeSpecsWithCustomNodes: Record<string, EditorNodeSpec> = {
     doc: nodeSpecs.doc,
-    paragraph: nodeSpecs.paragraph,
+    paragraph,
     text: nodeSpecs.text,
     hard_break: nodeSpecs.hard_break,
     ...getCustomNodeSpecs(components),
@@ -886,6 +916,7 @@ export function createEditorSchema(
     components,
     insertMenuItems: [],
     format: isMDX ? 'mdx' : 'markdoc',
+    hostTypography: opts?.hostTypography ?? false,
   };
   schemaToEditorSchema.set(schema, editorSchema);
 

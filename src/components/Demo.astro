@@ -7,7 +7,7 @@ const dry = await createDry(config).singleton.demo;
 ---
 
 <main>
-  <div>{dry.content}</div>
+  <div {...dry.item("content")} set:html={dry.content} />
 </main>
 
 <style>

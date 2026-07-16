@@ -85,6 +85,17 @@ function isContainerSpot(el: HTMLElement): boolean {
   return isArraySpot(el) || isObjectSpot(el);
 }
 
+// A fields.content (HTML rich text) spot. Unlike every other kind, this file
+// never makes it editable or paints it on a keystroke: a real ProseMirror
+// view is mounted directly onto the element for the duration of edit mode
+// (see Toolbar.tsx's InlineContentEditors) and owns it while mounted. What's
+// left here is only what happens *outside* that window — snapshotting the
+// baseline, and painting a value that arrives from source/another tab/a
+// reset — and for those the value is simply the element's own innerHTML.
+export function isContentSpot(el: HTMLElement): boolean {
+  return el.getAttribute('data-dry-kind') === 'content';
+}
+
 // --- Array binding (template-clone) --------------------------------------
 //
 // A fields.array container (e.g. <ul {...dry.item('array')}>) renders its
@@ -169,8 +180,10 @@ function readAssetAttr(el: HTMLElement): string | null {
   return el.getAttribute(nativeAssetAttr(el));
 }
 
-// Reads one image/file/text spot's current live value off the DOM.
+// Reads one image/file/content/text spot's current live value off the DOM.
 function readSpotValue(el: HTMLElement): string {
+  // A content spot's value is the HTML it renders, not its flattened text.
+  if (isContentSpot(el)) return el.innerHTML;
   if (!isAssetSpot(el)) return el.textContent ?? '';
   // `data-dry-value` (set by paintAssetSpot/applyEdit) is the real path;
   // `src`/`href` alone can be a transient blob: preview URL once a pending
@@ -456,6 +469,12 @@ export function getContainerValueFromDom(key: string): unknown {
 function handleInput(e: Event) {
   const el = (e.target as HTMLElement)?.closest<HTMLElement>('[data-dry]');
   if (!el || isAssetSpot(el) || isObjectSpot(el)) return;
+  // A content spot's own ProseMirror view publishes its edits itself, as
+  // serialized HTML (InlineContentEditors.tsx). This listener is on the
+  // document in the capture phase, so typing inside that view reaches it
+  // too — without this guard it would race the view and publish the
+  // element's flattened `textContent`, wiping every tag in the field.
+  if (isContentSpot(el)) return;
   const key = el.getAttribute('data-dry');
   if (!key) return;
   publishEdit(key, el.textContent ?? '').then(() => onChangeCallback?.());
@@ -495,15 +514,6 @@ export function enableEditing(onChange?: () => void) {
   editing = true;
   onChangeCallback = onChange;
   document.body.classList.add('editing');
-  // Defer enabling the outline's hover transition until the class-add above
-  // has actually painted — otherwise the browser treats this call itself as
-  // the first style change and animates from the outline-less pre-editing
-  // paint into blue (see editor.css's .dry-anim-ready comment).
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      document.body.classList.add('dry-anim-ready');
-    });
-  });
   document.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
     const key = el.getAttribute('data-dry');
     if (isAssetSpot(el)) {
@@ -533,6 +543,16 @@ export function enableEditing(onChange?: () => void) {
       }
       return;
     }
+    if (isContentSpot(el)) {
+      // Not contentEditable either: a ProseMirror view takes this element
+      // over for the duration of edit mode and brings its own editing
+      // affordances (see InlineContentEditors.tsx). Snapshotting the
+      // baseline is all that's needed here — and it must happen before that
+      // view mounts, since mounting re-renders the element from the parsed
+      // doc.
+      if (key) rememberOriginal(key, el.innerHTML);
+      return;
+    }
     if (key) rememberOriginal(key, el.textContent ?? '');
     el.contentEditable = 'plaintext-only';
     // Firefox versions without plaintext-only support silently ignore it.
@@ -544,7 +564,7 @@ export function enableEditing(onChange?: () => void) {
 
 export function disableEditing() {
   editing = false;
-  document.body.classList.remove('editing', 'dry-anim-ready');
+  document.body.classList.remove('editing');
   document.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
     if (isAssetSpot(el)) {
       // Re-hide any spot enableEditing revealed for editing that's still
@@ -552,7 +572,7 @@ export function disableEditing() {
       if (!readSpotValue(el)) el.hidden = true;
       return;
     }
-    if (isContainerSpot(el)) return;
+    if (isContainerSpot(el) || isContentSpot(el)) return;
     el.removeAttribute('contenteditable');
   });
   document.removeEventListener('input', handleInput, true);
@@ -645,6 +665,40 @@ export async function discardEditsIfBuildIsNewer(
     await clearPendingBlobs();
     await setMeta(BUILD_VERSION_KEY, buildVersion);
   }
+}
+
+// Repaint callbacks for content spots that currently have a live ProseMirror
+// view mounted on them, registered per field key by InlineContentEditors.tsx
+// while edit mode is on.
+//
+// Such a view owns its element's DOM: assigning innerHTML underneath it would
+// leave ProseMirror's document out of sync with what's on screen, and the
+// next keystroke would paint the stale doc straight back over the new value.
+// So a paint aimed at a live spot is handed to its owner instead, which
+// re-seeds the editor from the HTML — the same value, applied through the
+// layer that actually owns it. Spots with no live view (edit mode off, or a
+// plain page load) fall through to a direct innerHTML paint.
+const contentSpotPainters = new Map<string, (html: string) => void>();
+
+export function setContentSpotPainter(
+  key: string,
+  paint: (html: string) => void
+): () => void {
+  contentSpotPainters.set(key, paint);
+  return () => {
+    // Guard against a remount having already claimed the slot — deleting
+    // then would strand the new owner.
+    if (contentSpotPainters.get(key) === paint) contentSpotPainters.delete(key);
+  };
+}
+
+function paintContentSpot(el: HTMLElement, key: string, html: string): void {
+  const painter = contentSpotPainters.get(key);
+  if (painter) {
+    painter(html);
+    return;
+  }
+  el.innerHTML = html;
 }
 
 // Live object URLs currently painted onto an image/file spot, keyed by field
@@ -764,6 +818,10 @@ function paintFetchedValue(
   resetOriginalValue(key, value);
   if (isAssetSpot(el)) {
     paintAssetSpot(el, key, value);
+    return;
+  }
+  if (isContentSpot(el)) {
+    paintContentSpot(el, key, value);
     return;
   }
   if (isContainerSpot(el)) {
@@ -888,6 +946,10 @@ export function revertFieldToOriginal(key: string): void {
         paintAssetSpot(el, key, original);
         return;
       }
+      if (isContentSpot(el)) {
+        paintContentSpot(el, key, original);
+        return;
+      }
       if (isContainerSpot(el)) {
         const parsed = isArraySpot(el) ? parseArrayValue(original) : parseObjectValue(original);
         if (parsed !== undefined) paintContainerValue(el, key, parsed);
@@ -940,6 +1002,12 @@ export async function applyEdit(key: string, value: string): Promise<void> {
       // as enableEditing's baseline capture above.
       rememberOriginal(key, readSpotValue(el));
       paintAssetSpot(el, key, value, blob);
+      return;
+    }
+    if (isContentSpot(el)) {
+      // Capture the on-disk value before overwriting it with the pending edit.
+      rememberOriginal(key, el.innerHTML);
+      paintContentSpot(el, key, value);
       return;
     }
     if (isContainerSpot(el)) {

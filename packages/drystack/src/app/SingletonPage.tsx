@@ -56,6 +56,7 @@ import {
   editKey,
   getAllEdits,
   getSyncableFieldKind,
+  isBusSyncableKind,
   isAssetKind,
   parseEditKey,
   publishDelete,
@@ -607,7 +608,7 @@ function LocalSingletonPage(
         const baseField = field.split('.')[0];
         if (field !== baseField) continue;
         const kind = getSyncableFieldKind(singletonConfig.schema[baseField]);
-        if (!kind) continue;
+        if (!kind || !isBusSyncableKind(kind)) continue;
         if (lastSyncedRef.current![field] === edit.value) continue;
         lastSyncedRef.current![field] = edit.value;
         updates[baseField] = fromBusValue(kind, edit.value);
@@ -645,7 +646,7 @@ function LocalSingletonPage(
     const timers: ReturnType<typeof setTimeout>[] = [];
     for (const [field, fieldSchema] of Object.entries(singletonConfig.schema)) {
       const kind = getSyncableFieldKind(fieldSchema);
-      if (!kind) continue;
+      if (!kind || !isBusSyncableKind(kind)) continue;
       const busValue = toBusValue(kind, (state as Record<string, unknown>)[field]);
       if (busValue === undefined) continue;
       if (lastSyncedRef.current![field] === busValue) continue;
@@ -675,7 +676,7 @@ function LocalSingletonPage(
         const baseField = field.split('.')[0];
         const baseSchema = singletonConfig.schema[baseField];
         const kind = getSyncableFieldKind(baseSchema);
-        if (!kind) return;
+        if (!kind || !isBusSyncableKind(kind)) return;
         // Don't stomp on what the user is actively typing — the field's
         // wrapper div carries data-field (object/ui.tsx) for exactly this
         // check. Last-write-wins once they move on: either their own next
@@ -724,7 +725,7 @@ function LocalSingletonPage(
         let next: Record<string, FieldValue> | undefined;
         for (const field of fields) {
           const kind = getSyncableFieldKind(singletonConfig.schema[field]);
-          if (!kind) continue;
+          if (!kind || !isBusSyncableKind(kind)) continue;
           const value = (stateRef.current as Record<string, unknown>)[field];
           if (
             (kind === 'text' && typeof value !== 'string') ||
@@ -771,7 +772,12 @@ function LocalSingletonPage(
   useEffect(() => {
     if (updateResult.kind !== 'updated') return;
     for (const [field, fieldSchema] of Object.entries(singletonConfig.schema)) {
-      if (getSyncableFieldKind(fieldSchema)) {
+      const kind = getSyncableFieldKind(fieldSchema);
+      // A content field's pending edit is deliberately spared: this tab never
+      // received it (see isBusSyncableKind), so its own save just wrote the
+      // *old* body over it. Dropping the key here would silently throw away
+      // work the visual editor can still save itself.
+      if (kind && isBusSyncableKind(kind)) {
         publishDelete(editKey('singleton', singleton, field));
       }
     }

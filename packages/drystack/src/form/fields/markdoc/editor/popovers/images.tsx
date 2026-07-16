@@ -30,7 +30,7 @@ import { openMediaLibrary } from '../../../../../app/media-library/bridge';
 import { EditorState, NodeSelection } from 'prosemirror-state';
 import { useEditorDispatchCommand, useEditorSchema } from '../editor-view';
 import { Node } from 'prosemirror-model';
-import { imageAttrsForPick } from '../image-pick';
+import { imageAttrsForPick, naturalRatioForPick } from '../image-pick';
 import { ImageAlign } from '../image-layout';
 import { useImageObjectUrl } from '../image-node-view';
 import { useMediaScope } from '../media-scope';
@@ -149,11 +149,28 @@ export function ImagePopover(props: {
                   schema.config.image.transformFilename,
                   schema.config.supportsMediaLibraryReferences
                 );
+                // The node keeps the width/height it was given for the *old*
+                // image, so a replacement with a different aspect ratio would
+                // be squeezed into the previous one's box. With the ratio
+                // locked, re-derive the height from the width that's staying
+                // put — same rule the dialog's lock toggle applies
+                // (`onLockToggle`). Only matters once an explicit width exists:
+                // with none, the image lays out at its own size and there's
+                // nothing to distort it.
+                const width: number | null = props.node.attrs.width;
+                let nextHeight: number | null = null;
+                if (lockAspectRatio && width != null) {
+                  const ratio = await naturalRatioForPick(picked);
+                  if (ratio) nextHeight = Math.round(width / ratio);
+                }
                 runCommand((state, dispatch) => {
                   if (dispatch) {
                     const { tr } = state;
                     tr.setNodeAttribute(props.pos, 'src', src);
                     tr.setNodeAttribute(props.pos, 'filename', filename);
+                    if (nextHeight != null) {
+                      tr.setNodeAttribute(props.pos, 'height', nextHeight);
+                    }
                     const newState = state.apply(tr);
                     tr.setSelection(
                       NodeSelection.create(newState.doc, props.pos)

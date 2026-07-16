@@ -15,7 +15,11 @@ import { join } from 'node:path';
 
 export type DryItem = {
   'data-dry': string;
-  'data-dry-kind': 'text' | 'image' | 'file' | 'array' | 'object';
+  'data-dry-kind': 'text' | 'image' | 'file' | 'array' | 'object' | 'content';
+  // Only ever set for image/file (see isAssetKind below). A 'content' spot
+  // deliberately has none: its value *is* its own innerHTML, so duplicating
+  // the whole HTML body into an attribute would bloat every page (and, in
+  // github mode, the dry-map payload) for nothing.
   'data-dry-value'?: string;
 };
 
@@ -179,8 +183,8 @@ function assetValue(value: unknown): string {
 // Resolves one dry.item() path against `schema`/`value` in lockstep,
 // recursing one path segment at a time — an array segment is a numeric
 // index into `schema.element`, an object segment is a field name into
-// `schema.fields`. Landing exactly on a leaf (text/image/file) with no
-// segments left returns its kind + current value; landing on a container
+// `schema.fields`. Landing exactly on a leaf (text/image/file/content) with
+// no segments left returns its kind + current value; landing on a container
 // (array/object) with no segments left returns just its kind, a structural
 // marker bind.ts uses to know a container spot's own boundaries (never
 // contentEditable itself — see bind.ts's isContainerSpot) without needing a

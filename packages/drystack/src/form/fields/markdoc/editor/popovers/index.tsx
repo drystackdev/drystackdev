@@ -513,9 +513,19 @@ const CustomMarkPopover: MarkPopoverRenderer = props => {
 // when space runs out. Images are floated (`float: left`/`float: right`),
 // so wrapped paragraph text can leave little room below them — 'stick' would
 // then wedge the toolbar into that cramped space instead of moving it above
-// the image, so images alone get 'flip'.
+// the image, so images get 'flip'.
+//
+// A grid hits the same cramped-space case from a different direction: as the
+// last block in the document there's nothing below it but the trailing
+// paragraph, which is far shorter than the toolbar, and `boundary` is the
+// editor's own DOM — so 'stick' has nowhere to put the toolbar except back on
+// top of the grid's cells. 'flip' moves it above the grid instead. Only
+// affects the case that was already broken: while the toolbar does fit below,
+// 'flip' leaves it exactly where 'stick' would.
 function popoverAdaptToBoundary(node: Node): EditorPopoverProps['adaptToBoundary'] & {} {
-  return node.type.name === 'image' ? 'flip' : 'stick';
+  return node.type.name === 'image' || node.type.name === 'grid'
+    ? 'flip'
+    : 'stick';
 }
 
 function getPopoverDecoration(state: EditorState): PopoverDecoration | null {

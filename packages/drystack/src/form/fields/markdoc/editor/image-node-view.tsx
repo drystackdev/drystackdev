@@ -59,7 +59,7 @@ export function useImageObjectUrl(node: ProseMirrorNode): string | undefined {
     let cancelled = false;
     let created: string | undefined;
     const setFromBytes = (bytes: Uint8Array) => {
-      const blob = new Blob([bytes], {
+      const blob = new Blob([bytes as BlobPart], {
         type: filename.endsWith('.svg') ? 'image/svg+xml' : undefined,
       });
       created = URL.createObjectURL(blob);
@@ -100,12 +100,22 @@ function wrapperAlignStyle(align: ImageAlign | null): CSSProperties {
 // `containerStyle`) so the float itself — and thus the box everything
 // measures the image node by — lives on the element ProseMirror actually
 // tracks, not several layers of React-rendered content deep inside it.
+//
+// `lineHeight: 0` isn't cosmetic. Floating makes this container a block box,
+// so it lays its child out in an inline formatting context — and the child is
+// the inline-block wrapper below, which therefore sits on the container's text
+// baseline with the strut's descender space left over beneath it. Measured at
+// 8px with a 16px/1.6 host font: the container came out 238px tall around a
+// 230px image. The published HTML floats the bare <img> (no baseline involved,
+// no gap), so the editor has to hug the image the same way. Only reachable
+// when floated — an unaligned image returns {} and stays inline, where sitting
+// on the baseline is exactly what a plain <img> does too.
 export function imageContainerAlignStyle(align: ImageAlign | null): CSSProperties {
   if (align === 'left') {
-    return { float: 'left', marginInlineEnd: '1em', marginBlockEnd: '0.5em' };
+    return { float: 'left', marginInlineEnd: '1em', marginBlock: '0.5em', lineHeight: 0 };
   }
   if (align === 'right') {
-    return { float: 'right', marginInlineStart: '1em', marginBlockEnd: '0.5em' };
+    return { float: 'right', marginInlineStart: '1em', marginBlock: '0.5em', lineHeight: 0 };
   }
   return {};
 }
@@ -250,10 +260,20 @@ export function ImageNodeView(props: {
 
   const imgStyle: CSSProperties = {
     display: 'block',
-    borderRadius: tokenSchema.size.radius.regular,
+    // The editor's own rounded corners are an admin aesthetic — the published
+    // <img> has none, so imposing them on a host page (the visual editor's
+    // inline spots) would make the image visibly change shape on entering
+    // edit mode. See createEditorSchema's `hostTypography`.
+    borderRadius: schema.hostTypography
+      ? undefined
+      : tokenSchema.size.radius.regular,
     maxWidth: '100%',
+    // Caps an unsized image so it can't dominate the admin's editing pane.
+    // The published <img> has no such cap, so on a host page this would shrink
+    // an image the moment edit mode turned on — there, whatever the page
+    // already does with it is by definition right.
     maxHeight:
-      dragSize?.height != null || height != null
+      schema.hostTypography || dragSize?.height != null || height != null
         ? undefined
         : tokenSchema.size.scale[3600],
     width: dragSize?.width ?? width ?? undefined,

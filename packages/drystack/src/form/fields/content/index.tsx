@@ -34,6 +34,7 @@ export function content({
   };
 }): content.Field {
   let schema: undefined | EditorSchema;
+  let inlineSchema: undefined | EditorSchema;
   const config = editorOptionsToConfig(
     { strikethrough: false, code: false, codeBlock: false, ...options },
     true
@@ -43,6 +44,15 @@ export function content({
       schema = createEditorSchema(config, {}, false);
     }
     return schema;
+  };
+  // Same schema, minus the editor's own block spacing — see inlineParse.
+  const getInlineSchema = () => {
+    if (!inlineSchema) {
+      inlineSchema = createEditorSchema(config, {}, false, {
+        hostTypography: true,
+      });
+    }
+    return inlineSchema;
   };
   return {
     kind: 'form',
@@ -70,6 +80,14 @@ export function content({
       const html = textDecoder.decode(content);
       return parseToEditorStateHTML(html, getSchema(), other);
     },
+    // parse() for an editor mounted onto a page that supplies its own
+    // typography — the visual editor's inline spots (see
+    // markdoc/editor/schema.tsx's `hostTypography`). Serializing the result
+    // yields byte-identical HTML to parse()'s: the difference is only in what
+    // the nodes render while being edited, never in what gets written.
+    inlineParse(html, other) {
+      return parseToEditorStateHTML(html, getInlineSchema(), other);
+    },
     validate(value) {
       return value;
     },
@@ -95,5 +113,10 @@ export function content({
 }
 
 export declare namespace content {
-  type Field = AssetsFormField<EditorState, EditorState, string>;
+  type Field = AssetsFormField<EditorState, EditorState, string> & {
+    inlineParse(
+      html: string,
+      other: ReadonlyMap<string, Uint8Array>
+    ): EditorState;
+  };
 }

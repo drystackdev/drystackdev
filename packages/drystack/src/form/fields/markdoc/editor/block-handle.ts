@@ -17,7 +17,7 @@ import { css, tokenSchema } from '@keystar/ui/style';
 // the previous gutter-icon handle used; see `dropcursor.ts` for the sibling
 // technique).
 
-const HOLD_DELAY = 200; // ms — how long a press must be held still before it arms
+const HOLD_DELAY = 500; // ms — how long a press must be held still before it arms
 const MOVE_CANCEL_THRESHOLD = 4; // px — movement before arming cancels the hold
 
 // Subtle highlight on the block(s) while a drag is armed/in-flight, since
@@ -47,7 +47,15 @@ type HandleTarget = {
 // `handleDrop`/`appendTransaction` props (which read it to enforce
 // reorder-only lists and to clean up a drained grid cell). One object per
 // editor — `blockHandle()` runs once when the state is created.
-type DragState = { isListItem: boolean; emptiedGridCellPos: number | null };
+type DragState = {
+  isListItem: boolean;
+  emptiedGridCellPos: number | null;
+  // Set on this handle's own dragstart and consumed by `appendTransaction` on
+  // the matching drop. Tells a drop that started here apart from any other
+  // drag landing in the editor (an image from the desktop, a browser-native
+  // text drag) — those keep whatever selection prosemirror-view gives them.
+  fromHandle: boolean;
+};
 
 export const blockHandleKey = new PluginKey('blockHandle');
 
@@ -309,6 +317,7 @@ class BlockHandleView {
     view.dragging = { slice, move: true, node: selection } as any;
     this.dragState.isListItem = isListItem;
     this.dragState.emptiedGridCellPos = emptiedGridCellPos;
+    this.dragState.fromHandle = true;
   };
 
   private onDragEnd = () => {
@@ -319,6 +328,9 @@ class BlockHandleView {
     this.view.dragging = null;
     this.dragState.isListItem = false;
     this.dragState.emptiedGridCellPos = null;
+    // Already consumed by `appendTransaction` on a successful drop (which runs
+    // first); this only matters for a drag that ended without one.
+    this.dragState.fromHandle = false;
     this.isDragging = false;
     this.cancel();
   };
@@ -358,7 +370,11 @@ function dropTargetIsInsideList(view: EditorView, event: DragEvent): boolean {
 }
 
 export function blockHandle() {
-  const dragState: DragState = { isListItem: false, emptiedGridCellPos: null };
+  const dragState: DragState = {
+    isListItem: false,
+    emptiedGridCellPos: null,
+    fromHandle: false,
+  };
   return new Plugin({
     key: blockHandleKey,
     view: view => new BlockHandleView(view, dragState),
@@ -370,33 +386,58 @@ export function blockHandle() {
         return !dropTargetIsInsideList(view, event as DragEvent);
       },
     },
-    appendTransaction(transactions, _oldState, newState) {
-      const pos = dragState.emptiedGridCellPos;
-      if (pos == null) return null;
+    appendTransaction(transactions, oldState, newState) {
       if (!transactions.some(tr => tr.getMeta('uiEvent') === 'drop')) return null;
-      dragState.emptiedGridCellPos = null; // one-shot: only consumed once matched to the drop it was armed for
 
-      const mapped = transactions.reduce((p, tr) => tr.mapping.map(p), pos);
-      const cell = newState.doc.nodeAt(mapped);
-      if (!cell || cell.type !== newState.schema.nodes.grid_cell) return null;
+      // one-shot: both only ever describe the drop they were armed for
+      const pos = dragState.emptiedGridCellPos;
+      const fromHandle = dragState.fromHandle;
+      dragState.emptiedGridCellPos = null;
+      dragState.fromHandle = false;
 
-      // Only the schema-mandated filler paragraph — leave it alone if the
-      // user has actually typed something into it since the drop.
-      const isEmptyFiller =
-        cell.childCount === 1 &&
-        cell.firstChild!.type === newState.schema.nodes.paragraph &&
-        cell.firstChild!.content.size === 0;
-      if (!isEmptyFiller) return null;
+      const tr = newState.tr;
+      let changed = false;
 
-      const $cell = newState.doc.resolve(mapped);
-      const grid = $cell.parent;
-      if (grid.childCount <= 1) {
-        // last cell left in the grid — drop the whole grid rather than leave
-        // a single-cell layout containing nothing
-        const from = $cell.before($cell.depth);
-        return newState.tr.delete(from, from + grid.nodeSize);
+      if (pos != null) {
+        const mapped = transactions.reduce((p, t) => t.mapping.map(p), pos);
+        const cell = newState.doc.nodeAt(mapped);
+        if (cell && cell.type === newState.schema.nodes.grid_cell) {
+          // Only the schema-mandated filler paragraph — leave it alone if the
+          // user has actually typed something into it since the drop.
+          const isEmptyFiller =
+            cell.childCount === 1 &&
+            cell.firstChild!.type === newState.schema.nodes.paragraph &&
+            cell.firstChild!.content.size === 0;
+          if (isEmptyFiller) {
+            const $cell = newState.doc.resolve(mapped);
+            const grid = $cell.parent;
+            if (grid.childCount <= 1) {
+              // last cell left in the grid — drop the whole grid rather than
+              // leave a single-cell layout containing nothing
+              const from = $cell.before($cell.depth);
+              tr.delete(from, from + grid.nodeSize);
+            } else {
+              tr.delete(mapped, mapped + cell.nodeSize);
+            }
+            changed = true;
+          }
+        }
       }
-      return newState.tr.delete(mapped, mapped + cell.nodeSize);
+
+      // prosemirror-view's drop handling leaves the moved block(s) selected —
+      // for a node drag that's a full NodeSelection ring around what was just
+      // dropped, which reads as "still holding it" once the gesture is over.
+      // Collapse to a plain cursor inside the landed content instead, but only
+      // when the drop actually moved something: `doc.eq` (not `!==`, which any
+      // transaction makes true) so a drop that put the block back exactly
+      // where it came from leaves the selection untouched.
+      if (fromHandle && !oldState.doc.eq(newState.doc)) {
+        const $at = tr.doc.resolve(tr.mapping.map(newState.selection.from));
+        tr.setSelection(Selection.near($at, 1));
+        changed = true;
+      }
+
+      return changed ? tr : null;
     },
   });
 }

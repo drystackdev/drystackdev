@@ -291,7 +291,19 @@ function proseMirrorToHtmlNode(
       tag: 'tbody',
       children: tbodyRows.map(row => proseMirrorToHtmlNode(row, state)),
     });
-    return { kind: 'element', tag: 'table', children };
+    // The editor styles the table via `tableElementClass` (width:100% +
+    // table-layout:fixed), but that's a Keystar `css()` class whose rules only
+    // exist in the admin's injected stylesheet — the published page has no such
+    // rule, so a bare <table> there would shrink to its content and ignore the
+    // <col> percentages. Emit the two load-bearing properties inline so the
+    // real UI (and the visual editor's inline spots reading this HTML back)
+    // lay the table out exactly like the admin editor does.
+    return {
+      kind: 'element',
+      tag: 'table',
+      attrs: { style: 'width:100%;table-layout:fixed' },
+      children,
+    };
   }
   if (node.type === schema.nodes.table_row) {
     return { kind: 'element', tag: 'tr', children: blocks(node.content) };

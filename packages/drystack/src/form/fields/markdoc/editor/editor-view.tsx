@@ -66,20 +66,33 @@ export function useLayoutEffectWithEditorUpdated(effect: () => void) {
   }, [update, effect]);
 }
 
+/**
+ * `externalMount` adopts a DOM node this component didn't render — the live
+ * site's own element, in the visual editor's inline `fields.content` spot
+ * (see packages/astro/src/editor/InlineContentEditors.tsx). ProseMirror's
+ * `{ mount }` option is built for exactly this, so the page's own CSS
+ * cascade keeps applying while editing instead of the CMS's typography.
+ *
+ * Caveat for external mounts: `view.destroy()` empties a mounted node rather
+ * than leaving the last-rendered doc in it, so a caller that wants the
+ * content to stay visible after unmount must repaint the node itself.
+ */
 export function useEditorView(
   state: EditorState,
-  _onEditorStateChange: (state: EditorState) => void
+  _onEditorStateChange: (state: EditorState) => void,
+  externalMount?: HTMLElement | null
 ) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const config = useConfig();
   const onEditorStateChange = useEventCallback(_onEditorStateChange);
   useLayoutEffect(() => {
-    if (mountRef.current === null) {
+    const mount = externalMount ?? mountRef.current;
+    if (mount == null) {
       return;
     }
     const view = new EditorView(
-      { mount: mountRef.current },
+      { mount },
       {
         state: state,
         ...{ config },
@@ -96,7 +109,7 @@ export function useEditorView(
       viewRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mountRef, onEditorStateChange, config]);
+  }, [mountRef, onEditorStateChange, config, externalMount]);
   useLayoutEffect(() => {
     viewRef.current?.updateState(state);
   }, [state]);
@@ -139,10 +152,14 @@ export const ProseMirrorEditor = forwardRef(function ProseMirrorEditorView(
     value: EditorState;
     onChange: (state: EditorState) => void;
     children: ReactNode;
+    // When set, ProseMirror adopts this node instead of the one
+    // <ProseMirrorEditable> would render — see useEditorView's doc comment.
+    // Such a caller renders no <ProseMirrorEditable> of its own.
+    mount?: HTMLElement | null;
   },
   ref: Ref<{ view: EditorView | null }>
 ) {
-  const { view, mount } = useEditorView(props.value, props.onChange);
+  const { view, mount } = useEditorView(props.value, props.onChange, props.mount);
 
   useImperativeHandle(
     ref,

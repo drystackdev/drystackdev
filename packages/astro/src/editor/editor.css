@@ -12,18 +12,23 @@
    portals straight to <body> outside the provider, falls back to a
    prefers-color-scheme media query. */
 
-body.editing [data-dry] {
-  outline: 2px solid rgba(0, 128, 255, 0.2);
+/* Every spot carries a transparent outline at all times, so toggling edit mode
+   *animates* an outline that already exists rather than creating one. A
+   property that only appears under `body.editing` has no start value to
+   transition from — it snapped in, and the transition itself had to be
+   withheld for a frame (a since-removed `dry-anim-ready` class) to stop the
+   browser animating out of the UA's `currentColor`. Outlines never affect
+   layout and a transparent one paints nothing, so carrying this outside edit
+   mode is invisible to regular visitors. */
+[data-dry] {
+  outline: 2px solid transparent;
   outline-offset: 0px;
+  transition: outline-color 0.2s ease-out, outline-offset 0.2s ease-out;
+}
+body.editing [data-dry] {
+  outline-color: rgba(0, 128, 255, 0.2);
   border-radius: 1px;
   cursor: text;
-}
-/* enableEditing() only adds this once the just-applied outline above has
-   painted at least one frame (see bind.ts) — starting the transition any
-   earlier would animate from the pre-editing (outline-less) paint into blue,
-   flashing white/default before settling. */
-body.editing.dry-anim-ready [data-dry] {
-  transition: outline-color 0.2s ease-out, outline-offset 0.2s ease-out;
 }
 /* :focus keeps the emphasis outline while a spot is being typed into (it's
    contentEditable), even after the pointer moves off it — otherwise moving
@@ -145,6 +150,23 @@ body.editing [data-dry-kind="object"] {
 #drystack-editor-root {
   position: relative;
   z-index: 2147483000;
+  /* Toggling edit mode runs through a view transition (see
+     editor/view-transition.ts), which cross-fades a snapshot of the whole page
+     — this bar included, even though it's the editor's own chrome rather than
+     page content. Naming it lifts it out of the root snapshot into a group of
+     its own so the rules below can opt it out of that cross-fade; without
+     them the pill sits in both snapshots at once and double-images for the
+     length of the transition. */
+  view-transition-name: dry-editor-ui;
+}
+/* Show the bar's new state outright instead of dissolving into it. */
+::view-transition-old(dry-editor-ui) {
+  animation: none;
+  opacity: 0;
+}
+::view-transition-new(dry-editor-ui) {
+  animation: none;
+  opacity: 1;
 }
 
 /* Keystar portals its overlays (the Review dialog + its blanket, tooltips,
@@ -361,6 +383,9 @@ body > .kui-scheme--auto {
 }
 .dry-active-spot-kind--object {
   color: #f9a8d4;
+}
+.dry-active-spot-kind--content {
+  color: #fdba74;
 }
 
 /* Build/deploy status prefix — folded into .dry-active-spot's own line (see

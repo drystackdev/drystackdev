@@ -5,6 +5,7 @@ import { EditorState, Selection } from 'prosemirror-state';
 import { tableEditing } from 'prosemirror-tables';
 
 import { tokenSchema } from '@keystar/ui/style';
+import { SCHEME_AUTO, THEME_DEFAULT } from '@keystar/ui/primitives';
 
 import { autocompleteDecoration } from './autocomplete/decoration';
 import { blockHandle } from './block-handle';
@@ -78,6 +79,14 @@ export function createEditorState(
       dropCursor({
         color: tokenSchema.color.alias.borderSelected,
         width: 2,
+        // The cursor element is appended to `editorView.dom.offsetParent`, which
+        // for the inline visual editor is a live-page ancestor outside the
+        // Keystar token scope — so its `--kui-*`-based colour (and the block
+        // dropcursor's ::before/::after circles) would resolve to nothing and
+        // the bar would be invisible. Carrying the token+scheme classes on the
+        // element itself makes the vars resolve wherever it lands. Harmless in
+        // the admin editor, where the offsetParent is already token-scoped.
+        class: `${THEME_DEFAULT} ${SCHEME_AUTO}`,
       }),
       blockHandle(),
       inputRules({

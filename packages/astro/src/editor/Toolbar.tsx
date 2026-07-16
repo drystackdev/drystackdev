@@ -8,7 +8,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import type {
   ArrayField,
   ComponentSchema,
@@ -74,6 +74,7 @@ import {
 } from "./store";
 import { saveEdits, getCurrentBranchName, getGithubToken } from "./save";
 import { isAssetKind } from "@drystack/core/edit-sync";
+import { withViewTransition } from "./view-transition";
 import { CloudflareStatusInline } from "@drystack/core/deploy-cloudflare-status";
 import { useVeiDeploy } from "./deploy";
 
@@ -89,6 +90,13 @@ const VeiAdminProviders = lazy(() =>
 const FileManagerHost = lazy(() =>
   import("@drystack/core/file-manager-host").then((m) => ({
     default: m.FileManagerHost,
+  })),
+);
+// Lazy for the same reason, and doubly worth it here: this one pulls in
+// ProseMirror and the whole rich-text editor.
+const InlineContentEditors = lazy(() =>
+  import("./InlineContentEditors").then((m) => ({
+    default: m.InlineContentEditors,
   })),
 );
 
@@ -560,8 +568,24 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   };
 
   const stopEditing = () => {
-    disableEditing();
-    setEditing(false);
+    // Leaving edit mode tears every inline content editor down at once, which
+    // hands each spot's element back to the page's own markup — the same
+    // whole-element swap entering does, so it gets the same dissolve.
+    withViewTransition(() => {
+      // flushSync so the teardown happens inside the callback rather than
+      // whenever React next commits (see the enter path in
+      // InlineContentEditors).
+      flushSync(() => {
+        disableEditing();
+        setEditing(false);
+      });
+      // Those spots repaint themselves from a microtask queued during the
+      // commit above — ProseMirror's destroy() empties the element it was
+      // mounted on, and the repaint is what puts the document back. Yield to
+      // it before returning, or the transition snapshots the emptied elements
+      // and dissolves the content into nothing.
+      return new Promise<void>((resolve) => queueMicrotask(resolve));
+    });
     writeStoredEditing(false);
   };
 
@@ -913,13 +937,19 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       </DialogContainer>
 
       {/* The admin provider boundary — mounted whenever edit mode is on (see
-          the providerState effect above). FileManagerHost makes
+          the providerState effect above). `editing` is part of the condition
+          rather than left implicit in providerState: that only drops to `idle`
+          from an effect, a render *after* edit mode goes off, so leaving it to
+          do the unmounting on its own put the inline content editors' teardown
+          outside stopEditing's flushSync — and therefore outside the view
+          transition, which had already snapshotted the page by then.
+          FileManagerHost makes
           openMediaLibrary() available for both the inline image/file spot
           click handlers and the field-editor dialog below; the container
           dialog renders inside the boundary since its element/fields schema
           may mount the admin's real ImageFieldInput/FileFieldInput, which
           need this context (useConfig/useMediaLibraryPreviewURL/tree data). */}
-      {providerState.status === "ready" && (
+      {editing && providerState.status === "ready" && (
         <Suspense fallback={null}>
           <VeiAdminProviders
             config={config}
@@ -927,6 +957,11 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
             currentBranch={providerState.currentBranch}
           >
             <FileManagerHost />
+            {/* fields.content spots edit in place rather than through a
+                dialog, so these mount for as long as edit mode is on. They
+                live inside the boundary because the content editor can open
+                the media library for embedded images. */}
+            <InlineContentEditors config={config} onChange={refreshCount} />
             <DialogContainer onDismiss={() => setArrayDialogKey(null)}>
               {arrayDialogKey && (
                 <ContainerFieldDialog
