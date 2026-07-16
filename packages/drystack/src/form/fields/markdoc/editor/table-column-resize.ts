@@ -1,12 +1,9 @@
-import {
-  Node as ProsemirrorNode,
-  ResolvedPos,
-} from 'prosemirror-model';
+import { Node as ProsemirrorNode } from 'prosemirror-model';
 import { EditorState, Plugin, PluginKey, Transaction } from 'prosemirror-state';
 import { Decoration, DecorationSet, EditorView, NodeView } from 'prosemirror-view';
 import { TableMap, cellAround, pointsAtCell } from 'prosemirror-tables';
 
-import { css, tokenSchema } from '@keystar/ui/style';
+import { css } from '@keystar/ui/style';
 
 // how close (in px) the pointer must be to a column boundary to activate
 // its resize handle
@@ -471,38 +468,6 @@ function startDrag(view: EditorView, activeHandle: number, event: PointerEvent) 
   win.addEventListener('pointerup', finish);
 }
 
-function buildHandleDecorations(
-  state: EditorState,
-  pluginState: PluginState
-): DecorationSet {
-  if (pluginState.activeHandle < 0) return DecorationSet.empty;
-  let $cell: ResolvedPos;
-  try {
-    $cell = state.doc.resolve(pluginState.activeHandle);
-  } catch {
-    return DecorationSet.empty;
-  }
-  const table = $cell.node(-1);
-  if (!table) return DecorationSet.empty;
-  const map = TableMap.get(table);
-  const tableStart = $cell.start(-1);
-  const relPos = $cell.pos - tableStart;
-  const leftCol = map.colCount(relPos);
-  const cells = plainCellsInColumn(table, map, tableStart, leftCol);
-  const decorations = cells.map(({ pos }) =>
-    Decoration.widget(
-      pos + 1,
-      () => {
-        const el = document.createElement('div');
-        el.className = handleClass;
-        return el;
-      },
-      { key: `table-col-resize-${pos}`, side: 1 }
-    )
-  );
-  return DecorationSet.create(state.doc, decorations);
-}
-
 // Percentage-based column resizing for tables: dragging a handle trades
 // width between the two columns on either side of it (their combined width
 // stays constant) instead of growing/shrinking the whole table, and commits
@@ -547,10 +512,11 @@ export function tableColumnResizing(): Plugin<PluginState> {
       },
       decorations(state) {
         const pluginState = tableColumnResizingKey.getState(state);
-        if (!pluginState) return;
-        const handles = buildHandleDecorations(state, pluginState);
-        if (!pluginState.dragging) return handles;
-        return handles.add(state.doc, buildDragDecorations(state, pluginState.dragging));
+        if (!pluginState?.dragging) return;
+        return DecorationSet.create(
+          state.doc,
+          buildDragDecorations(state, pluginState.dragging)
+        );
       },
       handleDOMEvents: {
         pointermove(view, event) {
@@ -594,18 +560,9 @@ export function tableColumnResizing(): Plugin<PluginState> {
   });
 }
 
+// A resizable boundary announces itself through the cursor alone — no painted
+// line on the column's edge. The hitbox is geometric (see the `pointermove`
+// handler), so nothing but the cursor depends on this.
 const resizeCursorClass = css({
   '& td, & th': { cursor: 'col-resize' },
-});
-
-const handleClass = css({
-  position: 'absolute',
-  top: 0,
-  bottom: 0,
-  insetInlineEnd: -2,
-  width: 4,
-  cursor: 'col-resize',
-  backgroundColor: tokenSchema.color.alias.borderSelected,
-  zIndex: 1,
-  pointerEvents: 'none',
 });

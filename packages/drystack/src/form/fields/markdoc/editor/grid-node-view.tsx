@@ -13,7 +13,11 @@ import type { EditorState } from "prosemirror-state";
 
 import { css, tokenSchema } from "@keystar/ui/style";
 
-import { useEditorViewRef, useEditorState } from "./editor-view";
+import {
+  useEditorSchema,
+  useEditorViewRef,
+  useEditorState,
+} from "./editor-view";
 import { GRID_DEFAULT_COLUMNS, GRID_DEFAULT_ROWS, clampSpan } from "./grid";
 
 // A ProseMirror editor is a *single* contenteditable, so `document.activeElement`
@@ -91,6 +95,9 @@ export function GridCellView(props: NodeViewProps) {
   const selfPos = getPos();
   const isActive =
     selfPos != null && isSelectionInsideCell(editorState, selfPos);
+
+  // the admin's cell padding is dropped on a host page — see cellPaddingClass
+  const { hostTypography } = useEditorSchema();
 
   const viewRef = useEditorViewRef();
   const getPosRef = useRef(getPos);
@@ -241,7 +248,9 @@ export function GridCellView(props: NodeViewProps) {
   return (
     <div
       ref={cellRef}
-      className={cellClass}
+      className={
+        hostTypography ? cellClass : `${cellClass} ${cellPaddingClass}`
+      }
       style={innerStyle}
       data-span={span}
       data-row-span={rowSpan}
@@ -329,6 +338,15 @@ const cellClass = css({
   "&:hover [data-resize-grip], &[data-active] [data-resize-grip]": {
     opacity: 1,
   },
+});
+
+// Breathing room between a cell's dashed edge and its content, so the admin's
+// items don't read as text jammed against the outline. The published cell has
+// no padding (see cellStyleString), so this is admin-only — on a host page it
+// would shift the cell's content the moment edit mode turned on. See
+// createEditorSchema's `hostTypography`.
+const cellPaddingClass = css({
+  padding: "0.5rem",
 });
 
 // diameter of the corner handle — the two edge strips below stop short of

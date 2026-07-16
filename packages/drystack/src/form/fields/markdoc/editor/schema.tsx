@@ -210,14 +210,18 @@ function tableColgroupSpec(table: ProsemirrorNode): DOMOutputSpec {
   ];
 }
 
-const tableElementClass = css({
+// `width`/`table-layout` match what the serializer writes inline on the
+// published <table>, so they're the one part of this class the host page also
+// gets — everything else here is the admin's own table skin.
+const tableLayoutStyles = {
   width: '100%',
   tableLayout: 'fixed',
   position: 'relative',
-  borderSpacing: 0,
-  borderInlineStart: `1px solid ${tokenSchema.color.alias.borderIdle}`,
-  borderTop: `1px solid ${tokenSchema.color.alias.borderIdle}`,
+} as const;
 
+// selection affordances the editor needs in both modes: a selected cell's
+// own highlight has to win over the browser's text selection.
+const tableSelectionStyles = {
   '&:has(.selectedCell) *::selection': {
     backgroundColor: 'transparent',
   },
@@ -226,17 +230,30 @@ const tableElementClass = css({
   '.ProseMirror-widget + *': {
     marginTop: 0,
   },
+} as const;
+
+const tableElementClass = css({
+  ...tableLayoutStyles,
+  borderSpacing: 0,
+  borderInlineStart: `1px solid ${tokenSchema.color.alias.borderIdle}`,
+  borderTop: `1px solid ${tokenSchema.color.alias.borderIdle}`,
+  ...tableSelectionStyles,
 });
 
-const tableCellClass = css({
-  borderBottom: `1px solid ${tokenSchema.color.alias.borderIdle}`,
-  borderInlineEnd: `1px solid ${tokenSchema.color.alias.borderIdle}`,
+// See createEditorSchema's `hostTypography`. The published table carries none
+// of the admin's borders or spacing, so on a host page they'd make the table
+// visibly redraw itself the moment edit mode turned on. The cells' dashed
+// outlines (below) show where the table is instead.
+const tableHostElementClass = css({
+  ...tableLayoutStyles,
+  ...tableSelectionStyles,
+});
+
+// selection + column-resize affordances; carry no typographic opinion, so both
+// the admin and host variants want them
+const cellAffordanceStyles = {
   boxSizing: 'border-box',
-  margin: 0,
-  padding: tokenSchema.size.space.regular,
   position: 'relative',
-  textAlign: 'start',
-  verticalAlign: 'top',
 
   '&.selectedCell': {
     backgroundColor: tokenSchema.color.alias.backgroundSelected,
@@ -256,10 +273,31 @@ const tableCellClass = css({
     // own "..." options button (e.g. merging a multi-cell selection)
     pointerEvents: 'none',
   },
+} as const;
+
+const tableCellClass = css({
+  ...cellAffordanceStyles,
+  borderBottom: `1px solid ${tokenSchema.color.alias.borderIdle}`,
+  borderInlineEnd: `1px solid ${tokenSchema.color.alias.borderIdle}`,
+  margin: 0,
+  padding: tokenSchema.size.space.regular,
+  textAlign: 'start',
+  verticalAlign: 'top',
 });
 const tableHeaderClass = css(tableCellClass, {
   backgroundColor: tokenSchema.color.scale.slate3,
   fontWeight: tokenSchema.typography.fontWeight.semibold,
+});
+
+// The host-page cell, used for both `td` and `th`: no padding, borders,
+// alignment or header fill — the page's own rules decide all of that. The
+// dashed edge is what's left to show where the cells are, and it's an
+// `outline` rather than a `border` because an outline takes no space in the
+// box model, so the cell keeps the exact geometry the published page gives it.
+const tableHostCellClass = css({
+  ...cellAffordanceStyles,
+  outline: `1px dashed ${tokenSchema.color.border.muted}`,
+  outlineOffset: -1,
 });
 
 const nodeSpecs = {
@@ -828,12 +866,15 @@ export type EditorSchema = {
  * spots, which edit the live site's own element in place (see
  * form/fields/content/inline.tsx).
  *
- * It drops the editor's own block spacing from what the nodes render, so the
- * host page's rules decide the layout instead. Only that: the other classes
- * these specs emit are editing affordances (selection outlines, the
- * ProseMirror-blockParent marker, the table classes that column resizing
- * measures against) with no typographic opinion of their own, and dropping
- * those would break editing rather than improve fidelity.
+ * It drops the editor's own spacing and skin from what the nodes render, so
+ * the host page's rules decide the layout instead: a paragraph's block
+ * margins, and a table's borders, cell padding and header fill. What's left in
+ * these specs are editing affordances (selection outlines, the
+ * ProseMirror-blockParent marker, the classes column resizing measures
+ * against) with no typographic opinion of their own — dropping those would
+ * break editing rather than improve fidelity. Where an affordance still has to
+ * be visible on a host page, it's drawn with `outline`, which takes no space in
+ * the box model (see `tableHostCellClass`, and grid-node-view's `cellClass`).
  *
  * Without it, a paragraph's `margin-block: 1em` beats the host's own `p` rule
  * on specificity — a class against an element selector — so text visibly
@@ -931,17 +972,50 @@ export function createEditorSchema(
     };
   }
   if (config.table) {
-    nodeSpecsWithCustomNodes.table = nodeSpecs.table;
+    const hostTypography = opts?.hostTypography ?? false;
+    const elementClass = hostTypography
+      ? tableHostElementClass
+      : tableElementClass;
+    nodeSpecsWithCustomNodes.table = {
+      ...nodeSpecs.table,
+      nodeView: node => new TableColgroupNodeView(node, elementClass),
+      toDOM(node) {
+        return [
+          'table',
+          { class: elementClass },
+          tableColgroupSpec(node),
+          ['tbody', 0],
+        ];
+      },
+    };
     nodeSpecsWithCustomNodes.table_row = nodeSpecs.table_row;
-    if (isMDX) {
-      nodeSpecsWithCustomNodes.table_cell = {
-        ...nodeSpecs.table_cell,
-        content: 'paragraph',
-      };
-    } else {
-      nodeSpecsWithCustomNodes.table_cell = nodeSpecs.table_cell;
-    }
-    nodeSpecsWithCustomNodes.table_header = nodeSpecs.table_header;
+    nodeSpecsWithCustomNodes.table_cell = {
+      ...nodeSpecs.table_cell,
+      ...(isMDX ? { content: 'paragraph' } : null),
+      ...(hostTypography
+        ? {
+            toDOM(node: ProsemirrorNode) {
+              return [
+                'td',
+                { class: tableHostCellClass, ...cellSpanDOMAttrs(node) },
+                0,
+              ] satisfies DOMOutputSpec;
+            },
+          }
+        : null),
+    };
+    nodeSpecsWithCustomNodes.table_header = hostTypography
+      ? {
+          ...nodeSpecs.table_header,
+          toDOM(node) {
+            return [
+              'th',
+              { class: tableHostCellClass, ...cellSpanDOMAttrs(node) },
+              0,
+            ];
+          },
+        }
+      : nodeSpecs.table_header;
   }
   if (config.grid) {
     nodeSpecsWithCustomNodes.grid = nodeSpecs.grid;

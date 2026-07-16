@@ -1,8 +1,7 @@
-import { Node as ProsemirrorNode } from 'prosemirror-model';
 import { EditorState, Plugin, PluginKey } from 'prosemirror-state';
 import { Decoration, DecorationSet, EditorView } from 'prosemirror-view';
 
-import { css, tokenSchema } from '@keystar/ui/style';
+import { css } from '@keystar/ui/style';
 
 // how close (in px) the pointer must be to a row boundary to activate its
 // resize handle
@@ -154,42 +153,6 @@ function startDrag(view: EditorView, activeHandle: number, event: PointerEvent) 
   win.addEventListener('pointerup', finish);
 }
 
-// cell positions are decorated (rather than the row itself) so the handle
-// renders as a continuous bar across the row's full width — each cell
-// contributes its own edge-to-edge segment, same technique as the column
-// handle's per-cell right-edge line in table-column-resize.ts
-function cellPositionsInRow(row: ProsemirrorNode, rowPos: number): number[] {
-  const positions: number[] = [];
-  let offset = rowPos + 1;
-  row.forEach(cell => {
-    positions.push(offset);
-    offset += cell.nodeSize;
-  });
-  return positions;
-}
-
-function buildHandleDecorations(
-  state: EditorState,
-  pluginState: PluginState
-): DecorationSet {
-  if (pluginState.activeHandle < 0) return DecorationSet.empty;
-  const rowPos = pluginState.activeHandle;
-  const row = state.doc.nodeAt(rowPos);
-  if (!row) return DecorationSet.empty;
-  const decorations = cellPositionsInRow(row, rowPos).map(pos =>
-    Decoration.widget(
-      pos + 1,
-      () => {
-        const el = document.createElement('div');
-        el.className = handleClass;
-        return el;
-      },
-      { key: `table-row-resize-${pos}`, side: 1 }
-    )
-  );
-  return DecorationSet.create(state.doc, decorations);
-}
-
 // Row-height resizing for tables: dragging a handle at a row's bottom edge
 // changes that row's own height (a table has no fixed total height to trade
 // against, unlike columns — see `Dragging.rowPos`) and commits the result as
@@ -234,10 +197,11 @@ export function tableRowResizing(): Plugin<PluginState> {
       },
       decorations(state) {
         const pluginState = tableRowResizingKey.getState(state);
-        if (!pluginState) return;
-        const handles = buildHandleDecorations(state, pluginState);
-        if (!pluginState.dragging) return handles;
-        return handles.add(state.doc, buildDragDecorations(state, pluginState.dragging));
+        if (!pluginState?.dragging) return;
+        return DecorationSet.create(
+          state.doc,
+          buildDragDecorations(state, pluginState.dragging)
+        );
       },
       handleDOMEvents: {
         pointermove(view, event) {
@@ -281,18 +245,9 @@ export function tableRowResizing(): Plugin<PluginState> {
   });
 }
 
+// A resizable boundary announces itself through the cursor alone — no painted
+// line on the row's edge. The hitbox is geometric (see the `pointermove`
+// handler), so nothing but the cursor depends on this.
 const resizeCursorClass = css({
   '& td, & th': { cursor: 'row-resize' },
-});
-
-const handleClass = css({
-  position: 'absolute',
-  left: 0,
-  right: 0,
-  insetBlockEnd: -2,
-  height: 4,
-  cursor: 'row-resize',
-  backgroundColor: tokenSchema.color.alias.borderSelected,
-  zIndex: 1,
-  pointerEvents: 'none',
 });
