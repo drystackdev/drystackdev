@@ -32,15 +32,15 @@ import { usePrevious } from "@keystar/ui/utils";
 import l10nMessages from "../../l10n";
 import { useRouter } from "../../router";
 import { ItemOrGroup, useNavItems } from "../../useNavItems";
-import { isGitHubConfig, isLocalConfig } from "../../utils";
+import { isLocalConfig } from "../../utils";
 import { pluralize } from "../../pluralize";
 
 import { useBrand } from "../common";
 import { SIDE_PANEL_ID } from "../constants";
 import { ThemeMenu, UserActions } from "./components";
-import { CloudflareStatus } from "../../deploy/CloudflareStatus";
 import { CurrentBrandChip } from "../../deploy/CurrentBrandChip";
 import { DeployButton } from "../../deploy/DeployButton";
+import { NewBranchButton } from "../../deploy/NewBranchButton";
 import { useAppState, useConfig } from "../context";
 
 const SidebarContext = createContext<OverlayTriggerState | null>(null);
@@ -144,8 +144,8 @@ function SidebarFooter() {
 }
 
 // no brand/deploy in local mode — brand is a github-only concept (plan/brand.md §12)
-// stacked in two rows (not one HStack) so Deploy always has its own line,
-// regardless of how long the brand label gets
+// brand chip + new-branch button share a row, Deploy always gets its own line
+// below regardless of how long the brand label gets
 function SidebarGitActions() {
   let config = useConfig();
   if (isLocalConfig(config)) {
@@ -153,8 +153,10 @@ function SidebarGitActions() {
   }
   return (
     <VStack gap="regular" paddingY="regular" paddingX="medium">
-      <CloudflareStatus />
-      <CurrentBrandChip />
+      <HStack gap="regular">
+        <CurrentBrandChip />
+        <NewBranchButton />
+      </HStack>
       <DeployButton />
     </VStack>
   );
@@ -238,7 +240,6 @@ export function SidebarDialog() {
 
 export function SidebarNav() {
   const { basePath } = useAppState();
-  const config = useConfig();
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const navItems = useNavItems();
   const isCurrent = useIsCurrent();
@@ -252,19 +253,6 @@ export function SidebarNav() {
         >
           {stringFormatter.format("dashboard")}
         </NavItem>
-
-        {/* upload and trash/restore/permanent-delete all commit straight to
-        the branch for github storage (see useFileManagerUpload and
-        useTrash), same as the local-only `/update` API does for local
-        storage, so the File Manager works for every storage kind */}
-        {(isLocalConfig(config) || isGitHubConfig(config)) && (
-          <NavItem
-            href={`${basePath}/files`}
-            aria-current={isCurrent(`${basePath}/files`)}
-          >
-            File management
-          </NavItem>
-        )}
 
         {navItems.map((item, i) => (
           <NavItemOrGroup key={i} itemOrGroup={item} />

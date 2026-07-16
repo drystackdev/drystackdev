@@ -1,4 +1,4 @@
-import { ReactElement, useEffect } from 'react';
+import { ReactElement, useEffect, useRef } from 'react';
 
 import { ActionButton } from '@keystar/ui/button';
 import { DialogContainer } from '@keystar/ui/dialog';
@@ -14,6 +14,7 @@ import { Text } from '@keystar/ui/typography';
 import { useCurrentBrand } from '../brand';
 import { useChanged } from '../shell/data';
 import { ConflictDialog } from './ConflictDialog';
+import { toneColor, useCloudflareStatusView } from './CloudflareStatus';
 import { useDeploy } from './useDeploy';
 
 const spin = keyframes({
@@ -46,14 +47,18 @@ function useHasChangesToMerge(changed: ReturnType<typeof useChanged>): boolean {
 
 // Merges the current brand into the default branch — nothing more. Whether
 // Cloudflare actually builds it successfully is tracked separately by
-// CloudflareStatus (deploy/CloudflareStatus.tsx), which listens for build
-// events regardless of who triggered them or when — this button doesn't wait
-// around for that, it just reports the merge and goes back to idle.
+// useCloudflareStatusView (deploy/CloudflareStatus.tsx), which listens for
+// build events regardless of who triggered them or when — this button
+// doesn't wait around for the merge to land, it just reports it and goes
+// back to idle. It does, however, stay disabled for as long as Cloudflare is
+// actively building (see isBuilding below), so people can't queue up a
+// second deploy on top of one whose build hasn't finished yet.
 export function DeployButton() {
   const brand = useCurrentBrand();
   const hasChanges = useHasChangesToMerge(useChanged());
   const { state, deploy, setHunkChoice, submitConflicts, cancelConflicts, reset } =
     useDeploy();
+  const cf = useCloudflareStatusView();
 
   useEffect(() => {
     if (state.kind !== 'merged') return;
@@ -69,13 +74,29 @@ export function DeployButton() {
     }
   }, [state]);
 
+  // Notify once the moment Cloudflare finishes a build that was in progress —
+  // the button itself is disabled for the whole `started` phase, so this is
+  // the only signal telling the editor it's safe to deploy again.
+  const wasBuildingRef = useRef(false);
+  useEffect(() => {
+    if (wasBuildingRef.current && cf.tone === 'positive') {
+      toastQueue.positive('Build thành công trên Cloudflare — có thể deploy tiếp', {
+        timeout: 4000,
+      });
+    }
+    wasBuildingRef.current = cf.spinning;
+  }, [cf.tone, cf.spinning]);
+
   const isBusy = state.kind === 'loading' || state.kind === 'conflicts';
+  const isBuilding = cf.hasEvent && cf.spinning;
   const label =
     state.kind === 'loading'
       ? state.label
       : state.kind === 'conflicts'
         ? 'Waiting for conflict resolution…'
-        : 'Deploy';
+        : isBuilding
+          ? cf.fullLabel
+          : 'Deploy';
 
   const status: DeployStatus =
     state.kind === 'loading'
@@ -90,10 +111,15 @@ export function DeployButton() {
   return (
     <>
       <ActionButton
-        isDisabled={isBusy || !brand || !hasChanges}
+        isDisabled={isBusy || !brand || !hasChanges || isBuilding}
         width="100%"
         onPress={() => deploy()}
       >
+        <Icon
+          src={cf.icon}
+          color={toneColor[cf.tone]}
+          UNSAFE_className={cf.spinning ? spinningIconClassName : undefined}
+        />
         <Icon
           src={statusIcons[status]}
           UNSAFE_className={isSpinning ? spinningIconClassName : undefined}

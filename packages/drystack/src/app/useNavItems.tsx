@@ -64,12 +64,20 @@ export function useNavItems(): ItemOrGroup[] {
         children: keys.map(key => populateItemData(key, options)),
       }));
 
+  // File management is a system-owned route (works the same in local and
+  // github storage, see SidebarNav's old comment) rather than a
+  // collection/singleton, so it's built by hand instead of going through
+  // populateItemData.
+  const systemChildren: Item[] = [
+    { key: 'files', href: `${basePath}/files`, label: 'File management', changed: false },
+  ];
   if (config.singletons && REDIRECTS_SINGLETON_KEY in config.singletons) {
-    itemOrGroups.push({
-      title: stringFormatter.format('system'),
-      children: [populateItemData(REDIRECTS_SINGLETON_KEY, options)],
-    });
+    systemChildren.push(populateItemData(REDIRECTS_SINGLETON_KEY, options));
   }
+  itemOrGroups.push({
+    title: stringFormatter.format('system'),
+    children: systemChildren,
+  });
 
   return itemOrGroups;
 }

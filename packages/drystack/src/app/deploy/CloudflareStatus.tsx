@@ -1,11 +1,9 @@
-import { ActionButton } from '@keystar/ui/button';
 import { Icon } from '@keystar/ui/icon';
 import { alertCircleIcon } from '@keystar/ui/icon/icons/alertCircleIcon';
 import { checkCircle2Icon } from '@keystar/ui/icon/icons/checkCircle2Icon';
 import { cloudIcon } from '@keystar/ui/icon/icons/cloudIcon';
 import { loader2Icon } from '@keystar/ui/icon/icons/loader2Icon';
 import { css, keyframes } from '@keystar/ui/style';
-import { Text } from '@keystar/ui/typography';
 import type { ReactElement } from 'react';
 
 import { useLatestBuildStatus } from '../build-status';
@@ -16,9 +14,11 @@ const spin = keyframes({
 });
 const spinningIconClassName = css({ animation: `${spin} 0.8s linear infinite` });
 
-type Tone = 'neutral' | 'notice' | 'positive' | 'critical';
+export type Tone = 'neutral' | 'notice' | 'positive' | 'critical';
 
-const toneColor: Record<Tone, 'neutralSecondary' | 'accent' | 'positive' | 'critical'> = {
+// Exported so DeployButton can color its own Cloudflare-status icon with the
+// same palette instead of re-deriving it.
+export const toneColor: Record<Tone, 'neutralSecondary' | 'accent' | 'positive' | 'critical'> = {
   neutral: 'neutralSecondary',
   notice: 'accent',
   positive: 'positive',
@@ -89,29 +89,6 @@ export function useCloudflareStatusView(): {
         fullLabel: 'Build canceled',
       };
   }
-}
-
-// Admin sidebar — its own row, styled as the same outlined ActionButton as
-// CurrentBrandChip (deploy/CurrentBrandChip.tsx) so the status/brand/deploy
-// stack reads as one consistent set of rows. Purely a display — no onPress,
-// it's not an action, just borrowing ActionButton's chrome for the matching
-// outline/border-radius. Always on, independent of DeployButton: reflects
-// whatever the most recent build on the site is doing, whoever triggered it,
-// not just "the build I just started" — see build-status.ts.
-export function CloudflareStatus() {
-  const view = useCloudflareStatusView();
-  return (
-    <ActionButton isDisabled={!view.hasEvent} width="100%" minWidth={0} aria-label={view.fullLabel}>
-      <Icon
-        src={view.icon}
-        color={toneColor[view.tone]}
-        UNSAFE_className={view.spinning ? spinningIconClassName : undefined}
-      />
-      <Text truncate flex minWidth={0}>
-        {view.fullLabel}
-      </Text>
-    </ActionButton>
-  );
 }
 
 // VEI HUD — folded into the toolbar's plain-text active-spot readout (see
