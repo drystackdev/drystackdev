@@ -15,6 +15,7 @@ import { aiValueToFormValue } from "./apply-value";
 import { localizeAiConfigError } from "./ai-config-error-message";
 import { AiStreamParser } from "./stream-parser";
 import { useAiModels } from "./useAiModels";
+import { truncateToastMessage } from "../toast-message";
 
 // Re-parsing a whole ProseMirror document on every token would make long
 // articles crawl, so content fields repaint on a timer instead. Short enough
@@ -58,7 +59,7 @@ export function useMagicWrite(args: {
   // form underneath is long enough that a banner pinned to the top of it can
   // fail off-screen. Same reasoning as the selection rewrite.
   const reportError = useCallback((message: string) => {
-    toastQueue.critical(message, { timeout: 8000 });
+    toastQueue.critical(truncateToastMessage(message), { timeout: 8000 });
   }, []);
   // Fields the model is still writing. A field leaves this set the moment its
   // value is final, so it unlocks without waiting for the rest of the stream.

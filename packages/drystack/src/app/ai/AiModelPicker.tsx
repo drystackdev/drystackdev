@@ -7,6 +7,7 @@ import { Text } from "@keystar/ui/typography";
 
 import l10nMessages from "../l10n";
 import { useRouter } from "../router";
+import { truncateToastMessage } from "../toast-message";
 import { useAiModels } from "./useAiModels";
 
 // A Picker key can't be undefined, and "" is a footgun in react-stately, so
@@ -74,9 +75,9 @@ export function AiModelPicker() {
         // Rate limits and outages: the model is fine, the moment isn't. The
         // pick stands - the user may just want to wait.
         toastQueue.critical(
-          data?.message ??
-            data?.error ??
-            stringFormatter.format("aiUnknownError"),
+          truncateToastMessage(
+            data?.message ?? data?.error ?? stringFormatter.format("aiUnknownError"),
+          ),
           { timeout: 8000 },
         );
       } catch (err) {

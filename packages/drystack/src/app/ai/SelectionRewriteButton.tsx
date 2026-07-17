@@ -21,6 +21,7 @@ import { useEditorReferenceElement } from "../../form/fields/markdoc/editor/popo
 import { PathContext } from "../../form/fields/text/path-slug-context";
 import { fieldMagicWriteIcon } from "../icons/fieldMagicWriteIcon";
 import l10nMessages from "../l10n";
+import { truncateToastMessage } from "../toast-message";
 import { RewriteSelectionDialog } from "./RewriteSelectionDialog";
 import { useContentSelectionStore } from "./content-selection-context";
 import { useFieldMagicWrite } from "./field-magic-write-context";
@@ -102,7 +103,7 @@ export function SelectionRewriteButton() {
   const { error, clearError } = rewrite;
   useEffect(() => {
     if (!error) return;
-    toastQueue.critical(error, { timeout: 8000 });
+    toastQueue.critical(truncateToastMessage(error), { timeout: 8000 });
     clearError();
   }, [error, clearError]);
 

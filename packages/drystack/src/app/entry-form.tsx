@@ -73,10 +73,18 @@ const contentPaneAiFloat = css({
 // The field wrapper is both the hover target for the button above and the
 // element edit-sync looks up by data-field, so it has to wrap the editor
 // itself. That puts it in the middle of the pane's height chain: the editor
-// sizes itself against its parent, so without an explicit 100% it collapses to
+// sizes itself against its parent, so without at least 100% it collapses to
 // the height of the text and stops filling the pane.
+//
+// minHeight rather than height: a fixed height caps this element at exactly
+// one pane-height, which becomes the AI-float button's sticky containing
+// block (packages/drystack/src/app/ai/FieldMagicWriteButton.tsx). The
+// toolbar's containing block is the editor's own root box, which keeps
+// growing with a long article, so a fixed height here made the button's
+// sticky range run out before the toolbar's did - past that scroll offset the
+// button detached and got dragged upward with the (shorter) parent's edge.
 const contentPaneField = css({
-  height: "100%",
+  minHeight: "100%",
   "&:hover [data-drystack-field-ai], &:focus-within [data-drystack-field-ai]": {
     opacity: 1,
   },

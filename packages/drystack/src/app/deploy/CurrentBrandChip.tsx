@@ -23,6 +23,7 @@ import { useRouter } from "../router";
 import { useConfig } from "../shell/context";
 import { useBranches, useRepoInfo } from "../shell/data";
 import { useViewer } from "../shell/viewer-data";
+import { truncateToastMessage } from "../toast-message";
 import { getBranchPrefix } from "../utils";
 
 export function CurrentBrandChip() {
@@ -89,7 +90,7 @@ export function CurrentBrandChip() {
     }
     const result = await deleteBranch({ refId: branchInfo.id });
     if (result.error) {
-      toastQueue.critical(result.error.message);
+      toastQueue.critical(truncateToastMessage(result.error.message));
       return;
     }
     toastQueue.positive("Đã xoá branch", { timeout: 2000 });

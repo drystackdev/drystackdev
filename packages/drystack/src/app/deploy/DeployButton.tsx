@@ -14,6 +14,7 @@ import { Text } from "@keystar/ui/typography";
 
 import { useCurrentBrand } from "../brand";
 import { useChanged } from "../shell/data";
+import { truncateToastMessage } from "../toast-message";
 import { ConflictDialog } from "./ConflictDialog";
 import { toneColor, useCloudflareStatusView } from "./CloudflareStatus";
 import { useDeploy } from "./useDeploy";
@@ -87,7 +88,7 @@ export function DeployButton() {
     // A protected default branch needs the editor to go open a PR, so that
     // toast sticks around until dismissed instead of timing out mid-read.
     toastQueue.critical(
-      state.error,
+      truncateToastMessage(state.error),
       pullRequestURL
         ? {
             actionLabel: "Mở pull request",
