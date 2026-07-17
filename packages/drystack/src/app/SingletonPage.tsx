@@ -58,15 +58,21 @@ import {
 import { notFound } from "./not-found";
 import { delDraft, getDraft, setDraft } from "./persistence";
 import {
+  contentAssetsDir,
   createLatestGuard,
   editKey,
+  forEachContentLeaf,
   getAllEdits,
   getPendingBlobsUnder,
   getSyncableFieldKind,
+  htmlFromContentSerialize,
   isAssetKind,
+  omitContentLeaves,
   parseEditKey,
   publishDelete,
   publishEdit,
+  resolveSchemaAtFieldPath,
+  resolveValueAtFieldPath,
   spliceValueEdit,
   stashContentBlobs,
   subscribeEdits,
@@ -428,7 +434,6 @@ function SingletonPageInner(
 type FieldValue = string | string[] | Record<string, unknown> | null;
 
 const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder();
 
 // The narrow slice of a fields.content schema this file drives. Typed
 // structurally - mirroring the visual editor's InlineContentEditors.tsx - so
@@ -503,22 +508,34 @@ function toBusValue(
   // fields.content travels as raw HTML, the same encoding the visual editor
   // publishes and save.ts reads back. Its embedded image bytes ride along
   // separately - see stashContentBlobs, which the publish effect pairs with
-  // this.
+  // this. htmlFromContentSerialize, not a blind decode(.content): an inline
+  // content field's body lives in `.value` (a string), not `.content` (see
+  // the field's own serialize) - decoding an absent `.content` silently
+  // published an empty string for every inline content field before.
   if (kind === "content") {
-    return textDecoder.decode(
-      (fieldSchema as unknown as ContentFieldSchema).serialize(value).content,
+    return htmlFromContentSerialize(
+      (fieldSchema as unknown as ContentFieldSchema).serialize(value),
     );
   }
   if (isAssetKind(kind)) {
     if (value === null) return "";
     return typeof value === "string" ? value : undefined;
   }
+  // omitContentLeaves: a content leaf nested anywhere inside this
+  // array/object never rides along in the container's own JSON - it
+  // publishes on its own dotted key instead (see the publish effect below),
+  // the same way a top-level content field already does. Without this, the
+  // leaf's raw ProseMirror EditorState would get JSON.stringify'd into the
+  // container's bus value, and a receiver replacing the whole container from
+  // it would blank the leaf (nothing there parses HTML out of JSON).
   if (kind === "array") {
-    return Array.isArray(value) ? JSON.stringify(value) : undefined;
+    return Array.isArray(value)
+      ? JSON.stringify(omitContentLeaves(fieldSchema, value))
+      : undefined;
   }
   if (kind === "object") {
     return typeof value === "object" && value !== null && !Array.isArray(value)
-      ? JSON.stringify(value)
+      ? JSON.stringify(omitContentLeaves(fieldSchema, value))
       : undefined;
   }
   return typeof value === "string" ? value : undefined;
@@ -569,11 +586,15 @@ function applyContainerPathEdit(
   const path = field.slice(baseField.length + 1).split(".");
   return spliceValueEdit(current, path, baseSchema, (leafSchema, prevLeaf) => {
     const leafKind = getSyncableFieldKind(leafSchema);
-    // A content field nested inside a container is left alone: nothing
-    // publishes such a key today (dry() only tags top-level content spots, and
-    // save.ts only resolves a content filename for one), so a key that reaches
-    // here is malformed. Writing the raw HTML in as if it were a text leaf
-    // would put a string where the form expects an editor state.
+    // A content leaf nested inside a container is handled upstream, before
+    // this function ever runs: the subscribeEdits 'set' handler and the
+    // mount catch-up effect both check resolveSchemaAtFieldPath first and
+    // route a content key through the async contentFromBusValue path
+    // instead (parsing HTML into an EditorState needs an await, which this
+    // synchronous splice can't do). This branch only guards against a
+    // malformed/stale key that somehow reaches here anyway - writing the raw
+    // HTML in as if it were a text leaf would put a string where the form
+    // expects an editor state.
     if (leafKind === "content") return prevLeaf;
     return leafKind ? fromBusValue(leafKind, busValue) : busValue;
   });
@@ -713,19 +734,32 @@ function LocalSingletonPage(
   const stateRef = useRef(state);
   stateRef.current = state;
   // Embedded content images already written to the bus's blob store - see
-  // stashContentBlobs.
-  const stashedBlobsRef = useRef<StashedBlobs>(new Set());
-  // The values of `field` this form can mine for embedded image bytes when
-  // rebuilding an incoming content edit - see contentFromBusValue for why the
-  // as-loaded value is in here and not just the current one. Reads through
-  // refs: the long-lived subscribeEdits callback below must see the newest of
-  // both without re-subscribing.
+  // stashContentBlobs. One Set per content field (keyed by its own dotted
+  // path), not one shared Set: two different content fields in this
+  // singleton can each embed an image with the same filename (they live in
+  // separate contentAssetsDir namespaces now), and a single shared Set would
+  // wrongly skip the second field's stash for a name the first already wrote.
+  const stashedBlobsByFieldRef = useRef<Map<string, StashedBlobs>>(new Map());
+  const stashedBlobsFor = useCallback((field: string): StashedBlobs => {
+    let set = stashedBlobsByFieldRef.current.get(field);
+    if (!set) {
+      set = new Set();
+      stashedBlobsByFieldRef.current.set(field, set);
+    }
+    return set;
+  }, []);
+  // The values of `field` (any depth - a dotted path for a nested content
+  // leaf) this form can mine for embedded image bytes when rebuilding an
+  // incoming content edit - see contentFromBusValue for why the as-loaded
+  // value is in here and not just the current one. Reads through refs: the
+  // long-lived subscribeEdits callback below must see the newest of both
+  // without re-subscribing.
   const initialStateRef = useRef(initialState);
   initialStateRef.current = initialState;
   const ownContentValues = useCallback(
     (field: string): unknown[] => [
-      (initialStateRef.current as Record<string, unknown> | null)?.[field],
-      (stateRef.current as Record<string, unknown>)[field],
+      resolveValueAtFieldPath(initialStateRef.current, field),
+      resolveValueAtFieldPath(stateRef.current, field),
     ],
     [],
   );
@@ -824,6 +858,15 @@ function LocalSingletonPage(
         const baseSchema = singletonConfig.schema[baseField];
         const kind = getSyncableFieldKind(baseSchema);
         if (kind !== "array" && kind !== "object") continue;
+        // A nested content leaf (e.g. "brand.name") needs an async HTML→
+        // EditorState parse - handled in the pass below instead, which stays
+        // synchronous so a container edit and its sibling per-path edits
+        // apply as one batch.
+        const leafSchema = resolveSchemaAtFieldPath(
+          singletonConfig.schema,
+          field,
+        );
+        if (getSyncableFieldKind(leafSchema) === "content") continue;
         if (lastSyncedRef.current![field] === edit.value) continue;
         lastSyncedRef.current![field] = edit.value;
         if (!(baseField in updates)) {
@@ -838,6 +881,51 @@ function LocalSingletonPage(
           edit.value,
           baseSchema,
         );
+      }
+      // Nested content leaves - same async resolution as the top-level
+      // content pass above (contentFromBusValue needs an await to hydrate
+      // embedded-image bytes), spliced into updates[baseField] at the leaf's
+      // own path once resolved rather than replacing the whole field.
+      for (const edit of relevant) {
+        const { field } = parseEditKey(edit.key);
+        const baseField = field.split(".")[0];
+        if (field === baseField) continue;
+        const baseSchema = singletonConfig.schema[baseField];
+        const kind = getSyncableFieldKind(baseSchema);
+        if (kind !== "array" && kind !== "object") continue;
+        const leafSchema = resolveSchemaAtFieldPath(
+          singletonConfig.schema,
+          field,
+        );
+        if (getSyncableFieldKind(leafSchema) !== "content") continue;
+        if (lastSyncedRef.current![field] === edit.value) continue;
+        lastSyncedRef.current![field] = edit.value;
+        const token = applyGuardRef.current.claim(field);
+        try {
+          const value = await contentFromBusValue(
+            leafSchema as unknown as ContentFieldSchema,
+            edit.value,
+            contentAssetsDir(singletonPath, field),
+            ownContentValues(field),
+          );
+          if (cancelled) return;
+          if (!applyGuardRef.current.isCurrent(field, token)) continue;
+          if (!(baseField in updates)) {
+            updates[baseField] = (stateRef.current as Record<string, unknown>)[
+              baseField
+            ];
+          }
+          const pathWithinBase = field.slice(baseField.length + 1).split(".");
+          updates[baseField] = spliceValueEdit(
+            updates[baseField],
+            pathWithinBase,
+            baseSchema,
+            () => value,
+          );
+        } catch {
+          // Leave this leaf's state as-is; the edit is still on the bus and
+          // will be retried by the next mount or live message.
+        }
       }
       if (Object.keys(updates).length > 0) {
         onPreviewPropsChange((s) => ({ ...s, ...updates }));
@@ -856,22 +944,62 @@ function LocalSingletonPage(
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
+    // One entry per publishable key this render's `state` produces - a
+    // top-level field (any kind), plus one per fields.content leaf nested
+    // inside a top-level array/object (walked via forEachContentLeaf). Built
+    // up first, then turned into debounced publish timers below, all in the
+    // same shape so every key (top-level or nested) goes through one
+    // identical claim/stash/publish sequence.
+    type Publishable = {
+      field: string;
+      busValue: string;
+      serialized?: { content?: Uint8Array; other: Map<string, Uint8Array> };
+      assetsDir: string;
+    };
+    const items: Publishable[] = [];
     for (const [field, fieldSchema] of Object.entries(singletonConfig.schema)) {
       const kind = getSyncableFieldKind(fieldSchema);
       if (!kind) continue;
       const value = (state as Record<string, unknown>)[field];
-      // One serialize for a content field, reused for both halves of what it
-      // publishes: the HTML body and the embedded image bytes that have to be
-      // readable before it. Serializing the whole doc per keystroke is what
-      // the visual editor's own inline editor already does.
-      const serialized =
-        kind === "content"
-          ? (fieldSchema as unknown as ContentFieldSchema).serialize(value)
-          : undefined;
-      const busValue = serialized
-        ? textDecoder.decode(serialized.content)
-        : toBusValue(kind, value, fieldSchema);
-      if (busValue === undefined) continue;
+      if (kind === "content") {
+        // One serialize, reused for both halves of what it publishes: the
+        // HTML body and the embedded image bytes that have to be readable
+        // before it. Serializing the whole doc per keystroke is what the
+        // visual editor's own inline editor already does.
+        const serialized = (
+          fieldSchema as unknown as ContentFieldSchema
+        ).serialize(value);
+        items.push({
+          field,
+          busValue: htmlFromContentSerialize(serialized),
+          serialized,
+          assetsDir: contentAssetsDir(singletonPath, field),
+        });
+        continue;
+      }
+      const busValue = toBusValue(kind, value, fieldSchema);
+      if (busValue !== undefined) {
+        items.push({ field, busValue, assetsDir: contentAssetsDir(singletonPath, field) });
+      }
+      // A content leaf nested anywhere inside this array/object publishes on
+      // its own dotted key too (INV-1) - toBusValue already stripped it out
+      // of the container's own JSON above, so without this the leaf would
+      // never reach the bus at all.
+      if (kind === "array" || kind === "object") {
+        forEachContentLeaf(fieldSchema, value, field, (dottedField, leafSchema, leafValue) => {
+          const serialized = (
+            leafSchema as unknown as ContentFieldSchema
+          ).serialize(leafValue);
+          items.push({
+            field: dottedField,
+            busValue: htmlFromContentSerialize(serialized),
+            serialized,
+            assetsDir: contentAssetsDir(singletonPath, dottedField),
+          });
+        });
+      }
+    }
+    for (const { field, busValue, serialized, assetsDir } of items) {
       if (lastSyncedRef.current![field] === busValue) continue;
       lastSyncedRef.current![field] = busValue;
       // Debounced so fast typing doesn't flood other tabs with a broadcast
@@ -890,8 +1018,8 @@ function LocalSingletonPage(
             try {
               await stashContentBlobs(
                 serialized.other,
-                `${singletonPath}/assets`,
-                stashedBlobsRef.current,
+                assetsDir,
+                stashedBlobsFor(field),
               );
             } catch {
               // A blob failed to write - publishing now would embed an
@@ -907,7 +1035,7 @@ function LocalSingletonPage(
       );
     }
     return () => timers.forEach(clearTimeout);
-  }, [state, singleton, singletonConfig.schema, singletonPath]);
+  }, [state, singleton, singletonConfig.schema, singletonPath, stashedBlobsFor]);
 
   useEffect(() => {
     return subscribeEdits((msg) => {
@@ -966,7 +1094,74 @@ function LocalSingletonPage(
             });
           return;
         }
+        // A content leaf nested inside this container (e.g. "brand.name") -
+        // same async resolution as the top-level branch above, keyed by its
+        // own dotted path (createLatestGuard keys per string it's given, so
+        // this never shares a guard slot with a sibling leaf or the
+        // container's own key).
+        if (field !== baseField) {
+          const leafSchema = resolveSchemaAtFieldPath(
+            singletonConfig.schema,
+            field,
+          );
+          if (getSyncableFieldKind(leafSchema) === "content") {
+            const token = applyGuardRef.current.claim(field);
+            contentFromBusValue(
+              leafSchema as unknown as ContentFieldSchema,
+              msg.value,
+              contentAssetsDir(singletonPath, field),
+              ownContentValues(field),
+            )
+              .then((next) => {
+                if (!applyGuardRef.current.isCurrent(field, token)) return;
+                const pathWithinBase = field
+                  .slice(baseField.length + 1)
+                  .split(".");
+                onPreviewPropsChange((s) => ({
+                  ...s,
+                  [baseField]: spliceValueEdit(
+                    (s as Record<string, unknown>)[baseField],
+                    pathWithinBase,
+                    baseSchema,
+                    () => next,
+                  ),
+                }));
+                // No deferredCommitRef bookkeeping here: that reconciliation
+                // (the 'delete'/'clear' handler below) only walks top-level
+                // schema keys, so a nested dotted field can never have been
+                // added to it in the first place.
+              })
+              .catch(() => {
+                // Blob-store read failed; leave state as-is, the edit stays
+                // on the bus for the next message/mount to retry.
+              });
+            return;
+          }
+        }
         if (field === baseField) {
+          if (kind === "array" || kind === "object") {
+            // INV-1/INV-2: the incoming JSON never carries a nested content
+            // leaf (see toBusValue's omitContentLeaves) - re-graft whatever
+            // this form currently holds for each one before replacing the
+            // rest of the container, or a whole-container replace (the
+            // visual editor's gear-icon dialog, or another admin tab) would
+            // blank every nested content field it contains.
+            const incoming = fromBusValue(kind, msg.value);
+            onPreviewPropsChange((s) => {
+              const current = (s as Record<string, unknown>)[baseField];
+              let next: unknown = incoming;
+              forEachContentLeaf(baseSchema, current, baseField, (leafPath) => {
+                const pathWithinBase = leafPath
+                  .slice(baseField.length + 1)
+                  .split(".");
+                next = spliceValueEdit(next, pathWithinBase, baseSchema, () =>
+                  resolveValueAtFieldPath(current, leafPath),
+                );
+              });
+              return { ...s, [baseField]: next };
+            });
+            return;
+          }
           onPreviewPropsChange((s) => ({
             ...s,
             [baseField]: fromBusValue(kind, msg.value),

@@ -459,6 +459,183 @@ export function isAssetKind(
   return kind === "image" || kind === "file";
 }
 
+// --- Nested content field paths ------------------------------------------
+//
+// A fields.content leaf nested inside a fields.object/fields.array (e.g.
+// "brand.name", where `brand` is a fields.object) resolves its own
+// schema/value/asset-directory the same way wherever it's touched - the
+// visual editor's mount (InlineContentEditors.tsx), its save path (save.ts),
+// and the admin's bus sync (SingletonPage.tsx) all import these instead of
+// each hand-rolling the same schema/value walk. A content leaf itself never
+// nests further (fields.content has no sub-fields), so every walk below
+// bottoms out there.
+
+// Walks a dotted field path (e.g. "brand.name", "stats.0.body") against a
+// singleton's flat top-level schema map, one segment at a time - an array
+// segment is a numeric index into `.element`, an object segment is a field
+// name into `.fields`. Mirrors dry.ts's resolveDrySpot, minus the value walk
+// (see resolveValueAtFieldPath for that).
+export function resolveSchemaAtFieldPath(
+  rootSchema: Record<string, ComponentSchema>,
+  dottedField: string,
+): ComponentSchema | undefined {
+  const [baseField, ...rest] = dottedField.split(".");
+  let schema: ComponentSchema | undefined = rootSchema[baseField];
+  for (const seg of rest) {
+    if (!schema) return undefined;
+    if (schema.kind === "array") {
+      if (!/^\d+$/.test(seg)) return undefined;
+      schema = (schema as ArrayField<ComponentSchema>).element;
+    } else if (schema.kind === "object") {
+      schema = (schema as ObjectField).fields[seg];
+    } else {
+      return undefined;
+    }
+  }
+  return schema;
+}
+
+// Read-only dual of the above over a value tree instead of a schema - used to
+// harvest a nested content leaf's current value (e.g. image-byte hydration,
+// see ownContentValues in SingletonPage.tsx).
+export function resolveValueAtFieldPath(
+  rootValue: unknown,
+  dottedField: string,
+): unknown {
+  let value: unknown = rootValue;
+  for (const seg of dottedField.split(".")) {
+    if (value === undefined || value === null) return undefined;
+    value = (value as Record<string, unknown>)[seg];
+  }
+  return value;
+}
+
+// Visits every fields.content leaf nested under `value` (schema-guided, any
+// depth of array/object nesting), yielding its dotted path relative to
+// `basePath` (e.g. a leaf directly under "brand" comes back as "brand.name",
+// matching the bus key convention), its own schema, and its current value.
+export function forEachContentLeaf(
+  schema: ComponentSchema,
+  value: unknown,
+  basePath: string,
+  cb: (path: string, leafSchema: ComponentSchema, leafValue: unknown) => void,
+): void {
+  if (schema.kind === "object") {
+    const obj =
+      value && typeof value === "object" && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : {};
+    for (const [seg, subSchema] of Object.entries(
+      (schema as ObjectField).fields,
+    )) {
+      const subPath = basePath ? `${basePath}.${seg}` : seg;
+      if (getSyncableFieldKind(subSchema) === "content") {
+        cb(subPath, subSchema, obj[seg]);
+      } else {
+        forEachContentLeaf(subSchema, obj[seg], subPath, cb);
+      }
+    }
+    return;
+  }
+  if (schema.kind === "array") {
+    const arr = Array.isArray(value) ? value : [];
+    const element = (schema as ArrayField<ComponentSchema>).element;
+    arr.forEach((item, i) => {
+      const subPath = basePath ? `${basePath}.${i}` : String(i);
+      if (getSyncableFieldKind(element) === "content") {
+        cb(subPath, element, item);
+      } else {
+        forEachContentLeaf(element, item, subPath, cb);
+      }
+    });
+  }
+}
+
+// Deep-copies `value` with every nested fields.content leaf removed. A
+// content leaf never rides inside its container's own bus JSON/save value -
+// it always travels on its own dotted key, the same way a top-level content
+// field already does (see toBusValue's content branch) - otherwise a
+// container carrying a content leaf would JSON-stringify the leaf's raw
+// ProseMirror EditorState instead of publishing its HTML properly, and a
+// receiver replacing the whole container from that JSON would blank the
+// leaf. Returns `value` itself untouched when there's nothing to strip, so
+// callers with no nested content pay no copying cost.
+export function omitContentLeaves(
+  schema: ComponentSchema,
+  value: unknown,
+): unknown {
+  if (schema.kind === "object") {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      return value;
+    const obj = value as Record<string, unknown>;
+    let changed = false;
+    const out: Record<string, unknown> = {};
+    for (const [seg, subSchema] of Object.entries(
+      (schema as ObjectField).fields,
+    )) {
+      if (!(seg in obj)) continue;
+      if (getSyncableFieldKind(subSchema) === "content") {
+        changed = true;
+        continue;
+      }
+      const sub = omitContentLeaves(subSchema, obj[seg]);
+      out[seg] = sub;
+      if (sub !== obj[seg]) changed = true;
+    }
+    return changed ? out : value;
+  }
+  if (schema.kind === "array") {
+    if (!Array.isArray(value)) return value;
+    const element = (schema as ArrayField<ComponentSchema>).element;
+    let changed = false;
+    const out = value.map((item) => {
+      const sub = omitContentLeaves(element, item);
+      if (sub !== item) changed = true;
+      return sub;
+    });
+    return changed ? out : value;
+  }
+  return value;
+}
+
+const contentPathTextDecoder = new TextDecoder();
+
+// A content field's serialize() output carries its HTML body in `content`
+// bytes for a non-inline field (a separate sibling file) but straight in
+// `value` for an inline one (fields.content({ inline: true }) - see the
+// field's own serialize). Picks whichever is present so every surface that
+// needs the HTML (not the summary/YAML value) decodes a content field's
+// output the same way, instead of assuming `content` is always populated -
+// mirrors InlineContentEditors.tsx's original htmlFromSerializeOutput.
+export function htmlFromContentSerialize(out: {
+  value: unknown;
+  content?: Uint8Array;
+}): string {
+  if (out.content !== undefined) return contentPathTextDecoder.decode(out.content);
+  return typeof out.value === "string" ? out.value : "";
+}
+
+// Path helpers for a content field's own on-disk namespace. A top-level
+// content field (no dots in its field name) keeps its existing flat layout
+// unchanged (`<entryDir>/assets`, `<entryDir>/<field><ext>`); a nested one
+// (e.g. "brand.name") gets its own subdirectory so two content fields in the
+// same singleton never collide on an embedded image's filename (see
+// stashContentBlobs - both write/read `<dir>/<name>` with no field-scoping
+// of their own).
+export function contentEntryDir(
+  entryDir: string,
+  dottedField: string,
+): string {
+  return dottedField.includes(".") ? `${entryDir}/${dottedField}` : entryDir;
+}
+
+export function contentAssetsDir(
+  entryDir: string,
+  dottedField: string,
+): string {
+  return `${contentEntryDir(entryDir, dottedField)}/assets`;
+}
+
 // --- Cross-tab bus -----------------------------------------------------
 
 export type EditBusMessage =

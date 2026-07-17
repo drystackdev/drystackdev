@@ -12,8 +12,11 @@ import {
 import { loadDataFile } from "@drystack/core/required-files";
 import { dump } from "@drystack/core/yaml";
 import {
+  contentAssetsDir,
+  contentEntryDir,
   getSyncableFieldKind,
   isAssetKind,
+  resolveSchemaAtFieldPath,
   spliceValueEdit,
 } from "@drystack/core/edit-sync";
 import { clientSideValidateProp } from "@drystack/core/field-editor";
@@ -346,8 +349,16 @@ export async function listAssetFiles(
   config: Config<any, any>,
   singletonName: string,
   githubBranchName?: string,
+  // The content field's own dotted path (e.g. "brand.name") - a nested
+  // content field's embedded images live under their own subdirectory
+  // (contentAssetsDir) rather than the singleton's shared `assets/`, so two
+  // content fields never collide on a same-named image. Omitted (or a
+  // top-level field with no dots) keeps the flat singleton-wide directory.
+  dottedField?: string,
 ): Promise<Map<string, Uint8Array>> {
-  const dir = `${getSingletonPath(config, singletonName)}/assets`;
+  const dir = dottedField
+    ? contentAssetsDir(getSingletonPath(config, singletonName), dottedField)
+    : `${getSingletonPath(config, singletonName)}/assets`;
   const out = new Map<string, Uint8Array>();
   if (config.storage.kind === "local") {
     const treeRes = await fetch(`/api/${apiPath}/tree`, {
@@ -584,28 +595,40 @@ type ContentFieldSchema = {
 };
 
 // A fields.content edit spans more than one file, unlike every other kind.
-// Its HTML body lives in its own `<singletonDir>/<field>.html` (the field's
-// `contentExtension`), the entry's YAML gets only the lightweight
+// Its HTML body lives in its own `<singletonDir>/<dottedField>.html` (the
+// field's `contentExtension`), the entry's YAML gets only the lightweight
 // { wordCount, charCount } summary, and any image embedded in the body is a
-// third file under `<singletonDir>/assets/`. All of them are returned here
-// and committed together - both the local /update API and GitHub's
-// createCommitOnBranch already take a multi-file write.
+// third file under its own `<singletonDir>/<dottedField>/assets/` (top-level:
+// `<singletonDir>/assets/`, unchanged - see contentEntryDir/contentAssetsDir).
+// All of them are returned here and committed together - both the local
+// /update API and GitHub's createCommitOnBranch already take a multi-file
+// write.
 //
 // The bus carries the body as raw HTML, but the summary and the embedded
 // image bytes only exist on the far side of a parse → serialize round trip
 // through the field's own schema, so that's what this does rather than
 // hand-rolling a word count. `other` must be hydrated first - see
 // listAssetFiles for what silently breaks otherwise.
+//
+// `dottedField` may be nested (e.g. "brand.name") - `containerSchema` is the
+// TOP-level field's own schema (e.g. `brand`'s ObjectField), needed to splice
+// the leaf's value into `data[topBaseField]` at the right path via
+// spliceValueEdit rather than overwriting the whole top-level key. Undefined
+// (and unused) when `dottedField` has no dots - the leaf IS the top-level
+// field then, and `data[dottedField]` is written directly.
 async function collectContentFieldDiffs(
   config: Config<any, any>,
   singletonName: string,
-  baseField: string,
+  dottedField: string,
   html: string,
   fieldSchema: ContentFieldSchema,
   data: Record<string, unknown>,
+  containerSchema: ComponentSchema | undefined,
   githubBranchName?: string,
 ): Promise<FileDiff[]> {
   const dir = getSingletonPath(config, singletonName);
+  const entryDir = contentEntryDir(dir, dottedField);
+  const assetsDir = contentAssetsDir(dir, dottedField);
   // Both the saved-on-disk bytes AND any freshly-embedded image that only
   // exists in the pending-blob store (IndexedDB) yet - mirrors the inline
   // editor's own mount hydration (InlineContentEditors.tsx). Without the
@@ -613,10 +636,8 @@ async function collectContentFieldDiffs(
   // and serialize() then silently repoints it to /media-library/ and drops
   // its bytes instead of writing them beside the entry (see listAssetFiles).
   const [saved, pending] = await Promise.all([
-    listAssetFiles(config, singletonName, githubBranchName),
-    getPendingBlobsUnder(`${dir}/assets`).catch(
-      () => new Map<string, Uint8Array>(),
-    ),
+    listAssetFiles(config, singletonName, githubBranchName, dottedField),
+    getPendingBlobsUnder(assetsDir).catch(() => new Map<string, Uint8Array>()),
   ]);
   // Pending wins: it's the newer copy of any name present in both.
   const assets = new Map([...saved, ...pending]);
@@ -627,17 +648,31 @@ async function collectContentFieldDiffs(
     slug: undefined,
   });
   // entryDirectory so embedded-image srcs are written as live-resolvable
-  // public paths (`/<dir>/assets/<name>`) rather than bare filenames.
-  const out = fieldSchema.serialize(state, { entryDirectory: dir });
+  // public paths (`/<entryDir>/assets/<name>`) rather than bare filenames.
+  const out = fieldSchema.serialize(state, { entryDirectory: entryDir });
 
-  data[baseField] = out.value;
+  const [topBaseField, ...pathWithinTop] = dottedField.split(".");
+  if (pathWithinTop.length === 0) {
+    data[topBaseField] = out.value;
+  } else if (containerSchema) {
+    // INV-2: writes the leaf at its nested path without disturbing the rest
+    // of the container - `data[topBaseField]` already carries whatever the
+    // sibling non-content sub-edits (or a whole-container replace) just
+    // merged into it (see collectFileDiffs), and this splice preserves that.
+    data[topBaseField] = spliceValueEdit(
+      data[topBaseField],
+      pathWithinTop,
+      containerSchema,
+      () => out.value,
+    );
+  }
 
   const diffs: FileDiff[] = [];
   // An inline content field (no contentExtension) has no sibling file at
-  // all - its body just went into data[baseField] above, so there's nothing
-  // more to diff here.
+  // all - its body just went into data[topBaseField] above, so there's
+  // nothing more to diff here.
   if (fieldSchema.contentExtension) {
-    const contentPath = `${dir}/${baseField}${fieldSchema.contentExtension}`;
+    const contentPath = `${dir}/${dottedField}${fieldSchema.contentExtension}`;
     const rawBefore = await readCurrentFile(
       config,
       contentPath,
@@ -662,7 +697,7 @@ async function collectContentFieldDiffs(
     const existing = assets.get(key);
     if (existing && bytesEqual(existing, bytes)) continue;
     diffs.push({
-      path: `${dir}/assets/${key}`,
+      path: `${assetsDir}/${key}`,
       before: existing ? `(image, ${existing.length} bytes)` : "",
       after: `(image, ${bytes.length} bytes)`,
       contents: bytes,
@@ -734,15 +769,36 @@ async function collectFileDiffs(
             html,
             schema[baseField] as unknown as ContentFieldSchema,
             data,
+            undefined,
             githubBranchName,
           )),
         );
         continue;
       }
+      // A container base field can carry a nested content leaf's edit too
+      // (e.g. "brand.name") - split those out before the generic splice
+      // below, which only knows how to write a raw bus string/JSON at a
+      // path, not round-trip a content body through its own schema (see
+      // collectContentFieldDiffs). Applied *after* the container merge so
+      // each leaf's parse/serialize sees (and writes on top of) whatever the
+      // merge just settled on for the rest of the container.
+      const contentSubEdits = new Map<string, string>();
+      const nonContentEdits = new Map<string, string>();
+      for (const [field, value] of fieldEdits) {
+        const leafSchema =
+          field === baseField
+            ? undefined
+            : resolveSchemaAtFieldPath(schema, field);
+        if (leafSchema && getSyncableFieldKind(leafSchema) === "content") {
+          contentSubEdits.set(field, value);
+        } else {
+          nonContentEdits.set(field, value);
+        }
+      }
       const merged = mergeFieldEdits(
         schema[baseField],
         baseField,
-        fieldEdits,
+        nonContentEdits,
         data[baseField],
       );
       // fields.image/fields.file's serialize() omits the key entirely when
@@ -757,6 +813,23 @@ async function collectFileDiffs(
       }
       const validatedValue = isAsset && merged === "" ? null : merged;
       validateField(name, baseField, schema, validatedValue, messages);
+
+      for (const [dottedField, html] of contentSubEdits) {
+        const leafSchema = resolveSchemaAtFieldPath(schema, dottedField);
+        if (!leafSchema) continue;
+        extraDiffs.push(
+          ...(await collectContentFieldDiffs(
+            config,
+            name,
+            dottedField,
+            html,
+            leafSchema as unknown as ContentFieldSchema,
+            data,
+            schema[baseField],
+            githubBranchName,
+          )),
+        );
+      }
     }
     diffs.push({ path: filepath, before, after: dump(data) });
     diffs.push(...extraDiffs);

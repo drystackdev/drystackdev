@@ -348,6 +348,13 @@ async function paintObjectFields(
           resolveBlobs,
         ),
       );
+    } else if (isContentSpot(el)) {
+      // A content leaf never rides inside its container's own JSON (see
+      // edit-sync.ts's omitContentLeaves) - it syncs on its own dotted key,
+      // painted via paintContentSpot when that key's own edit arrives. Doing
+      // nothing here is the correct behavior, not a gap: textContent-ing
+      // `value` (undefined, since the leaf was stripped before publish)
+      // would blank the live ProseMirror doc/HTML for no reason.
     } else {
       el.textContent = value == null ? "" : String(value);
       makeEditableIfEditing(el);
@@ -380,6 +387,9 @@ async function paintItemOrLeaf(
         typeof value === "string" ? value : "",
         resolveBlobs,
       );
+    } else if (isContentSpot(own)) {
+      // Same reasoning as paintObjectFields's content skip: a content array
+      // item syncs on its own dotted key, never through the container's JSON.
     } else {
       own.textContent = value == null ? "" : String(value);
       makeEditableIfEditing(own);

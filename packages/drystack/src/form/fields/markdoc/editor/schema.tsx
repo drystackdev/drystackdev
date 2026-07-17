@@ -1112,7 +1112,18 @@ export function createEditorSchema(
   return editorSchema;
 }
 
-const schemaToEditorSchema = new WeakMap<Schema, EditorSchema>();
+// Persisted on globalThis rather than a plain module-level `const` so the
+// registry survives Vite dev re-evaluating this module. When Vite re-optimizes
+// dependencies (e.g. the first time the editor's toolbar icons are discovered)
+// it fires a reload that would otherwise reset this WeakMap out from under
+// still-live editor values, making getEditorSchema throw "No editor schema for
+// schema". In production the module evaluates once, so this is equivalent to a
+// module-level WeakMap.
+const globalForSchema = globalThis as unknown as {
+  __drystackSchemaToEditorSchema?: WeakMap<Schema, EditorSchema>;
+};
+const schemaToEditorSchema = (globalForSchema.__drystackSchemaToEditorSchema ??=
+  new WeakMap<Schema, EditorSchema>());
 
 export function getEditorSchema(schema: Schema): EditorSchema {
   const editorSchema = schemaToEditorSchema.get(schema);

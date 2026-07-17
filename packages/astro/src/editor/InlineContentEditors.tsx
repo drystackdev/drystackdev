@@ -6,9 +6,12 @@ import {
 } from "@drystack/core/field-editor";
 import { getSingletonPath } from "@drystack/core/path-utils";
 import {
+  contentAssetsDir,
+  contentEntryDir,
   createLatestGuard,
   getPendingBlobsUnder,
   publishEdit,
+  resolveSchemaAtFieldPath,
   stashContentBlobs,
   type LatestGuard,
   type StashedBlobs,
@@ -89,9 +92,14 @@ function InlineContentEditor({
   currentBranch: string;
 }) {
   const { el, key, schema, singletonName } = spot;
+  const field = key.split("::")[2];
   const [state, setState] = useState<EditorState | null>(null);
-  const entryDir = getSingletonPath(config, singletonName);
-  const assetsDir = `${entryDir}/assets`;
+  // Nested (e.g. "brand.name") gets its own subdirectory so it can't collide
+  // on an embedded image's filename with a sibling content field - see
+  // contentEntryDir/contentAssetsDir.
+  const singletonDir = getSingletonPath(config, singletonName);
+  const entryDir = contentEntryDir(singletonDir, field);
+  const assetsDir = contentAssetsDir(singletonDir, field);
   // This entry's assets/ bytes, kept for the lifetime of the editor: every
   // later re-parse (see the painter below) needs them just as much as the
   // first one does, and re-fetching per paint would be pointless network.
@@ -119,9 +127,12 @@ function InlineContentEditor({
     let cancelled = false;
     const html = el.innerHTML;
     Promise.all([
-      listAssetFiles(config, singletonName, currentBranch || undefined).catch(
-        () => new Map<string, Uint8Array>(),
-      ),
+      listAssetFiles(
+        config,
+        singletonName,
+        currentBranch || undefined,
+        field,
+      ).catch(() => new Map<string, Uint8Array>()),
       getPendingBlobsUnder(assetsDir).catch(
         () => new Map<string, Uint8Array>(),
       ),
@@ -135,7 +146,7 @@ function InlineContentEditor({
     return () => {
       cancelled = true;
     };
-  }, [config, el, schema, singletonName, assetsDir, currentBranch]);
+  }, [config, el, schema, singletonName, field, assetsDir, currentBranch]);
 
   // Cleanup closures capture their variables at effect-setup time, so the
   // repaint below has to read the *latest* state through a ref rather than
@@ -223,7 +234,7 @@ function InlineContentEditor({
             // Leave the bus untouched; the next keystroke retries the stash.
           });
       }}
-      entryDirectory={getSingletonPath(config, singletonName)}
+      entryDirectory={entryDir}
     />
   );
 }
@@ -236,14 +247,15 @@ function readContentSpots(config: Config<any, any>): Spot[] {
       const key = el.getAttribute("data-dry");
       if (!key) return;
       const [type, singletonName, field] = key.split("::");
-      // Only top-level content fields on a singleton - a content field nested
-      // inside an array/object would need a per-path content filename, which
-      // neither dry() nor the save path resolves yet.
       if (type !== "singleton" || !singletonName || !field) return;
-      if (field.includes(".")) return;
-      const schema = config.singletons?.[singletonName]?.schema?.[field] as
-        | ComponentSchema
+      // Any depth of array/object nesting (e.g. "brand.name") - resolved
+      // against the schema rather than assumed flat, since a nested content
+      // leaf's own schema object is what carries inlineParse/serialize.
+      const rootSchema = config.singletons?.[singletonName]?.schema as
+        | Record<string, ComponentSchema>
         | undefined;
+      if (!rootSchema) return;
+      const schema = resolveSchemaAtFieldPath(rootSchema, field);
       if (!schema) return;
       spots.push({
         key,
