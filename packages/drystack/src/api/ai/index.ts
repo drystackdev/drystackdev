@@ -17,19 +17,20 @@ import {
   resolveAiModel,
 } from "./model-registry";
 import {
+  AiSizeMap,
   buildRewriteSystemPrompt,
   buildRewriteUserPrompt,
   buildSystemPrompt,
   buildUserPrompt,
+  generateMaxTokens,
   isAiSize,
   rewriteMaxTokens,
-  SIZE_SPECS,
 } from "./prompt";
 import { anthropicProvider } from "./providers/anthropic";
 import { googleProvider } from "./providers/google";
 import { openaiProvider } from "./providers/openai";
 import { AiProvider, AiProviderError, AiStreamArgs } from "./providers/types";
-import { describeField, describeFields } from "./schema-to-yaml";
+import { AiFieldSpec, describeField, describeFields } from "./schema-to-yaml";
 
 // A runaway field shouldn't blow the request budget on its own. Long context
 // is fine; this is a ceiling, not a target.
@@ -438,10 +439,7 @@ async function handleGenerate(
   if (isPreflightResponse(pre)) return pre;
   const { body, entryDescription, schema, provider, runtime, lang } = pre;
 
-  const { context, description, size } = body;
-  if (!isAiSize(size)) {
-    return json({ error: "`size` không hợp lệ." }, 400);
-  }
+  const { context, description } = body;
 
   // The client sends which keys to fill; the specs themselves are rebuilt from
   // the server's own schema, so a tampered request can't describe a field that
@@ -455,20 +453,83 @@ async function handleGenerate(
     return json({ error: "Không có field nào hợp lệ để điền." }, 400);
   }
 
+  const sizes = resolveSizes(body.sizes, targets);
+  if (!sizes) return json({ error: "`sizes` không hợp lệ." }, 400);
+
+  const seeds = sanitiseSeeds(body.seeds, targets);
+  const seedChars = Object.values(seeds).reduce((n, s) => n + s.length, 0);
+
   return streamResponse(provider, runtime, body.model, {
     system: buildSystemPrompt({
       lang,
       entryDescription,
       targets,
-      hasContentField: targets.some((t) => t.kind === "content"),
-      size,
+      sizes,
+      seedKeys: Object.keys(seeds),
     }),
     user: buildUserPrompt({
       context: sanitiseContext(context),
       description: typeof description === "string" ? description : "",
+      seeds,
     }),
-    maxTokens: SIZE_SPECS[size].maxTokens,
+    maxTokens: generateMaxTokens({ sizes, seedChars }),
   });
+}
+
+/**
+ * The length to write each content target at.
+ *
+ * Only content targets get an entry - a size on anything else is meaningless,
+ * and letting one through would put a stray "độ dài" on a select field in the
+ * prompt. A content target the client said nothing about falls back to the
+ * dialog's own default rather than failing the request; an outright invalid
+ * size is a bug or a tampered body, so that does fail.
+ */
+function resolveSizes(
+  raw: unknown,
+  targets: AiFieldSpec[],
+): AiSizeMap | undefined {
+  const given: Record<string, unknown> =
+    raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  for (const value of Object.values(given)) {
+    if (!isAiSize(value)) return undefined;
+  }
+  const out: AiSizeMap = {};
+  for (const target of targets) {
+    if (target.kind !== "content") continue;
+    const size = given[target.key];
+    out[target.key] = isAiSize(size) ? size : "medium";
+  }
+  return out;
+}
+
+/**
+ * The half-written values to continue from, as YAML the client rendered from
+ * its own form state.
+ *
+ * Restricted to array/object targets: those are the only kinds the dialog
+ * offers "tiếp tục" on, and they're the only ones where continuing means
+ * anything - a half-written scalar is just a scalar the model would rewrite
+ * anyway. A key that isn't a target is dropped rather than rejected: it can't
+ * reach the skeleton, so echoing a seed for it would only spend tokens.
+ */
+function sanitiseSeeds(
+  raw: unknown,
+  targets: AiFieldSpec[],
+): Record<string, string> {
+  if (!raw || typeof raw !== "object") return {};
+  const continuable = new Set(
+    targets
+      .filter((t) => t.kind === "array" || t.kind === "object")
+      .map((t) => t.key),
+  );
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!continuable.has(key)) continue;
+    if (typeof value !== "string" || !value.trim()) continue;
+    out[key] = value.slice(0, MAX_TEXT_CHARS);
+  }
+  return out;
 }
 
 /**

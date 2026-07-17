@@ -209,11 +209,15 @@ const KIND_LABELS: Record<AiFieldKind, string> = {
   object: "nhóm",
 };
 
-function annotation(spec: AiFieldSpec): string {
+function annotation(spec: AiFieldSpec, sizeWords?: string): string {
   const parts: string[] = [];
   if (spec.kind === "text" && spec.multiline) parts.push("văn bản nhiều dòng");
   else if (spec.kind === "content") {
     parts.push(`HTML, chỉ dùng các thẻ: ${(spec.htmlTags ?? []).join(", ")}`);
+    // Stated per field rather than once in the rules: each content target
+    // carries its own length, so a single global sentence could only ever be
+    // right about one of them.
+    if (sizeWords) parts.push(`độ dài: ${sizeWords}`);
   } else parts.push(KIND_LABELS[spec.kind]);
 
   if (spec.options?.length)
@@ -227,15 +231,30 @@ function annotation(spec: AiFieldSpec): string {
  * bearing: the streaming parser on the client decides a field is finished
  * only when it sees the next one start, so the prompt tells the model to keep
  * this exact order (see buildSystemPrompt).
+ *
+ * `sizeWords` holds each content target's length target, keyed by field key.
  */
-export function renderSkeleton(specs: AiFieldSpec[], indent = ""): string {
+export function renderSkeleton(
+  specs: AiFieldSpec[],
+  sizeWords?: Record<string, string>,
+): string {
+  return renderLines(specs, "", sizeWords);
+}
+
+function renderLines(
+  specs: AiFieldSpec[],
+  indent: string,
+  // Applied at the top level only: sizes are chosen per target in the dialog,
+  // and a nested field that happens to share a key with one is not that target.
+  sizeWords: Record<string, string> | undefined,
+): string {
   const lines: string[] = [];
   for (const spec of specs) {
     const desc = spec.description ? ` — ${spec.description}` : "";
 
     if (spec.kind === "object") {
       lines.push(`${indent}${spec.key} (nhóm, gồm): ${spec.label}${desc}`);
-      lines.push(renderSkeleton(spec.children ?? [], `${indent}  `));
+      lines.push(renderLines(spec.children ?? [], `${indent}  `, undefined));
       continue;
     }
 
@@ -245,7 +264,9 @@ export function renderSkeleton(specs: AiFieldSpec[], indent = ""): string {
         lines.push(
           `${indent}${spec.key} (danh sách các mục, mỗi mục gồm): ${spec.label}${desc}`,
         );
-        lines.push(renderSkeleton(element.children ?? [], `${indent}  `));
+        lines.push(
+          renderLines(element.children ?? [], `${indent}  `, undefined),
+        );
       } else {
         lines.push(
           `${indent}${spec.key} (danh sách ${annotation(element)}): ${spec.label}${desc}`,
@@ -255,7 +276,7 @@ export function renderSkeleton(specs: AiFieldSpec[], indent = ""): string {
     }
 
     lines.push(
-      `${indent}${spec.key} (${annotation(spec)}): ${spec.label}${desc}`,
+      `${indent}${spec.key} (${annotation(spec, sizeWords?.[spec.key])}): ${spec.label}${desc}`,
     );
   }
   return lines.filter(Boolean).join("\n");

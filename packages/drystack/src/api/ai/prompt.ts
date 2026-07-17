@@ -21,14 +21,24 @@ export function isAiSize(value: unknown): value is AiSize {
   return (AI_SIZES as readonly unknown[]).includes(value);
 }
 
+/**
+ * The length target for each content field being written, keyed by field key.
+ * Per field rather than per request: one entry can have two content fields
+ * that want wildly different lengths, and the dialog offers a size on each.
+ */
+export type AiSizeMap = Record<string, AiSize>;
+
 export function buildSystemPrompt(args: {
   lang: string;
   entryDescription: string;
   targets: AiFieldSpec[];
-  hasContentField: boolean;
-  size: AiSize;
+  sizes: AiSizeMap;
+  /** keys whose current value is seeded into the user prompt to continue from */
+  seedKeys?: readonly string[];
 }): string {
-  const { lang, entryDescription, targets, hasContentField, size } = args;
+  const { lang, entryDescription, targets, sizes, seedKeys = [] } = args;
+
+  const hasContentField = targets.some((t) => t.kind === "content");
 
   const rules = [
     "Chỉ xuất YAML thô. Không bọc trong ```yaml, không thêm lời dẫn, không giải thích trước hay sau.",
@@ -38,8 +48,15 @@ export function buildSystemPrompt(args: {
     `Toàn bộ nội dung viết bằng ngôn ngữ: ${lang}.`,
   ];
   if (hasContentField) {
+    // The length target itself is stated per field in the skeleton below, so
+    // this rule only carries what's true of every content field.
     rules.push(
-      `Với field HTML: viết nội dung dài ${SIZE_SPECS[size].words}. Xuất HTML fragment, không có <html>, <body> hay <img>.`,
+      "Với field HTML: xuất HTML fragment, không có <html>, <body> hay <img>. Độ dài của từng field ghi ngay tại phần CẦN ĐIỀN.",
+    );
+  }
+  if (seedKeys.length) {
+    rules.push(
+      `Các key sau đã có sẵn dữ liệu dở dang ở phần "ĐANG CÓ DỞ": ${seedKeys.join(", ")}. Với chúng: chép lại NGUYÊN VĂN mọi giá trị đã có, chỉ điền vào những chỗ còn trống, và xuất lại đầy đủ cả mục cũ lẫn mục mới. Chỉ thêm mục mới nếu YÊU CẦU nói vậy.`,
     );
   }
 
@@ -50,7 +67,7 @@ export function buildSystemPrompt(args: {
     ...rules.map((r, i) => `${i + 1}. ${r}`),
     "",
     "CẦN ĐIỀN (đúng thứ tự này):",
-    renderSkeleton(targets),
+    renderSkeleton(targets, sizeWords(sizes)),
     "",
     "Ví dụ định dạng đầu ra:",
     "ten_key_ngan: Giá trị một dòng",
@@ -67,17 +84,85 @@ export function buildSystemPrompt(args: {
   ].join("\n");
 }
 
+function sizeWords(sizes: AiSizeMap): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, size] of Object.entries(sizes)) {
+    out[key] = SIZE_SPECS[size].words;
+  }
+  return out;
+}
+
+/**
+ * How many tokens a generation may spend.
+ *
+ * Summed across the content targets, because one response carries all of them:
+ * a ceiling sized for the longest alone would truncate the rest. Seeds are
+ * echoed back verbatim, so what's handed in has to be paid for again on the
+ * way out.
+ *
+ * The cap is the point of the exercise. 16k is exactly today's worst case (one
+ * `xlong` field), and it's also as much output as the tightest provider we
+ * support will accept - going higher would turn "two long fields" from a
+ * truncated answer into a rejected request.
+ */
+export function generateMaxTokens(args: {
+  sizes: AiSizeMap;
+  /** total characters of seed text the model has to reproduce */
+  seedChars?: number;
+}): number {
+  const { sizes, seedChars = 0 } = args;
+  const content = Object.values(sizes).reduce(
+    (total, size) => total + SIZE_SPECS[size].maxTokens,
+    0,
+  );
+  // Roughly a token per two characters, which is pessimistic for Vietnamese
+  // and therefore the right direction to be wrong in.
+  const seed = Math.ceil(seedChars / 2);
+  // A request with no content field still has to fit the scalars it asked for.
+  return Math.min(MAX_OUTPUT_TOKENS, Math.max(2_000, content + seed));
+}
+
+const MAX_OUTPUT_TOKENS = 16_000;
+
 export function buildUserPrompt(args: {
   context: Record<string, string>;
   description: string;
+  /** current value of each field being continued, already rendered as YAML */
+  seeds?: Record<string, string>;
 }): string {
-  const { context, description } = args;
-  const lines: string[] = [...renderContextBlock(context)];
+  const { context, description, seeds } = args;
+  const lines: string[] = [
+    ...renderContextBlock(context),
+    ...renderSeedBlock(seeds ?? {}),
+  ];
 
   lines.push("YÊU CẦU:");
   lines.push(description.trim() || "Viết nội dung phù hợp với ngữ cảnh trên.");
 
   return lines.join("\n");
+}
+
+/**
+ * The half-written values the user asked to continue from.
+ *
+ * Kept apart from the context block because the instruction is the opposite:
+ * context is background the model must *not* echo, whereas a seed is a draft
+ * it must echo back in full, having filled the gaps.
+ */
+function renderSeedBlock(seeds: Record<string, string>): string[] {
+  const entries = Object.entries(seeds).filter(([, v]) => v?.trim());
+  if (!entries.length) return [];
+  const lines = [
+    "ĐANG CÓ DỞ (giữ nguyên phần đã có, điền nốt chỗ trống, xuất lại đầy đủ):",
+  ];
+  for (const [key, yaml] of entries) {
+    lines.push(`${key}:`);
+    for (const line of yaml.replace(/\s+$/, "").split("\n")) {
+      lines.push(`  ${line}`);
+    }
+  }
+  lines.push("");
+  return lines;
 }
 
 /**

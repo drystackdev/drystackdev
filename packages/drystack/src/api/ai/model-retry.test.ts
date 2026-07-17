@@ -90,7 +90,7 @@ const generateBody = {
   targets: ["title"],
   context: {},
   description: "x",
-  size: "short",
+  sizes: {},
 };
 
 const realFetch = globalThis.fetch;

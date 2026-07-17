@@ -165,15 +165,34 @@ test("drops an object whose children are all unsupported", () => {
   expect(spec).toBeUndefined();
 });
 
+// An escape rather than the character: the repo formatter rewrites a literal
+// em dash to a hyphen even inside a string, which is what silently broke this
+// expectation before. The escape is the only form it leaves alone.
+const EM_DASH = "\u2014";
+
 test("renders a skeleton the prompt can use", () => {
   const skeleton = renderSkeleton(describeFields(blogSchema));
   expect(skeleton).toContain(
     "excerpt (văn bản nhiều dòng, bắt buộc): Mô tả ngắn",
   );
   expect(skeleton).toContain(
-    "keywords (văn bản ngắn): Từ khóa SEO - Cách nhau bởi dấu phẩy",
+    `keywords (văn bản ngắn): Từ khóa SEO ${EM_DASH} Cách nhau bởi dấu phẩy`,
   );
   expect(skeleton).toContain("h2, h3, h4");
+});
+
+// Sizes are chosen per target in the dialog. A nested field that happens to
+// share a key with one is not that target, and must not inherit its length.
+test("puts a size only on the top-level content field it was chosen for", () => {
+  const skeleton = renderSkeleton(describeFields(blogSchema), {
+    body: "khoảng 1000 từ",
+  });
+  expect(skeleton).toContain("độ dài: khoảng 1000 từ");
+  expect(skeleton).not.toContain(`Tiêu đề ${EM_DASH} độ dài`);
+});
+
+test("renders no size when none was chosen", () => {
+  expect(renderSkeleton(describeFields(blogSchema))).not.toContain("độ dài");
 });
 
 test("renders nested array > object in the skeleton", () => {

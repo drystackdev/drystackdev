@@ -68,7 +68,7 @@ test("github mode rejects a generate with no session too", async () => {
   const res = await call("github", "ai/generate", {
     entry: { kind: "collection", key: "blog" },
     targets: ["body"],
-    size: "medium",
+    sizes: { body: "medium" },
   });
   expect(res.status).toBe(401);
 });

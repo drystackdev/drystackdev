@@ -27,7 +27,15 @@ export type MagicWriteRequest = {
   targets: string[];
   context: Record<string, string>;
   description: string;
-  size: AiSize;
+  /** length to write at, per content target */
+  sizes: Record<string, AiSize>;
+  /**
+   * The current value of each field the user ticked "tiếp tục" on, as YAML.
+   * A key's presence here is the whole difference between continuing from
+   * what's there and replacing it: the prompt grows a seed block, and the
+   * model is told to echo the draft back with the gaps filled.
+   */
+  seeds: Record<string, string>;
 };
 
 export function useMagicWrite(args: {
