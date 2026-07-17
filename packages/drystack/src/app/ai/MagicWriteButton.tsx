@@ -6,6 +6,7 @@ import { DialogContainer } from "@keystar/ui/dialog";
 import { Icon } from "@keystar/ui/icon";
 import { Flex } from "@keystar/ui/layout";
 import { ProgressCircle } from "@keystar/ui/progress";
+import { breakpointQueries, useMediaQuery } from "@keystar/ui/style";
 import { Text } from "@keystar/ui/typography";
 import { TooltipTrigger, Tooltip } from "@keystar/ui/tooltip";
 
@@ -41,6 +42,7 @@ export function MagicWriteButton(props: {
   const [isOpen, setOpen] = useState(false);
   const status = useAiStatus();
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
+  const isBelowTablet = useMediaQuery(breakpointQueries.below.tablet);
 
   if (magicWrite.status === "streaming") {
     return (
@@ -61,16 +63,19 @@ export function MagicWriteButton(props: {
   // when a key is missing leaves the user with no idea why.
   const isDisabled = status?.configured === false;
 
+  const label = stringFormatter.format("aiMagicWrite");
+
   return (
     <>
       <TooltipTrigger>
         <ActionButton
+          aria-label={label}
           UNSAFE_style={{ borderRadius: 50 }}
           isDisabled={isDisabled}
           onPress={() => setOpen(true)}
         >
           <Icon src={magicWriteIcon} />
-          <Text>Magic write</Text>
+          {!isBelowTablet && <Text>{label}</Text>}
         </ActionButton>
         <Tooltip>
           {isDisabled

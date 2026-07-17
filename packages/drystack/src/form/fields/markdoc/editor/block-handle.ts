@@ -9,20 +9,27 @@ import { NodeType } from "prosemirror-model";
 import { EditorView } from "prosemirror-view";
 import { css, tokenSchema } from "@keystar/ui/style";
 
-// Press-and-hold drag-to-reorder. Pressing directly on a top-level block (p,
-// h2, li, ...) and holding for HOLD_DELAY without moving arms a native HTML5
-// drag: once armed, a transient `contenteditable="false"` proxy is placed
-// over the block(s) so the browser's drag-vs-text-selection disambiguation
-// sees a draggable target instead of editable text on the very next pointer
-// move. A quick press-drag - the ordinary gesture for selecting text - never
-// stays still long enough to arm, so mouse text selection is unaffected. If
-// the press lands inside an existing selection that already spans more than
-// one block, the whole spanned range is picked up together instead of just
-// the block under the pointer. The drag payload is handed to `view.dragging`,
-// so prosemirror-view's own `drop` handling performs the move and the
-// existing `dropCursor()` plugin shows where it will land (same mechanism
-// the previous gutter-icon handle used; see `dropcursor.ts` for the sibling
-// technique).
+// Press-and-hold drag-to-reorder, offered only for what is already selected:
+// pressing *inside an existing selection* and holding for HOLD_DELAY without
+// moving arms a native HTML5 drag. Once armed, a transient
+// `contenteditable="false"` proxy is placed over the block(s) so the browser's
+// drag-vs-text-selection disambiguation sees a draggable target instead of
+// editable text on the very next pointer move.
+//
+// Requiring a selection is what keeps this gesture from colliding with the one
+// that makes a selection. A press on a bare caret - or anywhere outside the
+// selection - is how selecting text starts, so arming there turns any press
+// the user holds a beat too long before dragging into a block move they never
+// asked for. Select first, then drag what's selected. (Dragging a selection
+// without the hold is unaffected and still does prosemirror-view's own thing:
+// it moves the selected text, not the block around it.)
+//
+// What gets picked up is the whole block the press landed in - or, when the
+// selection spans more than one block, every block it spans. The drag payload
+// is handed to `view.dragging`, so prosemirror-view's own `drop` handling
+// performs the move and the existing `dropCursor()` plugin shows where it will
+// land (same mechanism the previous gutter-icon handle used; see
+// `dropcursor.ts` for the sibling technique).
 
 const HOLD_DELAY = 500; // ms - how long a press must be held still before it arms
 const MOVE_CANCEL_THRESHOLD = 4; // px - movement before arming cancels the hold
@@ -239,15 +246,24 @@ class BlockHandleView {
   // out to the whole grid/table that happens to contain it. Moving a
   // container as a whole is the container grip's job instead (see
   // container-drag-handle.ts). Any other nested container (blockquote) still
-  // resolves to its own top-level ancestor block, unchanged. If the press
-  // lands inside an existing selection spanning more than one sibling at that
-  // level, the whole spanned range is returned instead - selecting across
-  // (even partially into) 2-3 blocks and dragging moves all of them together.
+  // resolves to its own top-level ancestor block, unchanged. If the selection
+  // spans more than one sibling at that level, the whole spanned range is
+  // returned instead - selecting across (even partially into) 2-3 blocks and
+  // dragging moves all of them together.
   private resolveTarget(clientX: number, clientY: number): HandleTarget | null {
     const view = this.view;
     if (!view.editable) return null;
     const found = view.posAtCoords({ left: clientX, top: clientY });
     if (!found) return null;
+
+    // Nothing is draggable but the current selection - see the note at the top
+    // of this file. This runs before prosemirror-view has handled the press, so
+    // it reads the selection the user already had, not the caret this press is
+    // about to place.
+    const { selection } = view.state;
+    if (selection.empty) return null;
+    if (found.pos < selection.from || found.pos > selection.to) return null;
+
     // Resolve the position nearest the pointer - inside the block for interior
     // hovers. (Note: `found.inside` points *before* the containing node, i.e. a
     // doc-level position for a top-level block, which is not what we want.)
@@ -284,11 +300,7 @@ class BlockHandleView {
       $pos.depth > childDepth && isListChild ? childDepth + 1 : childDepth;
     const isListItem = itemDepth === childDepth + 1;
 
-    const range = this.rangeForSelection(
-      view.state.selection,
-      found.pos,
-      itemDepth,
-    );
+    const range = this.rangeForSelection(selection, itemDepth);
     const { from, to } = range ?? {
       from: $pos.before(itemDepth),
       to: $pos.after(itemDepth),
@@ -315,19 +327,16 @@ class BlockHandleView {
     return { from, to, isListItem, emptiedGridCellPos };
   }
 
-  // When the press falls inside a non-empty selection, and that selection's
-  // two ends are siblings at `itemDepth` spanning more than one of them,
-  // return the whole spanned range. Returns null for a collapsed selection,
-  // one entirely inside a single sibling, or one whose ends aren't
+  // When the selection's two ends are siblings at `itemDepth` spanning more
+  // than one of them, return the whole spanned range. Returns null for a
+  // selection entirely inside a single sibling, or one whose ends aren't
   // comparable siblings at that depth - those fall back to the plain
-  // single-block pick-up.
+  // single-block pick-up. Callers have already established that the press
+  // landed inside this selection and that it isn't collapsed.
   private rangeForSelection(
     selection: EditorView["state"]["selection"],
-    pointerPos: number,
     itemDepth: number,
   ): { from: number; to: number } | null {
-    if (selection.empty) return null;
-    if (pointerPos < selection.from || pointerPos > selection.to) return null;
     const { $from, $to } = selection;
     if ($from.depth < itemDepth || $to.depth < itemDepth) return null;
     if ($from.node(itemDepth - 1) !== $to.node(itemDepth - 1)) return null; // not siblings
