@@ -7,6 +7,7 @@
 // queue rather than the last word.
 
 import type { AiConfigError, AiRuntimeConfig } from "./env";
+import { AiProviderError } from "./providers/types";
 import type { AiModel, AiProvider } from "./providers/types";
 
 // Long enough that a burst of generates costs one listing, short enough that a
@@ -64,10 +65,15 @@ export async function listModelsCached(
   return models;
 }
 
+// Models a real request has already succeeded on, keyed like `cache`. Saves
+// re-probing the same model every time the user opens the picker.
+const verified = new Map<string, Set<string>>();
+
 /** Only for tests - a module-level cache would otherwise leak between them. */
 export function clearModelCache() {
   cache.clear();
   unusable.clear();
+  verified.clear();
 }
 
 /**
@@ -80,6 +86,63 @@ export function markModelUnusable(runtime: AiRuntimeConfig, model: string) {
   const dead = unusable.get(key);
   if (dead) dead.add(model);
   else unusable.set(key, new Set([model]));
+}
+
+export type ModelProbe =
+  | { ok: true }
+  | { ok: false; reason: "gone" | "unavailable"; message: string };
+
+/**
+ * Asks the provider, for real, whether this model answers.
+ *
+ * Deliberately goes through `provider.stream` - the exact call generation makes
+ * - rather than some cheaper endpoint. Google's `countTokens` answers 200 for
+ * models that `generateContent` then refuses with 404, so a probe down a
+ * different path would cheerfully bless a model that can't write a word. The
+ * cost of being honest is one token: `maxTokens: 1`, and the body is dropped
+ * unread, since the HTTP status was the whole question.
+ */
+export async function probeModel(
+  provider: AiProvider,
+  runtime: AiRuntimeConfig,
+  model: string,
+): Promise<ModelProbe> {
+  const key = cacheKey(runtime);
+  if (verified.get(key)?.has(model)) return { ok: true };
+  if (unusable.get(key)?.has(model)) {
+    return { ok: false, reason: "gone", message: `${model} không còn khả dụng.` };
+  }
+
+  const controller = new AbortController();
+  try {
+    const stream = await provider.stream({
+      apiKey: runtime.apiKey,
+      model,
+      baseUrl: runtime.baseUrl,
+      system: "Reply with OK.",
+      user: "OK",
+      maxTokens: 1,
+      signal: controller.signal,
+    });
+    // Nothing here wants the answer, and reading it would only spend tokens.
+    controller.abort();
+    await stream.cancel().catch(() => {});
+
+    const seen = verified.get(key);
+    if (seen) seen.add(model);
+    else verified.set(key, new Set([model]));
+    return { ok: true };
+  } catch (err) {
+    const status = err instanceof AiProviderError ? err.status : 502;
+    const message = err instanceof Error ? err.message : String(err);
+    if (isModelGone(status, message, model)) {
+      markModelUnusable(runtime, model);
+      return { ok: false, reason: "gone", message };
+    }
+    // Rate limits and outages say nothing about the model itself, so it keeps
+    // its place on the list - it just can't be used right now.
+    return { ok: false, reason: "unavailable", message };
+  }
 }
 
 /**

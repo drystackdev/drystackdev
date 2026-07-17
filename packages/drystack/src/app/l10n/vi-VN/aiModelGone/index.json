@@ -1,0 +1,6 @@
+{
+  "key": "aiModelGone",
+  "value": "{model} không còn dùng được với API key này nên đã bị bỏ khỏi danh sách.",
+  "notes": "",
+  "type": "global"
+}

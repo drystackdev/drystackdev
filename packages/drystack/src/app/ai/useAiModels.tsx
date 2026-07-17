@@ -23,6 +23,8 @@ export type AiModelsState = {
   isLoading: boolean;
   /** fetches the list, once per session. Safe to call on every dialog open. */
   load: () => void;
+  /** drops a model proven unusable, so the picker stops offering it */
+  dropModel: (id: string) => void;
 };
 
 const STORAGE_KEY = "drystack-ai-model";
@@ -95,6 +97,24 @@ export function AiModelProvider(props: { children: ReactNode }) {
     }
   }, []);
 
+  // The server has already struck this model off for everyone on this key; this
+  // just spares the picker a refetch to find that out.
+  const dropModel = useCallback(
+    (id: string) => {
+      setModels((prev) => prev.filter((m) => m.id !== id));
+      setSelectedState((prev) => {
+        if (prev !== id) return prev;
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+        } catch {
+          // See readStored.
+        }
+        return undefined;
+      });
+    },
+    [],
+  );
+
   // A stored choice can outlive the model it names (key rotated, provider
   // switched, model retired). Treating it as "no choice" falls back to the
   // server's default, which is what the picker will show. It isn't cleared from
@@ -111,6 +131,7 @@ export function AiModelProvider(props: { children: ReactNode }) {
         setSelected,
         isLoading,
         load,
+        dropModel,
       }}
     >
       {props.children}

@@ -4,6 +4,7 @@ import {
   useLocalizedStringFormatter,
   type LocalizedStringFormatter,
 } from "@react-aria/i18n";
+import { toastQueue } from "@keystar/ui/toast";
 
 import type { ComponentSchema } from "../../form/api";
 import type { AiSize } from "../../api/ai/prompt";
@@ -44,7 +45,13 @@ export function useMagicWrite(args: {
   const model = useAiModels()?.selected;
 
   const [status, setStatus] = useState<MagicWriteStatus>("idle");
-  const [error, setError] = useState<string | undefined>();
+  // Errors are toasted, not returned for a page to render: a write is started
+  // from a dialog that's already closed by the time anything can fail, and the
+  // form underneath is long enough that a banner pinned to the top of it can
+  // fail off-screen. Same reasoning as the selection rewrite.
+  const reportError = useCallback((message: string) => {
+    toastQueue.critical(message, { timeout: 8000 });
+  }, []);
   // Fields the model is still writing. A field leaves this set the moment its
   // value is final, so it unlocks without waiting for the rest of the stream.
   const [streamingKeys, setStreamingKeys] = useState<ReadonlySet<string>>(
@@ -70,7 +77,6 @@ export function useMagicWrite(args: {
       abortRef.current = controller;
 
       setStatus("streaming");
-      setError(undefined);
       setStreamingKeys(new Set(request.targets));
 
       const specs = describeFields(schema).filter((s) =>
@@ -141,7 +147,7 @@ export function useMagicWrite(args: {
         }
         if (event.type === "error") {
           // One unreadable block shouldn't discard the fields around it.
-          setError(
+          reportError(
             stringFormatter.format("aiYamlParseError", {
               key: event.key,
               detail: event.detail,
@@ -160,7 +166,7 @@ export function useMagicWrite(args: {
 
         if (!res.ok || !res.body) {
           const message = await readErrorMessage(res, stringFormatter);
-          setError(message);
+          reportError(message);
           setStatus("error");
           setStreamingKeys(new Set());
           return;
@@ -183,7 +189,7 @@ export function useMagicWrite(args: {
         if ((err as Error)?.name === "AbortError") {
           setStatus("idle");
         } else {
-          setError(
+          reportError(
             err instanceof Error
               ? err.message
               : stringFormatter.format("aiUnknownError"),
@@ -196,7 +202,7 @@ export function useMagicWrite(args: {
         abortRef.current = null;
       }
     },
-    [basePath, entry, model, schema, onStateChange],
+    [basePath, entry, model, reportError, schema, onStateChange],
   );
 
   return {
@@ -205,11 +211,9 @@ export function useMagicWrite(args: {
     // having to pass it down a second time.
     entry,
     status,
-    error,
     streamingKeys,
     start,
     abort,
-    clearError: () => setError(undefined),
   };
 }
 

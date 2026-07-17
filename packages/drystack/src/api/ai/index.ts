@@ -13,6 +13,7 @@ import {
 import {
   isModelGone,
   markModelUnusable,
+  probeModel,
   resolveAiModel,
 } from "./model-registry";
 import {
@@ -97,6 +98,9 @@ export function makeAiRouteHandler(routeConfig: AiRouteConfig) {
     }
     if (joined === "ai/models" && req.method === "GET") {
       return handleModels(req, config, resolved);
+    }
+    if (joined === "ai/models/verify" && req.method === "POST") {
+      return handleVerifyModel(req, config, resolved);
     }
     if (joined === "ai/generate" && req.method === "POST") {
       return handleGenerate(req, config, resolved);
@@ -187,6 +191,63 @@ async function handleModels(
     models: picked.models,
     error: picked.listError,
   });
+}
+
+/**
+ * Answers whether one model actually works, by trying it.
+ *
+ * Exists because a model's presence on the list is not a promise it can be
+ * called (see `model-registry.ts`), and finding that out at generate time means
+ * the user loses a write to it. One token spent here at pick time is cheaper
+ * than that, and the failure teaches the registry - a model proven gone is
+ * dropped from the list for everyone on this key.
+ */
+async function handleVerifyModel(
+  req: DrystackRequest,
+  config: Config<any, any>,
+  resolved: AiRuntimeConfig | AiConfigError,
+): Promise<DrystackResponse> {
+  const denied = requireSession(req, config);
+  if (denied) return denied;
+
+  if (isAiConfigError(resolved)) {
+    return json(
+      { error: resolved.message, reason: resolved.reason, params: resolved.params },
+      503,
+    );
+  }
+  const provider = PROVIDERS[resolved.provider];
+  if (!provider) {
+    return json({ error: `Provider "${resolved.provider}" chưa hỗ trợ.` }, 500);
+  }
+
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return json({ error: "Body không phải JSON hợp lệ." }, 400);
+  }
+  const model = typeof body?.model === "string" ? body.model.trim() : "";
+  if (!model) return json({ error: "Thiếu `model`." }, 400);
+
+  // Only a model the key actually lists may be probed. Without this the route
+  // would spray arbitrary caller-supplied names at the provider on request.
+  const picked = await resolveAiModel(provider, resolved, model);
+  if (isAiConfigError(picked)) {
+    return json(
+      { error: picked.message, reason: picked.reason, params: picked.params },
+      503,
+    );
+  }
+  if (picked.model !== model) {
+    return json({
+      ok: false,
+      reason: "gone",
+      message: `${model} không nằm trong danh sách model của key này.`,
+    });
+  }
+
+  return json(await probeModel(provider, resolved, model));
 }
 
 type Preflight = {

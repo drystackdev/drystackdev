@@ -496,9 +496,6 @@ function CreateItemInner(props: {
           {createResult.kind === 'error' && (
             <Notice tone="critical">{createResult.error.message}</Notice>
           )}
-          {props.magicWrite.error && (
-            <Notice tone="critical">{props.magicWrite.error}</Notice>
-          )}
           <EntryDirectoryProvider value={props.entryDirectory}>
             <FormForEntry
               previewProps={props.previewProps}

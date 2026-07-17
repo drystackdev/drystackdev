@@ -357,9 +357,6 @@ function SingletonPageInner(
           {props.updateResult.kind === "error" && (
             <Notice tone="critical">{props.updateResult.error.message}</Notice>
           )}
-          {props.magicWrite.error && (
-            <Notice tone="critical">{props.magicWrite.error}</Notice>
-          )}
           <EntryDirectoryProvider value={singletonPath}>
             <FormForEntry
               previewProps={props.previewProps as any}

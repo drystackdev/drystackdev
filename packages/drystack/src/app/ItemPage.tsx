@@ -365,9 +365,6 @@ function ItemPageInner(
         {deleteResult.kind === "error" && (
           <Notice tone="critical">{deleteResult.error.message}</Notice>
         )}
-        {props.magicWrite.error && (
-          <Notice tone="critical">{props.magicWrite.error}</Notice>
-        )}
         <Box
           id={formID}
           height="100%"

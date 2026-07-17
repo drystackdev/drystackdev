@@ -67,11 +67,22 @@ gọi thật, và **không có cách nào biết trước**: metadata của mode
 byte-for-byte model chạy được (cùng `supportedGenerationMethods`, cùng
 `inputTokenLimit`...), `countTokens` nhận cả hai, endpoint `v1` cũng không lọc.
 
-Nên hệ thống học từ thất bại thay vì đoán trước: request nào trả 404 kèm thông
-báo có nhắc tới model thì model đó bị đánh dấu chết, **loại khỏi danh sách** và
-request **tự thử lại** với model kế tiếp trong chuỗi ưu tiên (tối đa 3 lần). Kết
-quả: lần chọn nhầm đầu tiên vẫn ra nội dung, và model đó không xuất hiện lại
-trong dropdown.
+Nên hệ thống học từ thất bại thay vì đoán trước, ở hai chỗ:
+
+1. **Khi chọn model trong dropdown** - gọi `POST /api/drystack/ai/models/verify`
+   `{model}`, thử model đó bằng **đúng đường mà generate đi** (`stream` với
+   `maxTokens: 1`, tốn 1 token, bỏ luôn kết quả). Trả `{ok:true}` /
+   `{ok:false, reason:'gone'|'unavailable', message}`. Model nào đã xác nhận thì
+   không hỏi lại.
+2. **Khi generate/rewrite** - request nào trả 404 kèm thông báo nhắc tới model
+   thì model đó bị đánh dấu chết và request **tự thử lại** với model kế tiếp
+   trong chuỗi ưu tiên (tối đa 3 lần), nên lần chọn nhầm vẫn ra nội dung.
+
+Model bị đánh dấu chết sẽ **rụng khỏi dropdown** và không được chọn lại.
+
+> ⚠️ Probe **phải** đi qua `stream`, đừng thay bằng endpoint rẻ hơn.
+> `countTokens` của Google trả 200 cho cả model mà `generateContent` từ chối
+> bằng 404 - probe đường khác sẽ xác nhận nhầm một model không viết nổi chữ nào.
 
 Đánh dấu này sống theo isolate (mất sau khi deploy/recycle, học lại 1 lần).
 Chỉ 404 mới bị coi là chết - **429 (hết quota) và 5xx là tạm thời**, không loại.
