@@ -1,0 +1,6 @@
+{
+  "key": "aiRewriteEmptyResult",
+  "value": "AI không trả về nội dung nào. Thử lại hoặc mô tả yêu cầu theo cách khác.",
+  "notes": "",
+  "type": "global"
+}

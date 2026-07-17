@@ -1,0 +1,6 @@
+{
+  "key": "aiRewriteEmptyResult",
+  "value": "The AI returned nothing. Try again, or describe the change differently.",
+  "notes": "",
+  "type": "global"
+}

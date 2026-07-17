@@ -7,6 +7,7 @@ import { tableEditing } from "prosemirror-tables";
 import { tokenSchema } from "@keystar/ui/style";
 import { SCHEME_AUTO, THEME_DEFAULT } from "@keystar/ui/primitives";
 
+import { aiRewriteDecoration } from "./ai-rewrite";
 import { autocompleteDecoration } from "./autocomplete/decoration";
 import { blockHandle } from "./block-handle";
 import { codeBlockSyntaxHighlighting } from "./code-block-highlighting";
@@ -101,6 +102,9 @@ export function createEditorState(
       placeholderPlugin('Start writing or press "/" for commands…'),
       reactNodeViews(doc.type.schema),
       autocompleteDecoration(),
+      // Inert until an AI rewrite is in flight, so the fields that never
+      // offer one (markdoc, mdx) carry nothing but an idle plugin.
+      aiRewriteDecoration(),
       tableColumnResizing(),
       tableRowResizing(),
       tableEditing(),

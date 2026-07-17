@@ -1,0 +1,6 @@
+{
+  "key": "aiRewriteInstructionHelp",
+  "value": "Describe how to rewrite this passage, e.g. \"make it shorter\" or \"add a concrete example\".",
+  "notes": "",
+  "type": "global"
+}

@@ -196,6 +196,10 @@ export function useMagicWrite(args: {
   );
 
   return {
+    // Exposed so a selection rewrite, which reaches the entry only through
+    // this hook's context, can address the same entry without every page
+    // having to pass it down a second time.
+    entry,
     status,
     error,
     streamingKeys,
@@ -205,7 +209,7 @@ export function useMagicWrite(args: {
   };
 }
 
-async function readErrorMessage(
+export async function readErrorMessage(
   res: Response,
   stringFormatter: LocalizedStringFormatter,
 ): Promise<string> {

@@ -94,6 +94,6 @@ export function aiValueToFormValue(
 // guarantee. `<img>` in particular has to go: a made-up src points at bytes
 // that don't exist, and the editor would carry the dead reference into the
 // saved HTML.
-function stripDisallowedTags(html: string): string {
+export function stripDisallowedTags(html: string): string {
   return html.replace(/<img\b[^>]*>/gi, "");
 }

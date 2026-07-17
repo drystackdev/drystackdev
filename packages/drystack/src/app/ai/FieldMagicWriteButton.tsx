@@ -13,11 +13,14 @@ import { fieldMagicWriteIcon } from "../icons/fieldMagicWriteIcon";
 import l10nMessages from "../l10n";
 import { MagicWriteDialog } from "./MagicWriteDialog";
 import { useAiStatus } from "./useAiStatus";
+import { useHasContentSelection } from "./content-selection-context";
 import { useFieldMagicWrite } from "./field-magic-write-context";
 
 // The button floats over the field it writes - in the content pane, directly
-// over the text being edited. Hence the blur: the circle has to stay legible
-// without hiding what's underneath it.
+// over the text being edited, with no popover behind it. Hence the blur: the
+// circle has to stay legible without hiding what's underneath it. (The
+// selection button doesn't share this: it sits inside an EditorPopover, which
+// brings its own surface.)
 const roundButton = css({
   borderRadius: "50%",
   // The default action button is a pill: wider than tall, with inline padding.
@@ -46,6 +49,11 @@ export function FieldMagicWriteButton() {
   const status = useAiStatus();
   const [isOpen, setOpen] = useState(false);
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
+  // Hooks can't sit behind the early returns below, so the key is read
+  // defensively here and validated after.
+  const hasSelection = useHasContentSelection(
+    typeof path[0] === "string" ? path[0] : "",
+  );
 
   if (!ctx) return null;
   if (path.length !== 1) return null;
@@ -61,6 +69,10 @@ export function FieldMagicWriteButton() {
   // Mid-stream the field is inert; offering to restart it would race the
   // write already in flight.
   if (ctx.magicWrite.status === "streaming") return null;
+  // A passage is selected: the button at the selection speaks for the field
+  // instead. Two AI buttons at once would be asking the user to guess which
+  // one rewrites the whole field and which one only their selection.
+  if (hasSelection) return null;
 
   return (
     <>
