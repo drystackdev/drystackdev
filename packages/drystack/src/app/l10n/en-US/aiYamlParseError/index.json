@@ -1,0 +1,6 @@
+{
+  "key": "aiYamlParseError",
+  "value": "Could not read the YAML for \"{key}\": {detail}",
+  "notes": "",
+  "type": "global"
+}

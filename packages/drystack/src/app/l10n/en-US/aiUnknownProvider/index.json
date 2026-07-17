@@ -1,0 +1,6 @@
+{
+  "key": "aiUnknownProvider",
+  "value": "DRY_AI_PROVIDER=\"{provider}\" is invalid. Choose one of: {providers}.",
+  "notes": "",
+  "type": "global"
+}

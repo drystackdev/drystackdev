@@ -26,7 +26,12 @@ export type AiConfigErrorReason =
   | "missing-model"
   | "missing-base-url";
 
-export type AiConfigError = { reason: AiConfigErrorReason; message: string };
+export type AiConfigError = {
+  reason: AiConfigErrorReason;
+  message: string;
+  /** Interpolation values the admin UI needs to localize `reason` (e.g. the invalid provider name). */
+  params?: Record<string, string>;
+};
 
 export type AiEnv = {
   DRY_AI_PROVIDER?: string;
@@ -63,6 +68,7 @@ export function resolveAiEnv(env: AiEnv): AiRuntimeConfig | AiConfigError {
     return {
       reason: "unknown-provider",
       message: `DRY_AI_PROVIDER="${rawProvider}" không hợp lệ. Chọn một trong: ${AI_PROVIDERS.join(", ")}.`,
+      params: { provider: rawProvider, providers: AI_PROVIDERS.join(", ") },
     };
   }
 

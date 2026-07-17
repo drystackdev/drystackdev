@@ -20,7 +20,10 @@ export type AiStreamEvent =
   // `raw` is the YAML-parsed value: a string for scalars, an array/object for
   // block kinds.
   | { type: "field-done"; key: string; raw: unknown }
-  | { type: "error"; message: string };
+  // `detail` is the underlying parser error, kept separate from `key` so the
+  // caller can localize the surrounding sentence instead of getting it
+  // pre-formatted in one language.
+  | { type: "error"; key: string; detail: string };
 
 type Pending = {
   key: string;
@@ -148,9 +151,8 @@ export class AiStreamParser {
     } catch (err) {
       this.#emit({
         type: "error",
-        message: `Không đọc được YAML của "${pending.key}": ${
-          err instanceof Error ? err.message : String(err)
-        }`,
+        key: pending.key,
+        detail: err instanceof Error ? err.message : String(err),
       });
     }
   }

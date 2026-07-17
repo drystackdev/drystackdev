@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 
+import { useLocalizedStringFormatter } from '@react-aria/i18n';
 import { Button, ButtonGroup } from '@keystar/ui/button';
 import { Checkbox } from '@keystar/ui/checkbox';
 import { Dialog } from '@keystar/ui/dialog';
@@ -13,8 +14,16 @@ import { Heading, Text } from '@keystar/ui/typography';
 import type { ComponentSchema } from '../../form/api';
 import { AiSize, SIZE_SPECS } from '../../api/ai/prompt';
 import { AiFieldSpec, describeFields } from '../../api/ai/schema-to-yaml';
+import l10nMessages from '../l10n';
 import type { MagicWriteRequest } from './useMagicWrite';
 import { fieldToContextText, isFieldEmpty } from './field-value-text';
+
+const SIZE_LABEL_KEYS: Record<AiSize, string> = {
+  short: 'aiSizeShort',
+  medium: 'aiSizeMedium',
+  long: 'aiSizeLong',
+  xlong: 'aiSizeXlong',
+};
 
 export function MagicWriteDialog(props: {
   entryLabel: string;
@@ -26,6 +35,7 @@ export function MagicWriteDialog(props: {
   onGenerate: (request: MagicWriteRequest) => void;
 }) {
   const { schema, state, singleFieldKey } = props;
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   const specs = useMemo(() => describeFields(schema), [schema]);
 
@@ -66,7 +76,9 @@ export function MagicWriteDialog(props: {
 
   return (
     <Dialog>
-      <Heading>Magic write - {props.entryLabel}</Heading>
+      <Heading>
+        {stringFormatter.format('magicWriteFor', { label: props.entryLabel })}
+      </Heading>
       <Content>
         <form
           style={{ display: 'contents' }}
@@ -78,10 +90,7 @@ export function MagicWriteDialog(props: {
           <Flex direction="column" gap="large">
             {specs.length === 0 && (
               <Notice tone="caution">
-                <Text>
-                  Không có trường nào AI có thể điền cho mục này. Ảnh, tệp và
-                  liên kết tới mục khác nằm ngoài phạm vi.
-                </Text>
+                <Text>{stringFormatter.format('aiNoFillableFields')}</Text>
               </Notice>
             )}
 
@@ -94,8 +103,8 @@ export function MagicWriteDialog(props: {
             )}
 
             <TextArea
-              label="Mô tả"
-              description="Nói cho AI biết bạn muốn gì: chủ đề, đối tượng đọc, giọng văn."
+              label={stringFormatter.format('aiDescriptionLabel')}
+              description={stringFormatter.format('aiDescriptionHelp')}
               value={description}
               onChange={setDescription}
               autoFocus
@@ -104,14 +113,14 @@ export function MagicWriteDialog(props: {
 
             {hasContentTarget && (
               <RadioGroup
-                label="Kích thước nội dung"
+                label={stringFormatter.format('aiContentSize')}
                 value={size}
                 onChange={value => setSize(value as AiSize)}
                 orientation="horizontal"
               >
                 {(Object.keys(SIZE_SPECS) as AiSize[]).map(key => (
                   <Radio key={key} value={key}>
-                    {`${SIZE_SPECS[key].label} (${SIZE_SPECS[key].words})`}
+                    {`${stringFormatter.format(SIZE_LABEL_KEYS[key])} (${SIZE_SPECS[key].words})`}
                   </Radio>
                 ))}
               </RadioGroup>
@@ -120,13 +129,15 @@ export function MagicWriteDialog(props: {
         </form>
       </Content>
       <ButtonGroup>
-        <Button onPress={props.onDismiss}>Huỷ</Button>
+        <Button onPress={props.onDismiss}>
+          {stringFormatter.format('cancel')}
+        </Button>
         <Button
           prominence="high"
           isDisabled={fillKeys.length === 0}
           onPress={submit}
         >
-          Tạo
+          {stringFormatter.format('create')}
         </Button>
       </ButtonGroup>
     </Dialog>
@@ -141,6 +152,7 @@ function ColumnPicker(props: {
   onChange: (selection: Record<string, Column>) => void;
 }) {
   const { specs, selection, onChange } = props;
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   // The two columns are mutually exclusive per field, but a field may be in
   // neither - "ignore this one entirely" is a real choice, so these are
@@ -152,9 +164,9 @@ function ColumnPicker(props: {
   return (
     <Flex gap="xlarge">
       <Flex direction="column" gap="regular" flex>
-        <Text weight="semibold">Lấy thông tin</Text>
+        <Text weight="semibold">{stringFormatter.format('aiUseAsContext')}</Text>
         <Text size="small" color="neutralSecondary">
-          AI đọc để hiểu ngữ cảnh
+          {stringFormatter.format('aiUseAsContextHelp')}
         </Text>
         {specs.map(spec => (
           <Checkbox
@@ -167,9 +179,9 @@ function ColumnPicker(props: {
         ))}
       </Flex>
       <Flex direction="column" gap="regular" flex>
-        <Text weight="semibold">Điền thông tin</Text>
+        <Text weight="semibold">{stringFormatter.format('aiFillIn')}</Text>
         <Text size="small" color="neutralSecondary">
-          AI viết và ghi đè
+          {stringFormatter.format('aiFillInHelp')}
         </Text>
         {specs.map(spec => (
           <Checkbox

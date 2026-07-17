@@ -1,0 +1,6 @@
+{
+  "key": "aiRequestFailed",
+  "value": "Error {status} calling AI.",
+  "notes": "",
+  "type": "global"
+}

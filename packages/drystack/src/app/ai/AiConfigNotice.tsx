@@ -1,7 +1,10 @@
+import { useLocalizedStringFormatter } from '@react-aria/i18n';
 import { Box } from '@keystar/ui/layout';
 import { Notice } from '@keystar/ui/notice';
 import { Text } from '@keystar/ui/typography';
 
+import l10nMessages from '../l10n';
+import { localizeAiConfigError } from './ai-config-error-message';
 import { useAiStatus } from './useAiStatus';
 
 /**
@@ -13,17 +16,22 @@ import { useAiStatus } from './useAiStatus';
  */
 export function AiConfigNotice() {
   const status = useAiStatus();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   // undefined = still checking, or no `ai` block at all. Neither is worth
   // interrupting anyone over.
   if (!status || status.configured) return null;
+
+  const reasonText = localizeAiConfigError(stringFormatter, status);
 
   return (
     <Box padding="regular">
       <Notice tone="caution">
         <Text>
-          Đã bật AI trong <code>drystack.config.ts</code> nhưng chưa dùng được:{' '}
-          {status.message ?? 'thiếu cấu hình.'} Nút “Magic write” sẽ không hoạt
-          động cho tới khi biến môi trường được đặt đúng.
+          {stringFormatter.format('aiConfigNoticePrefix')}{' '}
+          <code>drystack.config.ts</code>{' '}
+          {stringFormatter.format('aiConfigNoticeSuffix', {
+            reason: reasonText,
+          })}
         </Text>
       </Notice>
     </Box>

@@ -1,0 +1,6 @@
+{
+  "key": "aiMissingBaseUrl",
+  "value": "DRY_AI_BASE_URL là bắt buộc khi DRY_AI_PROVIDER=\"openai-compatible\".",
+  "notes": "",
+  "type": "global"
+}

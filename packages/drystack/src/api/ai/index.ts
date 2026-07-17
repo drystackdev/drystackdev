@@ -98,6 +98,7 @@ function handleStatus(
       configured: false,
       reason: resolved.reason,
       message: resolved.message,
+      params: resolved.params,
     });
   }
   // Never echoes the key - only that one is present, and what it points at.
@@ -127,7 +128,14 @@ async function handleGenerate(
   }
 
   if (isAiConfigError(resolved)) {
-    return json({ error: resolved.message, reason: resolved.reason }, 503);
+    return json(
+      {
+        error: resolved.message,
+        reason: resolved.reason,
+        params: resolved.params,
+      },
+      503,
+    );
   }
 
   let body: any;

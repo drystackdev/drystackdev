@@ -1,0 +1,6 @@
+{
+  "key": "aiConfigNoticeSuffix",
+  "value": "nhưng chưa dùng được: {reason} Nút \"Magic write\" sẽ không hoạt động cho tới khi biến môi trường được đặt đúng.",
+  "notes": "",
+  "type": "global"
+}

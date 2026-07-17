@@ -1,0 +1,6 @@
+{
+  "key": "aiMissingModel",
+  "value": "DRY_AI_MODEL is required when DRY_AI_PROVIDER=\"openai-compatible\" (there is no default model for a custom endpoint).",
+  "notes": "",
+  "type": "global"
+}

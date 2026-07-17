@@ -1,0 +1,6 @@
+{
+  "key": "aiConfigNoticeSuffix",
+  "value": "but is not usable yet: {reason} The \"Magic write\" button will not work until the environment variable is set correctly.",
+  "notes": "",
+  "type": "global"
+}

@@ -1,0 +1,6 @@
+{
+  "key": "aiMissingProvider",
+  "value": "DRY_AI_PROVIDER is not set.",
+  "notes": "",
+  "type": "global"
+}

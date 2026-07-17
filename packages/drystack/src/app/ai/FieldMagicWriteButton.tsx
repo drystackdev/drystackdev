@@ -1,5 +1,6 @@
 import { useContext, useState } from "react";
 
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
 import { ActionButton } from "@keystar/ui/button";
 import { DialogContainer } from "@keystar/ui/dialog";
 import { Icon } from "@keystar/ui/icon";
@@ -9,6 +10,7 @@ import { Tooltip, TooltipTrigger } from "@keystar/ui/tooltip";
 import { PathContext } from "../../form/fields/text/path-slug-context";
 import { describeField } from "../../api/ai/schema-to-yaml";
 import { fieldMagicWriteIcon } from "../icons/fieldMagicWriteIcon";
+import l10nMessages from "../l10n";
 import { MagicWriteDialog } from "./MagicWriteDialog";
 import { useAiStatus } from "./useAiStatus";
 import { useFieldMagicWrite } from "./field-magic-write-context";
@@ -43,6 +45,7 @@ export function FieldMagicWriteButton() {
   const path = useContext(PathContext);
   const status = useAiStatus();
   const [isOpen, setOpen] = useState(false);
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   if (!ctx) return null;
   if (path.length !== 1) return null;
@@ -64,13 +67,13 @@ export function FieldMagicWriteButton() {
       <TooltipTrigger>
         <ActionButton
           prominence="low"
-          aria-label="Magic write cho trường này"
+          aria-label={stringFormatter.format("aiMagicWriteForField")}
           onPress={() => setOpen(true)}
           UNSAFE_className={roundButton}
         >
           <Icon src={fieldMagicWriteIcon} />
         </ActionButton>
-        <Tooltip>Để AI viết riêng trường này</Tooltip>
+        <Tooltip>{stringFormatter.format("aiWriteJustThisField")}</Tooltip>
       </TooltipTrigger>
       <DialogContainer onDismiss={() => setOpen(false)}>
         {isOpen && (

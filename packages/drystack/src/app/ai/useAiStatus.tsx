@@ -15,6 +15,7 @@ export type AiStatus = {
   model?: string;
   reason?: string;
   message?: string;
+  params?: Record<string, string>;
 };
 
 // `undefined` while the check is in flight, so callers can tell "not yet

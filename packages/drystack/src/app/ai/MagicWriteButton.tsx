@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
 import { ActionButton, Button } from "@keystar/ui/button";
 import { DialogContainer } from "@keystar/ui/dialog";
 import { Icon } from "@keystar/ui/icon";
@@ -11,6 +12,8 @@ import { TooltipTrigger, Tooltip } from "@keystar/ui/tooltip";
 import type { Config } from "../../config";
 import type { ComponentSchema } from "../../form/api";
 import { magicWriteIcon } from "../icons/magicWriteIcon";
+import l10nMessages from "../l10n";
+import { localizeAiConfigError } from "./ai-config-error-message";
 import { MagicWriteDialog } from "./MagicWriteDialog";
 import type { useMagicWrite } from "./useMagicWrite";
 import { useAiStatus } from "./useAiStatus";
@@ -37,16 +40,19 @@ export function MagicWriteButton(props: {
   const { magicWrite } = props;
   const [isOpen, setOpen] = useState(false);
   const status = useAiStatus();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   if (magicWrite.status === "streaming") {
     return (
       <Flex alignItems="center" gap="regular">
         <ProgressCircle
-          aria-label="Đang tạo nội dung"
+          aria-label={stringFormatter.format("aiGeneratingContent")}
           isIndeterminate
           size="small"
         />
-        <Button onPress={magicWrite.abort}>Dừng</Button>
+        <Button onPress={magicWrite.abort}>
+          {stringFormatter.format("aiStop")}
+        </Button>
       </Flex>
     );
   }
@@ -68,8 +74,8 @@ export function MagicWriteButton(props: {
         </ActionButton>
         <Tooltip>
           {isDisabled
-            ? (status?.message ?? "AI chưa được cấu hình.")
-            : "Để AI viết nội dung cho các trường bạn chọn"}
+            ? localizeAiConfigError(stringFormatter, status)
+            : stringFormatter.format("aiWriteForSelectedFields")}
         </Tooltip>
       </TooltipTrigger>
       <DialogContainer onDismiss={() => setOpen(false)}>

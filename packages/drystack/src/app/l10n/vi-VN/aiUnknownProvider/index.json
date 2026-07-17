@@ -1,0 +1,6 @@
+{
+  "key": "aiUnknownProvider",
+  "value": "DRY_AI_PROVIDER=\"{provider}\" không hợp lệ. Chọn một trong: {providers}.",
+  "notes": "",
+  "type": "global"
+}

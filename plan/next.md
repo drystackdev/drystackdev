@@ -1,1 +1,2 @@
 - field.slug
+- json mapping

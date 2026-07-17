@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import {
+  useLocalizedStringFormatter,
+  type LocalizedStringFormatter,
+} from "@react-aria/i18n";
+
 import type { ComponentSchema } from "../../form/api";
 import type { AiSize } from "../../api/ai/prompt";
 import { describeFields } from "../../api/ai/schema-to-yaml";
+import l10nMessages from "../l10n";
 import { useRouter } from "../router";
 import { aiValueToFormValue } from "./apply-value";
+import { localizeAiConfigError } from "./ai-config-error-message";
 import { AiStreamParser } from "./stream-parser";
 
 // Re-parsing a whole ProseMirror document on every token would make long
@@ -30,6 +37,7 @@ export function useMagicWrite(args: {
 }) {
   const { entry, schema, onStateChange } = args;
   const { basePath } = useRouter();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   const [status, setStatus] = useState<MagicWriteStatus>("idle");
   const [error, setError] = useState<string | undefined>();
@@ -129,7 +137,12 @@ export function useMagicWrite(args: {
         }
         if (event.type === "error") {
           // One unreadable block shouldn't discard the fields around it.
-          setError(event.message);
+          setError(
+            stringFormatter.format("aiYamlParseError", {
+              key: event.key,
+              detail: event.detail,
+            }),
+          );
         }
       });
 
@@ -142,7 +155,7 @@ export function useMagicWrite(args: {
         });
 
         if (!res.ok || !res.body) {
-          const message = await readErrorMessage(res);
+          const message = await readErrorMessage(res, stringFormatter);
           setError(message);
           setStatus("error");
           setStreamingKeys(new Set());
@@ -166,7 +179,11 @@ export function useMagicWrite(args: {
         if ((err as Error)?.name === "AbortError") {
           setStatus("idle");
         } else {
-          setError(err instanceof Error ? err.message : "Lỗi không xác định.");
+          setError(
+            err instanceof Error
+              ? err.message
+              : stringFormatter.format("aiUnknownError"),
+          );
           setStatus("error");
         }
       } finally {
@@ -188,12 +205,21 @@ export function useMagicWrite(args: {
   };
 }
 
-async function readErrorMessage(res: Response): Promise<string> {
+async function readErrorMessage(
+  res: Response,
+  stringFormatter: LocalizedStringFormatter,
+): Promise<string> {
   try {
     const data = await res.json();
+    // A config error (missing/invalid env vars) carries a stable `reason` the
+    // client can localize; other server errors only have a Vietnamese
+    // `error` string today, so those still pass through as-is.
+    if (typeof data?.reason === "string") {
+      return localizeAiConfigError(stringFormatter, data);
+    }
     if (typeof data?.error === "string") return data.error;
   } catch {
     // Not JSON - fall through to the status line.
   }
-  return `Lỗi ${res.status} khi gọi AI.`;
+  return stringFormatter.format("aiRequestFailed", { status: res.status });
 }
