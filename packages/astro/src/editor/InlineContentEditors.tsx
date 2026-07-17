@@ -287,9 +287,16 @@ export function InlineContentEditors({
   const [spots] = useState(() => readContentSpots(config));
   return (
     <>
-      {spots.map((spot) => (
+      {spots.map((spot, i) => (
+        // Index appended: `spot.key` (the dotted field) is what the
+        // component publishes/registers under, but it's not unique across
+        // siblings here - the same field can render more than once on a page
+        // (e.g. brand.name in the header, hero, footer, and About), each
+        // getting its own Spot/element/painter. `spots` never changes after
+        // this component's initial mount (see the useState above), so an
+        // index is a stable React key for this specific list.
         <InlineContentEditor
-          key={spot.key}
+          key={`${spot.key}#${i}`}
           config={config}
           spot={spot}
           onChange={onChange}

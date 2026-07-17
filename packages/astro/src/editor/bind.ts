@@ -748,27 +748,50 @@ export async function discardEditsIfBuildIsNewer(
 // re-seeds the editor from the HTML - the same value, applied through the
 // layer that actually owns it. Spots with no live view (edit mode off, or a
 // plain page load) fall through to a direct innerHTML paint.
-const contentSpotPainters = new Map<string, (html: string) => void>();
+//
+// A Set, not one function: the same field can render more than once on a
+// page (e.g. brand.name shows up in the header, hero, footer, and About) -
+// dry.item() tags every occurrence with the identical key, so
+// InlineContentEditors.tsx mounts one live view PER ELEMENT, each
+// registering its own painter here. A single-slot map would let the last
+// mount silently evict every earlier one, leaving those other on-page copies
+// permanently stale (never repainted) whenever an edit for this key arrives.
+const contentSpotPainters = new Map<string, Set<(html: string) => void>>();
 
 export function setContentSpotPainter(
   key: string,
   paint: (html: string) => void,
 ): () => void {
-  contentSpotPainters.set(key, paint);
+  let painters = contentSpotPainters.get(key);
+  if (!painters) {
+    painters = new Set();
+    contentSpotPainters.set(key, painters);
+  }
+  painters.add(paint);
   return () => {
-    // Guard against a remount having already claimed the slot - deleting
-    // then would strand the new owner.
-    if (contentSpotPainters.get(key) === paint) contentSpotPainters.delete(key);
+    painters!.delete(paint);
+    if (painters!.size === 0) contentSpotPainters.delete(key);
   };
 }
 
-function paintContentSpot(el: HTMLElement, key: string, html: string): void {
-  const painter = contentSpotPainters.get(key);
-  if (painter) {
-    painter(html);
+// `els` is every DOM element currently carrying `key` - used only as the
+// fallback target when no live view owns any of them (edit mode off, or
+// before InlineContentEditors has mounted). When at least one live view
+// exists, every occurrence of the field is assumed to have its own (every
+// `[data-dry-kind="content"]` element gets mounted - see
+// InlineContentEditors.tsx's readContentSpots), so fanning the paint out to
+// every registered painter reaches all of them without touching `els`
+// directly - a live ProseMirror view must never have its DOM written
+// underneath it.
+function paintContentSpot(key: string, html: string, els: HTMLElement[]): void {
+  const painters = contentSpotPainters.get(key);
+  if (painters && painters.size > 0) {
+    painters.forEach((paint) => paint(html));
     return;
   }
-  el.innerHTML = html;
+  els.forEach((el) => {
+    el.innerHTML = html;
+  });
 }
 
 // Live object URLs currently painted onto an image/file spot, keyed by field
@@ -896,7 +919,7 @@ function paintFetchedValue(
     return;
   }
   if (isContentSpot(el)) {
-    paintContentSpot(el, key, value);
+    paintContentSpot(key, value, [el]);
     return;
   }
   if (isContainerSpot(el)) {
@@ -1026,7 +1049,7 @@ export function revertFieldToOriginal(key: string): void {
         return;
       }
       if (isContentSpot(el)) {
-        paintContentSpot(el, key, original);
+        paintContentSpot(key, original, [el]);
         return;
       }
       if (isContainerSpot(el)) {
@@ -1088,7 +1111,7 @@ export async function applyEdit(key: string, value: string): Promise<void> {
     if (isContentSpot(el)) {
       // Capture the on-disk value before overwriting it with the pending edit.
       rememberOriginal(key, el.innerHTML);
-      paintContentSpot(el, key, value);
+      paintContentSpot(key, value, [el]);
       return;
     }
     if (isContainerSpot(el)) {
