@@ -1,24 +1,28 @@
 ---
 import Icon from "./Icon.astro";
+import Heading from "./Heading.astro";
 import { getServices } from "../data/services";
-import { getHomepage } from "../data/site";
-import { parseHeadingLine } from "../lib/heading";
+import { dry } from "@drystack/astro/dry";
+import config from "../../drystack.config";
+import { htmlToPlainText } from "../lib/heading";
 
 const services = await getServices();
+const homepage = (await dry(config).singleton.homepage) as any;
 const { brand, contact: contactInfo, socialLinks, footerNav, footer } =
-  await getHomepage();
+  homepage;
 
-const { before: brandName, emphasis: brandHighlight } = parseHeadingLine(
-  brand.name,
-);
 const phone = contactInfo.phoneDisplay.replace(/\D/g, "");
 
-const nav = footerNav;
+const nav = footerNav.map((n: { href: string; label: string }, i: number) => ({
+  href: n.href,
+  label: n.label,
+  itemProps: homepage.item(`footerNav.${i}.label`),
+}));
 
 const contact = [
-  { icon: "mail" as const, value: contactInfo.email },
-  { icon: "phone" as const, value: contactInfo.phoneDisplay },
-  { icon: "map-pin" as const, value: contactInfo.region },
+  { icon: "mail" as const, value: contactInfo.email, itemProps: homepage.item("contact.email") },
+  { icon: "phone" as const, value: contactInfo.phoneDisplay, itemProps: homepage.item("contact.phoneDisplay") },
+  { icon: "map-pin" as const, value: contactInfo.region, itemProps: homepage.item("contact.region") },
 ];
 
 const platformLabels: Record<string, string> = {
@@ -29,7 +33,9 @@ const platformLabels: Record<string, string> = {
 };
 
 const socials = [
-  ...socialLinks.map((s) => ({
+  // href-only field (icon buttons render no visible text) - not a dry.item()
+  // spot, see Contact.astro-style fields for the visible-text convention.
+  ...socialLinks.map((s: { platform: string; href: string }) => ({
     id: s.platform,
     label: platformLabels[s.platform] ?? s.platform,
     href: s.href,
@@ -99,10 +105,14 @@ const socialIcons = {
   <div class="container site-footer__grid reveal">
     <div class="footer-col footer-col--brand">
       <a href="/" class="brand">
-        <span class="brand__mark">{brandName.charAt(0)}</span>
-        <span class="brand__name">{brandName}<em>{brandHighlight}</em></span>
+        <span class="brand__mark">{htmlToPlainText(brand.name).charAt(0)}</span>
+        <Heading
+          html={brand.name}
+          class="brand__name"
+          itemProps={homepage.item("brand.name")}
+        />
       </a>
-      <p class="footer-col__desc">
+      <p class="footer-col__desc" {...homepage.item("footer.description")}>
         {footer.description}
       </p>
     </div>
@@ -113,7 +123,7 @@ const socialIcons = {
         {
           nav.map((n) => (
             <li>
-              <a href={n.href}>{n.label}</a>
+              <a href={n.href} {...n.itemProps}>{n.label}</a>
             </li>
           ))
         }
@@ -139,7 +149,7 @@ const socialIcons = {
         {
           contact.map((c) => (
             <li>
-              <Icon name={c.icon} size={15} /> {c.value}
+              <Icon name={c.icon} size={15} /> <span {...c.itemProps}>{c.value}</span>
             </li>
           ))
         }
@@ -201,7 +211,7 @@ const socialIcons = {
 
   <div class="container site-footer__bottom">
     <div class="hairline"></div>
-    <p class="site-footer__copy">
+    <p class="site-footer__copy" {...homepage.item("footer.copyright")}>
       {footer.copyright}
     </p>
   </div>
@@ -243,9 +253,16 @@ const socialIcons = {
     font-size: 0.85rem;
   }
 
-  .brand__name em {
+  /* Rendered via <Heading class="brand__name">, which mounts its own <span>
+     outside this file's scoped-CSS boundary, hence :global(). */
+  :global(.brand__name strong) {
     font-style: normal;
+    font-weight: inherit;
     color: var(--primary);
+    background: none;
+    -webkit-background-clip: initial;
+    background-clip: initial;
+    animation: none;
   }
 
   .footer-col__desc {

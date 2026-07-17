@@ -2,14 +2,16 @@
 import Icon from "./Icon.astro";
 import Heading from "./Heading.astro";
 import { getServices } from "../data/services";
-import { getHomepage } from "../data/site";
+import { dry } from "@drystack/astro/dry";
+import config from "../../drystack.config";
 
 const services = await getServices();
-const { servicesSection } = await getHomepage();
+const homepage = (await dry(config).singleton.homepage) as any;
+const { servicesSection } = homepage;
 ---
 
 <section class="services section--dark" id="services">
-  <span class="section-kicker-word kicker-right">{servicesSection.eyebrow}</span>
+  <span class="section-kicker-word kicker-right" {...homepage.item("servicesSection.eyebrow")}>{servicesSection.eyebrow}</span>
 
   <div class="bg-layer">
     <div
@@ -21,11 +23,11 @@ const { servicesSection } = await getHomepage();
   </div>
 
   <div class="container services__head">
-    <p class="eyebrow reveal">{servicesSection.eyebrow}</p>
+    <p class="eyebrow reveal" {...homepage.item("servicesSection.eyebrow")}>{servicesSection.eyebrow}</p>
     <h2 class="section-title reveal">
-      <Heading html={servicesSection.heading} />
+      <Heading html={servicesSection.heading} itemProps={homepage.item("servicesSection.heading")} />
     </h2>
-    <p class="section-lede reveal" style="margin: 1rem auto 0;">
+    <p class="section-lede reveal" style="margin: 1rem auto 0;" {...homepage.item("servicesSection.lede")}>
       {servicesSection.lede}
     </p>
   </div>

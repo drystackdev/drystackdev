@@ -178,10 +178,11 @@ export default config({
       schema: {
         brand: fields.object(
           {
-            name: fields.text({
+            name: fields.content({
               label: "Tên thương hiệu",
-              description:
-                "Đặt phần nhấn mạnh trong dấu ngoặc vuông, không có khoảng trắng trước ngoặc, VD: Quang[SEO]",
+              description: headingFieldDescription,
+              inline: true,
+              options: headingContentOptions,
             }),
             personName: fields.text({ label: "Tên người đại diện" }),
             role: fields.text({ label: "Chức danh / vai trò" }),

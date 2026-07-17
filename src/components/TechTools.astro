@@ -2,9 +2,11 @@
 import { Image } from "astro:assets";
 import Icon from "./Icon.astro";
 import Heading from "./Heading.astro";
-import { getHomepage } from "../data/site";
+import { dry } from "@drystack/astro/dry";
+import config from "../../drystack.config";
 
-const { techTools } = await getHomepage() as any;
+const homepage = (await dry(config).singleton.homepage) as any;
+const { techTools } = homepage;
 const tools = techTools.tools.map((t) => ({ ...t, size: 65 }));
 
 // Fibonacci-sphere distribution so the tiles sit evenly spaced on the globe.
@@ -25,25 +27,28 @@ const tilesOnSphere = tools.map((t, i) => {
 ---
 
 <section class="tech-tools section--light" id="tech">
-	<span class="section-kicker-word kicker-left">{techTools.eyebrow}</span>
+	<span class="section-kicker-word kicker-left" {...homepage.item("techTools.eyebrow")}>{techTools.eyebrow}</span>
 
 	<div class="container tech-tools__inner">
 		<div class="tech__content reveal reveal-left">
-			<p class="eyebrow">{techTools.eyebrow}</p>
+			<p class="eyebrow" {...homepage.item("techTools.eyebrow")}>{techTools.eyebrow}</p>
 			<h2 class="tech__title">
-				<Heading html={techTools.heading} />
+				<Heading html={techTools.heading} itemProps={homepage.item("techTools.heading")} />
 			</h2>
-			<ul class="tech__points">
-				{techTools.points.map((p) => (
-					<li><Icon name={p.icon as any} size={16} /> {p.text}</li>
+			<ul class="tech__points" {...homepage.item("techTools.points")}>
+				{techTools.points.map((p, i) => (
+					<li>
+						<Icon name={p.icon as any} size={16} />{" "}
+						<span {...homepage.item(`techTools.points.${i}.text`)}>{p.text}</span>
+					</li>
 				))}
 			</ul>
 			<a href="/dich-vu" class="btn btn-ghost">Xem tất cả dịch vụ <Icon name="arrow-right" size={16} /></a>
 		</div>
 
 		<div class="tech__cloud reveal reveal-right" data-radius={sphereRadius}>
-			<div class="tech__sphere">
-				{tilesOnSphere.map((t) => (
+			<div class="tech__sphere" {...homepage.item("techTools.tools")}>
+				{tilesOnSphere.map((t, i) => (
 					<span
 						class="tech__tile"
 						style={`width:${t.size}px;height:${t.size}px;`}
@@ -51,7 +56,13 @@ const tilesOnSphere = tools.map((t, i) => {
 						data-y={t.y}
 						data-z={t.z}
 					>
-						<Image src={t.icon || "/favicon.svg"} alt="" width={65} height={65} />
+						<Image
+							src={t.icon || "/favicon.svg"}
+							alt=""
+							width={65}
+							height={65}
+							{...homepage.item(`techTools.tools.${i}.icon`)}
+						/>
 					</span>
 				))}
 			</div>

@@ -1,20 +1,24 @@
 ---
+import type { DryItem } from "@drystack/astro/dry";
+
 interface Props {
   // Trusted HTML from a `fields.content()` value (bold-only) - never raw user
-  // input. ProseMirror's doc model always wraps text in block-level <p>
-  // per paragraph, but Heading is always mounted inline inside a caller's own
-  // heading tag (h1/h2/h3), so the <p> wrappers are stripped here and multiple
-  // paragraphs are joined with <br /> instead - the same line-break behavior
-  // the old bracket-syntax parser gave for a `\n`-separated string.
+  // input.
   html: string;
+  // VEI mark for this spot, e.g. `page.item("heading")` - spread onto the
+  // same element that carries `set:html` (see Demo.astro's content pattern).
+  itemProps?: DryItem | {};
+  // Extra class alongside "heading-rich", for callers that need their own
+  // emphasis styling (e.g. brand.name's outline/gradient split) instead of
+  // the default gradient-on-strong look.
+  class?: string;
 }
 
-const { html } = Astro.props;
-
-const inline = html
-  .replace(/^\s*<p>/, "")
-  .replace(/<\/p>\s*$/, "")
-  .replace(/<\/p>\s*<p>/g, "<br />");
+const { html, itemProps = {}, class: extraClass } = Astro.props;
 ---
 
-<span class="heading-rich" set:html={inline} />
+<span
+  class:list={["heading-rich", extraClass]}
+  set:html={html}
+  {...itemProps}
+/>

@@ -4,7 +4,7 @@ import "../styles/global.css";
 import FloatingContact from "../components/FloatingContact.astro";
 import JsonLd from "../components/JsonLd.astro";
 import { getHomepage } from "../data/site";
-import { parseHeadingLine } from "../lib/heading";
+import { htmlToPlainText } from "../lib/heading";
 import heroImage from "../assets/hero.png";
 
 interface Props {
@@ -15,7 +15,7 @@ interface Props {
   type?: "website" | "article";
 }
 
-const { seoDefaults, brand, contact } = await getHomepage();
+const { seoDefaults, brand, contact } = (await getHomepage()) as any;
 const defaultOgImage = await getImage({ src: heroImage, width: 1200 });
 
 const {
@@ -32,10 +32,7 @@ const gaId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID;
 const gscVerification = import.meta.env.PUBLIC_GSC_VERIFICATION;
 const bingVerification = import.meta.env.PUBLIC_BING_VERIFICATION;
 
-const { before: brandName, emphasis: brandHighlight } = parseHeadingLine(
-  brand.name,
-);
-const siteName = `${brandName}${brandHighlight}`;
+const siteName = htmlToPlainText(brand.name);
 const faviconUrl = brand.favicon || "/favicon.svg";
 
 const organizationSchema = {

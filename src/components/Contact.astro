@@ -1,19 +1,21 @@
 ---
 import Icon from "./Icon.astro";
 import Heading from "./Heading.astro";
-import { getHomepage } from "../data/site";
+import { dry } from "@drystack/astro/dry";
+import config from "../../drystack.config";
 
-const { contact, contactSection } = await getHomepage();
+const homepage = (await dry(config).singleton.homepage) as any;
+const { contact, contactSection } = homepage;
 
 const info = [
-	{ label: "Email", value: contact.email },
-	{ label: "Điện thoại", value: contact.phoneDisplay },
-	{ label: "Khu vực", value: contact.region },
+	{ label: "Email", value: contact.email, itemProps: homepage.item("contact.email") },
+	{ label: "Điện thoại", value: contact.phoneDisplay, itemProps: homepage.item("contact.phoneDisplay") },
+	{ label: "Khu vực", value: contact.region, itemProps: homepage.item("contact.region") },
 ];
 ---
 
 <section class="contact section--light" id="contact">
-	<span class="section-kicker-word kicker-left">{contactSection.eyebrow}</span>
+	<span class="section-kicker-word kicker-left" {...homepage.item("contactSection.eyebrow")}>{contactSection.eyebrow}</span>
 
 	<div class="bg-layer">
 		<div class="orb orb--gold" style="width:340px;height:340px;bottom:-12%;left:-8%;opacity:0.16;" data-parallax="0.1"></div>
@@ -21,11 +23,11 @@ const info = [
 
 	<div class="container contact__inner">
 		<div class="contact__intro reveal reveal-left">
-			<p class="eyebrow">{contactSection.eyebrow}</p>
+			<p class="eyebrow" {...homepage.item("contactSection.eyebrow")}>{contactSection.eyebrow}</p>
 			<h2 class="section-title">
-				<Heading html={contactSection.heading} />
+				<Heading html={contactSection.heading} itemProps={homepage.item("contactSection.heading")} />
 			</h2>
-			<p class="section-lede" style="margin-top: 1rem;">
+			<p class="section-lede" style="margin-top: 1rem;" {...homepage.item("contactSection.lede")}>
 				{contactSection.lede}
 			</p>
 
@@ -33,7 +35,7 @@ const info = [
 				{info.map((i) => (
 					<div class="contact__info-row">
 						<span class="contact__info-label">{i.label}</span>
-						<span class="contact__info-value">{i.value}</span>
+						<span class="contact__info-value" {...i.itemProps}>{i.value}</span>
 					</div>
 				))}
 			</div>

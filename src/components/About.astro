@@ -1,20 +1,19 @@
 ---
 import Icon from "./Icon.astro";
 import Heading from "./Heading.astro";
-import { getHomepage, getGioiThieuPage } from "../data/site";
-import { parseHeadingLine } from "../lib/heading";
+import { dry } from "@drystack/astro/dry";
+import config from "../../drystack.config";
 
-const [{ brand, about }, { hero, intro }] = await Promise.all([
-  getHomepage(),
-  getGioiThieuPage(),
+const [homepage, gioiThieu]: [any, any] = await Promise.all([
+  dry(config).singleton.homepage,
+  dry(config).singleton.gioiThieu,
 ]);
-const { before: brandName, emphasis: brandHighlight } = parseHeadingLine(
-  brand.name,
-);
+const { brand, about } = homepage;
+const { hero, intro } = gioiThieu;
 ---
 
 <section class="about section--light" id="about">
-  <span class="section-kicker-word kicker-left">{about.eyebrow}</span>
+  <span class="section-kicker-word kicker-left" {...homepage.item("about.eyebrow")}>{about.eyebrow}</span>
 
   <div class="bg-layer">
     <div
@@ -29,13 +28,15 @@ const { before: brandName, emphasis: brandHighlight } = parseHeadingLine(
     <div class="about__card-wrap">
       <div class="about__card-glow"></div>
       <div class="about__card reveal reveal-left">
-        <p class="eyebrow">{about.cardEyebrow}</p>
-        <h3>{brandName}<em>{brandHighlight}</em></h3>
-        <p class="about__card-desc">
+        <p class="eyebrow" {...homepage.item("about.cardEyebrow")}>{about.cardEyebrow}</p>
+        <h3>
+          <Heading html={brand.name} itemProps={homepage.item("brand.name")} />
+        </h3>
+        <p class="about__card-desc" {...gioiThieu.item("hero.lede")}>
           {hero.lede}
         </p>
         <div class="hairline"></div>
-        <p class="about__card-status">
+        <p class="about__card-status" {...homepage.item("brand.availabilityStatus")}>
           <Icon name="circle-dot" size={12} /> {brand.availabilityStatus}
         </p>
       </div>
@@ -45,20 +46,21 @@ const { before: brandName, emphasis: brandHighlight } = parseHeadingLine(
       class="about__content reveal reveal-right"
       style="--reveal-delay: 160ms;"
     >
-      <p class="eyebrow">{about.eyebrow}</p>
+      <p class="eyebrow" {...homepage.item("about.eyebrow")}>{about.eyebrow}</p>
       <h2 class="section-title">
-        <Heading html={about.heading} />
+        <Heading html={about.heading} itemProps={homepage.item("about.heading")} />
       </h2>
       <p
         class="section-lede"
         style="max-width:56ch; margin-block: 1.25rem 1.5rem;"
+        {...gioiThieu.item("intro.lede")}
       >
         {intro.lede}
       </p>
-      <ul class="about__points">
+      <ul class="about__points" {...homepage.item("about.points")}>
         {
-          about.points.map((p) => (
-            <li>
+          about.points.map((p: string, i: number) => (
+            <li {...homepage.item(`about.points.${i}`)}>
               <span class="check">
                 <Icon name="check" size={13} />
               </span>
@@ -124,9 +126,16 @@ const { before: brandName, emphasis: brandHighlight } = parseHeadingLine(
     margin-block: 0.4rem 0.6rem;
   }
 
-  .about__card h3 em {
+  /* The <strong> lives inside <Heading>'s own <span>, outside this file's
+     scoped-CSS boundary, hence :global(). */
+  :global(.about__card h3 strong) {
     font-style: normal;
+    font-weight: inherit;
     color: var(--secondary);
+    background: none;
+    -webkit-background-clip: initial;
+    background-clip: initial;
+    animation: none;
   }
 
   .about__card-desc {

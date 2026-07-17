@@ -6,7 +6,7 @@ import Footer from "../components/Footer.astro";
 import Icon from "../components/Icon.astro";
 import JsonLd from "./JsonLd.astro";
 import { getHomepage } from "../data/site";
-import { parseHeadingLine } from "../lib/heading";
+import { htmlToPlainText } from "../lib/heading";
 import type { BlogPost } from "../data/blog";
 
 interface Props {
@@ -20,10 +20,7 @@ interface Props {
 const { post, related, basePath, eyebrowLabel, backLabel } = Astro.props;
 
 const { brand } = await getHomepage() as any;
-const { before: brandName, emphasis: brandHighlight } = parseHeadingLine(
-	brand.name,
-);
-const siteName = `${brandName}${brandHighlight}`;
+const siteName = htmlToPlainText(brand.name);
 
 function formatDate(d: string) {
 	return new Date(d).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });

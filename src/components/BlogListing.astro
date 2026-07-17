@@ -18,6 +18,7 @@ interface Props {
   eyebrow: string;
   eyebrowItemProps?: DryItem | {};
   heading: string;
+  headingItemProps?: DryItem | {};
   lede: string;
   ledeItemProps?: DryItem | {};
 }
@@ -31,6 +32,7 @@ const {
   eyebrow,
   eyebrowItemProps = {},
   heading,
+  headingItemProps = {},
   lede,
   ledeItemProps = {},
 } = Astro.props;
@@ -71,7 +73,7 @@ const breadcrumbSchema = {
     <div class="container page-hero__inner" data-stagger="120">
       <p class="eyebrow reveal" {...eyebrowItemProps}>{eyebrow}</p>
       <h1 class="section-title reveal">
-        <Heading html={heading} />
+        <Heading html={heading} itemProps={headingItemProps} />
       </h1>
       <p
         class="section-lede reveal"

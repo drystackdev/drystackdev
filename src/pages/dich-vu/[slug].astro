@@ -6,7 +6,7 @@ import Icon from "../../components/Icon.astro";
 import JsonLd from "../../components/JsonLd.astro";
 import { getServices } from "../../data/services";
 import { getHomepage } from "../../data/site";
-import { parseHeadingLine } from "../../lib/heading";
+import { htmlToPlainText } from "../../lib/heading";
 
 export async function getStaticPaths() {
 	const services = await getServices();
@@ -24,11 +24,8 @@ if (!service) {
 	return Astro.redirect("/dich-vu");
 }
 
-const { brand } = await getHomepage();
-const { before: brandName, emphasis: brandHighlight } = parseHeadingLine(
-	brand.name,
-);
-const siteName = `${brandName}${brandHighlight}`;
+const { brand } = (await getHomepage()) as any;
+const siteName = htmlToPlainText(brand.name);
 
 const serviceSchema = {
 	"@context": "https://schema.org",

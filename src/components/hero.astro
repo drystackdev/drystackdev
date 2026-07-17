@@ -2,17 +2,16 @@
 import { Image } from "astro:assets";
 import Icon from "./Icon.astro";
 import Heading from "./Heading.astro";
-import { getHomepage, getGioiThieuPage } from "../data/site";
-import { parseHeadingLine } from "../lib/heading";
+import { dry } from "@drystack/astro/dry";
+import config from "../../drystack.config";
 import heroImage from "../assets/hero.png";
 
-const [{ brand, hero }, { intro }] = await Promise.all([
-  getHomepage() as any,
-  getGioiThieuPage() as any,
+const [homepage, gioiThieu]: [any, any] = await Promise.all([
+  dry(config).singleton.homepage,
+  dry(config).singleton.gioiThieu,
 ]);
-const { before: brandName, emphasis: brandHighlight } = parseHeadingLine(
-  brand.name,
-);
+const { brand, hero } = homepage;
+const { intro } = gioiThieu;
 ---
 
 <section class="hero section--dark" id="top">
@@ -74,21 +73,24 @@ const { before: brandName, emphasis: brandHighlight } = parseHeadingLine(
   </div>
 
   <div class="hero__inner container-fluid">
-    <p class="eyebrow reveal">
+    <p class="eyebrow reveal" {...homepage.item("hero.eyebrow")}>
       {hero.eyebrow}
     </p>
 
     <h1 class="hero__title reveal">
-      <span class="hero__title-outline">{brandName}</span>
-      <span class="gradient-text">{brandHighlight}</span>
+      <Heading
+        html={brand.name}
+        class="hero__title-outline"
+        itemProps={homepage.item("brand.name")}
+      />
     </h1>
 
     <div class="hero__row">
       <div class="hero__tagline reveal reveal-right">
         <h2>
-          <Heading html={hero.tagline} />
+          <Heading html={hero.tagline} itemProps={homepage.item("hero.tagline")} />
         </h2>
-        <p>
+        <p {...homepage.item("hero.description")}>
           {hero.description}
         </p>
       </div>
@@ -105,20 +107,30 @@ const { before: brandName, emphasis: brandHighlight } = parseHeadingLine(
       </div>
 
       <div class="hero__info-card reveal reveal-left">
-        <p class="eyebrow">{brand.personName}</p>
-        <h3>{brand.role}</h3>
-        <div class="hero__info-stats">
+        <p class="eyebrow" {...homepage.item("brand.personName")}>{brand.personName}</p>
+        <h3 {...homepage.item("brand.role")}>{brand.role}</h3>
+        <div class="hero__info-stats" {...gioiThieu.item("intro.stats")}>
           {
-            (intro.stats as any[]).map((s) => (
+            (intro.stats as any[]).map((s, i) => (
               <div class="stat">
-                <span class="stat__value gradient-text">{s.value}</span>
-                <span class="stat__label">{s.label}</span>
+                <span
+                  class="stat__value gradient-text"
+                  {...gioiThieu.item(`intro.stats.${i}.value`)}
+                >
+                  {s.value}
+                </span>
+                <span
+                  class="stat__label"
+                  {...gioiThieu.item(`intro.stats.${i}.label`)}
+                >
+                  {s.label}
+                </span>
               </div>
             ))
           }
         </div>
         <div class="hairline"></div>
-        <p class="hero__info-status">
+        <p class="hero__info-status" {...homepage.item("brand.availabilityStatus")}>
           <Icon name="circle-dot" size={12} />
           {brand.availabilityStatus}
         </p>
@@ -233,7 +245,13 @@ const { before: brandName, emphasis: brandHighlight } = parseHeadingLine(
     gap: 0.05em;
   }
 
-  .hero__title-outline {
+  /* Rendered via <Heading class="hero__title-outline">, which mounts its own
+     <span> outside this file's scoped-CSS boundary, hence :global(). The
+     outline shadow applies to the whole span; the nested <strong> (the
+     bold-highlighted phrase) overrides to the shared .heading-rich strong
+     gradient-fill look instead (global.css) and drops the shadow so it
+     doesn't bleed into the gradient text. */
+  :global(.hero__title-outline) {
     color: #141313;
     text-shadow:
       3px 0 0 var(--primary-light),
@@ -246,8 +264,13 @@ const { before: brandName, emphasis: brandHighlight } = parseHeadingLine(
       -3px 3px 0 var(--primary-light);
   }
 
+  :global(.hero__title-outline strong) {
+    font-weight: inherit;
+    text-shadow: none;
+  }
+
   @supports not (-webkit-text-stroke: 1px black) {
-    .hero__title-outline {
+    :global(.hero__title-outline) {
       color: var(--text-main);
     }
   }

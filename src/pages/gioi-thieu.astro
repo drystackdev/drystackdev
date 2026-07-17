@@ -6,17 +6,17 @@ import Footer from "../components/Footer.astro";
 import Icon from "../components/Icon.astro";
 import Heading from "../components/Heading.astro";
 import JsonLd from "../components/JsonLd.astro";
-import { getGioiThieuPage, getHomepage } from "../data/site";
-import { parseHeadingLine } from "../lib/heading";
+import { dry } from "@drystack/astro/dry";
+import config from "../../drystack.config";
 import heroImage from "../assets/hero.png";
 
-const [
-  { metaTitle, metaDescription, ogImage, hero, intro, values, timeline },
-  { brand },
-] = await Promise.all([getGioiThieuPage(), getHomepage()]);
-const { before: brandName, emphasis: brandHighlight } = parseHeadingLine(
-  brand.name,
-);
+const [page, homepage] = await Promise.all([
+  dry(config).singleton.gioiThieu,
+  dry(config).singleton.homepage,
+]);
+const { metaTitle, metaDescription, ogImage, hero, intro, values, timeline } =
+  page;
+const { brand } = homepage;
 
 const breadcrumbSchema = {
   "@context": "https://schema.org",
@@ -42,11 +42,15 @@ const breadcrumbSchema = {
       </div>
     </div>
     <div class="container about-hero__inner" data-stagger="120">
-      <p class="eyebrow reveal">{hero.eyebrow}</p>
+      <p class="eyebrow reveal" {...page.item("hero.eyebrow")}>{hero.eyebrow}</p>
       <h1 class="section-title reveal">
-        <Heading html={hero.heading} />
+        <Heading html={hero.heading} itemProps={page.item("hero.heading")} />
       </h1>
-      <p class="section-lede reveal" style="margin-top: 1rem; max-width: 60ch;">
+      <p
+        class="section-lede reveal"
+        style="margin-top: 1rem; max-width: 60ch;"
+        {...page.item("hero.lede")}
+      >
         {hero.lede}
       </p>
     </div>
@@ -76,23 +80,41 @@ const breadcrumbSchema = {
             width={461}
             height={541}
           />
-          <span class="portrait-badge">{brandName}<em>{brandHighlight}</em></span>
+          <Heading
+            html={brand.name}
+            class="portrait-badge"
+            itemProps={homepage.item("brand.name")}
+          />
         </div>
       </div>
       <div class="about-intro__content reveal reveal-right">
-        <p class="eyebrow">{intro.eyebrow}</p>
+        <p class="eyebrow" {...page.item("intro.eyebrow")}>{intro.eyebrow}</p>
         <h2 class="section-title">
-          <Heading html={intro.heading} />
+          <Heading html={intro.heading} itemProps={page.item("intro.heading")} />
         </h2>
-        <p class="section-lede" style="margin-top: 1rem;">
+        <p
+          class="section-lede"
+          style="margin-top: 1rem;"
+          {...page.item("intro.lede")}
+        >
           {intro.lede}
         </p>
-        <div class="about-intro__stats">
+        <div class="about-intro__stats" {...page.item("intro.stats")}>
           {
-            intro.stats.map((s) => (
+            intro.stats.map((s, i) => (
               <div class="stat">
-                <span class="stat__value gradient-text">{s.value}</span>
-                <span class="stat__label">{s.label}</span>
+                <span
+                  class="stat__value gradient-text"
+                  {...page.item(`intro.stats.${i}.value`)}
+                >
+                  {s.value}
+                </span>
+                <span
+                  class="stat__label"
+                  {...page.item(`intro.stats.${i}.label`)}
+                >
+                  {s.label}
+                </span>
               </div>
             ))
           }
@@ -103,19 +125,19 @@ const breadcrumbSchema = {
 
   <section class="about-values section--dark">
     <div class="container" data-stagger="120">
-      <p class="eyebrow reveal">{values.eyebrow}</p>
+      <p class="eyebrow reveal" {...page.item("values.eyebrow")}>{values.eyebrow}</p>
       <h2 class="section-title reveal" style="margin-block: 0.75rem 3rem;">
-        <Heading html={values.heading} />
+        <Heading html={values.heading} itemProps={page.item("values.heading")} />
       </h2>
-      <div class="about-values__grid" data-stagger>
+      <div class="about-values__grid" data-stagger {...page.item("values.items")}>
         {
-          values.items.map((v) => (
+          values.items.map((v, i) => (
             <div class="value-card reveal">
               <span class="value-card__icon">
                 <Icon name={v.icon as any} size={22} />
               </span>
-              <h3>{v.title}</h3>
-              <p>{v.desc}</p>
+              <h3 {...page.item(`values.items.${i}.title`)}>{v.title}</h3>
+              <p {...page.item(`values.items.${i}.desc`)}>{v.desc}</p>
             </div>
           ))
         }
@@ -125,11 +147,11 @@ const breadcrumbSchema = {
 
   <section class="about-timeline section--light">
     <div class="container" data-stagger="120">
-      <p class="eyebrow reveal">{timeline.eyebrow}</p>
+      <p class="eyebrow reveal" {...page.item("timeline.eyebrow")}>{timeline.eyebrow}</p>
       <h2 class="section-title reveal" style="margin-block: 0.75rem 3rem;">
-        <Heading html={timeline.heading} />
+        <Heading html={timeline.heading} itemProps={page.item("timeline.heading")} />
       </h2>
-      <div class="timeline" data-stagger>
+      <div class="timeline" data-stagger {...page.item("timeline.items")}>
         {
           timeline.items.map((t, i) => (
             <div
@@ -138,8 +160,13 @@ const breadcrumbSchema = {
                 i % 2 === 0 ? "reveal-left" : "reveal-right",
               ]}
             >
-              <span class="timeline-item__year">{t.year}</span>
-              <p>{t.desc}</p>
+              <span
+                class="timeline-item__year"
+                {...page.item(`timeline.items.${i}.year`)}
+              >
+                {t.year}
+              </span>
+              <p {...page.item(`timeline.items.${i}.desc`)}>{t.desc}</p>
             </div>
           ))
         }
@@ -214,8 +241,10 @@ const breadcrumbSchema = {
     mask-image: linear-gradient(to bottom, #000 70%, transparent 99%);
   }
 
-  /* Nhãn thương hiệu đè lên góc dưới bên phải của ảnh */
-  .portrait-badge {
+  /* Nhãn thương hiệu đè lên góc dưới bên phải của ảnh - rendered via
+     <Heading class="portrait-badge">, which mounts its own <span> outside
+     this file's scoped-CSS boundary, hence :global(). */
+  :global(.portrait-badge) {
     position: absolute;
     right: -0.85rem;
     bottom: 2.4rem;
@@ -235,9 +264,14 @@ const breadcrumbSchema = {
     backdrop-filter: blur(6px);
   }
 
-  .portrait-badge em {
+  :global(.portrait-badge strong) {
     font-style: normal;
+    font-weight: inherit;
     color: var(--primary-light);
+    background: none;
+    -webkit-background-clip: initial;
+    background-clip: initial;
+    animation: none;
   }
 
   .about-intro__stats {
