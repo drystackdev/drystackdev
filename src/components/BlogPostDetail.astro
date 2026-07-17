@@ -87,8 +87,100 @@ const breadcrumbSchema = {
 	</div>
 
 	<section class="post-body section--light">
-		<div class="container post-body__inner reveal" set:html={post.contentHtml} />
+		<div class="container post-layout">
+			<div class="post-body__inner reveal" id="post-content" set:html={post.contentHtml} />
+			<aside class="post-toc reveal reveal-right" id="post-toc-wrap" aria-label="Mục lục bài viết">
+				<p class="post-toc__title">Tóm tắt</p>
+				<nav class="post-toc__nav" id="post-toc-nav"></nav>
+			</aside>
+		</div>
 	</section>
+
+	<script>
+		// Xây mục lục (Tóm tắt) từ các thẻ h2/h3/h4 bên trong nội dung bài viết,
+		// vì post.contentHtml là HTML tự do (từ content editor) nên không có id
+		// sẵn - phải gán id lúc chạy rồi mới build được các link neo (#id).
+		const combiningMarks = new RegExp("[\\u0300-\\u036f]", "g");
+
+		function slugify(text: string): string {
+			return text
+				.toLowerCase()
+				.normalize("NFD")
+				.replace(combiningMarks, "")
+				.replace(/đ/g, "d")
+				.replace(/[^a-z0-9\s-]/g, "")
+				.trim()
+				.replace(/\s+/g, "-")
+				.replace(/-+/g, "-");
+		}
+
+		const content = document.getElementById("post-content");
+		const tocWrap = document.getElementById("post-toc-wrap");
+		const tocNav = document.getElementById("post-toc-nav");
+		const headings = content
+			? Array.from(content.querySelectorAll<HTMLElement>("h2, h3, h4"))
+			: [];
+
+		if (!content || !tocWrap || !tocNav || headings.length === 0) {
+			tocWrap?.remove();
+		} else {
+			const usedIds = new Map<string, number>();
+			const list = document.createElement("ul");
+			const linkByHeadingId = new Map<string, HTMLAnchorElement>();
+
+			headings.forEach((heading) => {
+				if (!heading.id) {
+					const base = slugify(heading.textContent || "") || "muc";
+					const count = usedIds.get(base) ?? 0;
+					usedIds.set(base, count + 1);
+					heading.id = count === 0 ? base : `${base}-${count + 1}`;
+				}
+
+				const link = document.createElement("a");
+				link.href = `#${heading.id}`;
+				link.textContent = heading.textContent;
+				link.className = `toc-level-${heading.tagName.toLowerCase()}`;
+
+				const item = document.createElement("li");
+				item.appendChild(link);
+				list.appendChild(item);
+				linkByHeadingId.set(heading.id, link);
+			});
+
+			tocNav.appendChild(list);
+
+			// Scrollspy nhẹ: highlight mục đang đọc khi cuộn qua từng heading.
+			// Nhiều heading có thể cùng giao cắt vùng quan sát một lúc (heading
+			// gần nhau) - luôn chọn heading nằm trên cùng trong số đó, thay vì
+			// tin vào thứ tự entries trả về (không đảm bảo theo vị trí).
+			const intersecting = new Set<HTMLElement>();
+			const headingObserver = new IntersectionObserver(
+				(entries) => {
+					for (const entry of entries) {
+						const heading = entry.target as HTMLElement;
+						if (entry.isIntersecting) intersecting.add(heading);
+						else intersecting.delete(heading);
+					}
+
+					let active: HTMLElement | null = null;
+					for (const heading of intersecting) {
+						if (!active || heading.getBoundingClientRect().top < active.getBoundingClientRect().top) {
+							active = heading;
+						}
+					}
+
+					list
+						.querySelectorAll("a.is-active")
+						.forEach((el) => el.classList.remove("is-active"));
+					if (active) linkByHeadingId.get(active.id)?.classList.add("is-active");
+				},
+				// IntersectionObserver chỉ nhận px/%, không nhận rem - 112px ứng
+				// với 7rem (mốc scroll-margin-top/sticky top dùng ở CSS bên dưới).
+				{ rootMargin: "-112px 0px -70% 0px", threshold: 0 },
+			);
+			headings.forEach((heading) => headingObserver.observe(heading));
+		}
+	</script>
 
 	{related.length > 0 && (
 		<section class="post-related section--light">
@@ -160,10 +252,105 @@ const breadcrumbSchema = {
 		padding-block: 5rem 6rem;
 	}
 
+	.post-layout {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 280px;
+		gap: clamp(2rem, 4vw, 3.5rem);
+		align-items: start;
+	}
+
 	.post-body__inner {
+		grid-column: 1;
+		grid-row: 1;
 		display: flex;
 		flex-direction: column;
 		gap: 1.25rem;
+	}
+
+	/* reveal/reveal-right và position: sticky phải nằm trên CÙNG một phần tử.
+	   Nếu sticky nằm ở phần tử con còn reveal (transform) nằm ở cha, transform
+	   của cha sẽ tạo containing block mới và làm hỏng sticky của con - đây là
+	   quirk CSS phổ biến (ancestor có transform/filter/will-change phá sticky). */
+	.post-toc {
+		grid-column: 2;
+		grid-row: 1;
+		position: sticky;
+		/* top > 0 để không bị header (position: fixed) đè lên khi cuộn */
+		top: 7rem;
+		max-height: calc(100vh - 9rem);
+		overflow-y: auto;
+		background: var(--surface-light-card);
+		border: 1px solid rgba(161, 127, 32, 0.15);
+		border-radius: var(--radius-lg);
+		padding: 1.5rem;
+	}
+
+	.post-toc__title {
+		font-family: var(--font-display);
+		font-weight: 700;
+		font-size: 0.85rem;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+		color: var(--secondary);
+		margin-bottom: 1rem;
+	}
+
+	.post-toc__nav :global(ul) {
+		display: flex;
+		flex-direction: column;
+		gap: 0.6rem;
+	}
+
+	.post-toc__nav :global(a) {
+		display: block;
+		font-size: 0.88rem;
+		line-height: 1.4;
+		color: var(--text-dark-muted);
+		word-break: break-word;
+		transition: color 0.2s ease;
+	}
+
+	.post-toc__nav :global(a:hover) {
+		color: var(--secondary);
+	}
+
+	.post-toc__nav :global(a.is-active) {
+		color: var(--secondary);
+		font-weight: 600;
+	}
+
+	.post-toc__nav :global(a.toc-level-h3) {
+		padding-left: 1rem;
+	}
+
+	.post-toc__nav :global(a.toc-level-h4) {
+		padding-left: 2rem;
+	}
+
+	/* Bù trừ cho header fixed khi cuộn tới neo #id từ mục lục. */
+	.post-body__inner :global(h2),
+	.post-body__inner :global(h3),
+	.post-body__inner :global(h4) {
+		scroll-margin-top: 7rem;
+	}
+
+	@media (max-width: 860px) {
+		.post-layout {
+			grid-template-columns: 1fr;
+		}
+
+		/* Trên mobile, mục lục hiện trên cùng của nội dung (không sticky). */
+		.post-toc {
+			grid-column: 1;
+			grid-row: 1;
+			position: static;
+			max-height: none;
+		}
+
+		.post-body__inner {
+			grid-column: 1;
+			grid-row: 2;
+		}
 	}
 
 	/* Markdoc wraps rendered output in an <article> - collapse it out of
