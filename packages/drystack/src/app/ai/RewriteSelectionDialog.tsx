@@ -10,6 +10,7 @@ import { TextArea } from "@keystar/ui/text-field";
 import { Heading, Text } from "@keystar/ui/typography";
 
 import l10nMessages from "../l10n";
+import { AiModelPicker } from "./AiModelPicker";
 
 // Long enough to recognise the passage, short enough that the dialog doesn't
 // become a second editor. The user can see the real thing behind the dialog.
@@ -79,6 +80,8 @@ export function RewriteSelectionDialog(props: {
               autoFocus
               height="scale.1600"
             />
+
+            <AiModelPicker />
           </Flex>
         </form>
       </Content>

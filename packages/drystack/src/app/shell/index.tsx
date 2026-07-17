@@ -20,6 +20,7 @@ import { MainPanelLayout } from "./panels";
 import { EmptyState } from "./empty-state";
 import { FileManagerHost } from "../file-manager/FileManagerHost";
 import { useBrandGuard } from "../brand";
+import { AiModelProvider } from "../ai/useAiModels";
 import { AiStatusProvider } from "../ai/useAiStatus";
 import { AiConfigNotice } from "../ai/AiConfigNotice";
 
@@ -76,15 +77,17 @@ export const AppShell = (props: {
     <ConfigContext.Provider value={props.config}>
       <AppStateContext.Provider value={{ basePath: props.basePath }}>
         <AiStatusProvider>
-          <AiConfigNotice />
-          <SidebarProvider>
-            <MainPanelLayout>
-              <BranchNotFound config={props.config}>
-                {content}
-              </BranchNotFound>
-            </MainPanelLayout>
-            <FileManagerHost />
-          </SidebarProvider>
+          <AiModelProvider>
+            <AiConfigNotice />
+            <SidebarProvider>
+              <MainPanelLayout>
+                <BranchNotFound config={props.config}>
+                  {content}
+                </BranchNotFound>
+              </MainPanelLayout>
+              <FileManagerHost />
+            </SidebarProvider>
+          </AiModelProvider>
         </AiStatusProvider>
       </AppStateContext.Provider>
     </ConfigContext.Provider>

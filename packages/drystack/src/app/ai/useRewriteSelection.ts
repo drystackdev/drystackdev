@@ -20,6 +20,7 @@ import { useRouter } from "../router";
 import { stripDisallowedTags } from "./apply-value";
 import { fieldToContextText } from "./field-value-text";
 import { stripCodeFence } from "./rewrite-html";
+import { useAiModels } from "./useAiModels";
 import { readErrorMessage } from "./useMagicWrite";
 
 export type RewriteStatus = "idle" | "streaming" | "error";
@@ -37,6 +38,9 @@ export function useRewriteSelection(args: {
   const entryDirectory = useEntryDirectoryContext();
   const viewRef = useEditorViewRef();
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
+  // Shared with the magic-write dialog: picking a model in one is picking it
+  // for both.
+  const model = useAiModels()?.selected;
 
   const [status, setStatus] = useState<RewriteStatus>("idle");
   const [error, setError] = useState<string | undefined>();
@@ -124,6 +128,7 @@ export function useRewriteSelection(args: {
             selection: passage,
             description,
             context,
+            model,
           }),
           signal: controller.signal,
         });
@@ -177,6 +182,7 @@ export function useRewriteSelection(args: {
       entry,
       entryDirectory,
       fieldKey,
+      model,
       schema,
       state,
       stringFormatter,

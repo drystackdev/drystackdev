@@ -13,6 +13,7 @@ import { useRouter } from "../router";
 import { aiValueToFormValue } from "./apply-value";
 import { localizeAiConfigError } from "./ai-config-error-message";
 import { AiStreamParser } from "./stream-parser";
+import { useAiModels } from "./useAiModels";
 
 // Re-parsing a whole ProseMirror document on every token would make long
 // articles crawl, so content fields repaint on a timer instead. Short enough
@@ -38,6 +39,9 @@ export function useMagicWrite(args: {
   const { entry, schema, onStateChange } = args;
   const { basePath } = useRouter();
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
+  // `undefined` means "whatever the server would pick" - the picker's own
+  // default, and what every request sent before there was a picker.
+  const model = useAiModels()?.selected;
 
   const [status, setStatus] = useState<MagicWriteStatus>("idle");
   const [error, setError] = useState<string | undefined>();
@@ -150,7 +154,7 @@ export function useMagicWrite(args: {
         const res = await fetch(`/api${basePath}/ai/generate`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ entry, ...request }),
+          body: JSON.stringify({ entry, ...request, model }),
           signal: controller.signal,
         });
 
@@ -192,7 +196,7 @@ export function useMagicWrite(args: {
         abortRef.current = null;
       }
     },
-    [basePath, entry, schema, onStateChange],
+    [basePath, entry, model, schema, onStateChange],
   );
 
   return {

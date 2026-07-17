@@ -15,6 +15,7 @@ import type { ComponentSchema } from '../../form/api';
 import { AiSize, SIZE_SPECS } from '../../api/ai/prompt';
 import { AiFieldSpec, describeFields } from '../../api/ai/schema-to-yaml';
 import l10nMessages from '../l10n';
+import { AiModelPicker } from './AiModelPicker';
 import type { MagicWriteRequest } from './useMagicWrite';
 import { fieldToContextText, isFieldEmpty } from './field-value-text';
 
@@ -125,6 +126,8 @@ export function MagicWriteDialog(props: {
                 ))}
               </RadioGroup>
             )}
+
+            <AiModelPicker />
           </Flex>
         </form>
       </Content>

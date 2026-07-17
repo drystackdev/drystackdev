@@ -10,6 +10,7 @@ import {
   isAiConfigError,
   resolveAiEnv,
 } from "./env";
+import { resolveAiModel } from "./model-registry";
 import {
   buildRewriteSystemPrompt,
   buildRewriteUserPrompt,
@@ -90,6 +91,9 @@ export function makeAiRouteHandler(routeConfig: AiRouteConfig) {
     if (joined === "ai/status" && req.method === "GET") {
       return handleStatus(resolved);
     }
+    if (joined === "ai/models" && req.method === "GET") {
+      return handleModels(req, config, resolved);
+    }
     if (joined === "ai/generate" && req.method === "POST") {
       return handleGenerate(req, config, resolved);
     }
@@ -115,7 +119,69 @@ function handleStatus(
   return json({
     configured: true,
     provider: resolved.provider,
-    model: resolved.model,
+    // The configured preference, not a promise: which model a request calls is
+    // settled against the key's own list when the request is made. Answering
+    // that here would mean a provider round-trip on every admin page load.
+    model: resolved.preferredModel ?? resolved.defaultModel,
+  });
+}
+
+/**
+ * In GitHub mode the admin UI is deployed publicly, so without this the AI
+ * routes would be an open, unauthenticated proxy to a paid AI account. Local
+ * mode only ever runs on the developer's own machine.
+ */
+function requireSession(
+  req: DrystackRequest,
+  config: Config<any, any>,
+): DrystackResponse | undefined {
+  if (config.storage.kind !== "github") return undefined;
+  const cookies = cookie.parse(req.headers.get("cookie") ?? "");
+  if (!cookies["drystack-gh-access-token"]) {
+    return json({ error: "Chưa đăng nhập." }, 401);
+  }
+  return undefined;
+}
+
+/**
+ * The models this key can call, and which of them a request would use if it
+ * asked for nothing. Behind the session guard like the routes that spend the
+ * key: it costs a provider round-trip, and what an account has access to isn't
+ * an anonymous caller's business.
+ */
+async function handleModels(
+  req: DrystackRequest,
+  config: Config<any, any>,
+  resolved: AiRuntimeConfig | AiConfigError,
+): Promise<DrystackResponse> {
+  const denied = requireSession(req, config);
+  if (denied) return denied;
+
+  if (isAiConfigError(resolved)) {
+    return json(
+      { error: resolved.message, reason: resolved.reason, params: resolved.params },
+      503,
+    );
+  }
+  const provider = PROVIDERS[resolved.provider];
+  if (!provider) {
+    return json({ error: `Provider "${resolved.provider}" chưa hỗ trợ.` }, 500);
+  }
+
+  const picked = await resolveAiModel(provider, resolved);
+  if (isAiConfigError(picked)) {
+    return json(
+      { error: picked.message, reason: picked.reason, params: picked.params },
+      503,
+    );
+  }
+  // `models: []` with an `error` is a real answer, not a failure: generation
+  // still works off the configured name, there's just nothing to choose from.
+  return json({
+    provider: resolved.provider,
+    selected: picked.model,
+    models: picked.models,
+    error: picked.listError,
   });
 }
 
@@ -139,18 +205,11 @@ async function preflight(
   config: Config<any, any>,
   resolved: AiRuntimeConfig | AiConfigError,
 ): Promise<DrystackResponse | Preflight> {
-  // Authentication is checked before anything else, config included: in
-  // GitHub mode the admin UI is deployed publicly, so without this the route
-  // would be an open, unauthenticated proxy to a paid AI account. Answering
-  // config questions first would also tell an anonymous caller whether a key
-  // is present, which is nobody's business but the signed-in user's.
-  // Local mode only ever runs on the developer's own machine.
-  if (config.storage.kind === "github") {
-    const cookies = cookie.parse(req.headers.get("cookie") ?? "");
-    if (!cookies["drystack-gh-access-token"]) {
-      return json({ error: "Chưa đăng nhập." }, 401);
-    }
-  }
+  // Authentication is checked before anything else, config included:
+  // answering config questions first would tell an anonymous caller whether a
+  // key is present, which is nobody's business but the signed-in user's.
+  const denied = requireSession(req, config);
+  if (denied) return denied;
 
   if (isAiConfigError(resolved)) {
     return json(
@@ -212,14 +271,39 @@ function isPreflightResponse(
 /**
  * Runs the request and hands the model's tokens straight to the client. Both
  * routes stream the same way; only what's in the prompt differs.
+ *
+ * Settling on a model is the last thing to happen before the wire, deliberately:
+ * it can cost a round-trip to the provider, which a request that was going to be
+ * rejected anyway shouldn't pay for.
  */
 async function streamResponse(
   provider: AiProvider,
-  args: Omit<AiStreamArgs, "signal">,
+  runtime: AiRuntimeConfig,
+  /**
+   * The model the client asked for. A request rather than an instruction:
+   * honoured only if the key can actually call it, so a hand-crafted call can't
+   * spend the key on a model the admin never exposed.
+   */
+  requestedModel: unknown,
+  args: Pick<AiStreamArgs, "system" | "user" | "maxTokens">,
 ): Promise<DrystackResponse> {
+  const picked = await resolveAiModel(provider, runtime, requestedModel);
+  if (isAiConfigError(picked)) {
+    return json(
+      { error: picked.message, reason: picked.reason, params: picked.params },
+      503,
+    );
+  }
+
   const controller = new AbortController();
   try {
-    const textStream = await provider.stream({ ...args, signal: controller.signal });
+    const textStream = await provider.stream({
+      ...args,
+      apiKey: runtime.apiKey,
+      model: picked.model,
+      baseUrl: runtime.baseUrl,
+      signal: controller.signal,
+    });
 
     return {
       status: 200,
@@ -270,10 +354,7 @@ async function handleGenerate(
     return json({ error: "Không có field nào hợp lệ để điền." }, 400);
   }
 
-  return streamResponse(provider, {
-    apiKey: runtime.apiKey,
-    model: runtime.model,
-    baseUrl: runtime.baseUrl,
+  return streamResponse(provider, runtime, body.model, {
     system: buildSystemPrompt({
       lang,
       entryDescription,
@@ -325,10 +406,7 @@ async function handleRewrite(
 
   const passage = selection.slice(0, MAX_TEXT_CHARS);
 
-  return streamResponse(provider, {
-    apiKey: runtime.apiKey,
-    model: runtime.model,
-    baseUrl: runtime.baseUrl,
+  return streamResponse(provider, runtime, body.model, {
     system: buildRewriteSystemPrompt({
       lang,
       entryDescription,

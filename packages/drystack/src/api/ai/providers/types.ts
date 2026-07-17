@@ -8,6 +8,19 @@ export type AiStreamArgs = {
   signal: AbortSignal;
 };
 
+export type AiListModelsArgs = {
+  apiKey: string;
+  baseUrl?: string;
+  signal?: AbortSignal;
+};
+
+export type AiModel = {
+  /** what goes on the wire as `model` */
+  id: string;
+  /** the vendor's own display name, when it gives one */
+  label?: string;
+};
+
 export type AiProvider = {
   name: string;
   /**
@@ -20,6 +33,12 @@ export type AiProvider = {
    * aren't available.
    */
   stream(args: AiStreamArgs): Promise<ReadableStream<string>>;
+  /**
+   * The text models this key may actually call, newest/most useful first where
+   * the vendor gives an order worth keeping. Throws `AiProviderError` if the
+   * endpoint refuses - callers decide whether that's fatal.
+   */
+  listModels(args: AiListModelsArgs): Promise<AiModel[]>;
 };
 
 export class AiProviderError extends Error {

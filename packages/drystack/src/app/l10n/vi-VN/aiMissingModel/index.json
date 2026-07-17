@@ -1,6 +1,6 @@
 {
   "key": "aiMissingModel",
-  "value": "DRY_AI_MODEL là bắt buộc khi DRY_AI_PROVIDER=\"openai-compatible\" (không có model mặc định cho endpoint tuỳ chỉnh).",
+  "value": "Không xác định được model: provider không liệt kê model nào và DRY_AI_MODEL chưa được đặt.",
   "notes": "",
   "type": "global"
 }

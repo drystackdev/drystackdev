@@ -1,6 +1,8 @@
-import { AiProvider, AiProviderError, textStreamFromSse } from "./types";
+import { AiModel, AiProvider, AiProviderError, textStreamFromSse } from "./types";
 
-const API_URL = "https://api.anthropic.com/v1/messages";
+const BASE_URL = "https://api.anthropic.com/v1";
+const API_URL = `${BASE_URL}/messages`;
+const MODELS_URL = `${BASE_URL}/models?limit=1000`;
 const API_VERSION = "2023-06-01";
 
 export const anthropicProvider: AiProvider = {
@@ -60,7 +62,31 @@ export const anthropicProvider: AiProvider = {
       return undefined;
     });
   },
+
+  async listModels({ apiKey, signal }): Promise<AiModel[]> {
+    const res = await fetch(MODELS_URL, {
+      headers: { "x-api-key": apiKey, "anthropic-version": API_VERSION },
+      signal,
+    });
+    if (!res.ok) {
+      throw new AiProviderError(
+        await describeError(res, "Anthropic"),
+        res.status,
+      );
+    }
+    const body = (await res.json()) as any;
+    // Every entry is a text model here - the endpoint lists nothing else -
+    // and they arrive newest first, which is the order worth showing.
+    return asArray(body?.data)
+      .filter((m: any) => typeof m?.id === "string")
+      .map((m: any) => ({ id: m.id, label: m.display_name || undefined }));
+  },
 };
+
+/** Guards against an endpoint answering 200 with a shape we didn't expect. */
+export function asArray(value: unknown): any[] {
+  return Array.isArray(value) ? value : [];
+}
 
 export async function describeError(
   res: Response,
