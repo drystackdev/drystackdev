@@ -17,7 +17,27 @@ const socialPlatformOptions = [
 ];
 
 const headingFieldDescription =
-  "Đặt phần cần nhấn mạnh trong dấu ngoặc vuông, VD: Nguyễn Phương Quang - [chuyên gia SEO]";
+  "Bôi đậm phần chữ muốn nhấn mạnh (chọn chữ rồi bấm nút đậm hoặc Ctrl/Cmd+B).";
+
+// Headings only ever need one mark (bold, for the gradient-highlighted
+// phrase) - every other block/mark type is turned off so the editor renders
+// as a single-line-ish input instead of the full rich-text toolbar.
+const headingContentOptions = {
+  italic: false,
+  underline: false,
+  strikethrough: false,
+  code: false,
+  heading: false,
+  blockquote: false,
+  orderedList: false,
+  unorderedList: false,
+  table: false,
+  grid: false,
+  link: false,
+  image: false,
+  divider: false,
+  codeBlock: false,
+} as const;
 
 function postCollection(label: string, previewUrl: string) {
   return collection({
@@ -51,7 +71,7 @@ function postCollection(label: string, previewUrl: string) {
         label: "Xuất bản",
         defaultValue: false,
       }),
-      body: fields.content({ label: "Nội dung" }),
+      body: fields.content({ label: "Nội dung", }),
       createdAt: fields.timestamp({ mode: "created", label: "Tạo lúc" }),
       updatedAt: fields.timestamp({ mode: "updated", label: "Sửa lúc" }),
     },
@@ -232,10 +252,11 @@ export default config({
         hero: fields.object(
           {
             eyebrow: fields.text({ label: "Eyebrow" }),
-            tagline: fields.text({
+            tagline: fields.content({
               label: "Tiêu đề",
-              description: `Xuống dòng thật giữa các dòng. ${headingFieldDescription}`,
-              multiline: true,
+              description: `Xuống dòng thật giữa các dòng (Enter). ${headingFieldDescription}`,
+              inline: true,
+              options: headingContentOptions,
             }),
             description: fields.text({ label: "Mô tả", multiline: true }),
           },
@@ -245,9 +266,11 @@ export default config({
           {
             eyebrow: fields.text({ label: "Eyebrow" }),
             cardEyebrow: fields.text({ label: "Eyebrow (thẻ nhỏ)" }),
-            heading: fields.text({
+            heading: fields.content({
               label: "Tiêu đề",
               description: headingFieldDescription,
+              inline: true,
+              options: headingContentOptions,
             }),
             points: fields.array(fields.text({ label: "Điểm nổi bật" }), {
               label: "Điểm nổi bật",
@@ -259,9 +282,11 @@ export default config({
         servicesSection: fields.object(
           {
             eyebrow: fields.text({ label: "Eyebrow" }),
-            heading: fields.text({
+            heading: fields.content({
               label: "Tiêu đề",
               description: headingFieldDescription,
+              inline: true,
+              options: headingContentOptions,
             }),
             lede: fields.text({ label: "Mô tả", multiline: true }),
           },
@@ -270,9 +295,11 @@ export default config({
         techTools: fields.object(
           {
             eyebrow: fields.text({ label: "Eyebrow" }),
-            heading: fields.text({
+            heading: fields.content({
               label: "Tiêu đề",
               description: headingFieldDescription,
+              inline: true,
+              options: headingContentOptions,
             }),
             points: fields.array(
               fields.object({
@@ -303,9 +330,11 @@ export default config({
         contactSection: fields.object(
           {
             eyebrow: fields.text({ label: "Eyebrow" }),
-            heading: fields.text({
+            heading: fields.content({
               label: "Tiêu đề",
               description: headingFieldDescription,
+              inline: true,
+              options: headingContentOptions,
             }),
             lede: fields.text({ label: "Mô tả", multiline: true }),
           },
@@ -335,9 +364,11 @@ export default config({
         hero: fields.object(
           {
             eyebrow: fields.text({ label: "Eyebrow" }),
-            heading: fields.text({
+            heading: fields.content({
               label: "Tiêu đề",
               description: headingFieldDescription,
+              inline: true,
+              options: headingContentOptions,
             }),
             lede: fields.text({ label: "Mô tả", multiline: true }),
           },
@@ -346,9 +377,11 @@ export default config({
         intro: fields.object(
           {
             eyebrow: fields.text({ label: "Eyebrow" }),
-            heading: fields.text({
+            heading: fields.content({
               label: "Tiêu đề",
               description: headingFieldDescription,
+              inline: true,
+              options: headingContentOptions,
             }),
             lede: fields.text({ label: "Đoạn giới thiệu", multiline: true }),
             stats: fields.array(
@@ -367,9 +400,11 @@ export default config({
         values: fields.object(
           {
             eyebrow: fields.text({ label: "Eyebrow" }),
-            heading: fields.text({
+            heading: fields.content({
               label: "Tiêu đề",
               description: headingFieldDescription,
+              inline: true,
+              options: headingContentOptions,
             }),
             items: fields.array(
               fields.object({
@@ -392,9 +427,11 @@ export default config({
         timeline: fields.object(
           {
             eyebrow: fields.text({ label: "Eyebrow" }),
-            heading: fields.text({
+            heading: fields.content({
               label: "Tiêu đề",
               description: headingFieldDescription,
+              inline: true,
+              options: headingContentOptions,
             }),
             items: fields.array(
               fields.object({
@@ -421,9 +458,11 @@ export default config({
         }),
         ogImage: fields.image({ label: "Ảnh chia sẻ (OG image)" }),
         eyebrow: fields.text({ label: "Eyebrow" }),
-        heading: fields.text({
+        heading: fields.content({
           label: "Tiêu đề",
           description: headingFieldDescription,
+          inline: true,
+          options: headingContentOptions,
         }),
         lede: fields.text({ label: "Mô tả", multiline: true }),
       },
@@ -438,9 +477,11 @@ export default config({
         }),
         ogImage: fields.image({ label: "Ảnh chia sẻ (OG image)" }),
         eyebrow: fields.text({ label: "Eyebrow" }),
-        heading: fields.text({
+        heading: fields.content({
           label: "Tiêu đề",
           description: headingFieldDescription,
+          inline: true,
+          options: headingContentOptions,
         }),
         lede: fields.text({ label: "Mô tả", multiline: true }),
       },
@@ -455,9 +496,11 @@ export default config({
         }),
         ogImage: fields.image({ label: "Ảnh chia sẻ (OG image)" }),
         eyebrow: fields.text({ label: "Eyebrow" }),
-        heading: fields.text({
+        heading: fields.content({
           label: "Tiêu đề",
           description: headingFieldDescription,
+          inline: true,
+          options: headingContentOptions,
         }),
         lede: fields.text({ label: "Mô tả", multiline: true }),
       },

@@ -44,7 +44,7 @@ const breadcrumbSchema = {
     <div class="container about-hero__inner" data-stagger="120">
       <p class="eyebrow reveal">{hero.eyebrow}</p>
       <h1 class="section-title reveal">
-        <Heading text={hero.heading} />
+        <Heading html={hero.heading} />
       </h1>
       <p class="section-lede reveal" style="margin-top: 1rem; max-width: 60ch;">
         {hero.lede}
@@ -82,7 +82,7 @@ const breadcrumbSchema = {
       <div class="about-intro__content reveal reveal-right">
         <p class="eyebrow">{intro.eyebrow}</p>
         <h2 class="section-title">
-          <Heading text={intro.heading} />
+          <Heading html={intro.heading} />
         </h2>
         <p class="section-lede" style="margin-top: 1rem;">
           {intro.lede}
@@ -105,7 +105,7 @@ const breadcrumbSchema = {
     <div class="container" data-stagger="120">
       <p class="eyebrow reveal">{values.eyebrow}</p>
       <h2 class="section-title reveal" style="margin-block: 0.75rem 3rem;">
-        <Heading text={values.heading} />
+        <Heading html={values.heading} />
       </h2>
       <div class="about-values__grid" data-stagger>
         {
@@ -127,7 +127,7 @@ const breadcrumbSchema = {
     <div class="container" data-stagger="120">
       <p class="eyebrow reveal">{timeline.eyebrow}</p>
       <h2 class="section-title reveal" style="margin-block: 0.75rem 3rem;">
-        <Heading text={timeline.heading} />
+        <Heading html={timeline.heading} />
       </h2>
       <div class="timeline" data-stagger>
         {

@@ -575,9 +575,12 @@ type ContentFieldSchema = {
     extra?: { slug?: undefined; entryDirectory?: string },
   ): {
     value: unknown;
-    content: Uint8Array;
+    content?: Uint8Array;
     other: Map<string, Uint8Array>;
   };
+  // Unset for `fields.content({ inline: true })` - its body lives in `value`
+  // (the entry's own YAML) instead of a sibling file, see below.
+  contentExtension?: string;
 };
 
 // A fields.content edit spans more than one file, unlike every other kind.
@@ -630,17 +633,22 @@ async function collectContentFieldDiffs(
   data[baseField] = out.value;
 
   const diffs: FileDiff[] = [];
-  const contentPath = `${dir}/${baseField}.html`;
-  const rawBefore = await readCurrentFile(
-    config,
-    contentPath,
-    githubBranchName,
-  );
-  diffs.push({
-    path: contentPath,
-    before: rawBefore ? textDecoder.decode(rawBefore) : "",
-    after: textDecoder.decode(out.content),
-  });
+  // An inline content field (no contentExtension) has no sibling file at
+  // all - its body just went into data[baseField] above, so there's nothing
+  // more to diff here.
+  if (fieldSchema.contentExtension) {
+    const contentPath = `${dir}/${baseField}${fieldSchema.contentExtension}`;
+    const rawBefore = await readCurrentFile(
+      config,
+      contentPath,
+      githubBranchName,
+    );
+    diffs.push({
+      path: contentPath,
+      before: rawBefore ? textDecoder.decode(rawBefore) : "",
+      after: textDecoder.decode(out.content ?? new Uint8Array()),
+    });
+  }
 
   // Only images whose bytes actually changed (or are new). Every existing
   // image round-trips back out of serialize() byte-identical now that its

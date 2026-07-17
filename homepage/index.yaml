@@ -46,29 +46,27 @@ footerNav:
     href: /#contact
 hero:
   eyebrow: Nguyễn Phương Quang · Search Engine Optimization
-  tagline: |-
-    Bứt phá thứ hạng.
-    Chiếm lĩnh [top tìm kiếm].
+  tagline: "<p>Bứt phá thứ hạng.</p><p>Chiếm lĩnh <strong>top tìm kiếm</strong>.</p>"
   description: >-
     Tối ưu kỹ thuật, nội dung và trải nghiệm người dùng để Google xếp hạng
     thương hiệu của bạn đúng vị trí xứng đáng.
 about:
   eyebrow: Giới thiệu
   cardEyebrow: Về Quang
-  heading: SEO không phải phép màu là [chiến lược đúng]
+  heading: "<p>SEO không phải phép màu là <strong>chiến lược đúng</strong></p>"
   points:
     - Chiến lược SEO cá nhân hoá, không rập khuôn
     - Báo cáo minh bạch, số liệu thật mỗi tuần
     - Đồng hành dài hạn, không chỉ chạy dự án
 servicesSection:
   eyebrow: Dịch vụ
-  heading: Quang [làm được gì] cho bạn?
+  heading: "<p>Quang <strong>làm được gì</strong> cho bạn?</p>"
   lede: >-
     Từ kiểm tra kỹ thuật đến nội dung và local SEO - mọi thứ website cần để được
     tìm thấy.
 techTools:
   eyebrow: Công nghệ
-  heading: Công cụ [chuẩn quốc tế]
+  heading: "<p>Công cụ <strong>chuẩn quốc tế</strong></p>"
   points:
     - icon: shield-check
       text: Theo dõi & giám sát website bằng Search Console, GA4
@@ -89,7 +87,7 @@ techTools:
     - icon: /homepage/assets/tools/9.svg
 contactSection:
   eyebrow: Liên hệ
-  heading: Sẵn sàng [lên top]?
+  heading: "<p>Sẵn sàng <strong>lên top</strong>?</p>"
   lede: >-
     Để lại thông tin, Quang sẽ phản hồi trong 24h với gợi ý chiến lược SEO phù
     hợp cho website của bạn.

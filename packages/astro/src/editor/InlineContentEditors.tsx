@@ -35,7 +35,7 @@ type ContentFieldSchema = {
     extra?: { slug?: undefined; entryDirectory?: string },
   ): {
     value: unknown;
-    content: Uint8Array;
+    content?: Uint8Array;
     other: Map<string, Uint8Array>;
   };
 };
@@ -48,14 +48,22 @@ function parseHtml(
   return schema.inlineParse(html, other);
 }
 
+// `content` bytes are only present for a non-inline field (a separate .html
+// file); an inline field's serialize() puts the HTML straight into `value`.
+function htmlFromSerializeOutput(out: {
+  value: unknown;
+  content?: Uint8Array;
+}): string {
+  if (out.content !== undefined) return textDecoder.decode(out.content);
+  return typeof out.value === "string" ? out.value : "";
+}
+
 function serializeHtml(
   schema: ContentFieldSchema,
   state: EditorState,
   entryDirectory: string,
 ): string {
-  return textDecoder.decode(
-    schema.serialize(state, { entryDirectory }).content,
-  );
+  return htmlFromSerializeOutput(schema.serialize(state, { entryDirectory }));
 }
 
 type Spot = {
@@ -205,7 +213,7 @@ function InlineContentEditor({
         stashContentBlobs(out.other, assetsDir, stashedRef.current)
           .then(() => {
             if (!guardRef.current.isCurrent(key, token)) return;
-            return publishEdit(key, textDecoder.decode(out.content)).then(
+            return publishEdit(key, htmlFromSerializeOutput(out)).then(
               onChange,
             );
           })

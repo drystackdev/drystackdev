@@ -14,21 +14,26 @@ const textDecoder = new TextDecoder();
 // hands back the { wordCount, charCount } summary as `value` (the HTML body
 // goes to `content`), which is exactly what the dialog shows. Undefined for a
 // field the entry hasn't got a value for yet.
+// A non-inline content field's serialize() hands back the { wordCount,
+// charCount } summary here; an inline one (no separate .html file) hands
+// back the raw HTML string instead - summarizeContentChange accepts either.
 function contentSummaryOf(
   fieldSchema: ComponentSchema,
   value: unknown,
-): ContentSummary | undefined {
+): ContentSummary | string | undefined {
   if (value === undefined || value === null) return undefined;
   const serialize = (
     fieldSchema as unknown as {
       serialize(v: unknown): { value: unknown };
     }
   ).serialize;
-  return serialize(value).value as ContentSummary;
+  return serialize(value).value as ContentSummary | string;
 }
 
 // The same serialize() call's other half - the real HTML body, for the diff
-// view (see FieldChange.diffBefore/diffAfter).
+// view (see FieldChange.diffBefore/diffAfter). A non-inline field's body
+// comes back as `content` bytes; an inline field has no separate file, so
+// its body is `value` itself (a raw HTML string).
 function contentHtmlOf(
   fieldSchema: ComponentSchema,
   value: unknown,
@@ -36,10 +41,12 @@ function contentHtmlOf(
   if (value === undefined || value === null) return undefined;
   const serialize = (
     fieldSchema as unknown as {
-      serialize(v: unknown): { content: Uint8Array };
+      serialize(v: unknown): { value: unknown; content?: Uint8Array };
     }
   ).serialize;
-  return textDecoder.decode(serialize(value).content);
+  const out = serialize(value);
+  if (out.content !== undefined) return textDecoder.decode(out.content);
+  return typeof out.value === "string" ? out.value : undefined;
 }
 
 function stringifyFieldValue(value: unknown): string {

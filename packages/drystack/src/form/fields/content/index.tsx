@@ -61,12 +61,18 @@ export function content({
   label,
   description,
   options = {},
+  inline = false,
 }: {
   label: string;
   description?: string;
   options?: Omit<MarkdocEditorOptions, "image"> & {
     image?: boolean;
   };
+  // When true, the HTML body lives inline in the entry's own YAML/JSON
+  // (like markdoc.inline()) instead of a sibling `.html` file - handy for
+  // small bodies where a separate file is more overhead than it's worth.
+  // Defaults to false, matching this field's existing on-disk behavior.
+  inline?: boolean;
 }): content.Field {
   let schema: undefined | EditorSchema;
   let inlineSchema: undefined | EditorSchema;
@@ -104,8 +110,11 @@ export function content({
     // the HTML body is written to its own file instead of living inline in
     // the entry's YAML/JSON - `value` only carries the lightweight
     // { wordCount, charCount } summary, so listing entries never has to
-    // fetch (and parse) the full document
-    contentExtension: ".html",
+    // fetch (and parse) the full document. Omitted entirely when `inline` is
+    // set, which is what tells the rest of the pipeline (serialize-props.ts,
+    // reader/generic.ts, useItemData.ts) to keep the value inline instead -
+    // see AssetsFormField.contentExtension.
+    ...(inline ? {} : { contentExtension: ".html" }),
     defaultValue() {
       return getDefaultValue(getSchema());
     },
@@ -118,9 +127,20 @@ export function content({
         />
       );
     },
+    // `content` bytes win when present - both the real split-file read path
+    // and callers that always encode fresh HTML into `content` regardless of
+    // storage mode (VEI's save.ts, the AI codec's apply-value.ts) rely on
+    // that. Only an inline field's persisted read (useItemData.ts/
+    // reader/generic.ts, which never populate `content` when there's no
+    // contentExtension) falls through to reading the HTML out of `_value`.
     parse(_value, { content, other }) {
-      if (content === undefined) return getDefaultValue(getSchema());
-      const html = textDecoder.decode(content);
+      const html =
+        content !== undefined
+          ? textDecoder.decode(content)
+          : typeof _value === "string"
+            ? _value
+            : undefined;
+      if (html === undefined) return getDefaultValue(getSchema());
       return parseToEditorStateHTML(html, getSchema(), other);
     },
     // parse() for an editor mounted onto a page that supplies its own
@@ -136,6 +156,9 @@ export function content({
     },
     serialize(value, extra) {
       const out = serializeFromEditorStateHTML(value, extra?.entryDirectory);
+      if (inline) {
+        return { value: out.value, other: out.other, external: new Map() };
+      }
       const summary: ContentSummary = countWordsAndChars(
         stripHtmlForPreview(out.value),
       );
@@ -147,9 +170,11 @@ export function content({
       };
     },
     reader: {
-      parse(_value, extra) {
-        if (extra?.content === undefined) return "";
-        return textDecoder.decode(extra.content);
+      parse(value, extra) {
+        if (extra?.content !== undefined) {
+          return textDecoder.decode(extra.content);
+        }
+        return typeof value === "string" ? value : "";
       },
     },
   };

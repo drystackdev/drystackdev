@@ -121,7 +121,8 @@ section {
   border-radius: 999px;
 }
 
-.gradient-text {
+.gradient-text,
+.heading-rich strong {
   background: var(--gold-gradient);
   background-size: 300% auto;
   -webkit-background-clip: text;

@@ -1,24 +1,20 @@
 ---
-import { parseHeadingLine } from "../lib/heading";
-
 interface Props {
-  text: string;
+  // Trusted HTML from a `fields.content()` value (bold-only) - never raw user
+  // input. ProseMirror's doc model always wraps text in block-level <p>
+  // per paragraph, but Heading is always mounted inline inside a caller's own
+  // heading tag (h1/h2/h3), so the <p> wrappers are stripped here and multiple
+  // paragraphs are joined with <br /> instead - the same line-break behavior
+  // the old bracket-syntax parser gave for a `\n`-separated string.
+  html: string;
 }
 
-const { text } = Astro.props;
+const { html } = Astro.props;
 
-const lines = text.split("\n").map(parseHeadingLine);
+const inline = html
+  .replace(/^\s*<p>/, "")
+  .replace(/<\/p>\s*$/, "")
+  .replace(/<\/p>\s*<p>/g, "<br />");
 ---
 
-{
-  lines.map((line, i) => (
-    <Fragment>
-      {i > 0 && <br />}
-      {line.before}
-      {line.emphasis !== null && (
-        <span class="gradient-text">{line.emphasis}</span>
-      )}
-      {line.after}
-    </Fragment>
-  ))
-}
+<span class="heading-rich" set:html={inline} />

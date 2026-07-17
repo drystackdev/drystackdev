@@ -2,11 +2,11 @@ metaTitle: "Giới thiệu | QuangSEO"
 metaDescription: "Tìm hiểu về Nguyễn Phương Quang - chuyên gia SEO Marketing với 5+ năm kinh nghiệm thực chiến."
 hero:
   eyebrow: "Giới thiệu"
-  heading: "Nguyễn Phương Quang - [chuyên gia SEO]"
+  heading: "<p>Nguyễn Phương Quang - <strong>chuyên gia SEO</strong></p>"
   lede: "5+ năm làm SEO thực chiến cho ngành dịch vụ, thương mại điện tử và local business. Mọi thứ phải đo lường được."
 intro:
   eyebrow: "Về Quang"
-  heading: "Người đứng sau [QuangSEO]"
+  heading: "<p>Người đứng sau <strong>QuangSEO</strong></p>"
   lede: "Mình là Nguyễn Phương Quang, làm SEO với một nguyên tắc: mọi thứ phải đo lường được. Không hứa hẹn viển vông, không từ khóa vô nghĩa - chỉ có lộ trình rõ ràng để website của bạn xuất hiện đúng lúc khách hàng đang tìm kiếm."
   stats:
     - value: "50+"
@@ -19,7 +19,7 @@ intro:
       label: "Năm kinh nghiệm"
 values:
   eyebrow: "Giá trị cốt lõi"
-  heading: "Vì sao khách hàng [tin tưởng]"
+  heading: "<p>Vì sao khách hàng <strong>tin tưởng</strong></p>"
   items:
     - icon: "shield-check"
       title: "Minh bạch"
@@ -32,7 +32,7 @@ values:
       desc: "Chiến lược SEO trắng, đúng chuẩn Google, không đánh đổi rủi ro dài hạn."
 timeline:
   eyebrow: "Hành trình"
-  heading: "Chặng đường [phát triển]"
+  heading: "<p>Chặng đường <strong>phát triển</strong></p>"
   items:
     - year: "2021"
       desc: "Bắt đầu làm SEO cho các website thương mại điện tử nhỏ."

@@ -23,7 +23,7 @@ const { servicesSection } = await getHomepage();
   <div class="container services__head">
     <p class="eyebrow reveal">{servicesSection.eyebrow}</p>
     <h2 class="section-title reveal">
-      <Heading text={servicesSection.heading} />
+      <Heading html={servicesSection.heading} />
     </h2>
     <p class="section-lede reveal" style="margin: 1rem auto 0;">
       {servicesSection.lede}
