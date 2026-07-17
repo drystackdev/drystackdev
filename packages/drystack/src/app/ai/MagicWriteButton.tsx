@@ -6,7 +6,7 @@ import { DialogContainer } from "@keystar/ui/dialog";
 import { Icon } from "@keystar/ui/icon";
 import { Flex } from "@keystar/ui/layout";
 import { ProgressCircle } from "@keystar/ui/progress";
-import { breakpointQueries, useMediaQuery } from "@keystar/ui/style";
+import { breakpointQueries, css, useMediaQuery } from "@keystar/ui/style";
 import { Text } from "@keystar/ui/typography";
 import { TooltipTrigger, Tooltip } from "@keystar/ui/tooltip";
 
@@ -18,6 +18,12 @@ import { localizeAiConfigError } from "./ai-config-error-message";
 import { MagicWriteDialog } from "./MagicWriteDialog";
 import type { useMagicWrite } from "./useMagicWrite";
 import { useAiStatus } from "./useAiStatus";
+
+// Without the label there's nothing for the button's inline padding to sit
+// beside, and it stretches into a lozenge. At zero the button falls back to its
+// square minimum, which the pill radius then rounds into a circle. `padding`
+// isn't a style prop on ActionButton, so this has to go through the class.
+const iconOnlyStyle = css({ paddingInline: 0 });
 
 /**
  * Whether this entry is opted into AI generation. A key absent from
@@ -70,6 +76,7 @@ export function MagicWriteButton(props: {
       <TooltipTrigger>
         <ActionButton
           aria-label={label}
+          UNSAFE_className={isBelowTablet ? iconOnlyStyle : undefined}
           UNSAFE_style={{ borderRadius: 50 }}
           isDisabled={isDisabled}
           onPress={() => setOpen(true)}
