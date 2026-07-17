@@ -4,235 +4,255 @@ import Icon from "./Icon.astro";
 import { dry } from "@drystack/astro/dry";
 import config from "../../drystack.config";
 
-const homepage = (await dry(config).singleton.homepage);
+const homepage = await dry(config).singleton.homepage;
 const { techTools } = homepage;
 const tools = techTools.tools.map((t) => ({ ...t, size: 65 }));
 
 // Fibonacci-sphere distribution so the tiles sit evenly spaced on the globe.
 const sphereRadius = 150;
 const tilesOnSphere = tools.map((t, i) => {
-	const n = tools.length;
-	const offset = 2 / n;
-	const y = i * offset - 1 + offset / 2;
-	const r = Math.sqrt(1 - y * y);
-	const phi = i * Math.PI * (3 - Math.sqrt(5));
-	return {
-		...t,
-		x: Math.cos(phi) * r * sphereRadius,
-		y: y * sphereRadius,
-		z: Math.sin(phi) * r * sphereRadius,
-	};
+  const n = tools.length;
+  const offset = 2 / n;
+  const y = i * offset - 1 + offset / 2;
+  const r = Math.sqrt(1 - y * y);
+  const phi = i * Math.PI * (3 - Math.sqrt(5));
+  return {
+    ...t,
+    x: Math.cos(phi) * r * sphereRadius,
+    y: y * sphereRadius,
+    z: Math.sin(phi) * r * sphereRadius,
+  };
 });
 ---
 
 <section class="tech-tools section--light" id="tech">
-	<span class="section-kicker-word kicker-left" {...homepage.item("techTools.eyebrow")}>{techTools.eyebrow}</span>
+  <span
+    class="section-kicker-word kicker-left"
+    {...homepage.item("techTools.eyebrow")}>{techTools.eyebrow}</span
+  >
 
-	<div class="container tech-tools__inner">
-		<div class="tech__content reveal reveal-left">
-			<p class="eyebrow" {...homepage.item("techTools.eyebrow")}>{techTools.eyebrow}</p>
-			<h2
-				class:list={["tech__title", "heading-rich"]}
-				set:html={techTools.heading}
-				{...homepage.item("techTools.heading")}
-			/>
-			<ul class="tech__points" {...homepage.item("techTools.points")}>
-				{techTools.points.map((p, i) => (
-					<li>
-						<Icon name={p.icon as any} size={16} />{" "}
-						<span {...homepage.item(`techTools.points.${i}.text`)}>{p.text}</span>
-					</li>
-				))}
-			</ul>
-			<a href="/dich-vu" class="btn btn-ghost">Xem tất cả dịch vụ <Icon name="arrow-right" size={16} /></a>
-		</div>
+  <div class="container tech-tools__inner">
+    <div class="tech__content reveal reveal-left">
+      <p class="eyebrow" {...homepage.item("techTools.eyebrow")}>
+        {techTools.eyebrow}
+      </p>
+      <h2
+        class:list={["tech__title", "heading-rich"]}
+        set:html={techTools.heading}
+        {...homepage.item("techTools.heading")}
+      />
+      <ul class="tech__points" {...homepage.item("techTools.points")}>
+        {
+          techTools.points.map((p, i) => (
+            <li>
+              <Icon name={p.icon as any} size={16} />{" "}
+              <span {...homepage.item(`techTools.points.${i}.text`)}>
+                {p.text}
+              </span>
+            </li>
+          ))
+        }
+      </ul>
+      <a href="/dich-vu" class="btn btn-ghost"
+        >Xem tất cả dịch vụ <Icon name="arrow-right" size={16} /></a
+      >
+    </div>
 
-		<div class="tech__cloud reveal reveal-right" data-radius={sphereRadius}>
-			<div class="tech__sphere" {...homepage.item("techTools.tools")}>
-				{tilesOnSphere.map((t, i) => (
-					<span
-						class="tech__tile"
-						style={`width:${t.size}px;height:${t.size}px;`}
-						data-x={t.x}
-						data-y={t.y}
-						data-z={t.z}
-					>
-						<Image
-							src={t.icon || "/favicon.svg"}
-							alt=""
-							width={65}
-							height={65}
-							{...homepage.item(`techTools.tools.${i}.icon`)}
-						/>
-					</span>
-				))}
-			</div>
-		</div>
-	</div>
+    <div class="tech__cloud reveal reveal-right" data-radius={sphereRadius}>
+      <div class="tech__sphere" {...homepage.item("techTools.tools")}>
+        {
+          tilesOnSphere.map((t, i) => (
+            <span
+              class="tech__tile"
+              style={`width:${t.size}px;height:${t.size}px;`}
+              data-x={t.x}
+              data-y={t.y}
+              data-z={t.z}
+            >
+              <Image
+                src={t.icon || "/favicon.svg"}
+                alt=""
+                width={65}
+                height={65}
+                {...homepage.item(`techTools.tools.${i}.icon`)}
+              />
+            </span>
+          ))
+        }
+      </div>
+    </div>
+  </div>
 </section>
 
 <style>
-	.tech-tools {
-		position: relative;
-		overflow: hidden;
-		padding-block: 6rem;
-	}
+  .tech-tools {
+    position: relative;
+    overflow: hidden;
+    padding-block: 6rem;
+  }
 
-	.tech-tools__inner {
-		position: relative;
-		z-index: 1;
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: clamp(2rem, 5vw, 4rem);
-		align-items: center;
-	}
+  .tech-tools__inner {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: clamp(2rem, 5vw, 4rem);
+    align-items: center;
+  }
 
-	.tech__title {
-		font-family: var(--font-display);
-		font-weight: 800;
-		font-size: clamp(1.6rem, 3vw, 2.25rem);
-		margin-block: 0.6rem 1.25rem;
-		color: var(--text-dark);
-	}
+  .tech__title {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: clamp(1.6rem, 3vw, 2.25rem);
+    margin-block: 0.6rem 1.25rem;
+    color: var(--text-dark);
+  }
 
-	.tech__points {
-		display: flex;
-		flex-direction: column;
-		gap: 0.9rem;
-		margin-bottom: 1.75rem;
-	}
+  .tech__points {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    margin-bottom: 1.75rem;
+  }
 
-	.tech__points li {
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-		color: var(--text-dark-muted);
-		font-size: 0.95rem;
-	}
+  .tech__points li {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--text-dark-muted);
+    font-size: 0.95rem;
+  }
 
-	.tech__points li :global(.icon) {
-		flex-shrink: 0;
-		color: var(--secondary);
-	}
+  .tech__points li :global(.icon) {
+    flex-shrink: 0;
+    color: var(--secondary);
+  }
 
-	.tech__cloud {
-		position: relative;
-		width: 100%;
-		aspect-ratio: 1 / 1;
-		perspective: 1000px;
-		cursor: grab;
-		touch-action: none;
-	}
+  .tech__cloud {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    perspective: 1000px;
+    cursor: grab;
+    touch-action: none;
+  }
 
-	.tech__cloud:active {
-		cursor: grabbing;
-	}
+  .tech__cloud:active {
+    cursor: grabbing;
+  }
 
-	.tech__sphere {
-		position: absolute;
-		inset: 0;
-		transform-style: preserve-3d;
-	}
+  .tech__sphere {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+  }
 
-	.tech__tile {
-		position: absolute;
-		top: 50%;
-		left: 50%;
-		display: grid;
-		place-items: center;
-		color: var(--secondary);
-		will-change: transform, opacity;
-	}
+  .tech__tile {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    display: grid;
+    place-items: center;
+    color: var(--secondary);
+    will-change: transform, opacity;
+  }
 
-	.tech__tile img {
-		max-width: 100px;
-		max-height: 100px;
-		object-fit: contain;
-		user-select: none;
-	}
+  .tech__tile img {
+    max-width: 100px;
+    max-height: 100px;
+    object-fit: contain;
+    user-select: none;
+  }
 
-	@media (max-width: 860px) {
-		.tech-tools__inner {
-			grid-template-columns: 1fr;
-			text-align: center;
-		}
+  @media (max-width: 860px) {
+    .tech-tools__inner {
+      grid-template-columns: 1fr;
+      text-align: center;
+    }
 
-		.tech__points li {
-			justify-content: center;
-		}
+    .tech__points li {
+      justify-content: center;
+    }
 
-		.tech__cloud {
-			max-width: 320px;
-			margin-inline: auto;
-		}
-	}
+    .tech__cloud {
+      max-width: 320px;
+      margin-inline: auto;
+    }
+  }
 </style>
 
 <script>
-	function initIconSphere(cloud: HTMLElement) {
-		const sphere = cloud.querySelector<HTMLElement>(".tech__sphere");
-		const tiles = Array.from(cloud.querySelectorAll<HTMLElement>(".tech__tile"));
-		if (!sphere || !tiles.length) return;
+  function initIconSphere(cloud: HTMLElement) {
+    const sphere = cloud.querySelector<HTMLElement>(".tech__sphere");
+    const tiles = Array.from(
+      cloud.querySelectorAll<HTMLElement>(".tech__tile"),
+    );
+    if (!sphere || !tiles.length) return;
 
-		const radius = Number(cloud.dataset.radius) || 150;
-		const points = tiles.map((tile) => ({
-			tile,
-			x: Number(tile.dataset.x),
-			y: Number(tile.dataset.y),
-			z: Number(tile.dataset.z),
-		}));
+    const radius = Number(cloud.dataset.radius) || 150;
+    const points = tiles.map((tile) => ({
+      tile,
+      x: Number(tile.dataset.x),
+      y: Number(tile.dataset.y),
+      z: Number(tile.dataset.z),
+    }));
 
-		let angle = 0;
-		let targetSpeed = 0.0035;
-		let speed = targetSpeed;
-		let dragging = false;
-		let lastX = 0;
+    let angle = 0;
+    let targetSpeed = 0.0035;
+    let speed = targetSpeed;
+    let dragging = false;
+    let lastX = 0;
 
-		function render() {
-			for (const p of points) {
-				const cos = Math.cos(angle);
-				const sin = Math.sin(angle);
-				const x = p.x * cos + p.z * sin;
-				const z = -p.x * sin + p.z * cos;
-				const depth = (z + radius) / (radius * 2);
-				const scale = 0.62 + depth * 0.5;
-				p.tile.style.transform = `translate3d(${x}px, ${p.y}px, ${z}px) translate(-50%, -50%) scale(${scale})`;
-				p.tile.style.opacity = String(0.35 + depth * 0.65);
-				p.tile.style.zIndex = String(Math.round(depth * 1000));
-			}
-		}
+    function render() {
+      for (const p of points) {
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        const x = p.x * cos + p.z * sin;
+        const z = -p.x * sin + p.z * cos;
+        const depth = (z + radius) / (radius * 2);
+        const scale = 0.62 + depth * 0.5;
+        p.tile.style.transform = `translate3d(${x}px, ${p.y}px, ${z}px) translate(-50%, -50%) scale(${scale})`;
+        p.tile.style.opacity = String(0.35 + depth * 0.65);
+        p.tile.style.zIndex = String(Math.round(depth * 1000));
+      }
+    }
 
-		function tick() {
-			if (!dragging) angle += speed;
-			render();
-			requestAnimationFrame(tick);
-		}
+    function tick() {
+      if (!dragging) angle += speed;
+      render();
+      requestAnimationFrame(tick);
+    }
 
-		cloud.addEventListener("pointerdown", (e) => {
-			dragging = true;
-			lastX = e.clientX;
-			cloud.setPointerCapture(e.pointerId);
-		});
-		cloud.addEventListener("pointermove", (e) => {
-			if (!dragging) return;
-			const dx = e.clientX - lastX;
-			lastX = e.clientX;
-			angle += dx * 0.01;
-		});
-		cloud.addEventListener("pointerup", (e) => {
-			dragging = false;
-			cloud.releasePointerCapture(e.pointerId);
-		});
-		cloud.addEventListener("pointerenter", () => (targetSpeed = 0.0015));
-		cloud.addEventListener("pointerleave", () => (targetSpeed = 0.0035));
+    cloud.addEventListener("pointerdown", (e) => {
+      if ((e.target as HTMLElement).closest(".tech__tile")) {
+        return;
+      }
+      dragging = true;
+      lastX = e.clientX;
+      cloud.setPointerCapture(e.pointerId);
+    });
+    cloud.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - lastX;
+      lastX = e.clientX;
+      angle += dx * 0.01;
+    });
+    cloud.addEventListener("pointerup", (e) => {
+      dragging = false;
+      cloud.releasePointerCapture(e.pointerId);
+    });
+    cloud.addEventListener("pointerenter", () => (targetSpeed = 0.0015));
+    cloud.addEventListener("pointerleave", () => (targetSpeed = 0.0035));
 
-		setInterval(() => {
-			speed += (targetSpeed - speed) * 0.1;
-		}, 50);
+    setInterval(() => {
+      speed += (targetSpeed - speed) * 0.1;
+    }, 50);
 
-		render();
-		requestAnimationFrame(tick);
-	}
+    render();
+    requestAnimationFrame(tick);
+  }
 
-	document.querySelectorAll<HTMLElement>(".tech__cloud").forEach(initIconSphere);
+  document
+    .querySelectorAll<HTMLElement>(".tech__cloud")
+    .forEach(initIconSphere);
 </script>
