@@ -67,6 +67,7 @@
   "dependencies": {
     "@babel/runtime": "^7.18.3",
     "@keystar/ui": "^0.7.21",
+    "@react-aria/i18n": "^3.12.8",
     "@types/react": "^19.0.8",
     "js-yaml": "^4.1.0",
     "set-cookie-parser": "^2.5.1"

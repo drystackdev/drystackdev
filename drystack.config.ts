@@ -19,26 +19,6 @@ const socialPlatformOptions = [
 const headingFieldDescription =
   "Bôi đậm phần chữ muốn nhấn mạnh (chọn chữ rồi bấm nút đậm hoặc Ctrl/Cmd+B).";
 
-// Headings only ever need one mark (bold, for the gradient-highlighted
-// phrase) - every other block/mark type is turned off so the editor renders
-// as a single-line-ish input instead of the full rich-text toolbar.
-const headingContentOptions = {
-  italic: false,
-  underline: false,
-  strikethrough: false,
-  code: false,
-  heading: false,
-  blockquote: false,
-  orderedList: false,
-  unorderedList: false,
-  table: false,
-  grid: false,
-  link: false,
-  image: false,
-  divider: false,
-  codeBlock: false,
-} as const;
-
 function postCollection(label: string, previewUrl: string) {
   return collection({
     label,
@@ -71,7 +51,7 @@ function postCollection(label: string, previewUrl: string) {
         label: "Xuất bản",
         defaultValue: false,
       }),
-      body: fields.content({ label: "Nội dung", }),
+      body: fields.content({ label: "Nội dung" }),
       createdAt: fields.timestamp({ mode: "created", label: "Tạo lúc" }),
       updatedAt: fields.timestamp({ mode: "updated", label: "Sửa lúc" }),
     },
@@ -182,7 +162,6 @@ export default config({
               label: "Tên thương hiệu",
               description: headingFieldDescription,
               inline: true,
-              options: headingContentOptions,
             }),
             personName: fields.text({ label: "Tên người đại diện" }),
             role: fields.text({ label: "Chức danh / vai trò" }),
@@ -257,7 +236,6 @@ export default config({
               label: "Tiêu đề",
               description: `Xuống dòng giữa các dòng bằng Shift+Enter. ${headingFieldDescription}`,
               inline: true,
-              options: headingContentOptions,
             }),
             description: fields.text({ label: "Mô tả", multiline: true }),
           },
@@ -271,7 +249,6 @@ export default config({
               label: "Tiêu đề",
               description: headingFieldDescription,
               inline: true,
-              options: headingContentOptions,
             }),
             points: fields.array(fields.text({ label: "Điểm nổi bật" }), {
               label: "Điểm nổi bật",
@@ -287,7 +264,6 @@ export default config({
               label: "Tiêu đề",
               description: headingFieldDescription,
               inline: true,
-              options: headingContentOptions,
             }),
             lede: fields.text({ label: "Mô tả", multiline: true }),
           },
@@ -300,7 +276,6 @@ export default config({
               label: "Tiêu đề",
               description: headingFieldDescription,
               inline: true,
-              options: headingContentOptions,
             }),
             points: fields.array(
               fields.object({
@@ -335,7 +310,6 @@ export default config({
               label: "Tiêu đề",
               description: headingFieldDescription,
               inline: true,
-              options: headingContentOptions,
             }),
             lede: fields.text({ label: "Mô tả", multiline: true }),
           },
@@ -369,7 +343,6 @@ export default config({
               label: "Tiêu đề",
               description: headingFieldDescription,
               inline: true,
-              options: headingContentOptions,
             }),
             lede: fields.text({ label: "Mô tả", multiline: true }),
           },
@@ -382,7 +355,6 @@ export default config({
               label: "Tiêu đề",
               description: headingFieldDescription,
               inline: true,
-              options: headingContentOptions,
             }),
             lede: fields.text({ label: "Đoạn giới thiệu", multiline: true }),
             stats: fields.array(
@@ -405,7 +377,6 @@ export default config({
               label: "Tiêu đề",
               description: headingFieldDescription,
               inline: true,
-              options: headingContentOptions,
             }),
             items: fields.array(
               fields.object({
@@ -432,7 +403,6 @@ export default config({
               label: "Tiêu đề",
               description: headingFieldDescription,
               inline: true,
-              options: headingContentOptions,
             }),
             items: fields.array(
               fields.object({
@@ -463,7 +433,6 @@ export default config({
           label: "Tiêu đề",
           description: headingFieldDescription,
           inline: true,
-          options: headingContentOptions,
         }),
         lede: fields.text({ label: "Mô tả", multiline: true }),
       },
@@ -482,7 +451,6 @@ export default config({
           label: "Tiêu đề",
           description: headingFieldDescription,
           inline: true,
-          options: headingContentOptions,
         }),
         lede: fields.text({ label: "Mô tả", multiline: true }),
       },
@@ -501,7 +469,6 @@ export default config({
           label: "Tiêu đề",
           description: headingFieldDescription,
           inline: true,
-          options: headingContentOptions,
         }),
         lede: fields.text({ label: "Mô tả", multiline: true }),
       },

@@ -4,10 +4,10 @@ import { dry } from "@drystack/astro/dry";
 import config from "../../drystack.config";
 import { htmlToPlainText } from "../lib/heading";
 
-const homepage = (await dry(config).singleton.homepage);
+const homepage = await dry(config).singleton.homepage;
 const { brand, headerNav } = homepage;
 
-const links = headerNav.map((n: { href: string; label: string }, i: number) => ({
+const links = headerNav.map((n, i) => ({
   href: n.href,
   label: n.label,
   match: n.href === "/" ? "exact" : "prefix",
@@ -25,7 +25,7 @@ const links = headerNav.map((n: { href: string; label: string }, i: number) => (
         {...homepage.item("brand.name")}
       />
     </a>
-    <nav class="nav" >
+    <nav class="nav">
       {
         links.map((link) => (
           <a href={link.href} data-match={link.match} {...link.itemProps}>

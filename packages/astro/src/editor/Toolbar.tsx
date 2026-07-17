@@ -22,6 +22,8 @@ import {
   waitForMediaLibraryOpener,
   type MediaLibraryPick,
 } from "@drystack/core/media-library-bridge";
+import l10nMessages from "@drystack/core/l10n";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
 // @ts-expect-error - provided by the drystack Astro integration's Vite plugin
 import apiPath from "virtual:drystack-path";
 import { Badge } from "@keystar/ui/badge";
@@ -235,6 +237,7 @@ function formatActiveSpot(
 }
 
 export function Toolbar({ config }: { config: Config<any, any> }) {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const [editing, setEditing] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -842,7 +845,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
           <AlertDialog
             title="Lưu và deploy?"
             tone="neutral"
-            cancelLabel="Huỷ"
+            cancelLabel={stringFormatter.format("cancel")}
             primaryActionLabel="Lưu & Deploy"
             autoFocusButton="cancel"
             onCancel={() => setConfirmSaveOpen(false)}
@@ -1071,6 +1074,7 @@ function ContainerFieldDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const [, name, field] = fieldKey.split("::");
   const fieldSchema = resolveFieldSchema(config, name, field);
   // unknown[] for array-of-*, Record<string, unknown> for a standalone
@@ -1158,7 +1162,7 @@ function ContainerFieldDialog({
         </EntryDirectoryProvider>
       </Content>
       <ButtonGroup>
-        <Button onPress={onClose}>Hủy</Button>
+        <Button onPress={onClose}>{stringFormatter.format("cancel")}</Button>
         <Button form={formId} prominence="high" type="submit">
           Xong
         </Button>

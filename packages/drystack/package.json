@@ -64,6 +64,10 @@
       "drystack-src": "./src/app/path-utils.ts",
       "default": "./dist/app/path-utils.js"
     },
+    "./l10n": {
+      "drystack-src": "./src/app/l10n/index.js",
+      "default": "./dist/app/l10n/index.js"
+    },
     "./redirects": {
       "drystack-src": "./src/app/redirects.ts",
       "default": "./dist/app/redirects.js"

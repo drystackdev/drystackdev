@@ -4,7 +4,7 @@ import Icon from "./Icon.astro";
 import { dry } from "@drystack/astro/dry";
 import config from "../../drystack.config";
 
-const homepage = (await dry(config).singleton.homepage) as any;
+const homepage = (await dry(config).singleton.homepage);
 const { techTools } = homepage;
 const tools = techTools.tools.map((t) => ({ ...t, size: 65 }));
 
