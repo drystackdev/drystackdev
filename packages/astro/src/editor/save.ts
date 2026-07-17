@@ -197,7 +197,7 @@ export async function createBrandRaw(
   },
 ): Promise<BrandRecord | null> {
   const now = new Date();
-  const ref = formatBrandRef(args.branchPrefix, now, args.login);
+  const ref = formatBrandRef(args.branchPrefix, now);
   const label = formatBrandLabel(now, args.viewerName, "Editor");
   const created = await githubGraphQL(args.token, createBrandRefMutation, {
     input: {

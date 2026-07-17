@@ -1,267 +1,222 @@
-import { useRef, useState, useEffect } from "react";
-import { createPortal } from "react-dom";
+import { useMemo, useRef, useState } from "react";
+import { PressResponder } from "@react-aria/interactions";
+import { useOverlayTrigger } from "@react-aria/overlays";
+import { useOverlayTriggerState } from "@react-stately/overlays";
+
 import { ActionButton } from "@keystar/ui/button";
+import { AlertDialog, DialogContainer } from "@keystar/ui/dialog";
 import { Icon } from "@keystar/ui/icon";
+import { chevronDownIcon } from "@keystar/ui/icon/icons/chevronDownIcon";
 import { gitBranchIcon } from "@keystar/ui/icon/icons/gitBranchIcon";
 import { trashIcon } from "@keystar/ui/icon/icons/trashIcon";
-import { chevronDownIcon } from "@keystar/ui/icon/icons/chevronDownIcon";
-import { AlertDialog, DialogContainer } from "@keystar/ui/dialog";
-import { toastQueue } from "@keystar/ui/toast";
-import { Text } from "@keystar/ui/typography";
 import { HStack, VStack } from "@keystar/ui/layout";
+import { Popover } from "@keystar/ui/overlays";
 import { css, tokenSchema } from "@keystar/ui/style";
+import { toastQueue } from "@keystar/ui/toast";
+import { Tooltip, TooltipTrigger } from "@keystar/ui/tooltip";
+import { Text } from "@keystar/ui/typography";
 
 import { useCurrentBrand } from "../brand";
-import { brandDisplayLabel } from "../brand-label";
-import { useRouter } from "../router";
-import { useBranches } from "../shell/data";
-import { useViewer } from "../shell/viewer-data";
+import { brandRefDisplayLabel, isBrandRef } from "../brand-label";
 import { useDeleteBranchMutation } from "../branch-selection";
+import { useRouter } from "../router";
+import { useConfig } from "../shell/context";
+import { useBranches, useRepoInfo } from "../shell/data";
+import { useViewer } from "../shell/viewer-data";
+import { getBranchPrefix } from "../utils";
 
 export function CurrentBrandChip() {
   const brand = useCurrentBrand();
   const branches = useBranches();
+  const repoInfo = useRepoInfo();
   const viewer = useViewer();
   const router = useRouter();
+  const config = useConfig();
+  const branchPrefix = getBranchPrefix(config);
   const [, deleteBranch] = useDeleteBranchMutation();
 
-  const label = brand ? brandDisplayLabel(brand.label) : "";
-  const chipRef = useRef<HTMLDivElement>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState({ left: 0, bottom: 0 });
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const state = useOverlayTriggerState({});
+  const { triggerProps, overlayProps } = useOverlayTrigger(
+    { type: "dialog" },
+    state,
+    triggerRef,
+  );
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
-  useEffect(() => {
-    const openMenu = () => {
-      clearTimeout(closeTimer.current);
-      if (!chipRef.current || !brand) return;
-      const rect = chipRef.current.getBoundingClientRect();
-      setMenuPos({ left: rect.left, bottom: window.innerHeight - rect.top + 6 });
-      setMenuOpen(true);
-    };
+  const label = brand ? brandRefDisplayLabel(brand.ref, branchPrefix) : "";
 
-    const scheduleCloseMenu = () => {
-      clearTimeout(closeTimer.current);
-      closeTimer.current = setTimeout(() => setMenuOpen(false), 140);
-    };
+  // Only brands belong in this list: the default branch is never a brand
+  // (plan/brand.md §1/§5), and a repo's other branches aren't ours to offer.
+  // The current brand is always included even if it somehow lacks the prefix -
+  // hiding the branch you're on would be worse than showing an odd name.
+  const brandBranches = useMemo(() => {
+    return Array.from(branches.entries())
+      .filter(
+        ([name]) =>
+          name !== repoInfo?.defaultBranch &&
+          (isBrandRef(name, branchPrefix) || name === brand?.ref),
+      )
+      // refs are timestamped, so a plain string sort is chronological -
+      // reversed to put the newest brand at the top.
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([name, info]) => ({
+        name,
+        // A brand that's been created but not committed to still points at the
+        // default branch's tip, so its "author" is whoever last landed there.
+        // Treating that as ownership would paint someone else's dot on a brand
+        // that is in fact unclaimed, so only trust the author once the brand
+        // has moved off the branch it was cut from.
+        owner:
+          info.commitSha === branches.get(repoInfo?.defaultBranch ?? "")?.commitSha
+            ? null
+            : info.authorLogin,
+        isCurrent: name === brand?.ref,
+      }));
+  }, [branches, repoInfo?.defaultBranch, brand?.ref, branchPrefix]);
 
-    const chipElement = chipRef.current;
-    if (chipElement) {
-      chipElement.addEventListener("mouseenter", openMenu);
-      chipElement.addEventListener("mouseleave", scheduleCloseMenu);
-    }
-
-    return () => {
-      if (chipElement) {
-        chipElement.removeEventListener("mouseenter", openMenu);
-        chipElement.removeEventListener("mouseleave", scheduleCloseMenu);
-      }
-      clearTimeout(closeTimer.current);
-    };
-  }, [brand]);
-
-  const getBranchOwner = (branchName: string): string | null => {
-    // Parse branch name to extract owner/login
-    // Format: drystack/YYYY-MM-DD-HHmmss-login
-    const match = branchName.match(/[/-]([a-z0-9-]+)$/);
-    return match ? match[1] : null;
+  const switchTo = (branchName: string) => {
+    state.close();
+    if (branchName === brand?.ref) return;
+    router.push(`${router.basePath}/branch/${encodeURIComponent(branchName)}`);
   };
 
-  const isOwnBranch = (branchName: string): boolean => {
-    if (!viewer) return false;
-    const owner = getBranchOwner(branchName);
-    return owner === viewer.login;
-  };
-
-  const branchList = Array.from(branches.keys())
-    .sort()
-    .map((name) => ({
-      name,
-      isOwn: isOwnBranch(name),
-      isCurrent: name === brand?.ref,
-    }));
-
-  const handleSwitchBranch = (branchName: string) => {
-    if (branchName === brand?.ref) {
-      setMenuOpen(false);
+  const confirmDelete = async (branchName: string) => {
+    const branchInfo = branches.get(branchName);
+    if (!branchInfo) {
+      toastQueue.critical("Không tìm thấy branch");
       return;
     }
-    const encodedBranch = encodeURIComponent(branchName);
-    router.push(`${router.basePath}/branch/${encodedBranch}`);
-    setMenuOpen(false);
-  };
-
-  const handleDeleteBranch = async (branchName: string) => {
-    try {
-      const branchInfo = branches.get(branchName);
-      if (!branchInfo) {
-        toastQueue.critical("Không tìm thấy branch info");
-        return;
-      }
-      const [deleteResult] = await deleteBranch({ refId: branchInfo.id });
-      if (deleteResult.error) {
-        throw new Error(deleteResult.error.message);
-      }
-      toastQueue.positive("Đã xoá branch", { timeout: 2000 });
-      setDeleteDialogOpen(false);
-      setSelectedBranch(null);
-      setMenuOpen(false);
-    } catch (err) {
-      toastQueue.critical(err instanceof Error ? err.message : String(err));
+    const result = await deleteBranch({ refId: branchInfo.id });
+    if (result.error) {
+      toastQueue.critical(result.error.message);
+      return;
     }
+    toastQueue.positive("Đã xoá branch", { timeout: 2000 });
+    setPendingDelete(null);
   };
 
   return (
     <>
-      <div
-        ref={chipRef}
-        className={css({
-          flex: "1",
-          minWidth: 0,
-        })}
-      >
+      <PressResponder {...triggerProps} isPressed={state.isOpen}>
         <ActionButton
-          isDisabled={!brand}
-          flex={1}
+          ref={triggerRef}
+          isDisabled={!brand || brandBranches.length === 0}
+          aria-label="Chọn branch"
+          flex
           minWidth={0}
-          UNSAFE_className={css({
-            justifyContent: "space-between",
-          })}
+          UNSAFE_className={css({ justifyContent: "space-between" })}
         >
-          <HStack flex minWidth={0} gap="regular">
+          <HStack flex minWidth={0} gap="regular" alignItems="center">
             <Icon src={gitBranchIcon} />
-            <Text truncate flex minWidth={0} title={label}>
-              {label}
-            </Text>
+            <Text truncate>{label}</Text>
           </HStack>
           <Icon src={chevronDownIcon} />
         </ActionButton>
-      </div>
+      </PressResponder>
 
-      {menuOpen &&
-        branchList.length > 0 &&
-        typeof document !== "undefined" &&
-        document.body &&
-        createPortal(
-          <div
-            className={css({
-              position: "fixed",
-              left: menuPos.left,
-              bottom: menuPos.bottom,
-              backgroundColor: tokenSchema.color.background.surface,
-              border: `1px solid ${tokenSchema.color.border.muted}`,
-              borderRadius: tokenSchema.size.radius.medium,
-              boxShadow: `${tokenSchema.size.shadow.large} ${tokenSchema.color.shadow.regular}`,
-              zIndex: 1000,
-              minWidth: 250,
-              maxHeight: 400,
-              overflowY: "auto",
-            })}
-            onMouseEnter={() => clearTimeout(closeTimer.current)}
-            onMouseLeave={() => {
-              clearTimeout(closeTimer.current);
-              closeTimer.current = setTimeout(() => setMenuOpen(false), 140);
-            }}
-          >
-            <VStack gap={0}>
-              {branchList.map((branch, index) => (
+      <Popover
+        {...overlayProps}
+        state={state}
+        triggerRef={triggerRef}
+        placement="top start"
+        hideArrow
+      >
+        <VStack
+          padding="regular"
+          gap="small"
+          minWidth="alias.singleLineWidth"
+          maxHeight="scale.3400"
+          UNSAFE_className={css({ overflowY: "auto" })}
+        >
+          {brandBranches.map((branch) => (
+            <HStack key={branch.name} gap="regular" alignItems="center">
+              <button
+                type="button"
+                onClick={() => switchTo(branch.name)}
+                className={css({
+                  flex: 1,
+                  minWidth: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: tokenSchema.size.space.regular,
+                  padding: tokenSchema.size.space.regular,
+                  border: "none",
+                  borderRadius: tokenSchema.size.radius.small,
+                  cursor: "pointer",
+                  textAlign: "start",
+                  backgroundColor: branch.isCurrent
+                    ? tokenSchema.color.background.accentEmphasis
+                    : "transparent",
+                  "&:hover": {
+                    backgroundColor: tokenSchema.color.alias.backgroundHovered,
+                  },
+                })}
+              >
                 <div
-                  key={branch.name}
+                  aria-hidden
                   className={css({
-                    display: "flex",
-                    alignItems: "center",
-                    padding: `${tokenSchema.size.space.regular} ${tokenSchema.size.space.medium}`,
-                    backgroundColor: branch.isCurrent
-                      ? tokenSchema.color.background.canvas
-                      : "transparent",
-                    cursor: "pointer",
-                    "&:hover": {
-                      backgroundColor: tokenSchema.color.background.canvas,
-                    },
+                    width: tokenSchema.size.space.small,
+                    height: tokenSchema.size.space.small,
+                    borderRadius: "50%",
+                    flexShrink: 0,
+                    backgroundColor:
+                      branch.owner && branch.owner === viewer?.login
+                        ? tokenSchema.color.foreground.accent
+                        : tokenSchema.color.foreground.neutralTertiary,
                   })}
-                >
-                  <div
-                    className={css({
-                      display: "flex",
-                      alignItems: "center",
-                      gap: tokenSchema.size.space.regular,
-                      flex: 1,
-                      minWidth: 0,
-                    })}
-                    onClick={() => handleSwitchBranch(branch.name)}
+                />
+                {/* `trim` off: capsize's leading-trim margins are meant for a
+                    lone run of text, and pull two stacked Texts over each other. */}
+                <VStack flex minWidth={0}>
+                  <Text
+                    trim={false}
+                    truncate
+                    weight={branch.isCurrent ? "semibold" : "regular"}
                   >
-                    {/* Dot indicator */}
-                    <div
-                      className={css({
-                        width: "8px",
-                        height: "8px",
-                        borderRadius: "50%",
-                        backgroundColor: branch.isOwn
-                          ? tokenSchema.color.foreground.positive
-                          : tokenSchema.color.foreground.negative,
-                        flexShrink: 0,
-                      })}
-                    />
-                    <div
-                      className={css({
-                        flex: 1,
-                        minWidth: 0,
-                        display: "flex",
-                        flexDirection: "column",
-                      })}
-                    >
-                      <Text
-                        truncate
-                        className={css({
-                          fontWeight: branch.isCurrent ? "bold" : "normal",
-                        })}
-                      >
-                        {branch.name}
-                      </Text>
-                      <Text
-                        size="small"
-                        color="neutralTertiary"
-                        truncate
-                      >
-                        {branch.isOwn ? viewer?.login : `By ${getBranchOwner(branch.name)}`}
-                      </Text>
-                    </div>
-                  </div>
-                  {branch.name !== "main" && !branch.isCurrent && (
-                    <ActionButton
-                      isQuiet
-                      onPress={() => {
-                        setSelectedBranch(branch.name);
-                        setDeleteDialogOpen(true);
-                      }}
-                      UNSAFE_className={css({
-                        marginStart: tokenSchema.size.space.regular,
-                      })}
-                    >
-                      <Icon src={trashIcon} />
-                    </ActionButton>
-                  )}
-                </div>
-              ))}
-            </VStack>
-          </div>,
-          document.body,
-        )}
+                    {brandRefDisplayLabel(branch.name, branchPrefix)}
+                  </Text>
+                  <Text trim={false} truncate size="small" color="neutralTertiary">
+                    {branch.owner
+                      ? branch.owner === viewer?.login
+                        ? "Của bạn"
+                        : branch.owner
+                      : "Chưa có thay đổi"}
+                  </Text>
+                </VStack>
+              </button>
+              {!branch.isCurrent && (
+                <TooltipTrigger>
+                  <ActionButton
+                    prominence="low"
+                    aria-label={`Xoá branch ${brandRefDisplayLabel(branch.name, branchPrefix)}`}
+                    onPress={() => setPendingDelete(branch.name)}
+                  >
+                    <Icon src={trashIcon} />
+                  </ActionButton>
+                  <Tooltip>Xoá branch</Tooltip>
+                </TooltipTrigger>
+              )}
+            </HStack>
+          ))}
+        </VStack>
+      </Popover>
 
-      <DialogContainer onDismiss={() => setDeleteDialogOpen(false)}>
-        {deleteDialogOpen && selectedBranch && (
+      <DialogContainer onDismiss={() => setPendingDelete(null)}>
+        {pendingDelete && (
           <AlertDialog
             title="Xoá branch?"
             tone="critical"
             cancelLabel="Hủy"
             primaryActionLabel="Xoá"
             autoFocusButton="cancel"
-            onCancel={() => setDeleteDialogOpen(false)}
-            onPrimaryAction={() => handleDeleteBranch(selectedBranch)}
+            onPrimaryAction={() => confirmDelete(pendingDelete)}
           >
-            <Text>Bạn chắc chắn muốn xoá branch <strong>{selectedBranch}</strong>?</Text>
+            <Text>
+              Mọi thay đổi chưa deploy trên{" "}
+              <strong>{brandRefDisplayLabel(pendingDelete, branchPrefix)}</strong>{" "}
+              sẽ mất vĩnh viễn.
+            </Text>
           </AlertDialog>
         )}
       </DialogContainer>

@@ -326,7 +326,12 @@ export function GitHubAppShellProvider(props: {
         return [
           [
             x.name,
-            { id: x.id, commitSha: x.target.oid, treeSha: x.target.tree.oid },
+            {
+              id: x.id,
+              commitSha: x.target.oid,
+              treeSha: x.target.tree.oid,
+              authorLogin: x.target.author?.user?.login ?? null,
+            },
           ],
         ];
       })
@@ -394,6 +399,12 @@ type BranchInfo = {
   id: string;
   commitSha: string;
   treeSha: string;
+  // Login of the tip commit's author, or null when the commit has no linked
+  // GitHub account. Brand refs are timestamp-only (brand-label.ts), so this is
+  // the only signal for who owns a branch - and it's a heuristic: a brand that
+  // has been created but not yet saved to still points at the default branch's
+  // tip, so it reports whoever last committed there.
+  authorLogin: string | null;
 };
 
 const BranchesContext = createContext<Map<string, BranchInfo>>(new Map());
@@ -492,6 +503,12 @@ export const Ref_base = gql`
         tree {
           id
           oid
+        }
+        author {
+          user {
+            id
+            login
+          }
         }
       }
     }

@@ -271,7 +271,7 @@ export async function createBrand(
   },
 ): Promise<BrandRecord | null> {
   const now = new Date();
-  const ref = formatBrandRef(getBranchPrefix(config), now, args.login);
+  const ref = formatBrandRef(getBranchPrefix(config), now);
   const label = formatBrandLabel(now, args.name, "Editor");
   const result = await args.createBranch({
     input: {
