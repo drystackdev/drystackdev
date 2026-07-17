@@ -1,44 +1,54 @@
-metaTitle: "Giới thiệu | QuangSEO"
-metaDescription: "Tìm hiểu về Nguyễn Phương Quang - chuyên gia SEO Marketing với 5+ năm kinh nghiệm thực chiến."
+metaTitle: Giới thiệu | QuangSEO
+metaDescription: >-
+  Tìm hiểu về Nguyễn Phương Quang - chuyên gia SEO Marketing với 5+ năm kinh
+  nghiệm thực chiến.
 hero:
-  eyebrow: "Giới thiệu"
-  heading: "Nguyễn Phương Quang - <strong>chuyên gia SEO</strong>"
-  lede: "5+ năm làm SEO thực chiến cho ngành dịch vụ, thương mại điện tử và local business. Mọi thứ phải đo lường được."
+  eyebrow: Giới thiệu
+  heading: Nguyễn Phương Quang - <strong>chuyên gia SEO</strong>
+  lede: >-
+    5+ năm làm SEO thực chiến cho ngành dịch vụ, thương mại điện tử và local
+    business. Mọi thứ phải đo lường được.
 intro:
-  eyebrow: "Về Quang"
-  heading: "Người đứng sau <strong>QuangSEO</strong>"
-  lede: "Mình là Nguyễn Phương Quang, làm SEO với một nguyên tắc: mọi thứ phải đo lường được. Không hứa hẹn viển vông, không từ khóa vô nghĩa - chỉ có lộ trình rõ ràng để website của bạn xuất hiện đúng lúc khách hàng đang tìm kiếm."
+  eyebrow: Về Quang
+  heading: Người đứng sau <strong>QuangSEO</strong>
+  lede: >-
+    Mình là Nguyễn Phương Quang, làm SEO với một nguyên tắc: mọi thứ phải đo
+    lường được. Không hứa hẹn viển vông, không từ khóa vô nghĩa - chỉ có lộ
+    trình rõ ràng để website của bạn xuất hiện đúng lúc khách hàng đang tìm
+    kiếm.
   stats:
-    - value: "50+"
-      label: "Dự án SEO"
-    - value: "3x"
-      label: "Traffic trung bình"
-    - value: "98%"
-      label: "Khách hàng hài lòng"
-    - value: "5+"
-      label: "Năm kinh nghiệm"
+    - value: 50+
+      label: Dự án SEO
+    - value: 3x
+      label: Traffic trung bình
+    - value: 97%
+      label: Khách hàng hài lòng
+    - value: 5+
+      label: Năm kinh nghiệm
 values:
-  eyebrow: "Giá trị cốt lõi"
-  heading: "Vì sao khách hàng <strong>tin tưởng</strong>"
+  eyebrow: Giá trị cốt lõi
+  heading: Vì sao khách hàng <strong>tin tưởng</strong>
   items:
-    - icon: "shield-check"
-      title: "Minh bạch"
-      desc: "Báo cáo số liệu thật mỗi tuần, không tô vẽ, không hứa hẹn viển vông."
-    - icon: "trending-up"
-      title: "Đo lường được"
-      desc: "Mọi hành động đều gắn với mục tiêu và chỉ số cụ thể, có thể theo dõi."
-    - icon: "zap"
-      title: "Hiệu quả bền vững"
-      desc: "Chiến lược SEO trắng, đúng chuẩn Google, không đánh đổi rủi ro dài hạn."
+    - icon: shield-check
+      title: Minh bạch
+      desc: Báo cáo số liệu thật mỗi tuần, không tô vẽ, không hứa hẹn viển vông.
+    - icon: trending-up
+      title: Đo lường được
+      desc: Mọi hành động đều gắn với mục tiêu và chỉ số cụ thể, có thể theo dõi.
+    - icon: zap
+      title: Hiệu quả bền vững
+      desc: Chiến lược SEO trắng, đúng chuẩn Google, không đánh đổi rủi ro dài hạn.
 timeline:
-  eyebrow: "Hành trình"
-  heading: "Chặng đường <strong>phát triển</strong>"
+  eyebrow: Hành trình
+  heading: Chặng đường <strong>phát triển</strong>
   items:
-    - year: "2021"
-      desc: "Bắt đầu làm SEO cho các website thương mại điện tử nhỏ."
-    - year: "2023"
-      desc: "Mở rộng sang Technical SEO và Local SEO cho doanh nghiệp vừa và nhỏ."
-    - year: "2025"
-      desc: "Đồng hành cùng 50+ khách hàng, xây dựng quy trình SEO chuẩn hoá."
-    - year: "2026"
-      desc: "Tập trung phát triển SEO Content chuẩn E-E-A-T và tối ưu Core Web Vitals."
+    - year: '2021'
+      desc: Bắt đầu làm SEO cho các website thương mại điện tử nhỏ.
+    - year: '2023'
+      desc: Mở rộng sang Technical SEO và Local SEO cho doanh nghiệp vừa và nhỏ.
+    - year: '2025'
+      desc: Đồng hành cùng 50+ khách hàng, xây dựng quy trình SEO chuẩn hoá.
+    - year: '2026'
+      desc: >-
+        Tập trung phát triển SEO Content chuẩn E-E-A-T và tối ưu Core Web
+        Vitals.

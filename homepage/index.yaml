@@ -1,5 +1,5 @@
 brand:
-  name: "Quang<strong>SEO</strong>"
+  name: Quang<strong>SEO</strong>
   personName: Nguyễn Phương Quang
   role: SEO Marketing
   availabilityStatus: Đang nhận dự án mới
@@ -46,27 +46,27 @@ footerNav:
     href: /#contact
 hero:
   eyebrow: Nguyễn Phương Quang · Search Engine Optimization
-  tagline: "Bứt phá thứ hạng.<br>Chiếm lĩnh <strong>top tìm kiếm</strong>."
+  tagline: Bứt phá thứ hạng.<br>Chiếm lĩnh <strong>top tìm kiếm</strong>.
   description: >-
     Tối ưu kỹ thuật, nội dung và trải nghiệm người dùng để Google xếp hạng
     thương hiệu của bạn đúng vị trí xứng đáng.
 about:
   eyebrow: Giới thiệu
   cardEyebrow: Về Quang
-  heading: "SEO không phải phép màu là <strong>chiến lược đúng</strong>"
+  heading: SEO không phải phép màu là <strong>chiến lược đúng</strong>
   points:
     - Chiến lược SEO cá nhân hoá, không rập khuôn
     - Báo cáo minh bạch, số liệu thật mỗi tuần
     - Đồng hành dài hạn, không chỉ chạy dự án
 servicesSection:
   eyebrow: Dịch vụ
-  heading: "Quang <strong>làm được gì</strong> cho bạn?"
+  heading: Quang <strong>làm được gì</strong> cho bạn?
   lede: >-
     Từ kiểm tra kỹ thuật đến nội dung và local SEO - mọi thứ website cần để được
     tìm thấy.
 techTools:
   eyebrow: Công nghệ
-  heading: "Công cụ <strong>chuẩn quốc tế</strong>"
+  heading: Công cụ <strong>chuẩn quốc tế</strong>
   points:
     - icon: shield-check
       text: Theo dõi & giám sát website bằng Search Console, GA4
@@ -87,10 +87,10 @@ techTools:
     - icon: /homepage/assets/tools/9.svg
 contactSection:
   eyebrow: Liên hệ
-  heading: "Sẵn sàng <strong>lên top</strong>?"
+  heading: Sẵn sàng <strong>lên top</strong>?
   lede: >-
     Để lại thông tin, Quang sẽ phản hồi trong 24h với gợi ý chiến lược SEO phù
     hợp cho website của bạn.
 footer:
-  description: Hello Mấy Con Vkk ,,,,,,gakaf
+  description: Hello Mấy Con Vợ
   copyright: © 2026 Nguyễn Phương Quang. Đưa thương hiệu lên top, bền vững.
