@@ -1,6 +1,5 @@
 ---
 import Icon from "./Icon.astro";
-import Heading from "./Heading.astro";
 import { getServices } from "../data/services";
 import { dry } from "@drystack/astro/dry";
 import config from "../../drystack.config";
@@ -106,10 +105,10 @@ const socialIcons = {
     <div class="footer-col footer-col--brand">
       <a href="/" class="brand">
         <span class="brand__mark">{htmlToPlainText(brand.name).charAt(0)}</span>
-        <Heading
-          html={brand.name}
-          class="brand__name"
-          itemProps={homepage.item("brand.name")}
+        <span
+          class:list={["heading-rich", "brand__name"]}
+          set:html={brand.name}
+          {...homepage.item("brand.name")}
         />
       </a>
       <p class="footer-col__desc" {...homepage.item("footer.description")}>
@@ -253,8 +252,8 @@ const socialIcons = {
     font-size: 0.85rem;
   }
 
-  /* Rendered via <Heading class="brand__name">, which mounts its own <span>
-     outside this file's scoped-CSS boundary, hence :global(). */
+  /* The <strong> arrives via set:html (raw HTML from brand.name), so it
+     carries no Astro scope attribute - hence :global(). */
   :global(.brand__name strong) {
     font-style: normal;
     font-weight: inherit;

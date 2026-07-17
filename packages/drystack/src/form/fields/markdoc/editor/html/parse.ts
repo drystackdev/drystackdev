@@ -376,6 +376,42 @@ function blockChildren(el: Element, state: ParseState): ProseMirrorNode[] {
   return blocksFromChildNodes(Array.from(el.childNodes), state);
 }
 
+// Legacy on-disk data for inline-only fields was written by the old
+// block-mode schema, which always wrapped bare inline content in <p> (see
+// blocksFromChildNodes' flush()) - so a <p> boundary here is really just a
+// soft line break the author intended. Unwrap the tag, keep its inline
+// content (marks and all), and turn the boundary *between* legacy blocks
+// into an explicit hard break, matching what Shift+Enter produces directly.
+function inlineOnlyChildren(
+  nodes: ChildNode[],
+  state: ParseState,
+): ProseMirrorNode[] {
+  const result: ProseMirrorNode[] = [];
+  let sawBlock = false;
+  for (const node of nodes) {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as Element;
+      const tag = el.tagName.toLowerCase();
+      if (tag === "style" || tag === "script") continue;
+      if (isBlockTag(tag)) {
+        if (sawBlock && state.schema.nodes.hard_break) {
+          result.push(state.schema.nodes.hard_break.create());
+        }
+        result.push(...inlineChildren(el, state));
+        sawBlock = true;
+        continue;
+      }
+    } else if (
+      node.nodeType === Node.TEXT_NODE &&
+      !(node.textContent ?? "").trim()
+    ) {
+      continue;
+    }
+    result.push(...inlineNodeToProseMirror(node, state, []));
+  }
+  return result;
+}
+
 function listItems(el: Element, state: ParseState): ProseMirrorNode[] {
   const { schema } = state;
   if (!schema.nodes.list_item) return [];
@@ -398,7 +434,9 @@ export function htmlToProseMirror(
 ): ProseMirrorNode {
   const state: ParseState = { schema, other };
   const doc = new DOMParser().parseFromString(html, "text/html");
-  const children = blocksFromChildNodes(Array.from(doc.body.childNodes), state);
+  const children = schema.config.inlineOnly
+    ? inlineOnlyChildren(Array.from(doc.body.childNodes), state)
+    : blocksFromChildNodes(Array.from(doc.body.childNodes), state);
   const node = schema.nodes.doc!.createAndFill({}, children);
   if (!node) {
     throw new Error("Invalid content for document");

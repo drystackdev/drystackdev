@@ -1,6 +1,5 @@
 ---
 import Icon from "./Icon.astro";
-import Heading from "./Heading.astro";
 import { dry } from "@drystack/astro/dry";
 import config from "../../drystack.config";
 
@@ -29,9 +28,7 @@ const { hero, intro } = gioiThieu;
       <div class="about__card-glow"></div>
       <div class="about__card reveal reveal-left">
         <p class="eyebrow" {...homepage.item("about.cardEyebrow")}>{about.cardEyebrow}</p>
-        <h3>
-          <Heading html={brand.name} itemProps={homepage.item("brand.name")} />
-        </h3>
+        <h3 class="heading-rich" set:html={brand.name} {...homepage.item("brand.name")} />
         <p class="about__card-desc" {...gioiThieu.item("hero.lede")}>
           {hero.lede}
         </p>
@@ -47,9 +44,11 @@ const { hero, intro } = gioiThieu;
       style="--reveal-delay: 160ms;"
     >
       <p class="eyebrow" {...homepage.item("about.eyebrow")}>{about.eyebrow}</p>
-      <h2 class="section-title">
-        <Heading html={about.heading} itemProps={homepage.item("about.heading")} />
-      </h2>
+      <h2
+        class:list={["section-title", "heading-rich"]}
+        set:html={about.heading}
+        {...homepage.item("about.heading")}
+      />
       <p
         class="section-lede"
         style="max-width:56ch; margin-block: 1.25rem 1.5rem;"
@@ -126,8 +125,8 @@ const { hero, intro } = gioiThieu;
     margin-block: 0.4rem 0.6rem;
   }
 
-  /* The <strong> lives inside <Heading>'s own <span>, outside this file's
-     scoped-CSS boundary, hence :global(). */
+  /* The <strong> arrives via set:html (raw HTML from brand.name), so it
+     carries no Astro scope attribute - hence :global(). */
   :global(.about__card h3 strong) {
     font-style: normal;
     font-weight: inherit;

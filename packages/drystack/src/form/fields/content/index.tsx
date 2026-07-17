@@ -41,7 +41,7 @@ const defaultHeadingLevels = [2, 3, 4, 5, 6] as const;
 // improvising it tends to produce nodes the schema drops on parse. Leaving
 // them out of the prompt costs nothing - a person can still add them by hand.
 function allowedHtmlTags(config: EditorConfig): string[] {
-  const tags = ["p"];
+  const tags = config.inlineOnly ? [] : ["p"];
   for (const level of config.heading.levels) tags.push(`h${level}`);
   if (config.bold) tags.push("strong");
   if (config.italic) tags.push("em");
@@ -85,6 +85,7 @@ export function content({
       heading: options.heading ?? defaultHeadingLevels,
     },
     true,
+    inline,
   );
   const getSchema = () => {
     if (!schema) {

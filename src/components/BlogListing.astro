@@ -4,7 +4,6 @@ import Main from "../layout/main.astro";
 import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
 import Icon from "../components/Icon.astro";
-import Heading from "./Heading.astro";
 import JsonLd from "./JsonLd.astro";
 import type { BlogPost } from "../data/blog";
 import type { DryItem } from "@drystack/astro/dry";
@@ -72,9 +71,11 @@ const breadcrumbSchema = {
     </div>
     <div class="container page-hero__inner" data-stagger="120">
       <p class="eyebrow reveal" {...eyebrowItemProps}>{eyebrow}</p>
-      <h1 class="section-title reveal">
-        <Heading html={heading} itemProps={headingItemProps} />
-      </h1>
+      <h1
+        class:list={["section-title reveal", "heading-rich"]}
+        set:html={heading}
+        {...headingItemProps}
+      />
       <p
         class="section-lede reveal"
         style="margin: 1rem auto 0;"

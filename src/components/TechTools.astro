@@ -1,7 +1,6 @@
 ---
 import { Image } from "astro:assets";
 import Icon from "./Icon.astro";
-import Heading from "./Heading.astro";
 import { dry } from "@drystack/astro/dry";
 import config from "../../drystack.config";
 
@@ -32,9 +31,11 @@ const tilesOnSphere = tools.map((t, i) => {
 	<div class="container tech-tools__inner">
 		<div class="tech__content reveal reveal-left">
 			<p class="eyebrow" {...homepage.item("techTools.eyebrow")}>{techTools.eyebrow}</p>
-			<h2 class="tech__title">
-				<Heading html={techTools.heading} itemProps={homepage.item("techTools.heading")} />
-			</h2>
+			<h2
+				class:list={["tech__title", "heading-rich"]}
+				set:html={techTools.heading}
+				{...homepage.item("techTools.heading")}
+			/>
 			<ul class="tech__points" {...homepage.item("techTools.points")}>
 				{techTools.points.map((p, i) => (
 					<li>

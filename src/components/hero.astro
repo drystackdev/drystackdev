@@ -1,7 +1,6 @@
 ---
 import { Image } from "astro:assets";
 import Icon from "./Icon.astro";
-import Heading from "./Heading.astro";
 import { dry } from "@drystack/astro/dry";
 import config from "../../drystack.config";
 import heroImage from "../assets/hero.png";
@@ -77,19 +76,15 @@ const { intro } = gioiThieu;
       {hero.eyebrow}
     </p>
 
-    <h1 class="hero__title reveal">
-      <Heading
-        html={brand.name}
-        class="hero__title-outline"
-        itemProps={homepage.item("brand.name")}
-      />
-    </h1>
+    <h1
+      class:list={["hero__title reveal", "heading-rich", "hero__title-outline"]}
+      set:html={brand.name}
+      {...homepage.item("brand.name")}
+    />
 
     <div class="hero__row">
       <div class="hero__tagline reveal reveal-right">
-        <h2>
-          <Heading html={hero.tagline} itemProps={homepage.item("hero.tagline")} />
-        </h2>
+        <h2 class="heading-rich" set:html={hero.tagline} {...homepage.item("hero.tagline")} />
         <p {...homepage.item("hero.description")}>
           {hero.description}
         </p>
@@ -245,12 +240,11 @@ const { intro } = gioiThieu;
     gap: 0.05em;
   }
 
-  /* Rendered via <Heading class="hero__title-outline">, which mounts its own
-     <span> outside this file's scoped-CSS boundary, hence :global(). The
-     outline shadow applies to the whole span; the nested <strong> (the
-     bold-highlighted phrase) overrides to the shared .heading-rich strong
-     gradient-fill look instead (global.css) and drops the shadow so it
-     doesn't bleed into the gradient text. */
+  /* The nested <strong> (the bold-highlighted phrase) arrives via set:html
+     (raw HTML from brand.name), so it carries no Astro scope attribute -
+     hence :global(). It overrides to the shared .heading-rich strong
+     gradient-fill look instead (global.css) and drops the outline shadow so
+     it doesn't bleed into the gradient text. */
   :global(.hero__title-outline) {
     color: #141313;
     text-shadow:
@@ -299,10 +293,12 @@ const { intro } = gioiThieu;
 
   .hero__tagline h2 {
     width: 150%;
+    max-width: 34ch;
     font-family: var(--font-display);
     font-weight: 800;
-    font-size: clamp(2.5rem, 4vw, 3.75rem);
-    line-height: 1.15;
+    font-size: 2.2rem;
+    line-height: 1.2;
+    color: var(--text-muted);
   }
 
   .hero__tagline p {
@@ -369,6 +365,7 @@ const { intro } = gioiThieu;
     width: min(480px, 78vw);
     margin: clamp(-8rem, -14vw, -4rem) clamp(-3rem, -6vw, -1.5rem) -2.5rem;
     z-index: 2;
+    pointer-events: none;
   }
 
   @media (max-width: 900px) {

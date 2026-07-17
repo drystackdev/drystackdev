@@ -857,7 +857,7 @@ export type EditorSchema = {
   schema: Schema;
   nodes: Partial<{
     [_ in keyof typeof nodeSpecs]: NodeType;
-  }> & { paragraph: {}; doc: {}; text: {}; heading: NodeType };
+  }> & { doc: {}; text: {}; heading: NodeType };
   marks: Partial<{
     [_ in keyof typeof markSpecs]: MarkType;
   }>;
@@ -906,8 +906,8 @@ export function createEditorSchema(
       }
     : nodeSpecs.paragraph;
   const nodeSpecsWithCustomNodes: Record<string, EditorNodeSpec> = {
-    doc: nodeSpecs.doc,
-    paragraph,
+    doc: config.inlineOnly ? { content: inlineContent } : nodeSpecs.doc,
+    ...(config.inlineOnly ? {} : { paragraph }),
     text: nodeSpecs.text,
     hard_break: nodeSpecs.hard_break,
     ...getCustomNodeSpecs(components),

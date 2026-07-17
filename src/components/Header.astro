@@ -1,11 +1,10 @@
 ---
 import Icon from "./Icon.astro";
-import Heading from "./Heading.astro";
 import { dry } from "@drystack/astro/dry";
 import config from "../../drystack.config";
 import { htmlToPlainText } from "../lib/heading";
 
-const homepage = (await dry(config).singleton.homepage) as any;
+const homepage = (await dry(config).singleton.homepage);
 const { brand, headerNav } = homepage;
 
 const links = headerNav.map((n: { href: string; label: string }, i: number) => ({
@@ -20,13 +19,13 @@ const links = headerNav.map((n: { href: string; label: string }, i: number) => (
   <div class="site-header__inner">
     <a href="/" class="brand">
       <span class="brand__mark">{htmlToPlainText(brand.name).charAt(0)}</span>
-      <Heading
-        html={brand.name}
-        class="brand__name"
-        itemProps={homepage.item("brand.name")}
+      <span
+        class:list={["heading-rich", "brand__name"]}
+        set:html={brand.name}
+        {...homepage.item("brand.name")}
       />
     </a>
-    <nav class="nav">
+    <nav class="nav" >
       {
         links.map((link) => (
           <a href={link.href} data-match={link.match} {...link.itemProps}>
@@ -178,8 +177,8 @@ const links = headerNav.map((n: { href: string; label: string }, i: number) => (
     font-weight: 800;
   }
 
-  /* Rendered via <Heading class="brand__name">, which mounts its own <span>
-     outside this file's scoped-CSS boundary, hence :global(). */
+  /* The <strong> arrives via set:html (raw HTML from brand.name), so it
+     carries no Astro scope attribute - hence :global(). */
   :global(.brand__name strong) {
     font-style: normal;
     font-weight: inherit;

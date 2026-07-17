@@ -1,6 +1,5 @@
 ---
 import Icon from "./Icon.astro";
-import Heading from "./Heading.astro";
 import { dry } from "@drystack/astro/dry";
 import config from "../../drystack.config";
 
@@ -24,9 +23,11 @@ const info = [
 	<div class="container contact__inner">
 		<div class="contact__intro reveal reveal-left">
 			<p class="eyebrow" {...homepage.item("contactSection.eyebrow")}>{contactSection.eyebrow}</p>
-			<h2 class="section-title">
-				<Heading html={contactSection.heading} itemProps={homepage.item("contactSection.heading")} />
-			</h2>
+			<h2
+				class:list={["section-title", "heading-rich"]}
+				set:html={contactSection.heading}
+				{...homepage.item("contactSection.heading")}
+			/>
 			<p class="section-lede" style="margin-top: 1rem;" {...homepage.item("contactSection.lede")}>
 				{contactSection.lede}
 			</p>

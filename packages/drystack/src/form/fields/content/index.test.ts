@@ -43,3 +43,13 @@ test("inline reader.parse falls back to '' for an unset value", () => {
   const field = fields.content({ label: "Nội dung", inline: true });
   expect(field.reader.parse(undefined)).toBe("");
 });
+
+test("inline: true drops 'p' from the AI codec's allowed tags", () => {
+  const field = fields.content({ label: "Nội dung", inline: true });
+  expect(field.aiMeta?.htmlTags).not.toContain("p");
+});
+
+test("default field still advertises 'p' to the AI codec", () => {
+  const field = fields.content({ label: "Nội dung" });
+  expect(field.aiMeta?.htmlTags).toContain("p");
+});

@@ -157,6 +157,9 @@ export function mdxToProseMirror(
 
 const wrapInParagraph =
   (schema: EditorSchema) => (children: ProseMirrorNode[]) => {
+    // mdx-format doc always has paragraph - inline-only mode is
+    // HTML-content-field-only.
+    const paragraph = schema.nodes.paragraph!;
     const newChildren: ProseMirrorNode[] = [];
     let inlineQueue: ProseMirrorNode[] = [];
     for (const child of children) {
@@ -165,13 +168,13 @@ const wrapInParagraph =
         continue;
       }
       if (inlineQueue.length) {
-        newChildren.push(schema.nodes.paragraph.createChecked({}, inlineQueue));
+        newChildren.push(paragraph.createChecked({}, inlineQueue));
         inlineQueue = [];
       }
       newChildren.push(child);
     }
     if (inlineQueue.length) {
-      newChildren.push(schema.nodes.paragraph.createChecked({}, inlineQueue));
+      newChildren.push(paragraph.createChecked({}, inlineQueue));
     }
     return newChildren;
   };
@@ -264,7 +267,9 @@ function markdocNodeToProseMirrorNode(
     });
   }
   if (node.type === 'paragraph') {
-    return createAndFill(node, schema.nodes.paragraph, {});
+    // mdx-format doc always has paragraph - inline-only mode is
+    // HTML-content-field-only.
+    return createAndFill(node, schema.nodes.paragraph!, {});
   }
   if (node.type === 'root') {
     return createAndFill(node, schema.nodes.doc, {});
@@ -397,7 +402,7 @@ function markdocNodeToProseMirrorNode(
         error(`${node.type} has unexpected children`);
       }
       if (componentConfig.kind === 'inline' && !parentType?.isTextblock) {
-        return schema.nodes.paragraph.createAndFill({}, pmNode)!;
+        return schema.nodes.paragraph!.createAndFill({}, pmNode)!;
       }
       return pmNode;
     }

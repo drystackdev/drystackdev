@@ -251,7 +251,7 @@ export const Toolbar = memo(function Toolbar(
               <TooltipTrigger>
                 <ToolbarButton
                   aria-label="Code block"
-                  command={toggleCodeBlock(nodes.code_block, nodes.paragraph)}
+                  command={toggleCodeBlock(nodes.code_block, nodes.paragraph!)}
                   isSelected={typeInSelection(nodes.code_block)}
                 >
                   <Icon src={codeIcon} />
@@ -446,7 +446,7 @@ const HeadingMenu = (props: { headingType: NodeType }) => {
   const menuState = getHeadingMenuState(
     state,
     props.headingType,
-    nodes.paragraph,
+    nodes.paragraph!,
   );
   const runCommand = useEditorDispatchCommand();
 
@@ -463,7 +463,7 @@ const HeadingMenu = (props: { headingType: NodeType }) => {
         onSelectionChange={(selected) => {
           let key = headingMenuVals.get(selected!);
           if (key === "normal") {
-            runCommand(setBlockType(nodes.paragraph));
+            runCommand(setBlockType(nodes.paragraph!));
           } else if (key) {
             runCommand(
               setBlockType(props.headingType, {

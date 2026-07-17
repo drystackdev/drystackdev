@@ -8,6 +8,15 @@ export function placeholderPlugin(text: string) {
     props: {
       decorations(state) {
         let doc = state.doc;
+        // inline-only schemas have no paragraph to sit inside - an empty doc
+        // has zero children rather than one empty textblock.
+        if (doc.childCount === 0) {
+          let placeholder = document.createElement('span');
+          placeholder.className = classes.placeholder;
+          placeholder.textContent = text;
+
+          return DecorationSet.create(doc, [Decoration.widget(0, placeholder)]);
+        }
         if (
           doc.childCount === 1 &&
           doc.firstChild?.isTextblock &&

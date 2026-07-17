@@ -115,7 +115,10 @@ export function createEditorState(
       tableEditing(),
       tableCellFocusHighlight(),
       codeBlockSyntaxHighlighting(),
-      trailingParagraph(doc.type.schema.nodes.paragraph),
+      // no-op for inline-only schemas: there's no paragraph node to append
+      ...(doc.type.schema.nodes.paragraph
+        ? [trailingParagraph(doc.type.schema.nodes.paragraph)]
+        : []),
     ],
     doc,
   });

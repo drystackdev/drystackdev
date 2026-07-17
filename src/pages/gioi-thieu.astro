@@ -4,7 +4,6 @@ import Main from "../layout/main.astro";
 import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
 import Icon from "../components/Icon.astro";
-import Heading from "../components/Heading.astro";
 import JsonLd from "../components/JsonLd.astro";
 import { dry } from "@drystack/astro/dry";
 import config from "../../drystack.config";
@@ -43,9 +42,11 @@ const breadcrumbSchema = {
     </div>
     <div class="container about-hero__inner" data-stagger="120">
       <p class="eyebrow reveal" {...page.item("hero.eyebrow")}>{hero.eyebrow}</p>
-      <h1 class="section-title reveal">
-        <Heading html={hero.heading} itemProps={page.item("hero.heading")} />
-      </h1>
+      <h1
+        class:list={["section-title reveal", "heading-rich"]}
+        set:html={hero.heading}
+        {...page.item("hero.heading")}
+      />
       <p
         class="section-lede reveal"
         style="margin-top: 1rem; max-width: 60ch;"
@@ -80,18 +81,20 @@ const breadcrumbSchema = {
             width={461}
             height={541}
           />
-          <Heading
-            html={brand.name}
-            class="portrait-badge"
-            itemProps={homepage.item("brand.name")}
+          <span
+            class:list={["heading-rich", "portrait-badge"]}
+            set:html={brand.name}
+            {...homepage.item("brand.name")}
           />
         </div>
       </div>
       <div class="about-intro__content reveal reveal-right">
         <p class="eyebrow" {...page.item("intro.eyebrow")}>{intro.eyebrow}</p>
-        <h2 class="section-title">
-          <Heading html={intro.heading} itemProps={page.item("intro.heading")} />
-        </h2>
+        <h2
+          class:list={["section-title", "heading-rich"]}
+          set:html={intro.heading}
+          {...page.item("intro.heading")}
+        />
         <p
           class="section-lede"
           style="margin-top: 1rem;"
@@ -126,9 +129,12 @@ const breadcrumbSchema = {
   <section class="about-values section--dark">
     <div class="container" data-stagger="120">
       <p class="eyebrow reveal" {...page.item("values.eyebrow")}>{values.eyebrow}</p>
-      <h2 class="section-title reveal" style="margin-block: 0.75rem 3rem;">
-        <Heading html={values.heading} itemProps={page.item("values.heading")} />
-      </h2>
+      <h2
+        class:list={["section-title reveal", "heading-rich"]}
+        style="margin-block: 0.75rem 3rem;"
+        set:html={values.heading}
+        {...page.item("values.heading")}
+      />
       <div class="about-values__grid" data-stagger {...page.item("values.items")}>
         {
           values.items.map((v, i) => (
@@ -148,9 +154,12 @@ const breadcrumbSchema = {
   <section class="about-timeline section--light">
     <div class="container" data-stagger="120">
       <p class="eyebrow reveal" {...page.item("timeline.eyebrow")}>{timeline.eyebrow}</p>
-      <h2 class="section-title reveal" style="margin-block: 0.75rem 3rem;">
-        <Heading html={timeline.heading} itemProps={page.item("timeline.heading")} />
-      </h2>
+      <h2
+        class:list={["section-title reveal", "heading-rich"]}
+        style="margin-block: 0.75rem 3rem;"
+        set:html={timeline.heading}
+        {...page.item("timeline.heading")}
+      />
       <div class="timeline" data-stagger {...page.item("timeline.items")}>
         {
           timeline.items.map((t, i) => (
@@ -241,9 +250,9 @@ const breadcrumbSchema = {
     mask-image: linear-gradient(to bottom, #000 70%, transparent 99%);
   }
 
-  /* Nhãn thương hiệu đè lên góc dưới bên phải của ảnh - rendered via
-     <Heading class="portrait-badge">, which mounts its own <span> outside
-     this file's scoped-CSS boundary, hence :global(). */
+  /* Nhãn thương hiệu đè lên góc dưới bên phải của ảnh - the <strong> inside
+     arrives via set:html (raw HTML from brand.name), so it carries no Astro
+     scope attribute, hence :global(). */
   :global(.portrait-badge) {
     position: absolute;
     right: -0.85rem;

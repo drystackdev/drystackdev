@@ -223,6 +223,7 @@
     "yjs": "^13.6.11"
   },
   "devDependencies": {
+    "@happy-dom/global-registrator": "^20.10.6",
     "@iconify-json/solar": "^1.2.5",
     "@iconify/utils": "^3.1.4",
     "@internationalized/string-compiler": "^3.2.6",
@@ -241,6 +242,7 @@
     "@types/signal-exit": "^3.0.1",
     "@vitest/pretty-format": "^3.0.5",
     "eslint": "^8.18.0",
+    "happy-dom": "^20.10.6",
     "jest-diff": "^29.0.1",
     "mkdist": "^2.4.1",
     "outdent": "^0.8.0",

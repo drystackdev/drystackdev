@@ -30,9 +30,11 @@ export function pasteLinks(schema: EditorSchema) {
   return new Plugin({
     props: {
       transformPasted(slice) {
+        const paragraph = schema.nodes.paragraph;
         if (
+          paragraph &&
           slice.content.childCount === 1 &&
-          slice.content.firstChild?.type === schema.nodes.paragraph &&
+          slice.content.firstChild?.type === paragraph &&
           slice.content.firstChild.firstChild?.text !== undefined &&
           urlPattern.test(slice.content.firstChild.firstChild.text) &&
           isValidURL(slice.content.firstChild.firstChild.text) &&
@@ -40,7 +42,7 @@ export function pasteLinks(schema: EditorSchema) {
         ) {
           return Slice.maxOpen(
             Fragment.from(
-              schema.nodes.paragraph.createChecked(
+              paragraph.createChecked(
                 null,
                 schema.schema.text(slice.content.firstChild.firstChild.text, [
                   linkType.create({

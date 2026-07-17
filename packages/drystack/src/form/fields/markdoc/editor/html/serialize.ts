@@ -217,7 +217,12 @@ function proseMirrorToHtmlNode(
   const inline = (fragment: Fragment) => _inline(fragment, state);
 
   if (node.type === schema.nodes.doc) {
-    return { kind: "fragment", children: blocks(node.content) };
+    return {
+      kind: "fragment",
+      children: schema.config.inlineOnly
+        ? inline(node.content)
+        : blocks(node.content),
+    };
   }
   if (node.type === schema.nodes.paragraph) {
     return {

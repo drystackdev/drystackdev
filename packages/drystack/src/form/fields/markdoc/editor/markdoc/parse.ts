@@ -144,20 +144,23 @@ export function markdocToProseMirror(
 
 function listItem(markdocNode: MarkdocNode, nodeType: NodeType) {
   const schema = getSchema();
+  // markdoc-format lists always parse against a schema with paragraph -
+  // inline-only mode is HTML-content-field-only.
+  const paragraph = schema.nodes.paragraph!;
   const children: ProseMirrorNode[] = [];
   for (const node of markdocNode.children) {
-    const pmNode = markdocNodeToProseMirrorNode(node, schema.nodes.paragraph);
+    const pmNode = markdocNodeToProseMirrorNode(node, paragraph);
     if (!pmNode) continue;
     if (!Array.isArray(pmNode)) {
       if (pmNode.isInline) {
-        children.push(schema.nodes.paragraph.createAndFill({}, pmNode)!);
+        children.push(paragraph.createAndFill({}, pmNode)!);
         continue;
       }
       children.push(pmNode);
       continue;
     }
     if (node.type === 'inline') {
-      children.push(schema.nodes.paragraph.createAndFill({}, pmNode)!);
+      children.push(paragraph.createAndFill({}, pmNode)!);
       continue;
     }
     children.push(...pmNode);
@@ -249,7 +252,9 @@ function markdocNodeToProseMirrorNode(
     });
   }
   if (node.type === 'paragraph') {
-    return createAndFill(node, schema.nodes.paragraph, {});
+    // markdoc-format doc always has paragraph - inline-only mode is
+    // HTML-content-field-only.
+    return createAndFill(node, schema.nodes.paragraph!, {});
   }
   if (node.type === 'comment') {
     return [];
@@ -366,7 +371,7 @@ function markdocNodeToProseMirrorNode(
         });
       }
       if (componentConfig.kind === 'inline' && !parentType?.isTextblock) {
-        return schema.nodes.paragraph.createAndFill({}, pmNode)!;
+        return schema.nodes.paragraph!.createAndFill({}, pmNode)!;
       }
       return pmNode;
     }

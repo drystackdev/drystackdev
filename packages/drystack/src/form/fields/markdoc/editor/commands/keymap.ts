@@ -95,15 +95,22 @@ export function keymapForSchema(
     add('Backspace', deleteEmptyGridCell);
     add('Delete', deleteEmptyGridCell);
   }
-  add(
-    'Enter',
-    chainCommands(
-      newlineInCode,
-      createParagraphNear,
-      liftEmptyBlock,
-      splitBlock
-    )
-  );
+  if (nodes.paragraph) {
+    add(
+      'Enter',
+      chainCommands(
+        newlineInCode,
+        createParagraphNear,
+        liftEmptyBlock,
+        splitBlock
+      )
+    );
+  } else {
+    // inline-only schema: no block to split into - swallow the keystroke so
+    // the browser's native contenteditable handling never gets a chance to
+    // insert something the schema has no node for.
+    add('Enter', () => true);
+  }
 
   let deleteBackward = chainCommands(
     deleteSelection,
@@ -171,7 +178,9 @@ export function keymapForSchema(
   if (nodes.ordered_list) {
     add('Shift-Ctrl-9', toggleList(nodes.ordered_list));
   }
-  add('Shift-Ctrl-0', setBlockType(nodes.paragraph));
+  if (nodes.paragraph) {
+    add('Shift-Ctrl-0', setBlockType(nodes.paragraph));
+  }
   if (nodes.heading) {
     for (const level of config.heading.levels) {
       add(`Shift-Ctrl-${level}`, setBlockType(nodes.heading, { level }));

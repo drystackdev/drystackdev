@@ -78,6 +78,11 @@ export type EditorConfig = {
   // layout that only round-trips through HTML: text alignment on paragraphs/
   // headings and explicit image width/height/float. false for markdoc/mdx.
   htmlLayout: boolean;
+  // when true, the doc allows only inline content (text + marks) directly
+  // under `doc` - no paragraph, heading, list, table, grid, blockquote,
+  // image, divider or code block, and no wrapping tag on serialize. Forces
+  // every block-related flag below off regardless of what options requested.
+  inlineOnly: boolean;
 };
 
 export type MarkdocEditorOptions = {
@@ -136,10 +141,12 @@ type EditorOptions = MarkdocEditorOptions | MDXEditorOptions;
 export function editorOptionsToConfig(
   options: EditorOptions,
   isHtml = false,
+  inlineOnly = false,
 ): EditorConfig {
   return {
     supportsMediaLibraryReferences: isHtml,
     htmlLayout: isHtml,
+    inlineOnly,
     bold: options.bold ?? true,
     italic: options.italic ?? true,
     // no markdoc/mdx syntax maps to underline, so it only defaults on for
@@ -147,38 +154,45 @@ export function editorOptionsToConfig(
     underline: options.underline ?? isHtml,
     strikethrough: options.strikethrough ?? true,
     code: options.code ?? true,
-    heading: (() => {
-      let levels = [];
-      let levelsOpt =
-        typeof options.heading === "object" && !Array.isArray(options.heading)
-          ? (options.heading as { levels: HeadingLevels }).levels
-          : (options.heading as HeadingLevels | undefined);
-      if (levelsOpt === true || levelsOpt === undefined) {
-        levels = [1, 2, 3, 4, 5, 6];
-      }
-      if (Array.isArray(levelsOpt)) {
-        levels = levelsOpt;
-      }
-      return {
-        levels,
-        schema:
-          options.heading &&
-          typeof options.heading === "object" &&
-          "schema" in options.heading
-            ? options.heading.schema
-            : {},
-      };
-    })(),
-    blockquote: options.blockquote ?? true,
-    orderedList: options.orderedList ?? true,
-    unorderedList: options.unorderedList ?? true,
-    table: options.table ?? true,
+    heading: inlineOnly
+      ? { levels: [], schema: {} }
+      : (() => {
+          let levels = [];
+          let levelsOpt =
+            typeof options.heading === "object" &&
+            !Array.isArray(options.heading)
+              ? (options.heading as { levels: HeadingLevels }).levels
+              : (options.heading as HeadingLevels | undefined);
+          if (levelsOpt === true || levelsOpt === undefined) {
+            levels = [1, 2, 3, 4, 5, 6];
+          }
+          if (Array.isArray(levelsOpt)) {
+            levels = levelsOpt;
+          }
+          return {
+            levels,
+            schema:
+              options.heading &&
+              typeof options.heading === "object" &&
+              "schema" in options.heading
+                ? options.heading.schema
+                : {},
+          };
+        })(),
+    blockquote: inlineOnly ? false : (options.blockquote ?? true),
+    orderedList: inlineOnly ? false : (options.orderedList ?? true),
+    unorderedList: inlineOnly ? false : (options.unorderedList ?? true),
+    table: inlineOnly ? false : (options.table ?? true),
     // grid is HTML-only: default on for the HTML `content` field, always off
     // for markdoc/mdx (which can't serialize the div+style layout)
-    grid: isHtml ? ((options as MarkdocEditorOptions).grid ?? true) : false,
+    grid: inlineOnly
+      ? false
+      : isHtml
+        ? ((options as MarkdocEditorOptions).grid ?? true)
+        : false,
     link: options.link ?? true,
     image:
-      options.image !== false
+      !inlineOnly && options.image !== false
         ? (() => {
             const opts = options.image === true ? undefined : options.image;
             return {
@@ -192,9 +206,9 @@ export function editorOptionsToConfig(
             };
           })()
         : undefined,
-    divider: options.divider ?? true,
+    divider: inlineOnly ? false : (options.divider ?? true),
     codeBlock:
-      options.codeBlock === false
+      inlineOnly || options.codeBlock === false
         ? undefined
         : {
             schema:

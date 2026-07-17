@@ -1,7 +1,6 @@
 ---
 import { Image } from "astro:assets";
 import Icon from "./Icon.astro";
-import Heading from "./Heading.astro";
 import { getBlogPosts, getSeoKnowledgePosts } from "../data/blog";
 import { dry } from "@drystack/astro/dry";
 import config from "../../drystack.config";
@@ -43,9 +42,11 @@ function formatDate(d: string) {
 
   <div class="container blog-preview__head">
     <p class="eyebrow reveal" {...blogPreview.item("eyebrow")}>{blogPreview.eyebrow}</p>
-    <h2 class="section-title reveal">
-      <Heading html={blogPreview.heading} itemProps={blogPreview.item("heading")} />
-    </h2>
+    <h2
+      class:list={["section-title reveal", "heading-rich"]}
+      set:html={blogPreview.heading}
+      {...blogPreview.item("heading")}
+    />
     <p class="section-lede reveal" style="margin: 1rem auto 0;" {...blogPreview.item("lede")}>
       {blogPreview.lede}
     </p>

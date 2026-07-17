@@ -255,7 +255,7 @@ export default config({
             eyebrow: fields.text({ label: "Eyebrow" }),
             tagline: fields.content({
               label: "Tiêu đề",
-              description: `Xuống dòng thật giữa các dòng (Enter). ${headingFieldDescription}`,
+              description: `Xuống dòng giữa các dòng bằng Shift+Enter. ${headingFieldDescription}`,
               inline: true,
               options: headingContentOptions,
             }),
