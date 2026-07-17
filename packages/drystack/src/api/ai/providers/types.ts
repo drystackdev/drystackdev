@@ -12,7 +12,7 @@ export type AiProvider = {
   name: string;
   /**
    * Returns the model's raw text output, already unwrapped from whatever SSE
-   * envelope the vendor uses — callers see the same plain token stream
+   * envelope the vendor uses - callers see the same plain token stream
    * regardless of provider.
    *
    * Implementations must use `fetch` + web streams only (no vendor SDKs):
@@ -26,21 +26,21 @@ export class AiProviderError extends Error {
   status: number;
   constructor(message: string, status: number) {
     super(message);
-    this.name = 'AiProviderError';
+    this.name = "AiProviderError";
     this.status = status;
   }
 }
 
 /**
  * Parses an SSE byte stream into the `data:` payloads of each event, dropping
- * comments/other fields. Shared by every adapter — the vendors differ in what
+ * comments/other fields. Shared by every adapter - the vendors differ in what
  * the JSON *inside* `data:` looks like, not in the framing.
  */
 export function sseDataStream(
-  body: ReadableStream<Uint8Array>
+  body: ReadableStream<Uint8Array>,
 ): ReadableStream<string> {
   const decoder = new TextDecoder();
-  let buffer = '';
+  let buffer = "";
   return new ReadableStream<string>({
     async start(controller) {
       const reader = body.getReader();
@@ -55,9 +55,9 @@ export function sseDataStream(
           let sepIndex: number;
           while ((sepIndex = findEventEnd(buffer)) !== -1) {
             const rawEvent = buffer.slice(0, sepIndex);
-            buffer = buffer.slice(sepIndex).replace(/^(\r?\n){2}/, '');
+            buffer = buffer.slice(sepIndex).replace(/^(\r?\n){2}/, "");
             for (const line of rawEvent.split(/\r?\n/)) {
-              if (line.startsWith('data:')) {
+              if (line.startsWith("data:")) {
                 controller.enqueue(line.slice(5).trim());
               }
             }
@@ -77,8 +77,8 @@ export function sseDataStream(
 }
 
 function findEventEnd(buffer: string): number {
-  const lf = buffer.indexOf('\n\n');
-  const crlf = buffer.indexOf('\r\n\r\n');
+  const lf = buffer.indexOf("\n\n");
+  const crlf = buffer.indexOf("\r\n\r\n");
   if (lf === -1) return crlf;
   if (crlf === -1) return lf;
   return Math.min(lf, crlf);
@@ -90,7 +90,7 @@ function findEventEnd(buffer: string): number {
  */
 export function textStreamFromSse(
   body: ReadableStream<Uint8Array>,
-  extract: (data: string) => string | undefined
+  extract: (data: string) => string | undefined,
 ): ReadableStream<string> {
   const dataStream = sseDataStream(body);
   return dataStream.pipeThrough(
@@ -99,6 +99,6 @@ export function textStreamFromSse(
         const text = extract(data);
         if (text) controller.enqueue(text);
       },
-    })
+    }),
   );
 }

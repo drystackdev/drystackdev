@@ -1,14 +1,14 @@
 import {
   getThumbFromPersistedCache,
   setThumbToPersistedCache,
-} from '../object-cache';
+} from "../object-cache";
 
 // Shared image-preview caching used by every thumbnail/preview in the File
 // Manager and Media Library. Two layers live here:
 //
 //  1. A refcounted object-URL cache. Blob bytes already live in `blobCache` /
 //     IndexedDB (see useItemData.ts), but each preview component used to call
-//     `URL.createObjectURL` on mount and revoke on unmount — so scrolling a
+//     `URL.createObjectURL` on mount and revoke on unmount - so scrolling a
 //     grid back and forth churned object URLs constantly for bytes we already
 //     had. Here an object URL is created once per cache key and shared; when
 //     the last consumer releases it, it lingers in a small idle queue instead
@@ -28,7 +28,7 @@ const urlCache = new Map<string, UrlEntry>();
 
 // Keys whose refs have dropped to 0 but whose URL we keep alive a little
 // longer (most-recently-released last). Revoked only when evicted past the
-// limit — this is what makes scroll-back instant.
+// limit - this is what makes scroll-back instant.
 const IDLE_URL_LIMIT = 60;
 const idleUrlQueue: string[] = [];
 
@@ -38,7 +38,7 @@ function unqueueIdle(key: string) {
 }
 
 // Reuse an already-created object URL for `key` without needing the bytes
-// again — lets a re-mounting consumer skip re-fetching/re-encoding entirely.
+// again - lets a re-mounting consumer skip re-fetching/re-encoding entirely.
 // Returns null if nothing is cached for the key.
 export function acquireExistingObjectURL(key: string): string | null {
   const existing = urlCache.get(key);
@@ -87,7 +87,7 @@ export function thumbnailKey(sha: string, maxDim = THUMBNAIL_MAX_DIM) {
   return `${sha}@${maxDim}`;
 }
 
-// Dedupe concurrent generations for the same blob — a grid mounts N cards for
+// Dedupe concurrent generations for the same blob - a grid mounts N cards for
 // the same image at once and they'd otherwise each decode+encode it.
 const thumbInFlight = new Map<string, Promise<Uint8Array>>();
 
@@ -96,7 +96,7 @@ const thumbInFlight = new Map<string, Promise<Uint8Array>>();
 export async function getThumbnailBytes(
   sha: string,
   sourceBytes: Uint8Array,
-  maxDim = THUMBNAIL_MAX_DIM
+  maxDim = THUMBNAIL_MAX_DIM,
 ): Promise<Uint8Array> {
   const key = thumbnailKey(sha, maxDim);
   const inFlight = thumbInFlight.get(key);
@@ -124,11 +124,11 @@ export async function getThumbnailBytes(
 // enough that re-encoding wouldn't save anything.
 async function generateThumbnail(
   sourceBytes: Uint8Array,
-  maxDim: number
+  maxDim: number,
 ): Promise<Uint8Array | null> {
   if (
-    typeof createImageBitmap !== 'function' ||
-    typeof OffscreenCanvas === 'undefined'
+    typeof createImageBitmap !== "function" ||
+    typeof OffscreenCanvas === "undefined"
   ) {
     return null;
   }
@@ -145,14 +145,14 @@ async function generateThumbnail(
     const w = Math.max(1, Math.round(width * scale));
     const h = Math.max(1, Math.round(height * scale));
     const canvas = new OffscreenCanvas(w, h);
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     if (!ctx) return null;
     ctx.drawImage(bitmap, 0, 0, w, h);
     let blob: Blob;
     try {
-      blob = await canvas.convertToBlob({ type: 'image/webp', quality: 0.8 });
+      blob = await canvas.convertToBlob({ type: "image/webp", quality: 0.8 });
     } catch {
-      blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.8 });
+      blob = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.8 });
     }
     return new Uint8Array(await blob.arrayBuffer());
   } catch {

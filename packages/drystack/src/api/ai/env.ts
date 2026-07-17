@@ -4,10 +4,10 @@
 // route can answer "is this configured?" without loading an adapter.
 
 export const AI_PROVIDERS = [
-  'anthropic',
-  'openai',
-  'google',
-  'openai-compatible',
+  "anthropic",
+  "openai",
+  "google",
+  "openai-compatible",
 ] as const;
 
 export type AiProviderName = (typeof AI_PROVIDERS)[number];
@@ -20,11 +20,11 @@ export type AiRuntimeConfig = {
 };
 
 export type AiConfigErrorReason =
-  | 'missing-provider'
-  | 'unknown-provider'
-  | 'missing-key'
-  | 'missing-model'
-  | 'missing-base-url';
+  | "missing-provider"
+  | "unknown-provider"
+  | "missing-key"
+  | "missing-model"
+  | "missing-base-url";
 
 export type AiConfigError = { reason: AiConfigErrorReason; message: string };
 
@@ -35,15 +35,15 @@ export type AiEnv = {
   DRY_AI_BASE_URL?: string;
 };
 
-// Every provider but `openai-compatible` has a sensible default — that one
+// Every provider but `openai-compatible` has a sensible default - that one
 // points at an arbitrary third-party endpoint (Groq, DeepSeek, OpenRouter,
 // Ollama, …), so there's no model name we could guess. It's the only provider
 // where DRY_AI_MODEL is mandatory.
 const DEFAULT_MODELS: Record<AiProviderName, string | undefined> = {
-  anthropic: 'claude-sonnet-5',
-  openai: 'gpt-5',
-  google: 'gemini-2.5-pro',
-  'openai-compatible': undefined,
+  anthropic: "claude-sonnet-5",
+  openai: "gpt-5",
+  google: "gemini-2.5-pro",
+  "openai-compatible": undefined,
 };
 
 function isProviderName(value: string): value is AiProviderName {
@@ -54,39 +54,39 @@ export function resolveAiEnv(env: AiEnv): AiRuntimeConfig | AiConfigError {
   const rawProvider = env.DRY_AI_PROVIDER?.trim();
   if (!rawProvider) {
     return {
-      reason: 'missing-provider',
-      message: 'DRY_AI_PROVIDER chưa được cấu hình.',
+      reason: "missing-provider",
+      message: "DRY_AI_PROVIDER chưa được cấu hình.",
     };
   }
   const provider = rawProvider.toLowerCase();
   if (!isProviderName(provider)) {
     return {
-      reason: 'unknown-provider',
-      message: `DRY_AI_PROVIDER="${rawProvider}" không hợp lệ. Chọn một trong: ${AI_PROVIDERS.join(', ')}.`,
+      reason: "unknown-provider",
+      message: `DRY_AI_PROVIDER="${rawProvider}" không hợp lệ. Chọn một trong: ${AI_PROVIDERS.join(", ")}.`,
     };
   }
 
   const apiKey = env.DRY_AI_KEY?.trim();
   if (!apiKey) {
     return {
-      reason: 'missing-key',
-      message: 'DRY_AI_KEY chưa được cấu hình.',
+      reason: "missing-key",
+      message: "DRY_AI_KEY chưa được cấu hình.",
     };
   }
 
   const model = env.DRY_AI_MODEL?.trim() || DEFAULT_MODELS[provider];
   if (!model) {
     return {
-      reason: 'missing-model',
+      reason: "missing-model",
       message:
         'DRY_AI_MODEL là bắt buộc khi DRY_AI_PROVIDER="openai-compatible" (không có model mặc định cho endpoint tuỳ chỉnh).',
     };
   }
 
   const baseUrl = env.DRY_AI_BASE_URL?.trim();
-  if (provider === 'openai-compatible' && !baseUrl) {
+  if (provider === "openai-compatible" && !baseUrl) {
     return {
-      reason: 'missing-base-url',
+      reason: "missing-base-url",
       message:
         'DRY_AI_BASE_URL là bắt buộc khi DRY_AI_PROVIDER="openai-compatible".',
     };
@@ -97,12 +97,12 @@ export function resolveAiEnv(env: AiEnv): AiRuntimeConfig | AiConfigError {
     apiKey,
     model,
     // Trailing slash here would produce `//chat/completions` once joined.
-    baseUrl: baseUrl?.replace(/\/+$/, ''),
+    baseUrl: baseUrl?.replace(/\/+$/, ""),
   };
 }
 
 export function isAiConfigError(
-  value: AiRuntimeConfig | AiConfigError
+  value: AiRuntimeConfig | AiConfigError,
 ): value is AiConfigError {
-  return 'reason' in value;
+  return "reason" in value;
 }

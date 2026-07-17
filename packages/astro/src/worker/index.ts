@@ -2,8 +2,8 @@
 // handler plus the build-status hub that powers the deploy progress UI.
 //
 // This lives in the package (not in the consuming app) because it is one half
-// of a contract whose other half — `watchBuildStatus` in
-// `@drystack/core/build-status` — already ships here. An app uses it as its
+// of a contract whose other half - `watchBuildStatus` in
+// `@drystack/core/build-status` - already ships here. An app uses it as its
 // worker entry directly, no source file of its own:
 //
 //   // wrangler.jsonc
@@ -19,15 +19,15 @@
 // class. An app that needs its own routes on top swaps `main` back to a local
 // file and re-exports {@link createDrystackWorker} with handlers of its own.
 
-import { handle } from '@astrojs/cloudflare/handler';
-import { DurableObject } from 'cloudflare:workers';
+import { handle } from "@astrojs/cloudflare/handler";
+import { DurableObject } from "cloudflare:workers";
 import {
   HUB_NAME,
   PUBLISH_PATH,
   WS_PATH,
   type BuildEvent,
   type BuildPhase,
-} from '@drystack/core/build-status-protocol';
+} from "@drystack/core/build-status-protocol";
 
 export type { BuildEvent, BuildPhase };
 
@@ -40,9 +40,9 @@ export type DrystackWorkerEnv = {
 
 // A single named-singleton instance for the whole site: every build event
 // (any branch, any commit) is published here, and every client connects here
-// — nobody needs to know which commit or branch is currently building. It
+// - nobody needs to know which commit or branch is currently building. It
 // just always holds the most recent event and broadcasts to whoever's
-// listening, indefinitely — there's no per-build lifecycle to retire, so
+// listening, indefinitely - there's no per-build lifecycle to retire, so
 // unlike a per-commit hub it never schedules an alarm to evict itself.
 //
 // The class name is load-bearing: it is referenced by `class_name` in the app's
@@ -54,7 +54,7 @@ export class BuildStatusHub extends DurableObject<DrystackWorkerEnv> {
 
     if (url.pathname === PUBLISH_PATH) {
       const event = (await request.json()) as BuildEvent;
-      await this.ctx.storage.put('latest', event);
+      await this.ctx.storage.put("latest", event);
       const message = JSON.stringify(event);
       for (const ws of this.ctx.getWebSockets()) {
         ws.send(message);
@@ -62,25 +62,25 @@ export class BuildStatusHub extends DurableObject<DrystackWorkerEnv> {
       return new Response(null, { status: 204 });
     }
 
-    if (request.headers.get('Upgrade') !== 'websocket') {
-      return new Response('Expected a WebSocket upgrade', { status: 400 });
+    if (request.headers.get("Upgrade") !== "websocket") {
+      return new Response("Expected a WebSocket upgrade", { status: 400 });
     }
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
-    const latest = await this.ctx.storage.get<BuildEvent>('latest');
+    const latest = await this.ctx.storage.get<BuildEvent>("latest");
     if (latest) server.send(JSON.stringify(latest));
     return new Response(null, { status: 101, webSocket: client });
   }
 
   async webSocketMessage(): Promise<void> {
-    // Server push only — the client has nothing meaningful to say.
+    // Server push only - the client has nothing meaningful to say.
   }
 
   async webSocketClose(
     ws: WebSocket,
     code: number,
-    reason: string
+    reason: string,
   ): Promise<void> {
     ws.close(code, reason);
   }
@@ -96,10 +96,10 @@ function branchFromQueueEvent(body: any): string | undefined {
 
 function phaseFromEventType(type: string | undefined): BuildPhase | undefined {
   if (!type) return undefined;
-  if (type.endsWith('build.started')) return 'started';
-  if (type.endsWith('build.succeeded')) return 'succeeded';
-  if (type.endsWith('build.failed')) return 'failed';
-  if (type.endsWith('build.canceled')) return 'canceled';
+  if (type.endsWith("build.started")) return "started";
+  if (type.endsWith("build.succeeded")) return "succeeded";
+  if (type.endsWith("build.failed")) return "failed";
+  if (type.endsWith("build.canceled")) return "canceled";
   return undefined;
 }
 
@@ -114,7 +114,7 @@ function hub(env: DrystackWorkerEnv) {
  */
 export function handleBuildStatusRequest(
   request: Request,
-  env: DrystackWorkerEnv
+  env: DrystackWorkerEnv,
 ): Promise<Response> | undefined {
   const url = new URL(request.url);
   if (url.pathname !== WS_PATH) return undefined;
@@ -128,7 +128,7 @@ export function handleBuildStatusRequest(
  */
 export async function handleBuildEventBatch(
   batch: MessageBatch<unknown>,
-  env: DrystackWorkerEnv
+  env: DrystackWorkerEnv,
 ): Promise<void> {
   for (const message of batch.messages) {
     const body = message.body as any;
@@ -136,13 +136,13 @@ export async function handleBuildEventBatch(
     const commit = commitFromQueueEvent(body);
     const branch = branchFromQueueEvent(body);
     if (!phase || !commit || !branch) {
-      console.warn('drystack: unrecognised build event, skipping', body?.type);
+      console.warn("drystack: unrecognised build event, skipping", body?.type);
       message.ack();
       continue;
     }
     const event: BuildEvent = { phase, commit, branch, receivedAt: Date.now() };
     await hub(env).fetch(`https://build-status-hub${PUBLISH_PATH}`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(event),
     });
     message.ack();
@@ -157,13 +157,13 @@ type CreateWorkerOptions<TEnv extends DrystackWorkerEnv> = {
   fetch?: (
     request: Request,
     env: TEnv,
-    ctx: ExecutionContext
+    ctx: ExecutionContext,
   ) => Response | undefined | Promise<Response | undefined>;
   /** Runs before drystack's build-event consumer, on every batch. */
   queue?: (
     batch: MessageBatch<unknown>,
     env: TEnv,
-    ctx: ExecutionContext
+    ctx: ExecutionContext,
   ) => void | Promise<void>;
 };
 
