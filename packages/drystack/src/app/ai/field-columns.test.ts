@@ -6,6 +6,7 @@ import { describeField, describeFields } from "../../api/ai/schema-to-yaml";
 import {
   canContinue,
   canPickSize,
+  configControlFor,
   initialSelection,
   isContinuableKind,
 } from "./field-columns";
@@ -128,6 +129,15 @@ test("size can only be picked on a content field being written", () => {
   expect(canPickSize(specFor("body"), "context")).toBe(false);
   expect(canPickSize(specFor("body"), "none")).toBe(false);
   expect(canPickSize(specFor("excerpt"), "fill")).toBe(false);
+});
+
+// The config column holds one control per row, so the two settings have to be
+// mutually exclusive - a field that claimed both would have to drop one.
+test("the config column offers at most one control per field", () => {
+  expect(configControlFor(specFor("body"))).toBe("size");
+  expect(configControlFor(specFor("specs"))).toBe("continue");
+  expect(configControlFor(specFor("title"))).toBe(null);
+  expect(configControlFor(specFor("excerpt"))).toBe(null);
 });
 
 test("an object field is continuable, as a flat group of fields", () => {

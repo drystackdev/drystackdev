@@ -32,8 +32,8 @@ import {
   Column,
   canContinue,
   canPickSize,
+  configControlFor,
   initialSelection,
-  isContinuableKind,
 } from "./field-columns";
 import { fieldToContextText } from "./field-value-text";
 import { seedYaml } from "./form-value-to-ai";
@@ -301,7 +301,7 @@ const fieldTable = css({
   // `minmax(0, 1fr)` rather than `1fr`: the name column takes what's left, and
   // has to be allowed to shrink under its own content so a long label
   // truncates into its tooltip instead of pushing the controls off.
-  gridTemplateColumns: "minmax(0, 1fr) auto auto auto auto",
+  gridTemplateColumns: "minmax(0, 1fr) auto auto auto",
   alignItems: "center",
   columnGap: tokenSchema.size.space.regular,
   rowGap: tokenSchema.size.space.small,
@@ -312,7 +312,7 @@ const headerCell = css({
 });
 
 // One rule under the whole header row, not one per cell: the column gaps would
-// otherwise break the line into five dashes.
+// otherwise break the line into four dashes.
 const headerRule = css({
   gridColumn: "1 / -1",
   borderBottom: `${tokenSchema.size.border.regular} solid ${tokenSchema.color.border.muted}`,
@@ -345,8 +345,8 @@ const nameButton = css({
 });
 
 // A picker defaults to the width of a form field standing on its own, which
-// here was wider than the three checkbox columns put together and left nothing
-// for the names. Its widest option is one short phrase, so it doesn't need it.
+// here was wider than the checkbox columns put together and left nothing for
+// the names. Its widest option is one short phrase, so it doesn't need it.
 const SIZE_PICKER_WIDTH = "scale.1600";
 
 function FieldTable(props: {
@@ -388,14 +388,14 @@ function FieldTable(props: {
             {stringFormatter.format("aiColName")}
           </Text>
         </div>
-        <HeaderCell
-          label={stringFormatter.format("aiColSize")}
-          help={stringFormatter.format("aiContentSize")}
-        />
-        <HeaderCell
-          label={stringFormatter.format("aiColContinue")}
-          help={stringFormatter.format("aiColContinueHelp")}
-        />
+        {/* Plain text, unlike the columns either side: the header can't say
+            what the column does when what it does depends on the row, so the
+            explaining is left to the control that's actually there. */}
+        <div className={[headerCell, centreCell].join(" ")}>
+          <Text size="small" color="neutralSecondary">
+            {stringFormatter.format("aiColConfig")}
+          </Text>
+        </div>
         <HeaderCell
           label={stringFormatter.format("aiColInput")}
           help={stringFormatter.format("aiUseAsContextHelp")}
@@ -410,6 +410,7 @@ function FieldTable(props: {
           const column = selection[spec.key] ?? "none";
           const fieldSchema = schema[spec.key];
           const value = state[spec.key];
+          const control = configControlFor(spec);
           const sizeEnabled = canPickSize(spec, column);
           const continueEnabled = canContinue(spec, fieldSchema, value, column);
 
@@ -437,47 +438,53 @@ function FieldTable(props: {
               </div>
 
               <div className={centreCell}>
-                {spec.kind === "content" ? (
-                  <Picker
-                    aria-label={`${spec.label} - ${stringFormatter.format("aiContentSize")}`}
-                    isDisabled={!sizeEnabled}
-                    width={SIZE_PICKER_WIDTH}
-                    selectedKey={sizes[spec.key] ?? "medium"}
-                    onSelectionChange={(key) =>
-                      props.onSizesChange((prev) => ({
-                        ...prev,
-                        [spec.key]: key as AiSize,
-                      }))
-                    }
-                    items={(Object.keys(SIZE_SPECS) as AiSize[]).map((key) => ({
-                      key,
-                      name: stringFormatter.format(SIZE_LABEL_KEYS[key]),
-                    }))}
-                  >
-                    {(item) => <Item key={item.key}>{item.name}</Item>}
-                  </Picker>
+                {control === "size" ? (
+                  <TooltipTrigger>
+                    <Picker
+                      aria-label={`${spec.label} - ${stringFormatter.format("aiContentSize")}`}
+                      isDisabled={!sizeEnabled}
+                      width={SIZE_PICKER_WIDTH}
+                      selectedKey={sizes[spec.key] ?? "medium"}
+                      onSelectionChange={(key) =>
+                        props.onSizesChange((prev) => ({
+                          ...prev,
+                          [spec.key]: key as AiSize,
+                        }))
+                      }
+                      items={(Object.keys(SIZE_SPECS) as AiSize[]).map(
+                        (key) => ({
+                          key,
+                          name: stringFormatter.format(SIZE_LABEL_KEYS[key]),
+                        }),
+                      )}
+                    >
+                      {(item) => <Item key={item.key}>{item.name}</Item>}
+                    </Picker>
+                    <Tooltip>{stringFormatter.format("aiColSizeHelp")}</Tooltip>
+                  </TooltipTrigger>
+                ) : control === "continue" ? (
+                  <TooltipTrigger>
+                    <Checkbox
+                      aria-label={`${spec.label} - ${stringFormatter.format("aiContinueLabel")}`}
+                      isDisabled={!continueEnabled}
+                      // A disabled box must not read as ticked: `fill` can be
+                      // unticked after `continue` was, and a tick that no longer
+                      // does anything is a lie about what will be sent.
+                      isSelected={continueEnabled && continueKeys.has(spec.key)}
+                      onChange={(checked) =>
+                        props.onContinueChange(
+                          toggle(continueKeys, spec.key, checked),
+                        )
+                      }
+                    />
+                    <Tooltip>
+                      {stringFormatter.format("aiColContinueHelp")}
+                    </Tooltip>
+                  </TooltipTrigger>
                 ) : null}
               </div>
 
-              <div className={centreCell}>
-                {isContinuableKind(spec) ? (
-                  <Checkbox
-                    aria-label={`${spec.label} - ${stringFormatter.format("aiColContinue")}`}
-                    isDisabled={!continueEnabled}
-                    // A disabled box must not read as ticked: `fill` can be
-                    // unticked after `continue` was, and a tick that no longer
-                    // does anything is a lie about what will be sent.
-                    isSelected={continueEnabled && continueKeys.has(spec.key)}
-                    onChange={(checked) =>
-                      props.onContinueChange(
-                        toggle(continueKeys, spec.key, checked),
-                      )
-                    }
-                  />
-                ) : null}
-              </div>
-
-              <div className={centreCell}>
+              <div className={centreCell} style={{textAlign: "center"}}>
                 <Checkbox
                   aria-label={`${spec.label} - ${stringFormatter.format("aiUseAsContext")}`}
                   isSelected={column === "context"}
@@ -485,7 +492,7 @@ function FieldTable(props: {
                 />
               </div>
 
-              <div className={centreCell}>
+              <div className={centreCell} style={{textAlign: "center"}}>
                 <Checkbox
                   aria-label={`${spec.label} - ${stringFormatter.format("aiFillIn")}`}
                   isSelected={column === "fill"}

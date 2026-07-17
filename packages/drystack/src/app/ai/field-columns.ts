@@ -48,6 +48,22 @@ export function canPickSize(spec: AiFieldSpec, column: Column): boolean {
 }
 
 /**
+ * What the config column offers for a field, if anything.
+ *
+ * One control per row rather than a column each: the two settings never apply
+ * to the same field - a length is something only prose has, gaps are something
+ * only a list or a group has - so a column each left every row with a hole in
+ * it. Most fields are plain scalars and get neither.
+ */
+export type ConfigControl = "size" | "continue";
+
+export function configControlFor(spec: AiFieldSpec): ConfigControl | null {
+  if (spec.kind === "content") return "size";
+  if (isContinuableKind(spec)) return "continue";
+  return null;
+}
+
+/**
  * Where each field sits when the dialog opens.
  *
  * The general rule is "what's blank gets written, what's there is context":
