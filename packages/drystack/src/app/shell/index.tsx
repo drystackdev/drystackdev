@@ -76,10 +76,10 @@ export const AppShell = (props: {
     <ConfigContext.Provider value={props.config}>
       <AppStateContext.Provider value={{ basePath: props.basePath }}>
         <AiStatusProvider>
+          <AiConfigNotice />
           <SidebarProvider>
             <MainPanelLayout>
               <BranchNotFound config={props.config}>
-                <AiConfigNotice />
                 {content}
               </BranchNotFound>
             </MainPanelLayout>
