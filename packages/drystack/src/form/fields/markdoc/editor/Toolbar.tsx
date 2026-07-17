@@ -64,6 +64,10 @@ import { markAround } from "./popovers";
 import { useEditorKeydownListener } from "./keydown";
 import { gridInsertIcon } from "#icons/gridInsertIcon";
 
+function Noop() {
+  return null;
+}
+
 export function ToolbarButton(props: {
   children: ReactNode;
   "aria-label": string;
@@ -176,25 +180,27 @@ function LinkButton(props: { link: MarkType }) {
   );
 }
 
-export const Toolbar = memo(function Toolbar(
-  props: HTMLAttributes<HTMLDivElement>,
-) {
+export const Toolbar = memo(function Toolbar({
+  hideDividers,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & { hideDividers?: boolean }) {
   const schema = useEditorSchema();
   const { nodes, marks, config } = schema;
+  const Separator = hideDividers ? Noop : EditorToolbarSeparator;
   return (
     <ToolbarWrapper {...props}>
       <ToolbarScrollArea>
         {nodes.heading && <HeadingMenu headingType={nodes.heading} />}
         <EditorToolbar aria-label="Formatting options">
-          <EditorToolbarSeparator />
+          <Separator />
           <InlineMarks />
-          <EditorToolbarSeparator />
+          <Separator />
           <ListButtons />
-          <EditorToolbarSeparator />
+          <Separator />
           {config.htmlLayout && (
             <>
               <AlignmentControls />
-              <EditorToolbarSeparator />
+              <Separator />
             </>
           )}
           <EditorToolbarGroup aria-label="Blocks">

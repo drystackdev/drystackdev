@@ -183,7 +183,11 @@ function FloatingToolbar({ anchor, id }: { anchor: HTMLElement; id: string }) {
           zIndex: 100,
         }}
       >
-        <Toolbar id={getToolbarId(id)} data-drystack-editor="toolbar" />
+        <Toolbar
+          id={getToolbarId(id)}
+          data-drystack-editor="toolbar"
+          hideDividers
+        />
       </div>
     </KeystarProvider>,
     document.body,
