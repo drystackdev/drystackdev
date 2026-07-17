@@ -59,9 +59,25 @@ Nếu không lấy được danh sách (endpoint sập, hoặc không có `/mode
 vẫn chạy bằng `DRY_AI_MODEL` / model mặc định. Riêng lựa chọn từ dropdown sẽ bị
 bỏ qua trong trường hợp này: không có gì để đối chiếu thì không tin client.
 
-> ⚠️ Danh sách model là **catalogue của nhà cung cấp, không phải quyền của key**.
-> Google chẳng hạn vẫn liệt kê những model trả 404 `no longer available to new
-> users` khi gọi. Nằm trong danh sách không đảm bảo gọi được.
+### Model chết tự rụng khỏi danh sách
+
+Danh sách model là **catalogue của nhà cung cấp, không phải quyền của key**.
+Google vẫn liệt kê những model trả 404 `no longer available to new users` khi
+gọi thật, và **không có cách nào biết trước**: metadata của model chết giống
+byte-for-byte model chạy được (cùng `supportedGenerationMethods`, cùng
+`inputTokenLimit`...), `countTokens` nhận cả hai, endpoint `v1` cũng không lọc.
+
+Nên hệ thống học từ thất bại thay vì đoán trước: request nào trả 404 kèm thông
+báo có nhắc tới model thì model đó bị đánh dấu chết, **loại khỏi danh sách** và
+request **tự thử lại** với model kế tiếp trong chuỗi ưu tiên (tối đa 3 lần). Kết
+quả: lần chọn nhầm đầu tiên vẫn ra nội dung, và model đó không xuất hiện lại
+trong dropdown.
+
+Đánh dấu này sống theo isolate (mất sau khi deploy/recycle, học lại 1 lần).
+Chỉ 404 mới bị coi là chết - **429 (hết quota) và 5xx là tạm thời**, không loại.
+
+> Muốn kiểm tra: `curl localhost:4567/api/drystack/ai/models` trước và sau khi
+> generate bằng một model chết, số lượng sẽ giảm đúng 1.
 
 ### Model mặc định
 

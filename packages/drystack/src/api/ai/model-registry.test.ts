@@ -2,7 +2,12 @@
 import { beforeEach, expect, test } from "@jest/globals";
 
 import type { AiRuntimeConfig } from "./env";
-import { clearModelCache, resolveAiModel } from "./model-registry";
+import {
+  clearModelCache,
+  isModelGone,
+  markModelUnusable,
+  resolveAiModel,
+} from "./model-registry";
 import type { AiProvider } from "./providers/types";
 
 // The point of all this: DRY_AI_MODEL can name a model the key was never given,
@@ -152,4 +157,81 @@ test("two keys on one provider don't share a list", async () => {
   await resolveAiModel(provider, runtime({ apiKey: "sk-one" }));
   await resolveAiModel(provider, runtime({ apiKey: "sk-two" }));
   expect(provider.calls).toBe(2);
+});
+
+// A listing is the vendor's catalogue, not a statement of what the key may
+// call: Google lists models that answer a real request with 404 "no longer
+// available to new users", and no field in the listing tells them apart. So the
+// only defence is remembering what got refused.
+
+test("a model proven unusable stops being chosen", async () => {
+  const provider = stubProvider(["from-env", "fallback"]);
+  markModelUnusable(runtime(), "from-env");
+  const picked = await resolveAiModel(
+    provider,
+    runtime({ defaultModel: undefined }),
+  );
+  expect(picked).toMatchObject({ model: "fallback" });
+});
+
+test("a model proven unusable stops being offered", async () => {
+  const provider = stubProvider(["from-env", "dead", "other"]);
+  markModelUnusable(runtime(), "dead");
+  const picked = await resolveAiModel(provider, runtime());
+  expect((picked as any).models.map((m: any) => m.id)).toEqual([
+    "from-env",
+    "other",
+  ]);
+});
+
+test("a client can't pick a model already proven unusable", async () => {
+  const provider = stubProvider(["from-env", "dead"]);
+  markModelUnusable(runtime(), "dead");
+  const picked = await resolveAiModel(provider, runtime(), "dead");
+  expect(picked).toMatchObject({ model: "from-env" });
+});
+
+test("a dead DRY_AI_MODEL falls through to the house model", async () => {
+  const provider = stubProvider(["from-env", "house-model"]);
+  markModelUnusable(runtime(), "from-env");
+  const picked = await resolveAiModel(provider, runtime());
+  expect(picked).toMatchObject({ model: "house-model" });
+});
+
+test("deadness outlives the list cache's TTL", async () => {
+  // Losing this on the 5-minute refresh would mean re-learning it the hard way,
+  // at the cost of a failed request, every five minutes forever.
+  const provider = stubProvider(["from-env", "fallback"]);
+  markModelUnusable(runtime(), "from-env");
+  await resolveAiModel(provider, runtime({ defaultModel: undefined }));
+  const again = await resolveAiModel(
+    provider,
+    runtime({ defaultModel: undefined }),
+  );
+  expect(again).toMatchObject({ model: "fallback" });
+});
+
+test("isModelGone believes a 404 that names the model", () => {
+  expect(
+    isModelGone(
+      404,
+      "Google trả lỗi 404: This model models/gemini-2.5-flash is no longer available to new users.",
+      "gemini-2.5-flash",
+    ),
+  ).toBe(true);
+});
+
+test("isModelGone ignores anything that isn't a 404", () => {
+  // A 429 is a quota problem and a 500 is the vendor's day going badly. Marking
+  // the model dead for either would retire a perfectly good model over a blip.
+  expect(isModelGone(429, "quota exceeded for model x", "x")).toBe(false);
+  expect(isModelGone(500, "internal error", "x")).toBe(false);
+});
+
+test("isModelGone doesn't blame the model for a misrouted 404", () => {
+  // A wrong DRY_AI_BASE_URL 404s too. Believing that would walk the whole list
+  // marking every model dead, and leave the key poisoned once the URL is fixed.
+  expect(isModelGone(404, "<html>404 Not Found</html>", "llama-3.3-70b")).toBe(
+    false,
+  );
 });

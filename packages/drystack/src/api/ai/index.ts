@@ -10,7 +10,11 @@ import {
   isAiConfigError,
   resolveAiEnv,
 } from "./env";
-import { resolveAiModel } from "./model-registry";
+import {
+  isModelGone,
+  markModelUnusable,
+  resolveAiModel,
+} from "./model-registry";
 import {
   buildRewriteSystemPrompt,
   buildRewriteUserPrompt,
@@ -268,6 +272,12 @@ function isPreflightResponse(
   return "status" in value;
 }
 
+// Two dead models in a row on one request is already a stretch; past that,
+// something other than model availability is wrong and retrying only spends
+// time. Marks persist, so the next request resumes converging where this left
+// off rather than starting over.
+const MAX_MODEL_ATTEMPTS = 3;
+
 /**
  * Runs the request and hands the model's tokens straight to the client. Both
  * routes stream the same way; only what's in the prompt differs.
@@ -275,6 +285,12 @@ function isPreflightResponse(
  * Settling on a model is the last thing to happen before the wire, deliberately:
  * it can cost a round-trip to the provider, which a request that was going to be
  * rejected anyway shouldn't pay for.
+ *
+ * A model that the listing offered but the provider then refuses is retried
+ * rather than reported: the user picked from a list we gave them, so an error
+ * saying that choice was invalid blames them for our bad information. The dead
+ * model is recorded on the way past, which is what eventually takes it out of
+ * the list (see `markModelUnusable`).
  */
 async function streamResponse(
   provider: AiProvider,
@@ -287,45 +303,69 @@ async function streamResponse(
   requestedModel: unknown,
   args: Pick<AiStreamArgs, "system" | "user" | "maxTokens">,
 ): Promise<DrystackResponse> {
-  const picked = await resolveAiModel(provider, runtime, requestedModel);
-  if (isAiConfigError(picked)) {
-    return json(
-      { error: picked.message, reason: picked.reason, params: picked.params },
-      503,
-    );
+  const tried: string[] = [];
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < MAX_MODEL_ATTEMPTS; attempt++) {
+    const picked = await resolveAiModel(provider, runtime, requestedModel);
+    if (isAiConfigError(picked)) {
+      return json(
+        { error: picked.message, reason: picked.reason, params: picked.params },
+        503,
+      );
+    }
+    // Resolution is deterministic, so the same answer twice means marking the
+    // last one dead moved nothing: there's no fallback left to try.
+    if (tried.includes(picked.model)) break;
+    tried.push(picked.model);
+
+    const controller = new AbortController();
+    try {
+      const textStream = await provider.stream({
+        ...args,
+        apiKey: runtime.apiKey,
+        model: picked.model,
+        baseUrl: runtime.baseUrl,
+        signal: controller.signal,
+      });
+
+      return {
+        status: 200,
+        headers: [
+          ["content-type", "text/plain; charset=utf-8"],
+          ["cache-control", "no-cache, no-transform"],
+          // Tells nginx-style proxies not to buffer the response - without it
+          // the whole point of streaming is lost behind the proxy.
+          ["x-accel-buffering", "no"],
+        ],
+        body: textStream.pipeThrough(new TextEncoderStream()),
+      };
+    } catch (err) {
+      lastError = err;
+      // Safe to retry: `stream` throws on the response status, before it hands
+      // back a stream, so nothing has reached the client yet.
+      if (
+        err instanceof AiProviderError &&
+        isModelGone(err.status, err.message, picked.model)
+      ) {
+        markModelUnusable(runtime, picked.model);
+        continue;
+      }
+      break;
+    }
   }
 
-  const controller = new AbortController();
-  try {
-    const textStream = await provider.stream({
-      ...args,
-      apiKey: runtime.apiKey,
-      model: picked.model,
-      baseUrl: runtime.baseUrl,
-      signal: controller.signal,
-    });
-
-    return {
-      status: 200,
-      headers: [
-        ["content-type", "text/plain; charset=utf-8"],
-        ["cache-control", "no-cache, no-transform"],
-        // Tells nginx-style proxies not to buffer the response - without it
-        // the whole point of streaming is lost behind the proxy.
-        ["x-accel-buffering", "no"],
-      ],
-      body: textStream.pipeThrough(new TextEncoderStream()),
-    };
-  } catch (err) {
-    const status = err instanceof AiProviderError ? err.status : 502;
-    return json(
-      { error: err instanceof Error ? err.message : "Lỗi không xác định." },
-      // A provider 401 means *our* key is bad, not that the caller is
-      // unauthorised - remapping avoids the admin UI treating it as a
-      // session problem and bouncing the user to log in again.
-      status === 401 || status === 403 ? 502 : status,
-    );
-  }
+  const status = lastError instanceof AiProviderError ? lastError.status : 502;
+  return json(
+    {
+      error:
+        lastError instanceof Error ? lastError.message : "Lỗi không xác định.",
+    },
+    // A provider 401 means *our* key is bad, not that the caller is
+    // unauthorised - remapping avoids the admin UI treating it as a
+    // session problem and bouncing the user to log in again.
+    status === 401 || status === 403 ? 502 : status,
+  );
 }
 
 async function handleGenerate(
