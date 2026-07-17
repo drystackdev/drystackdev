@@ -46,10 +46,7 @@ function postCollection(label: string, previewUrl: string) {
         label: "Xuất bản",
         defaultValue: false,
       }),
-      body: fields.content({
-        label: "Nội dung",
-        options: { heading: [2, 3, 4, 5, 6] },
-      }),
+      body: fields.content({ label: "Nội dung" }),
       createdAt: fields.timestamp({ mode: "created", label: "Tạo lúc" }),
       updatedAt: fields.timestamp({ mode: "updated", label: "Sửa lúc" }),
     },
@@ -72,6 +69,7 @@ export default config({
       seoKnowledge:
         "bài viết kiến thức SEO mang tính hướng dẫn, giải thích khái niệm rõ ràng cho người mới",
       services: "trang giới thiệu một dịch vụ SEO của agency",
+      demo: "Kiến thức ngẫu nhiên liên quan đến công nghệ!"
     },
   },
   collections: {
@@ -494,7 +492,7 @@ export default config({
               itemLabel: (props) => props.value || "",
             }),
           },
-          { label: "[field.Object] — object đứng độc lập ở top-level" },
+          { label: "[field.Object] - object đứng độc lập ở top-level" },
         ),
         sections: fields.array(
           fields.object({
@@ -505,7 +503,7 @@ export default config({
             }),
           }),
           {
-            label: "[field.ArrayObjectArray] — array > object > array",
+            label: "[field.ArrayObjectArray] - array > object > array",
             itemLabel: (props) => props.fields.title.value || "",
           },
         ),

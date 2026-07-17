@@ -1,28 +1,28 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { EditorState } from 'prosemirror-state';
-import { KeystarProvider, useProvider } from '@keystar/ui/core';
+import { useEffect, useId, useLayoutEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import { EditorState } from "prosemirror-state";
+import { KeystarProvider, useProvider } from "@keystar/ui/core";
 import {
   SCHEME_AUTO,
   SCHEME_DARK,
   SCHEME_LIGHT,
   THEME_DEFAULT,
-} from '@keystar/ui/primitives';
+} from "@keystar/ui/primitives";
 
-import { Toolbar } from '../markdoc/editor/Toolbar';
-import { prosemirrorStyles } from '../markdoc/editor/utils';
-import { EditorPopoverDecoration } from '../markdoc/editor/popovers';
-import { ProseMirrorEditor } from '../markdoc/editor/editor-view';
-import { AutocompleteDecoration } from '../markdoc/editor/autocomplete/decoration';
-import { NodeViews } from '../markdoc/editor/react-node-views';
-import { MediaScopeProvider } from '../markdoc/editor/media-scope';
-import { EditorContextProvider, getToolbarId } from '../markdoc/editor/context';
+import { Toolbar } from "../markdoc/editor/Toolbar";
+import { prosemirrorStyles } from "../markdoc/editor/utils";
+import { EditorPopoverDecoration } from "../markdoc/editor/popovers";
+import { ProseMirrorEditor } from "../markdoc/editor/editor-view";
+import { AutocompleteDecoration } from "../markdoc/editor/autocomplete/decoration";
+import { NodeViews } from "../markdoc/editor/react-node-views";
+import { MediaScopeProvider } from "../markdoc/editor/media-scope";
+import { EditorContextProvider, getToolbarId } from "../markdoc/editor/context";
 
 // Distance between the edited element and the floating toolbar above it.
 const TOOLBAR_GAP = 8;
 
 // This toolbar portals to <body>, so packages/astro's editor.css catches its
-// KeystarProvider wrapper with `body > .kui-scheme--*` — a rule written for
+// KeystarProvider wrapper with `body > .kui-scheme--*` - a rule written for
 // Keystar's own portalled overlays (dialogs, tooltips) that lifts them to
 // z-index 2147483001. That's above `#drystack-editor-root` (999999), which is
 // where the node popovers live: image/grid/table render with `portal={false}`,
@@ -34,7 +34,7 @@ const TOOLBAR_GAP = 8;
 // Sitting just under the editor root lets the popovers win while still
 // clearing the host page's own positioned sections (z-index 1..60). Set inline
 // so it beats the stylesheet rule without an `!important`, and paired with
-// `position` because z-index is inert on a static box — `isolation` alone
+// `position` because z-index is inert on a static box - `isolation` alone
 // opens a stacking context but doesn't make z-index apply.
 const TOOLBAR_Z_INDEX = 999998;
 
@@ -45,8 +45,8 @@ const schemeClasses = {
 };
 
 // Marks each mount node this file has adopted. Only needed to tell one content
-// spot from another — see isEditorChrome.
-const MOUNT_ATTR = 'data-drystack-inline-content';
+// spot from another - see isEditorChrome.
+const MOUNT_ATTR = "data-drystack-inline-content";
 
 /**
  * Whether `el` belongs to the editor's own UI rather than the live page: this
@@ -56,7 +56,7 @@ const MOUNT_ATTR = 'data-drystack-inline-content';
  * nothing on the host page ever does.
  *
  * The exception is the mount nodes, which get THEME_DEFAULT of their own (see
- * tokenClassesFor) despite being page elements — so they're excluded, which is
+ * tokenClassesFor) despite being page elements - so they're excluded, which is
  * also what lets clicking into one content spot dismiss another's toolbar.
  */
 function isEditorChrome(el: Element) {
@@ -74,7 +74,7 @@ function isEditorChrome(el: Element) {
  * Deliberately not the editor's focus state: react-aria focuses a button when
  * it's pressed, so a toolbar tied to `view.hasFocus()` would unmount itself out
  * from under the very click it's there to receive. This tracks where
- * interaction *lands* instead — inside this mount shows the toolbar, editor
+ * interaction *lands* instead - inside this mount shows the toolbar, editor
  * chrome (including the overlays a press opens) leaves it alone, anywhere else
  * hides it.
  */
@@ -93,11 +93,11 @@ function useToolbarVisible(mount: HTMLElement) {
     // page's own (unfocusable) text fires no focusin anywhere, and tabbing away
     // fires no pointerdown. Capture, so a host page that stops propagation on
     // either one can't strand the toolbar on screen.
-    document.addEventListener('focusin', update, true);
-    document.addEventListener('pointerdown', update, true);
+    document.addEventListener("focusin", update, true);
+    document.addEventListener("pointerdown", update, true);
     return () => {
-      document.removeEventListener('focusin', update, true);
-      document.removeEventListener('pointerdown', update, true);
+      document.removeEventListener("focusin", update, true);
+      document.removeEventListener("pointerdown", update, true);
     };
   }, [mount]);
   return visible;
@@ -107,7 +107,7 @@ function useToolbarVisible(mount: HTMLElement) {
 // element carries them.
 //
 // Everything else in this file renders under a <KeystarProvider>, which puts
-// these on a wrapper div of its own — but the mount node doesn't: it's the
+// these on a wrapper div of its own - but the mount node doesn't: it's the
 // live page's own element, outside the editor's React tree entirely. So every
 // `--kui-*` the editor's DOM references there (prosemirrorStyles' gap
 // cursor/selection ring/placeholder, the blockquote and table node specs'
@@ -117,15 +117,15 @@ function useToolbarVisible(mount: HTMLElement) {
 // Not `documentElementClasses()` from @keystar/ui/core, which is the obvious
 // candidate: it bundles these together with a reset whose `html& body`
 // selector sets the page background. That's inert on a <div> but would wreck
-// the live site if this ever moved to <html> — so take only the two token
+// the live site if this ever moved to <html> - so take only the two token
 // classes, which carry nothing but custom properties (plus `color-scheme`).
-function tokenClassesFor(colorScheme: 'auto' | 'light' | 'dark' | undefined) {
-  return [THEME_DEFAULT, schemeClasses[colorScheme ?? 'auto']];
+function tokenClassesFor(colorScheme: "auto" | "light" | "dark" | undefined) {
+  return [THEME_DEFAULT, schemeClasses[colorScheme ?? "auto"]];
 }
 
 /**
  * The real formatting toolbar, floated next to `anchor` rather than sitting
- * in a container above the editable area — an inline editor has no container
+ * in a container above the editable area - an inline editor has no container
  * of its own to put it in (see InlineDocumentEditor).
  *
  * The toolbar only reaches the editor through React context (never DOM
@@ -134,13 +134,13 @@ function tokenClassesFor(colorScheme: 'auto' | 'light' | 'dark' | undefined) {
  * design tokens/colorScheme via a class on a wrapper div, and a portal escapes
  * that div physically even though context still flows through it. Re-wrapping
  * at the portal site is how @keystar/ui's own Overlay (behind Dialog/Popover)
- * solves the same problem — any future code portaling a Keystar component to
+ * solves the same problem - any future code portaling a Keystar component to
  * <body> needs this too.
  *
  * The re-wrap passes no colorScheme/locale on purpose: KeystarProvider reads
  * both from the parent provider's context, which a portal doesn't break, so
  * inheriting keeps this in sync with the admin's theme for free. UNSAFE_style
- * isn't cosmetic — KeystarProvider skips rendering the class-carrying div
+ * isn't cosmetic - KeystarProvider skips rendering the class-carrying div
  * altogether unless something forces it, and a prop like this is what forces
  * it (see its "Only wrap in DOM node when necessary" check).
  */
@@ -150,15 +150,15 @@ function FloatingToolbar({ anchor, id }: { anchor: HTMLElement; id: string }) {
   useLayoutEffect(() => {
     const update = () => setRect(anchor.getBoundingClientRect());
     update();
-    // `true` — a scroll inside any ancestor moves the anchor too, and those
+    // `true` - a scroll inside any ancestor moves the anchor too, and those
     // events don't bubble.
-    window.addEventListener('scroll', update, true);
-    window.addEventListener('resize', update);
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
     const observer = new ResizeObserver(update);
     observer.observe(anchor);
     return () => {
-      window.removeEventListener('scroll', update, true);
-      window.removeEventListener('resize', update);
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
       observer.disconnect();
     };
   }, [anchor]);
@@ -168,40 +168,40 @@ function FloatingToolbar({ anchor, id }: { anchor: HTMLElement; id: string }) {
   return createPortal(
     <KeystarProvider
       UNSAFE_style={{
-        isolation: 'isolate',
-        position: 'relative',
+        isolation: "isolate",
+        position: "relative",
         zIndex: TOOLBAR_Z_INDEX,
       }}
     >
       <div
         data-drystack-inline-toolbar=""
         style={{
-          position: 'fixed',
+          position: "fixed",
           top: rect.top - TOOLBAR_GAP,
           left: rect.left,
-          transform: 'translateY(-100%)',
+          transform: "translateY(-100%)",
           zIndex: 100,
         }}
       >
         <Toolbar id={getToolbarId(id)} data-drystack-editor="toolbar" />
       </div>
     </KeystarProvider>,
-    document.body
+    document.body,
   );
 }
 
 /**
  * A `fields.content` editor that edits an element already on the page instead
- * of rendering an editable area of its own — the visual editor mounts one per
+ * of rendering an editable area of its own - the visual editor mounts one per
  * content spot on the live site (packages/astro/src/editor/InlineContentEditors.tsx).
  *
  * Deliberately omits the admin editor's `contentStyles`/`useProseStyleProps`
  * (see ../markdoc/editor/index.tsx): the whole point is that the page's own
  * typography and spacing keep applying while editing, so what you edit looks
  * exactly like what visitors see. `prosemirrorStyles` is a different,
- * non-typographic stylesheet — it only styles ProseMirror's own interaction
+ * non-typographic stylesheet - it only styles ProseMirror's own interaction
  * affordances (gap cursor, node-selection ring, placeholder), which have no
- * built-in appearance and which no site stylesheet would ever style — so it
+ * built-in appearance and which no site stylesheet would ever style - so it
  * gets added to the mount node instead of dropped.
  */
 export function InlineDocumentEditor({
@@ -222,7 +222,7 @@ export function InlineDocumentEditor({
   useEffect(() => {
     const classes = [prosemirrorStyles, ...tokenClassesFor(colorScheme)];
     mount.classList.add(...classes);
-    mount.setAttribute(MOUNT_ATTR, '');
+    mount.setAttribute(MOUNT_ATTR, "");
     return () => {
       mount.classList.remove(...classes);
       mount.removeAttribute(MOUNT_ATTR);
@@ -234,9 +234,9 @@ export function InlineDocumentEditor({
   const mediaScope = useMemo(
     () =>
       entryDirectory
-        ? { directory: `${entryDirectory}/assets`, label: 'This entry' }
+        ? { directory: `${entryDirectory}/assets`, label: "This entry" }
         : null,
-    [entryDirectory]
+    [entryDirectory],
   );
 
   return (

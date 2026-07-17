@@ -1,6 +1,6 @@
 # @drystack/core
 
-Core engine for **drystack** — a git-backed CMS for Astro, inspired by [Keystatic](https://keystatic.com). Provides the form/field system, content reader (local filesystem or GitHub), and admin UI building blocks used by framework integrations such as [`@drystack/astro`](https://www.npmjs.com/package/@drystack/astro).
+Core engine for **drystack** - a git-backed CMS for Astro, inspired by [Keystatic](https://keystatic.com). Provides the form/field system, content reader (local filesystem or GitHub), and admin UI building blocks used by framework integrations such as [`@drystack/astro`](https://www.npmjs.com/package/@drystack/astro).
 
 ## Install
 

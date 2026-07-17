@@ -1,21 +1,21 @@
-import { ButtonGroup, ActionButton } from '@keystar/ui/button';
-import { FieldDescription, FieldLabel, FieldMessage } from '@keystar/ui/field';
-import { Flex, Box } from '@keystar/ui/layout';
-import { tokenSchema } from '@keystar/ui/style';
+import { ButtonGroup, ActionButton } from "@keystar/ui/button";
+import { FieldDescription, FieldLabel, FieldMessage } from "@keystar/ui/field";
+import { Flex, Box } from "@keystar/ui/layout";
+import { tokenSchema } from "@keystar/ui/style";
 
-import { useState, useEffect, useReducer, useId } from 'react';
-import { FormFieldInputProps } from '../../api';
-import { openMediaLibrary } from '../../../app/media-library/bridge';
-import { useMediaLibraryPreviewURL } from '../../../app/media-library/useMediaLibraryPreviewURL';
-import { useEntryDirectoryContext } from '../../../app/entry-form';
+import { useState, useEffect, useReducer, useId } from "react";
+import { FormFieldInputProps } from "../../api";
+import { openMediaLibrary } from "../../../app/media-library/bridge";
+import { useMediaLibraryPreviewURL } from "../../../app/media-library/useMediaLibraryPreviewURL";
+import { useEntryDirectoryContext } from "../../../app/entry-form";
 
 export function getUploadedFileObject(
-  accept: string
+  accept: string,
 ): Promise<File | undefined> {
-  return new Promise(resolve => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.style.display = 'none';
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.style.display = "none";
     input.accept = accept;
     input.onchange = () => {
       const file = input.files?.[0];
@@ -29,7 +29,7 @@ export function getUploadedFileObject(
 }
 
 export async function getUploadedFile(
-  accept: string
+  accept: string,
 ): Promise<{ content: Uint8Array; filename: string } | undefined> {
   const file = await getUploadedFileObject(accept);
   if (!file) return undefined;
@@ -42,12 +42,12 @@ export async function getUploadedFile(
 export function getUploadedImage(): Promise<
   { content: Uint8Array; filename: string } | undefined
 > {
-  return getUploadedFile('image/*');
+  return getUploadedFile("image/*");
 }
 
 export function useObjectURL(
   data: Uint8Array | null,
-  contentType: string | undefined
+  contentType: string | undefined,
 ) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
@@ -68,12 +68,12 @@ export function ImageFieldInput(
     label: string;
     description: string | undefined;
     validation: { isRequired?: boolean } | undefined;
-  }
+  },
 ) {
   const { value } = props;
   const [blurred, onBlur] = useReducer(() => true, false);
   // caches the bytes for a file picked/uploaded in this session, since a
-  // brand new upload isn't in the tree yet — useMediaLibraryPreviewURL
+  // brand new upload isn't in the tree yet - useMediaLibraryPreviewURL
   // resolves via tree sha and can't find it until the tree next refreshes
   const [freshUpload, setFreshUpload] = useState<{
     path: string;
@@ -81,7 +81,7 @@ export function ImageFieldInput(
   } | null>(null);
   const freshObjectUrl = useObjectURL(
     freshUpload && freshUpload.path === value ? freshUpload.content : null,
-    undefined
+    undefined,
   );
   const treeObjectUrl = useMediaLibraryPreviewURL(value);
   const objectUrl = freshObjectUrl ?? treeObjectUrl;
@@ -113,9 +113,12 @@ export function ImageFieldInput(
           onPress={async () => {
             try {
               const picked = await openMediaLibrary({
-                accept: 'image',
+                accept: "image",
                 local: entryDirectory
-                  ? { directory: `${entryDirectory}/assets`, label: 'This entry' }
+                  ? {
+                      directory: `${entryDirectory}/assets`,
+                      label: "This entry",
+                    }
                   : undefined,
               });
               onBlur();
@@ -124,7 +127,7 @@ export function ImageFieldInput(
                 props.onChange(picked.path);
               }
             } catch (err) {
-              console.error('Failed to pick image:', err);
+              console.error("Failed to pick image:", err);
               onBlur();
             }
           }}
@@ -156,9 +159,9 @@ export function ImageFieldInput(
             src={objectUrl}
             alt=""
             style={{
-              display: 'block',
+              display: "block",
               maxHeight: tokenSchema.size.alias.singleLineWidth,
-              maxWidth: '100%',
+              maxWidth: "100%",
             }}
           />
         </Box>

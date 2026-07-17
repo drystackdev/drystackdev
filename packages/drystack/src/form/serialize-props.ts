@@ -1,7 +1,7 @@
-import { transformProps } from './props-value';
-import { ReadonlyPropPath } from './fields/prop-path';
-import { getSlugFromState } from '../app/utils';
-import { ComponentSchema } from '..';
+import { transformProps } from "./props-value";
+import { ReadonlyPropPath } from "./fields/prop-path";
+import { getSlugFromState } from "../app/utils";
+import { ComponentSchema } from "..";
 
 export function serializeProps(
   rootValue: unknown,
@@ -11,10 +11,10 @@ export function serializeProps(
   slug: string | undefined,
   shouldSuggestFilenamePrefix: boolean,
   // Repo-relative directory of the entry being serialized (e.g. `demo`), used
-  // by fields.content to emit live-resolvable image srcs — see its serialize.
+  // by fields.content to emit live-resolvable image srcs - see its serialize.
   // Matches where this function's own `assets/<key>` files land once the
   // caller prepends the entry dir (updating.tsx's serializeEntryToFiles).
-  entryDirectory?: string
+  entryDirectory?: string,
 ) {
   const extraFiles: {
     path: string;
@@ -25,12 +25,12 @@ export function serializeProps(
     value: transformProps(rootSchema, rootValue, {
       form(schema, value, propPath) {
         if (propPath.length === 1 && slugField === propPath[0]) {
-          if (schema.formKind !== 'slug') {
-            throw new Error('slugField is a not a slug field');
+          if (schema.formKind !== "slug") {
+            throw new Error("slugField is a not a slug field");
           }
           return schema.serializeWithSlug(value).value;
         }
-        if (schema.formKind === 'asset') {
+        if (schema.formKind === "asset") {
           const { asset, value: forYaml } = schema.serialize(value, {
             suggestedFilenamePrefix: shouldSuggestFilenamePrefix
               ? getPropPathPortion(propPath, rootSchema, rootValue)
@@ -46,7 +46,7 @@ export function serializeProps(
           }
           return forYaml;
         }
-        if (schema.formKind === 'content' || schema.formKind === 'assets') {
+        if (schema.formKind === "content" || schema.formKind === "assets") {
           const out = schema.serialize(value, { slug, entryDirectory });
           if (out.content !== undefined && schema.contentExtension) {
             extraFiles.push({
@@ -70,7 +70,7 @@ export function serializeProps(
           for (const [directory, contents] of external) {
             if (!allowedDirectories.has(directory)) {
               throw new Error(
-                `Invalid directory ${directory} in content field serialization`
+                `Invalid directory ${directory} in content field serialization`,
               );
             }
             for (const [filename, fileContents] of contents) {
@@ -87,11 +87,11 @@ export function serializeProps(
       },
       object(_schema, value) {
         return Object.fromEntries(
-          Object.entries(value).filter(([_, val]) => val !== undefined)
+          Object.entries(value).filter(([_, val]) => val !== undefined),
         );
       },
       array(_schema, value) {
-        return value.map(val => (val === undefined ? null : val));
+        return value.map((val) => (val === undefined ? null : val));
       },
       conditional(_schema, value) {
         if (value.value === undefined) {
@@ -110,16 +110,16 @@ export function serializeProps(
 function getPropPathPortion(
   path: ReadonlyPropPath,
   schema: ComponentSchema,
-  value: unknown
+  value: unknown,
 ): string {
   const end: (string | number)[] = [];
   for (const portion of path) {
-    if (schema.kind === 'array') {
+    if (schema.kind === "array") {
       value = (value as any)[portion];
-      if (schema.slugField && schema.element.kind === 'object') {
+      if (schema.slugField && schema.element.kind === "object") {
         const slug = getSlugFromState(
           { schema: schema.element.fields, slugField: schema.slugField },
-          value as Record<string, unknown>
+          value as Record<string, unknown>,
         );
         end.push(slug);
       } else {
@@ -129,15 +129,15 @@ function getPropPathPortion(
       continue;
     }
     end.push(portion);
-    if (schema.kind === 'object') {
+    if (schema.kind === "object") {
       value = (value as any)[portion];
       schema = schema.fields[portion];
       continue;
     }
-    if (schema.kind === 'conditional') {
-      if (portion === 'discriminant') {
+    if (schema.kind === "conditional") {
+      if (portion === "discriminant") {
         schema = schema.discriminant;
-      } else if (portion === 'value') {
+      } else if (portion === "value") {
         schema = schema.values[(value as any).discriminant];
       }
       value = (value as any)[portion];
@@ -145,5 +145,5 @@ function getPropPathPortion(
     }
     throw new Error(`unexpected ${schema.kind}`);
   }
-  return end.join('/');
+  return end.join("/");
 }

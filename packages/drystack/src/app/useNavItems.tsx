@@ -1,14 +1,14 @@
-import { useLocalizedStringFormatter } from '@react-aria/i18n';
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
 
 import {
   Config,
   NAVIGATION_DIVIDER_KEY,
   REDIRECTS_SINGLETON_KEY,
-} from '../config';
+} from "../config";
 
-import l10nMessages from './l10n';
-import { useAppState, useConfig } from './shell/context';
-import { useChanged } from './shell/data';
+import l10nMessages from "./l10n";
+import { useAppState, useConfig } from "./shell/context";
+import { useChanged } from "./shell/data";
 
 type ItemData = {
   key: string;
@@ -41,27 +41,27 @@ export function useNavItems(): ItemOrGroup[] {
   let changeMap = useChanged();
 
   const collectionKeys = Object.keys(config.collections || {});
-  // the redirects singleton is reserved/system-owned — it never joins the
+  // the redirects singleton is reserved/system-owned - it never joins the
   // site's own collections/singletons grouping (default or custom), see the
   // comment on REDIRECTS_SINGLETON_KEY in config.tsx
   const singletonKeys = Object.keys(config.singletons || {}).filter(
-    key => key !== REDIRECTS_SINGLETON_KEY
+    (key) => key !== REDIRECTS_SINGLETON_KEY,
   );
   const items = config.ui?.navigation || {
     ...(!!collectionKeys.length && {
-      [stringFormatter.format('collections')]: collectionKeys,
+      [stringFormatter.format("collections")]: collectionKeys,
     }),
     ...(!!singletonKeys.length && {
-      [stringFormatter.format('singletons')]: singletonKeys,
+      [stringFormatter.format("singletons")]: singletonKeys,
     }),
   };
   const options = { basePath, changeMap, config };
 
   const itemOrGroups: ItemOrGroup[] = Array.isArray(items)
-    ? items.map(key => populateItemData(key, options))
+    ? items.map((key) => populateItemData(key, options))
     : Object.entries(items).map(([section, keys]) => ({
         title: section,
-        children: keys.map(key => populateItemData(key, options)),
+        children: keys.map((key) => populateItemData(key, options)),
       }));
 
   // File management is a system-owned route (works the same in local and
@@ -69,13 +69,18 @@ export function useNavItems(): ItemOrGroup[] {
   // collection/singleton, so it's built by hand instead of going through
   // populateItemData.
   const systemChildren: Item[] = [
-    { key: 'files', href: `${basePath}/files`, label: 'File management', changed: false },
+    {
+      key: "files",
+      href: `${basePath}/files`,
+      label: "File management",
+      changed: false,
+    },
   ];
   if (config.singletons && REDIRECTS_SINGLETON_KEY in config.singletons) {
     systemChildren.push(populateItemData(REDIRECTS_SINGLETON_KEY, options));
   }
   itemOrGroups.push({
-    title: stringFormatter.format('system'),
+    title: stringFormatter.format("system"),
     children: systemChildren,
   });
 
@@ -88,7 +93,7 @@ function populateItemData(
     basePath: string;
     changeMap: ReturnType<typeof useChanged>;
     config: Config;
-  }
+  },
 ): Item {
   let { basePath, changeMap, config } = options;
 

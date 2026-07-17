@@ -1,18 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { ComponentSchema } from '../../form/api';
-import type { AiSize } from '../../api/ai/prompt';
-import { describeFields } from '../../api/ai/schema-to-yaml';
-import { useRouter } from '../router';
-import { aiValueToFormValue } from './apply-value';
-import { AiStreamParser } from './stream-parser';
+import type { ComponentSchema } from "../../form/api";
+import type { AiSize } from "../../api/ai/prompt";
+import { describeFields } from "../../api/ai/schema-to-yaml";
+import { useRouter } from "../router";
+import { aiValueToFormValue } from "./apply-value";
+import { AiStreamParser } from "./stream-parser";
 
 // Re-parsing a whole ProseMirror document on every token would make long
 // articles crawl, so content fields repaint on a timer instead. Short enough
 // to still read as typing.
 const CONTENT_REPAINT_MS = 120;
 
-export type MagicWriteStatus = 'idle' | 'streaming' | 'error';
+export type MagicWriteStatus = "idle" | "streaming" | "error";
 
 export type MagicWriteRequest = {
   targets: string[];
@@ -22,21 +22,21 @@ export type MagicWriteRequest = {
 };
 
 export function useMagicWrite(args: {
-  entry: { kind: 'collection' | 'singleton'; key: string };
+  entry: { kind: "collection" | "singleton"; key: string };
   schema: Record<string, ComponentSchema>;
   onStateChange: (
-    updater: (state: Record<string, unknown>) => Record<string, unknown>
+    updater: (state: Record<string, unknown>) => Record<string, unknown>,
   ) => void;
 }) {
   const { entry, schema, onStateChange } = args;
   const { basePath } = useRouter();
 
-  const [status, setStatus] = useState<MagicWriteStatus>('idle');
+  const [status, setStatus] = useState<MagicWriteStatus>("idle");
   const [error, setError] = useState<string | undefined>();
   // Fields the model is still writing. A field leaves this set the moment its
   // value is final, so it unlocks without waiting for the rest of the stream.
   const [streamingKeys, setStreamingKeys] = useState<ReadonlySet<string>>(
-    new Set()
+    new Set(),
   );
   const abortRef = useRef<AbortController | null>(null);
 
@@ -44,7 +44,7 @@ export function useMagicWrite(args: {
     abortRef.current?.abort();
     abortRef.current = null;
     setStreamingKeys(new Set());
-    setStatus('idle');
+    setStatus("idle");
   }, []);
 
   // Leaving the entry mid-stream must not keep the request (or the writes it
@@ -57,14 +57,14 @@ export function useMagicWrite(args: {
       const controller = new AbortController();
       abortRef.current = controller;
 
-      setStatus('streaming');
+      setStatus("streaming");
       setError(undefined);
       setStreamingKeys(new Set(request.targets));
 
-      const specs = describeFields(schema).filter(s =>
-        request.targets.includes(s.key)
+      const specs = describeFields(schema).filter((s) =>
+        request.targets.includes(s.key),
       );
-      const specByKey = new Map(specs.map(s => [s.key, s]));
+      const specByKey = new Map(specs.map((s) => [s.key, s]));
 
       // Only scalars stream character by character; block kinds stay hidden
       // until parsed, so there's nothing to repaint for them.
@@ -76,7 +76,7 @@ export function useMagicWrite(args: {
         if (!pendingText.size) return;
         const batch = [...pendingText.entries()];
         pendingText.clear();
-        onStateChange(state => {
+        onStateChange((state) => {
           const next = { ...state };
           for (const [key, text] of batch) {
             const spec = specByKey.get(key);
@@ -99,31 +99,35 @@ export function useMagicWrite(args: {
         }
       };
 
-      const parser = new AiStreamParser(request.targets, event => {
-        if (event.type === 'field-progress') {
+      const parser = new AiStreamParser(request.targets, (event) => {
+        if (event.type === "field-progress") {
           pendingText.set(event.key, event.text);
           scheduleFlush(false);
           return;
         }
-        if (event.type === 'field-done') {
+        if (event.type === "field-done") {
           // Flush anything buffered for other fields first, so this field's
           // final write can't be undone by a stale batch landing after it.
           scheduleFlush(true);
           const spec = specByKey.get(event.key);
           if (spec && event.raw !== undefined) {
-            const value = aiValueToFormValue(spec, schema[event.key], event.raw);
+            const value = aiValueToFormValue(
+              spec,
+              schema[event.key],
+              event.raw,
+            );
             if (value !== undefined) {
-              onStateChange(state => ({ ...state, [event.key]: value }));
+              onStateChange((state) => ({ ...state, [event.key]: value }));
             }
           }
-          setStreamingKeys(prev => {
+          setStreamingKeys((prev) => {
             const next = new Set(prev);
             next.delete(event.key);
             return next;
           });
           return;
         }
-        if (event.type === 'error') {
+        if (event.type === "error") {
           // One unreadable block shouldn't discard the fields around it.
           setError(event.message);
         }
@@ -131,8 +135,8 @@ export function useMagicWrite(args: {
 
       try {
         const res = await fetch(`/api${basePath}/ai/generate`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          method: "POST",
+          headers: { "content-type": "application/json" },
           body: JSON.stringify({ entry, ...request }),
           signal: controller.signal,
         });
@@ -140,12 +144,14 @@ export function useMagicWrite(args: {
         if (!res.ok || !res.body) {
           const message = await readErrorMessage(res);
           setError(message);
-          setStatus('error');
+          setStatus("error");
           setStreamingKeys(new Set());
           return;
         }
 
-        const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+        const reader = res.body
+          .pipeThrough(new TextDecoderStream())
+          .getReader();
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -153,15 +159,15 @@ export function useMagicWrite(args: {
         }
         parser.end();
         scheduleFlush(true);
-        setStatus('idle');
+        setStatus("idle");
       } catch (err) {
-        // An abort is the user pressing Stop, not a failure — whatever was
+        // An abort is the user pressing Stop, not a failure - whatever was
         // written so far stays.
-        if ((err as Error)?.name === 'AbortError') {
-          setStatus('idle');
+        if ((err as Error)?.name === "AbortError") {
+          setStatus("idle");
         } else {
-          setError(err instanceof Error ? err.message : 'Lỗi không xác định.');
-          setStatus('error');
+          setError(err instanceof Error ? err.message : "Lỗi không xác định.");
+          setStatus("error");
         }
       } finally {
         if (repaintTimer) clearTimeout(repaintTimer);
@@ -169,18 +175,25 @@ export function useMagicWrite(args: {
         abortRef.current = null;
       }
     },
-    [basePath, entry, schema, onStateChange]
+    [basePath, entry, schema, onStateChange],
   );
 
-  return { status, error, streamingKeys, start, abort, clearError: () => setError(undefined) };
+  return {
+    status,
+    error,
+    streamingKeys,
+    start,
+    abort,
+    clearError: () => setError(undefined),
+  };
 }
 
 async function readErrorMessage(res: Response): Promise<string> {
   try {
     const data = await res.json();
-    if (typeof data?.error === 'string') return data.error;
+    if (typeof data?.error === "string") return data.error;
   } catch {
-    // Not JSON — fall through to the status line.
+    // Not JSON - fall through to the status line.
   }
   return `Lỗi ${res.status} khi gọi AI.`;
 }

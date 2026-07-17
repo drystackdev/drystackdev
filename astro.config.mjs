@@ -21,14 +21,15 @@ export default defineConfig({
     react(),
     drystack(),
     sitemap({
-      filter: (page) => !page.includes("/drystack") && !page.includes("/api/drystack"),
+      filter: (page) =>
+        !page.includes("/drystack") && !page.includes("/api/drystack"),
     }),
   ],
   // The drystack admin (/drystack) and its API (/api/drystack) are on-demand
-  // routes (prerender: false) — they need a server adapter even though the
+  // routes (prerender: false) - they need a server adapter even though the
   // rest of the site stays statically prerendered.
   adapter: cloudflare({
-    prerenderEnvironment: 'node',
+    prerenderEnvironment: "node",
   }),
   output: "static",
   server: {

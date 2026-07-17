@@ -1,8 +1,8 @@
-import { Node, NodeType } from 'prosemirror-model';
-import { Plugin } from 'prosemirror-state';
+import { Node, NodeType } from "prosemirror-model";
+import { Plugin } from "prosemirror-state";
 
 // Non-textblock last nodes (table, horizontal_rule, atom block components,
-// ...) leave no clickable space below them — clicking past the end of the
+// ...) leave no clickable space below them - clicking past the end of the
 // document doesn't resolve to any position, since there's no textblock
 // there to land in. Guaranteeing the doc always ends with an (empty)
 // paragraph gives the user a place to click/type below any such block.
@@ -17,12 +17,12 @@ export function trailingParagraph(paragraphType: NodeType) {
       if (!needsTrailingParagraph(newState.doc, paragraphType)) return null;
       return newState.tr.insert(
         newState.doc.content.size,
-        paragraphType.create()
+        paragraphType.create(),
       );
     },
     view(editorView) {
       // `appendTransaction` only runs in response to a dispatched
-      // transaction — a document loaded straight from storage that already
+      // transaction - a document loaded straight from storage that already
       // ends in a table won't get fixed up until something else happens to
       // trigger one. Nudge a transaction through once at startup instead.
       if (needsTrailingParagraph(editorView.state.doc, paragraphType)) {
@@ -31,7 +31,7 @@ export function trailingParagraph(paragraphType: NodeType) {
           const { state } = editorView;
           if (!needsTrailingParagraph(state.doc, paragraphType)) return;
           editorView.dispatch(
-            state.tr.insert(state.doc.content.size, paragraphType.create())
+            state.tr.insert(state.doc.content.size, paragraphType.create()),
           );
         });
       }

@@ -1,15 +1,15 @@
-import { useMemo } from 'react';
-import { AlertDialog } from '@keystar/ui/dialog';
-import { ProgressCircle } from '@keystar/ui/progress';
-import { Flex } from '@keystar/ui/layout';
-import { Text } from '@keystar/ui/typography';
-import { toastQueue } from '@keystar/ui/toast';
+import { useMemo } from "react";
+import { AlertDialog } from "@keystar/ui/dialog";
+import { ProgressCircle } from "@keystar/ui/progress";
+import { Flex } from "@keystar/ui/layout";
+import { Text } from "@keystar/ui/typography";
+import { toastQueue } from "@keystar/ui/toast";
 
-import { Config } from '../../config';
-import { ComponentSchema } from '../../form/api';
-import { useItemData } from '../useItemData';
-import { useUpsertItem } from '../updating';
-import { getCollectionFormat, getCollectionItemPath } from '../utils';
+import { Config } from "../../config";
+import { ComponentSchema } from "../../form/api";
+import { useItemData } from "../useItemData";
+import { useUpsertItem } from "../updating";
+import { getCollectionFormat, getCollectionItemPath } from "../utils";
 
 export type PendingCheckboxEdit = {
   itemSlug: string;
@@ -19,7 +19,7 @@ export type PendingCheckboxEdit = {
 };
 
 // mounted only while a checkbox quick-edit confirm is open, so the full
-// (uncut) entry — including its content field — is only fetched on demand,
+// (uncut) entry - including its content field - is only fetched on demand,
 // unlike the table's own lightweight per-row parse (see parseEntryForTable
 // in CollectionPage.tsx) which deliberately skips content for speed
 export function QuickEditCheckboxDialog(props: {
@@ -37,15 +37,15 @@ export function QuickEditCheckboxDialog(props: {
   // useItemData's useCallback deps, and a fresh object each render makes the
   // memoized loader recompute every render. Once the entry's blobs are cached
   // (so parseEntry runs synchronously) that loops via useData's
-  // setState-during-render — the "Too many re-renders" crash. Mirror ItemPage,
+  // setState-during-render - the "Too many re-renders" crash. Mirror ItemPage,
   // which memoizes both for exactly this reason.
   const format = useMemo(
     () => getCollectionFormat(config, collectionKey),
-    [config, collectionKey]
+    [config, collectionKey],
   );
   const slug = useMemo(
     () => ({ slug: edit.itemSlug, field: slugField }),
-    [edit.itemSlug, slugField]
+    [edit.itemSlug, slugField],
   );
 
   const itemData = useItemData({
@@ -57,7 +57,7 @@ export function QuickEditCheckboxDialog(props: {
   });
 
   const loaded =
-    itemData.kind === 'loaded' && itemData.data !== 'not-found'
+    itemData.kind === "loaded" && itemData.data !== "not-found"
       ? itemData.data
       : undefined;
 
@@ -81,7 +81,7 @@ export function QuickEditCheckboxDialog(props: {
       title={`Update ${edit.fieldLabel}`}
       cancelLabel="Cancel"
       primaryActionLabel="Confirm"
-      isPrimaryActionDisabled={!state || updateResult.kind === 'loading'}
+      isPrimaryActionDisabled={!state || updateResult.kind === "loading"}
       onCancel={props.onDone}
       onPrimaryAction={async () => {
         const ok = await onUpdate();
@@ -89,7 +89,7 @@ export function QuickEditCheckboxDialog(props: {
           toastQueue.positive(`${edit.fieldLabel} updated`);
         } else {
           toastQueue.critical(
-            `Could not update ${edit.fieldLabel} — open the item to edit it directly.`
+            `Could not update ${edit.fieldLabel} - open the item to edit it directly.`,
           );
         }
         props.onDone();
@@ -97,8 +97,8 @@ export function QuickEditCheckboxDialog(props: {
     >
       <Flex direction="column" gap="regular">
         <Text>
-          Set <Text weight="medium">{edit.fieldLabel}</Text> to{' '}
-          <Text weight="medium">{edit.nextValue ? 'On' : 'Off'}</Text> for “
+          Set <Text weight="medium">{edit.fieldLabel}</Text> to{" "}
+          <Text weight="medium">{edit.nextValue ? "On" : "Off"}</Text> for “
           {edit.itemSlug}”?
         </Text>
         {!state && (
@@ -108,7 +108,7 @@ export function QuickEditCheckboxDialog(props: {
             size="small"
           />
         )}
-        {itemData.kind === 'loaded' && itemData.data === 'not-found' && (
+        {itemData.kind === "loaded" && itemData.data === "not-found" && (
           <Text color="critical">Entry could not be found.</Text>
         )}
       </Flex>

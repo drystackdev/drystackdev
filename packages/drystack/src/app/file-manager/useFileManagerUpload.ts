@@ -1,16 +1,16 @@
-import { useCallback, useRef, useState } from 'react';
-import { base64Encode } from '#base64';
-import { useRouter } from '../router';
+import { useCallback, useRef, useState } from "react";
+import { base64Encode } from "#base64";
+import { useRouter } from "../router";
 import {
   hydrateTreeCacheWithEntries,
   useCurrentUnscopedTree,
-} from '../shell/data';
-import { useConfig } from '../shell/context';
-import { useCommitFileChanges } from '../shell/useCommitFileChanges';
-import { updateTreeWithChanges } from '../trees';
-import { trackFreshUpload } from '../media-library/upload-session';
+} from "../shell/data";
+import { useConfig } from "../shell/context";
+import { useCommitFileChanges } from "../shell/useCommitFileChanges";
+import { updateTreeWithChanges } from "../trees";
+import { trackFreshUpload } from "../media-library/upload-session";
 
-export type ConflictResolution = 'skip' | 'replace' | 'rename';
+export type ConflictResolution = "skip" | "replace" | "rename";
 
 export type PendingUpload = {
   file: File;
@@ -27,19 +27,19 @@ export type UploadConflictState = {
 };
 
 function renamedWithSuffix(targetPath: string) {
-  const dotIndex = targetPath.lastIndexOf('.');
+  const dotIndex = targetPath.lastIndexOf(".");
   const suffix = Math.random().toString(36).slice(2, 8);
   if (dotIndex === -1) return `${targetPath}-${suffix}`;
   return `${targetPath.slice(0, dotIndex)}-${suffix}${targetPath.slice(dotIndex)}`;
 }
 
 function nextConflictIndex(files: PendingUpload[], resolved: Set<File>) {
-  return files.findIndex(f => f.conflict && !resolved.has(f.file));
+  return files.findIndex((f) => f.conflict && !resolved.has(f.file));
 }
 
 // Uploads N files to `directory` in one request. Files whose target path
 // already exists surface a conflict dialog (skip/replace/rename, optionally
-// applied to every remaining conflict) before anything is sent — only after
+// applied to every remaining conflict) before anything is sent - only after
 // every conflict is resolved does this POST once to `/update`.
 export function useFileManagerUpload() {
   const { basePath } = useRouter();
@@ -54,21 +54,23 @@ export function useFileManagerUpload() {
   const commit = useCallback(
     async (files: PendingUpload[]) => {
       const uploaded: { path: string; content: Uint8Array }[] = [];
-      // paths that didn't overwrite a pre-existing file — candidates for
+      // paths that didn't overwrite a pre-existing file - candidates for
       // save-time cleanup if the entry ends up not referencing them (see
       // trackFreshUpload). A conflict resolved as 'replace' overwrote a file
       // that already existed before this session, so it's excluded.
       const freshPaths: string[] = [];
       const additions = files
-        .map(f => {
+        .map((f) => {
           const resolution = f.conflict
-            ? resolutionsRef.current.get(f.file) ?? 'skip'
-            : 'replace';
-          if (resolution === 'skip') return null;
+            ? (resolutionsRef.current.get(f.file) ?? "skip")
+            : "replace";
+          if (resolution === "skip") return null;
           const path =
-            resolution === 'rename' ? renamedWithSuffix(f.targetPath) : f.targetPath;
+            resolution === "rename"
+              ? renamedWithSuffix(f.targetPath)
+              : f.targetPath;
           uploaded.push({ path, content: f.content });
-          if (!f.conflict || resolution === 'rename') {
+          if (!f.conflict || resolution === "rename") {
             freshPaths.push(path);
           }
           return { path, contents: base64Encode(f.content) };
@@ -78,13 +80,13 @@ export function useFileManagerUpload() {
       setIsUploading(true);
       try {
         if (additions.length === 0) return undefined;
-        if (config.storage.kind === 'github') {
+        if (config.storage.kind === "github") {
           const unscopedTree =
-            unscopedTreeData.kind === 'loaded'
+            unscopedTreeData.kind === "loaded"
               ? unscopedTreeData.data.tree
               : undefined;
-          if (!unscopedTree) throw new Error('Tree not loaded');
-          const githubAdditions = uploaded.map(u => ({
+          if (!unscopedTree) throw new Error("Tree not loaded");
+          const githubAdditions = uploaded.map((u) => ({
             path: u.path,
             contents: u.content,
           }));
@@ -97,12 +99,12 @@ export function useFileManagerUpload() {
             additions: githubAdditions,
             deletions: [],
           });
-          if (result.kind === 'needs-fork') {
+          if (result.kind === "needs-fork") {
             throw new Error(
-              'This repository requires a fork to make changes — use the entry editor to request one first.'
+              "This repository requires a fork to make changes - use the entry editor to request one first.",
             );
           }
-          if (result.kind === 'error') throw result.error;
+          if (result.kind === "error") throw result.error;
           const tree = await hydrateTreeCacheWithEntries(updatedTree.entries);
           // No setTreeSha in github mode: there's no SetTreeShaContext
           // provider there so it would throw (which previously left the New
@@ -112,8 +114,8 @@ export function useFileManagerUpload() {
           return { ...tree, uploaded };
         }
         const res = await fetch(`/api${basePath}/update`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'no-cors': '1' },
+          method: "POST",
+          headers: { "Content-Type": "application/json", "no-cors": "1" },
           body: JSON.stringify({ additions, deletions: [] }),
         });
         if (!res.ok) throw new Error(await res.text());
@@ -127,18 +129,18 @@ export function useFileManagerUpload() {
         filesRef.current = [];
       }
     },
-    [basePath, config, unscopedTreeData, commitFileChanges]
+    [basePath, config, unscopedTreeData, commitFileChanges],
   );
 
   const startUpload = useCallback(
     async (
       fileList: FileList | File[],
       directory: string,
-      existingPaths: ReadonlySet<string>
+      existingPaths: ReadonlySet<string>,
     ) => {
       const files = Array.from(fileList);
       const candidates: PendingUpload[] = await Promise.all(
-        files.map(async file => {
+        files.map(async (file) => {
           const content = new Uint8Array(await file.arrayBuffer());
           const targetPath = `${directory}/${file.name}`;
           return {
@@ -147,7 +149,7 @@ export function useFileManagerUpload() {
             targetPath,
             conflict: existingPaths.has(targetPath),
           };
-        })
+        }),
       );
       resolutionsRef.current = new Map();
       filesRef.current = candidates;
@@ -158,11 +160,11 @@ export function useFileManagerUpload() {
       setPending({
         files: candidates,
         index: firstConflict,
-        remainingConflicts: candidates.filter(f => f.conflict).length,
+        remainingConflicts: candidates.filter((f) => f.conflict).length,
       });
       return undefined;
     },
-    [commit]
+    [commit],
   );
 
   const resolveCurrent = useCallback(
@@ -190,12 +192,12 @@ export function useFileManagerUpload() {
         files,
         index: next,
         remainingConflicts: files.filter(
-          f => f.conflict && !stillResolved.has(f.file)
+          (f) => f.conflict && !stillResolved.has(f.file),
         ).length,
       });
       return undefined;
     },
-    [pending, commit]
+    [pending, commit],
   );
 
   const abortUpload = useCallback(() => {
@@ -204,5 +206,11 @@ export function useFileManagerUpload() {
     filesRef.current = [];
   }, []);
 
-  return { startUpload, pendingConflict: pending, resolveCurrent, abortUpload, isUploading };
+  return {
+    startUpload,
+    pendingConflict: pending,
+    resolveCurrent,
+    abortUpload,
+    isUploading,
+  };
 }

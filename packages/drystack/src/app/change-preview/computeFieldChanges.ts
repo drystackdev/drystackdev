@@ -1,12 +1,12 @@
-import isEqual from 'fast-deep-equal';
-import { ComponentSchema, ObjectField } from '../../form/api';
+import isEqual from "fast-deep-equal";
+import { ComponentSchema, ObjectField } from "../../form/api";
 import {
   FieldChange,
   prettifyContentHtml,
   summarizeContentChange,
-} from './ChangePreviewDialog';
-import { getSyncableFieldKind, isAssetKind } from '../edit-sync';
-import type { ContentSummary } from '../../form/fields/content';
+} from "./ChangePreviewDialog";
+import { getSyncableFieldKind, isAssetKind } from "../edit-sync";
+import type { ContentSummary } from "../../form/fields/content";
 
 const textDecoder = new TextDecoder();
 
@@ -16,7 +16,7 @@ const textDecoder = new TextDecoder();
 // field the entry hasn't got a value for yet.
 function contentSummaryOf(
   fieldSchema: ComponentSchema,
-  value: unknown
+  value: unknown,
 ): ContentSummary | undefined {
   if (value === undefined || value === null) return undefined;
   const serialize = (
@@ -27,11 +27,11 @@ function contentSummaryOf(
   return serialize(value).value as ContentSummary;
 }
 
-// The same serialize() call's other half — the real HTML body, for the diff
+// The same serialize() call's other half - the real HTML body, for the diff
 // view (see FieldChange.diffBefore/diffAfter).
 function contentHtmlOf(
   fieldSchema: ComponentSchema,
-  value: unknown
+  value: unknown,
 ): string | undefined {
   if (value === undefined || value === null) return undefined;
   const serialize = (
@@ -43,16 +43,16 @@ function contentHtmlOf(
 }
 
 function stringifyFieldValue(value: unknown): string {
-  if (value === undefined || value === null) return '';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'boolean' || typeof value === 'number') {
+  if (value === undefined || value === null) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "boolean" || typeof value === "number") {
     return String(value);
   }
   return JSON.stringify(value, null, 2);
 }
 
 // Top-level-only: walks the entry's own fields, not into nested
-// array/object/conditional fields — good enough for a first pass at "what
+// array/object/conditional fields - good enough for a first pass at "what
 // changed", and avoids having to special-case every field kind's internal
 // shape. Non-string values (arrays, objects) fall back to a pretty-printed
 // JSON diff via stringifyFieldValue; the rich-text `content` field is shown as
@@ -61,7 +61,7 @@ function stringifyFieldValue(value: unknown): string {
 export function computeFieldChanges(
   schema: ObjectField<Record<string, ComponentSchema>>,
   initialState: Record<string, unknown> | null,
-  state: Record<string, unknown>
+  state: Record<string, unknown>,
 ): FieldChange[] {
   const changes: FieldChange[] = [];
   for (const [key, field] of Object.entries(schema.fields)) {
@@ -69,25 +69,27 @@ export function computeFieldChanges(
     const after = state[key];
     if (isEqual(before, after)) continue;
     const label = (field as { label?: string }).label ?? key;
-    // Compared above on the real values, summarized only for display — see
+    // Compared above on the real values, summarized only for display - see
     // summarizeContentChange for why those must stay separate.
-    if (getSyncableFieldKind(field) === 'content') {
+    if (getSyncableFieldKind(field) === "content") {
       changes.push({
         key,
         label,
-        kind: 'text',
+        kind: "text",
         before: summarizeContentChange(contentSummaryOf(field, before)),
         after: summarizeContentChange(contentSummaryOf(field, after)),
-        diffBefore: prettifyContentHtml(contentHtmlOf(field, before) ?? ''),
-        diffAfter: prettifyContentHtml(contentHtmlOf(field, after) ?? ''),
+        diffBefore: prettifyContentHtml(contentHtmlOf(field, before) ?? ""),
+        diffAfter: prettifyContentHtml(contentHtmlOf(field, after) ?? ""),
       });
       continue;
     }
     const columnKind =
-      field.kind === 'form'
+      field.kind === "form"
         ? (field as { columnKind?: string }).columnKind
         : undefined;
-    const kind: FieldChange['kind'] = isAssetKind(columnKind) ? columnKind : 'text';
+    const kind: FieldChange["kind"] = isAssetKind(columnKind)
+      ? columnKind
+      : "text";
     changes.push({
       key,
       label,

@@ -1,28 +1,28 @@
-import { useState } from 'react';
+import { useState } from "react";
 
-import { ActionButton, Button } from '@keystar/ui/button';
-import { DialogContainer } from '@keystar/ui/dialog';
-import { Icon } from '@keystar/ui/icon';
-import { Flex } from '@keystar/ui/layout';
-import { ProgressCircle } from '@keystar/ui/progress';
-import { Text } from '@keystar/ui/typography';
-import { TooltipTrigger, Tooltip } from '@keystar/ui/tooltip';
+import { ActionButton, Button } from "@keystar/ui/button";
+import { DialogContainer } from "@keystar/ui/dialog";
+import { Icon } from "@keystar/ui/icon";
+import { Flex } from "@keystar/ui/layout";
+import { ProgressCircle } from "@keystar/ui/progress";
+import { Text } from "@keystar/ui/typography";
+import { TooltipTrigger, Tooltip } from "@keystar/ui/tooltip";
 
-import type { Config } from '../../config';
-import type { ComponentSchema } from '../../form/api';
-import { magicWriteIcon } from '../icons/magicWriteIcon';
-import { MagicWriteDialog } from './MagicWriteDialog';
-import type { useMagicWrite } from './useMagicWrite';
-import { useAiStatus } from './useAiStatus';
+import type { Config } from "../../config";
+import type { ComponentSchema } from "../../form/api";
+import { magicWriteIcon } from "../icons/magicWriteIcon";
+import { MagicWriteDialog } from "./MagicWriteDialog";
+import type { useMagicWrite } from "./useMagicWrite";
+import { useAiStatus } from "./useAiStatus";
 
 /**
  * Whether this entry is opted into AI generation. A key absent from
- * `ai.for` has no button at all — the route enforces the same rule, so this
+ * `ai.for` has no button at all - the route enforces the same rule, so this
  * is only about not offering what won't work.
  */
 export function useAiEntryDescription(
   config: Config,
-  entryKey: string
+  entryKey: string,
 ): string | undefined {
   const forMap = config.ai?.for as Record<string, string> | undefined;
   return forMap?.[entryKey];
@@ -38,7 +38,7 @@ export function MagicWriteButton(props: {
   const [isOpen, setOpen] = useState(false);
   const status = useAiStatus();
 
-  if (magicWrite.status === 'streaming') {
+  if (magicWrite.status === "streaming") {
     return (
       <Flex alignItems="center" gap="regular">
         <ProgressCircle
@@ -58,14 +58,18 @@ export function MagicWriteButton(props: {
   return (
     <>
       <TooltipTrigger>
-        <ActionButton isDisabled={isDisabled} onPress={() => setOpen(true)}>
+        <ActionButton
+          UNSAFE_style={{ borderRadius: 50 }}
+          isDisabled={isDisabled}
+          onPress={() => setOpen(true)}
+        >
           <Icon src={magicWriteIcon} />
           <Text>Magic write</Text>
         </ActionButton>
         <Tooltip>
           {isDisabled
-            ? (status?.message ?? 'AI chưa được cấu hình.')
-            : 'Để AI viết nội dung cho các trường bạn chọn'}
+            ? (status?.message ?? "AI chưa được cấu hình.")
+            : "Để AI viết nội dung cho các trường bạn chọn"}
         </Tooltip>
       </TooltipTrigger>
       <DialogContainer onDismiss={() => setOpen(false)}>
@@ -75,7 +79,7 @@ export function MagicWriteButton(props: {
             schema={props.schema}
             state={props.state}
             onDismiss={() => setOpen(false)}
-            onGenerate={request => {
+            onGenerate={(request) => {
               // Closing first puts the form back in view, which is the whole
               // point of streaming into it rather than into a preview pane.
               setOpen(false);

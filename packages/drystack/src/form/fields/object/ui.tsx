@@ -1,19 +1,19 @@
-import { assert, assertNever } from 'emery';
-import { useId, useMemo } from 'react';
+import { assert, assertNever } from "emery";
+import { useId, useMemo } from "react";
 
-import { Grid } from '@keystar/ui/layout';
-import { containerQueries, css } from '@keystar/ui/style';
-import { Text } from '@keystar/ui/typography';
+import { Grid } from "@keystar/ui/layout";
+import { containerQueries, css } from "@keystar/ui/style";
+import { Text } from "@keystar/ui/typography";
 
-import { ComponentSchema, GenericPreviewProps, ObjectField } from '../../api';
+import { ComponentSchema, GenericPreviewProps, ObjectField } from "../../api";
 import {
   ExtraFieldInputProps,
   InnerFormValueContentFromPreviewProps,
-} from '../../form-from-preview';
-import { AddToPathProvider } from '../text/path-slug-context';
-import { FIELD_GRID_COLUMNS, FieldContextProvider } from '../context';
-import { AiLockOverlay } from '../../../app/ai/AiLockOverlay';
-import { FieldMagicWriteButton } from '../../../app/ai/FieldMagicWriteButton';
+} from "../../form-from-preview";
+import { AddToPathProvider } from "../text/path-slug-context";
+import { FIELD_GRID_COLUMNS, FieldContextProvider } from "../context";
+import { AiLockOverlay } from "../../../app/ai/AiLockOverlay";
+import { FieldMagicWriteButton } from "../../../app/ai/FieldMagicWriteButton";
 
 // this is just to get the react compiler to run on this, because of a todo
 const belowTablet = containerQueries.below.tablet;
@@ -33,6 +33,13 @@ function ObjectFieldInputEntry({
   field: GenericPreviewProps<ComponentSchema, unknown>;
   omitFieldAtPath?: string[];
 }) {
+  // An empty path means *this* field is the omitted one - it's rendered
+  // somewhere else (the content pane; see app/entry-form.tsx). Its Input
+  // already returns null, but the chrome around it must go too, or the field
+  // leaves behind an empty grid cell and a second Magic write button that
+  // writes a field the user can't see from here.
+  if (omitFieldAtPath?.length === 0) return null;
+
   return (
     <FieldContextProvider value={span}>
       <div
@@ -45,9 +52,9 @@ function ObjectFieldInputEntry({
           gridColumn: `span ${span}`,
           // Anchors the per-field Magic write button; it's positioned rather
           // than laid out so adding it can't reflow any field.
-          position: 'relative',
+          position: "relative",
 
-          '&:hover [data-drystack-field-ai], &:focus-within [data-drystack-field-ai]':
+          "&:hover [data-drystack-field-ai], &:focus-within [data-drystack-field-ai]":
             {
               opacity: 1,
             },
@@ -61,14 +68,14 @@ function ObjectFieldInputEntry({
           <div
             data-drystack-field-ai=""
             className={css({
-              position: 'absolute',
+              position: "absolute",
               insetInlineEnd: 0,
               insetBlockStart: 0,
               zIndex: 1,
               opacity: 0,
-              transition: 'opacity 130ms',
+              transition: "opacity 130ms",
               // Keyboard users still reach it: focus-within above reveals it.
-              '&:focus-within': { opacity: 1 },
+              "&:focus-within": { opacity: 1 },
             })}
           >
             <FieldMagicWriteButton />
@@ -167,7 +174,7 @@ export function ObjectFieldInput<
 }
 
 function validateLayout<Fields extends Record<string, ComponentSchema>>(
-  schema: ObjectField<Fields>
+  schema: ObjectField<Fields>,
 ): void {
   if (!schema.layout) {
     return;
@@ -175,19 +182,19 @@ function validateLayout<Fields extends Record<string, ComponentSchema>>(
 
   assert(
     schema.layout.length === Object.keys(schema.fields).length,
-    'A column "span" is required for every field in the layout'
+    'A column "span" is required for every field in the layout',
   );
   assert(
-    schema.layout.every(span => span > 0),
-    'The layout must not contain empty columns'
+    schema.layout.every((span) => span > 0),
+    "The layout must not contain empty columns",
   );
   assert(
-    schema.layout.every(span => span <= 12),
-    'Fields may not span more than 12 columns'
+    schema.layout.every((span) => span <= 12),
+    "Fields may not span more than 12 columns",
   );
   assert(
     schema.layout.reduce((acc, cur) => acc + cur, 0) % 12 === 0,
-    'The layout must span exactly 12 columns'
+    "The layout must span exactly 12 columns",
   );
 }
 
@@ -203,16 +210,16 @@ function findFocusableObjectFieldKey(schema: ObjectField): string | undefined {
 
 function canFieldBeFocused(schema: ComponentSchema): boolean {
   if (
-    schema.kind === 'array' ||
-    schema.kind === 'conditional' ||
-    schema.kind === 'form'
+    schema.kind === "array" ||
+    schema.kind === "conditional" ||
+    schema.kind === "form"
   ) {
     return true;
   }
-  if (schema.kind === 'child') {
+  if (schema.kind === "child") {
     return false;
   }
-  if (schema.kind === 'object') {
+  if (schema.kind === "object") {
     for (const innerProp of Object.values(schema.fields)) {
       if (canFieldBeFocused(innerProp)) {
         return true;

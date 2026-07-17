@@ -1,46 +1,46 @@
-import { ActionButton } from '@keystar/ui/button';
-import { Icon } from '@keystar/ui/icon';
-import { refreshCwIcon } from '@keystar/ui/icon/icons/refreshCwIcon';
-import { Flex, Box } from '@keystar/ui/layout';
-import { containerQueries, css } from '@keystar/ui/style';
-import { TextField } from '@keystar/ui/text-field';
-import { Text } from '@keystar/ui/typography';
-import { useContext, useState } from 'react';
+import { ActionButton } from "@keystar/ui/button";
+import { Icon } from "@keystar/ui/icon";
+import { refreshCwIcon } from "@keystar/ui/icon/icons/refreshCwIcon";
+import { Flex, Box } from "@keystar/ui/layout";
+import { containerQueries, css } from "@keystar/ui/style";
+import { TextField } from "@keystar/ui/text-field";
+import { Text } from "@keystar/ui/typography";
+import { useContext, useState } from "react";
 
-import { FormFieldInputProps } from '../../api';
-import { SlugFieldContext, PathContext } from '../text/path-slug-context';
-import { validateText } from '../text/validateText';
+import { FormFieldInputProps } from "../../api";
+import { SlugFieldContext, PathContext } from "../text/path-slug-context";
+import { validateText } from "../text/validateText";
 
 const emptySet = new Set<string>();
 
-export { default as slugify } from '@sindresorhus/slugify';
+export { default as slugify } from "@sindresorhus/slugify";
 
 export function SlugFieldInput(
   props: FormFieldInputProps<{ name: string; slug: string }> & {
     defaultValue: { name: string; slug: string };
-    args: Parameters<typeof import('./index').slug>[0];
+    args: Parameters<typeof import("./index").slug>[0];
     naiveGenerateSlug: (name: string) => string;
-  }
+  },
 ) {
   const slugContext = useContext(SlugFieldContext);
   const path = useContext(PathContext);
   const slugInfo =
     path.length === 1 && path[0] === slugContext?.field
       ? slugContext
-      : { slugs: emptySet, glob: '*' as const };
+      : { slugs: emptySet, glob: "*" as const };
 
   const [blurredName, setBlurredName] = useState(false);
   const [blurredSlug, setBlurredSlug] = useState(false);
 
   // whether the slug still just mirrors the name (so typing in Name should
-  // keep regenerating it) — checked by value, not `props.value ===
+  // keep regenerating it) - checked by value, not `props.value ===
   // props.defaultValue`, since that reference-equality check only holds for
   // a truly fresh entry; a value rebuilt from anywhere else (e.g. a restored
   // draft) is never `===` the cached default even when the user never
   // touched Slug, which permanently disabled auto-sync for that mount
   const [shouldGenerateSlug, setShouldGenerateSlug] = useState(
-    props.value.slug === '' ||
-      props.value.slug === props.naiveGenerateSlug(props.value.name)
+    props.value.slug === "" ||
+      props.value.slug === props.naiveGenerateSlug(props.value.name),
   );
   const generateSlug = (name: string) => {
     const generated = props.naiveGenerateSlug(name);
@@ -54,7 +54,7 @@ export function SlugFieldInput(
     return generated;
   };
 
-  const slugFieldLabel = props.args.slug?.label ?? 'Slug';
+  const slugFieldLabel = props.args.slug?.label ?? "Slug";
   const slugErrorMessage =
     props.forceValidation || blurredSlug
       ? validateText(
@@ -63,7 +63,7 @@ export function SlugFieldInput(
           props.args.slug?.validation?.length?.max ?? Infinity,
           slugFieldLabel,
           slugInfo,
-          props.args.slug?.validation?.pattern
+          props.args.slug?.validation?.pattern,
         )
       : undefined;
 
@@ -75,7 +75,7 @@ export function SlugFieldInput(
         autoFocus={props.autoFocus}
         value={props.value.name}
         isRequired={!!props.args.name.validation?.length?.min}
-        onChange={name => {
+        onChange={(name) => {
           props.onChange({
             name,
             slug: shouldGenerateSlug ? generateSlug(name) : props.value.slug,
@@ -90,7 +90,7 @@ export function SlugFieldInput(
                 props.args.name.validation?.length?.max ?? Infinity,
                 props.args.name.label,
                 undefined,
-                props.args.name.validation?.pattern
+                props.args.name.validation?.pattern,
               )
             : undefined
         }
@@ -101,7 +101,7 @@ export function SlugFieldInput(
           label={slugFieldLabel}
           description={props.args.slug?.description}
           value={props.value.slug}
-          onChange={slug => {
+          onChange={(slug) => {
             setShouldGenerateSlug(false);
             props.onChange({ name: props.value.name, slug });
           }}
@@ -122,12 +122,12 @@ export function SlugFieldInput(
             <Icon
               src={refreshCwIcon}
               UNSAFE_className={css({
-                [containerQueries.above.mobile]: { display: 'none' },
+                [containerQueries.above.mobile]: { display: "none" },
               })}
             />
             <Text
               UNSAFE_className={css({
-                [containerQueries.below.tablet]: { display: 'none' },
+                [containerQueries.below.tablet]: { display: "none" },
               })}
             >
               Regenerate

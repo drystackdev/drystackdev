@@ -1,5 +1,5 @@
-import { Command, EditorState } from 'prosemirror-state';
-import { getEditorSchema, EditorSchema } from './schema';
+import { Command, EditorState } from "prosemirror-state";
+import { getEditorSchema, EditorSchema } from "./schema";
 import React, {
   HTMLAttributes,
   MutableRefObject,
@@ -12,18 +12,18 @@ import React, {
   useLayoutEffect,
   useMemo,
   useRef,
-} from 'react';
-import { useEventCallback } from './utils';
-import { EditorView } from 'prosemirror-view';
-import { useConfig } from '../../../../app/shell/context';
-import { useIsAiLocked } from '../../../../app/ai/lock-context';
+} from "react";
+import { useEventCallback } from "./utils";
+import { EditorView } from "prosemirror-view";
+import { useConfig } from "../../../../app/shell/context";
+import { useIsAiLocked } from "../../../../app/ai/lock-context";
 
 const EditorStateContext = React.createContext<EditorState | null>(null);
 
 export function useEditorState() {
   const state = useContext(EditorStateContext);
   if (state === null) {
-    throw new Error('useEditorState must be used inside ProseMirrorEditorView');
+    throw new Error("useEditorState must be used inside ProseMirrorEditorView");
   }
   return state;
 }
@@ -68,7 +68,7 @@ export function useLayoutEffectWithEditorUpdated(effect: () => void) {
 }
 
 /**
- * `externalMount` adopts a DOM node this component didn't render — the live
+ * `externalMount` adopts a DOM node this component didn't render - the live
  * site's own element, in the visual editor's inline `fields.content` spot
  * (see packages/astro/src/editor/InlineContentEditors.tsx). ProseMirror's
  * `{ mount }` option is built for exactly this, so the page's own CSS
@@ -82,7 +82,7 @@ export function useEditorView(
   state: EditorState,
   _onEditorStateChange: (state: EditorState) => void,
   externalMount?: HTMLElement | null,
-  isEditable = true
+  isEditable = true,
 ) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -91,7 +91,7 @@ export function useEditorView(
   // ProseMirror re-reads `editable()` on every state update, so holding the
   // flag in a ref lets it flip without rebuilding the view. Rebuilding would
   // drop the caret and the undo history, and would re-run the mount effect
-  // below — the same effect whose cleanup once wiped content on toggle.
+  // below - the same effect whose cleanup once wiped content on toggle.
   const isEditableRef = useRef(isEditable);
   isEditableRef.current = isEditable;
   useLayoutEffect(() => {
@@ -110,7 +110,7 @@ export function useEditorView(
           view.updateState(newEditorState);
           onEditorStateChange(newEditorState);
         },
-      }
+      },
     );
     viewRef.current = view;
     return () => {
@@ -156,7 +156,7 @@ const StableEditorContext = React.createContext<StableContext | null>(null);
 function useStableEditorContext() {
   const context = useContext(StableEditorContext);
   if (context === null) {
-    throw new Error('editor hooks must be used inside a ProseMirrorEditorView');
+    throw new Error("editor hooks must be used inside a ProseMirrorEditorView");
   }
   return context;
 }
@@ -167,11 +167,11 @@ export const ProseMirrorEditor = forwardRef(function ProseMirrorEditorView(
     onChange: (state: EditorState) => void;
     children: ReactNode;
     // When set, ProseMirror adopts this node instead of the one
-    // <ProseMirrorEditable> would render — see useEditorView's doc comment.
+    // <ProseMirrorEditable> would render - see useEditorView's doc comment.
     // Such a caller renders no <ProseMirrorEditable> of its own.
     mount?: HTMLElement | null;
   },
-  ref: Ref<{ view: EditorView | null }>
+  ref: Ref<{ view: EditorView | null }>,
 ) {
   // Read here rather than passed in: an overlay can stop the mouse, but only
   // ProseMirror itself can stop the keyboard once the caret is inside.
@@ -180,7 +180,7 @@ export const ProseMirrorEditor = forwardRef(function ProseMirrorEditorView(
     props.value,
     props.onChange,
     props.mount,
-    !isAiLocked
+    !isAiLocked,
   );
 
   useImperativeHandle(
@@ -190,14 +190,14 @@ export const ProseMirrorEditor = forwardRef(function ProseMirrorEditorView(
         return view.current;
       },
     }),
-    [view]
+    [view],
   );
 
   const stableContext = useMemo((): StableContext => {
     return {
       view,
       mount,
-      dispatchCommand: command => {
+      dispatchCommand: (command) => {
         if (!view.current) return;
         command(view.current.state, view.current.dispatch, view.current);
         view.current.focus();

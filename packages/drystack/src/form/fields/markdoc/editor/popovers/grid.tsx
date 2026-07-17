@@ -32,7 +32,7 @@ import {
   GRID_ROW_OPTIONS,
 } from "../grid";
 
-// "Remove grid" icon (a layout box with a torn corner) — not in @keystar/ui's
+// "Remove grid" icon (a layout box with a torn corner) - not in @keystar/ui's
 // bundled set, but drawn in the same 24×24 stroke convention as its other
 // icons, so it goes through <Icon> like any of them.
 const gridDeleteIcon = (
@@ -40,7 +40,7 @@ const gridDeleteIcon = (
 );
 
 // Not in @keystar/ui's bundled (Tabler-derived) icon set, so drawn directly
-// rather than through <Icon> — that wrapper assumes a 24×24 stroke-only
+// rather than through <Icon> - that wrapper assumes a 24×24 stroke-only
 // glyph, but this one is a filled 16×16 shape.
 function GridSettingsIcon() {
   return (
@@ -61,7 +61,7 @@ function GridSettingsIcon() {
 }
 
 // Keystar's `Picker` stacks its label above the field (no `labelPosition`
-// prop in this version) — this puts the label to the left instead, matching
+// prop in this version) - this puts the label to the left instead, matching
 // the settings panel's row layout, and lets the field itself stay narrow
 // since these are all short values (a track count, a CSS length).
 function SettingRow(props: { label: string; children: ReactElement }) {
@@ -76,7 +76,7 @@ function SettingRow(props: { label: string; children: ReactElement }) {
 const settingFieldWidth = 90;
 
 // The gear opens a settings panel (keystar's Menu has no nested submenus, so
-// the grid-wide controls — columns, rows, gap — live in a popover instead of
+// the grid-wide controls - columns, rows, gap - live in a popover instead of
 // as separate toolbar buttons). Add/delete item live as their own +/x
 // buttons on the toolbar (see GridPopover).
 function GridSettingsMenu(props: {
@@ -106,7 +106,7 @@ function GridSettingsMenu(props: {
               selectedKey={columns}
               onSelectionChange={(key) => {
                 runCommand(
-                  setGridColumns(props.pos, parseInt(String(key), 10))
+                  setGridColumns(props.pos, parseInt(String(key), 10)),
                 );
                 close();
               }}
@@ -141,7 +141,7 @@ function GridSettingsMenu(props: {
                 runCommand((state, dispatch) => {
                   if (dispatch) {
                     dispatch(
-                      state.tr.setNodeAttribute(props.pos, "gap", value)
+                      state.tr.setNodeAttribute(props.pos, "gap", value),
                     );
                   }
                   return true;
@@ -161,7 +161,7 @@ function GridSettingsMenu(props: {
   );
 }
 
-// Item layout — an icon button that opens a 3×3 alignment picker built from
+// Item layout - an icon button that opens a 3×3 alignment picker built from
 // Tabler `box-align-*` glyphs (a box with the marker in the matching corner /
 // edge; the plain box = center). The cell matching the focused cell's current
 // placement is highlighted; clicking it again clears back to the default
@@ -216,7 +216,7 @@ const PLACES: { place: GridPlace; label: string; path: string }[] = [
 ];
 
 // the box-align glyph for a given placement. `null`/unplaced falls back to the
-// top-left glyph — matching how unplaced content actually flows (top, full
+// top-left glyph - matching how unplaced content actually flows (top, full
 // width). Reused by both the toolbar button and the 3×3 picker.
 function PlaceGlyph(props: { place: GridPlace; size?: number }) {
   const size = props.size ?? 20;
@@ -263,7 +263,7 @@ function GridLayoutMenu(props: { state: EditorState }) {
               aria-label={label}
               aria-pressed={active}
               className={active ? layoutCellActiveClass : layoutCellClass}
-              // keep the editor selection inside the focused cell — otherwise
+              // keep the editor selection inside the focused cell - otherwise
               // pressing would blur it before the command runs
               onMouseDown={(event) => event.preventDefault()}
               onClick={() =>
@@ -303,7 +303,7 @@ const layoutCellClass = css({
 
 // mirror keystar's selected low-prominence ActionButton (neutralSecondary
 // fill, inverse foreground) so the active cell matches every other selected
-// button — the old accent fill + canvas foreground read as hardcoded black
+// button - the old accent fill + canvas foreground read as hardcoded black
 const layoutCellActiveClass = css(layoutCellClass, {
   backgroundColor: tokenSchema.color.foreground.neutralSecondary,
   color: tokenSchema.color.foreground.inverse,
@@ -313,7 +313,7 @@ const layoutCellActiveClass = css(layoutCellClass, {
   },
 });
 
-// The grid-wide controls (settings, item layout, add/delete item) — shared
+// The grid-wide controls (settings, item layout, add/delete item) - shared
 // between the grid's own popover and the merged table-in-grid popover (see
 // `TableInGridPopover` in `popovers/index.tsx`), which needs these alongside
 // the table's own controls since a table's popover otherwise shadows its
@@ -324,7 +324,7 @@ export function GridItemControls(props: {
   pos: number;
 }) {
   const runCommand = useEditorDispatchCommand();
-  // "delete item" targets the focused cell — disabled until one is focused
+  // "delete item" targets the focused cell - disabled until one is focused
   const hasCell = findGridCell(props.state) !== null;
 
   return (

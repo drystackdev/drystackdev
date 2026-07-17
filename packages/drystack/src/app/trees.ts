@@ -1,5 +1,5 @@
-import { assert } from 'emery';
-import { sha1 } from '#sha1';
+import { assert } from "emery";
+import { sha1 } from "#sha1";
 
 type Changes = {
   additions: {
@@ -16,20 +16,20 @@ const blobShaCache = new WeakMap<Uint8Array, string | Promise<string>>();
 export async function blobSha(contents: Uint8Array) {
   const cached = blobShaCache.get(contents);
   if (cached !== undefined) return cached;
-  const blobPrefix = textEncoder.encode('blob ' + contents.length + '\0');
+  const blobPrefix = textEncoder.encode("blob " + contents.length + "\0");
   const array = new Uint8Array(blobPrefix.byteLength + contents.byteLength);
   array.set(blobPrefix, 0);
   array.set(contents, blobPrefix.byteLength);
   const digestPromise = sha1(array);
   blobShaCache.set(contents, digestPromise);
-  digestPromise.then(digest => blobShaCache.set(contents, digest));
+  digestPromise.then((digest) => blobShaCache.set(contents, digest));
   return digestPromise;
 }
 
 export type TreeNode = { entry: TreeEntry; children?: Map<string, TreeNode> };
 
 export function getTreeNodeAtPath(root: Map<string, TreeNode>, path: string) {
-  const parts = path.split('/');
+  const parts = path.split("/");
   let node: TreeNode | undefined = root.get(parts[0]);
   for (const part of parts.slice(1)) {
     if (!node) return undefined;
@@ -44,7 +44,7 @@ export type TreeEntry = {
   mode: string;
   type: string;
   sha: string;
-  // byte size — only meaningful for blobs
+  // byte size - only meaningful for blobs
   size?: number;
 };
 
@@ -52,37 +52,37 @@ type TreeChanges = Map<string, NodeChanges>;
 type NodeChanges =
   | Uint8Array
   | { byteLength: number; sha: string }
-  | 'delete'
+  | "delete"
   | TreeChanges;
 
 function getNodeAtPath(tree: TreeChanges, path: string): TreeChanges {
-  if (path === '') return tree;
+  if (path === "") return tree;
   let node = tree;
-  for (const part of path.split('/')) {
+  for (const part of path.split("/")) {
     if (!node.has(part)) {
       node.set(part, new Map());
     }
     const innerNode = node.get(part);
-    assert(innerNode instanceof Map, 'expected tree');
+    assert(innerNode instanceof Map, "expected tree");
     node = innerNode;
   }
   return node;
 }
 
 function getFilename(path: string) {
-  return path.replace(/.*\//, '');
+  return path.replace(/.*\//, "");
 }
 
 function getDirname(path: string) {
-  if (!path.includes('/')) return '';
-  return path.replace(/\/[^/]+$/, '');
+  if (!path.includes("/")) return "";
+  return path.replace(/\/[^/]+$/, "");
 }
 
 export function toTreeChanges(changes: Changes) {
   const changesRoot = new Map();
   for (const deletion of changes.deletions) {
     const parentTree = getNodeAtPath(changesRoot, getDirname(deletion));
-    parentTree.set(getFilename(deletion), 'delete');
+    parentTree.set(getFilename(deletion), "delete");
   }
   for (const addition of changes.additions) {
     const parentTree = getNodeAtPath(changesRoot, getDirname(addition.path));
@@ -94,7 +94,7 @@ export function toTreeChanges(changes: Changes) {
 const SPACE_CHAR_CODE = 32;
 const space = new Uint8Array([SPACE_CHAR_CODE]);
 const nullchar = new Uint8Array([0]);
-const tree = textEncoder.encode('tree ');
+const tree = textEncoder.encode("tree ");
 
 // based on https://github.com/isomorphic-git/isomorphic-git/blob/c09dfa20ffe0ab9e6602e0fa172d72ba8994e443/src/models/GitTree.js#L108-L122
 export function treeSha(children: Map<string, TreeNode>) {
@@ -104,12 +104,12 @@ export function treeSha(children: Map<string, TreeNode>) {
     mode: node.entry.mode,
   }));
   entries.sort((a, b) => {
-    const aName = a.mode === '040000' ? a.name + '/' : a.name;
-    const bName = b.mode === '040000' ? b.name + '/' : b.name;
+    const aName = a.mode === "040000" ? a.name + "/" : a.name;
+    const bName = b.mode === "040000" ? b.name + "/" : b.name;
     return aName === bName ? 0 : aName < bName ? -1 : 1;
   });
-  const treeObject = entries.flatMap(entry => {
-    const mode = textEncoder.encode(entry.mode.replace(/^0/, ''));
+  const treeObject = entries.flatMap((entry) => {
+    const mode = textEncoder.encode(entry.mode.replace(/^0/, ""));
     const name = textEncoder.encode(entry.name);
     const sha = hexToBytes(entry.sha);
     return [mode, space, name, nullchar, sha];
@@ -118,11 +118,11 @@ export function treeSha(children: Map<string, TreeNode>) {
     concatBytes([
       tree,
       textEncoder.encode(
-        treeObject.reduce((sum, val) => sum + val.byteLength, 0).toString()
+        treeObject.reduce((sum, val) => sum + val.byteLength, 0).toString(),
       ),
       nullchar,
       ...treeObject,
-    ])
+    ]),
   );
 }
 
@@ -148,28 +148,28 @@ function hexToBytes(str: string) {
 
 async function createTreeNodeEntry(
   path: string,
-  children: Map<string, TreeNode>
+  children: Map<string, TreeNode>,
 ): Promise<TreeEntry> {
   const sha = await treeSha(children);
   return {
     path,
-    mode: '040000',
-    type: 'tree',
+    mode: "040000",
+    type: "tree",
     sha,
   };
 }
 
 async function createBlobNodeEntry(
   path: string,
-  contents: Uint8Array | { byteLength: number; sha: string }
+  contents: Uint8Array | { byteLength: number; sha: string },
 ): Promise<TreeEntry> {
-  const sha = 'sha' in contents ? contents.sha : await blobSha(contents);
-  return { path, mode: '100644', type: 'blob', sha, size: contents.byteLength };
+  const sha = "sha" in contents ? contents.sha : await blobSha(contents);
+  return { path, mode: "100644", type: "blob", sha, size: contents.byteLength };
 }
 
 export async function updateTreeWithChanges(
   tree: Map<string, TreeNode>,
-  changes: Changes
+  changes: Changes,
 ): Promise<{ entries: TreeEntry[]; sha: string }> {
   const newTree =
     (await updateTree(tree, toTreeChanges(changes), [])) ?? new Map();
@@ -180,19 +180,19 @@ export async function updateTreeWithChanges(
 }
 
 export function treeToEntries(tree: Map<string, TreeNode>): TreeEntry[] {
-  return [...tree.values()].flatMap(x =>
-    x.children ? [x.entry, ...treeToEntries(x.children)] : [x.entry]
+  return [...tree.values()].flatMap((x) =>
+    x.children ? [x.entry, ...treeToEntries(x.children)] : [x.entry],
   );
 }
 
 async function updateTree(
   tree: Map<string, TreeNode>,
   changedTree: TreeChanges,
-  path: string[]
+  path: string[],
 ): Promise<Map<string, TreeNode> | undefined> {
   const newTree = new Map(tree);
   for (const [key, value] of changedTree) {
-    if (value === 'delete') {
+    if (value === "delete") {
       newTree.delete(key);
     }
     if (value instanceof Map) {
@@ -200,25 +200,25 @@ async function updateTree(
       const children = await updateTree(
         existingChildren,
         value,
-        path.concat(key)
+        path.concat(key),
       );
       if (children === undefined) {
         newTree.delete(key);
         continue;
       }
       const entry = await createTreeNodeEntry(
-        path.concat(key).join('/'),
-        children
+        path.concat(key).join("/"),
+        children,
       );
       newTree.set(key, { entry, children });
     }
     if (
       value instanceof Uint8Array ||
-      (typeof value === 'object' && 'sha' in value)
+      (typeof value === "object" && "sha" in value)
     ) {
       const entry = await createBlobNodeEntry(
-        path.concat(key).join('/'),
-        value
+        path.concat(key).join("/"),
+        value,
       );
       newTree.set(key, { entry });
     }
@@ -230,7 +230,7 @@ async function updateTree(
 }
 
 export function treeEntriesToTreeNodes(
-  entries: TreeEntry[]
+  entries: TreeEntry[],
 ): Map<string, TreeNode> {
   const root = new Map<string, TreeNode>();
   const getChildrenAtPath = (parts: string[]) => {
@@ -246,12 +246,12 @@ export function treeEntriesToTreeNodes(
     return node?.children;
   };
   for (const entry of entries) {
-    const split = entry.path.split('/');
+    const split = entry.path.split("/");
     const children = getChildrenAtPath(split.slice(0, -1));
     if (children) {
       children.set(split[split.length - 1], {
         entry,
-        children: entry.type === 'tree' ? new Map() : undefined,
+        children: entry.type === "tree" ? new Map() : undefined,
       });
     }
   }

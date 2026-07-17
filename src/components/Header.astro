@@ -9,283 +9,306 @@ const { before: brandName, emphasis: brandHighlight } = parseHeadingLine(
 );
 
 const links = headerNav.map((n) => ({
-	href: n.href,
-	label: n.label,
-	match: n.href === "/" ? "exact" : "prefix",
+  href: n.href,
+  label: n.label,
+  match: n.href === "/" ? "exact" : "prefix",
 }));
 ---
 
 <header class="site-header">
-	<div class="site-header__inner">
-		<a href="/" class="brand">
-			<span class="brand__mark">{brandName.charAt(0)}</span>
-			<span class="brand__name">{brandName}<em>{brandHighlight}</em></span>
-		</a>
-		<nav class="nav">
-			{links.map((link) => (
-				<a href={link.href} data-match={link.match}>{link.label}</a>
-			))}
-		</nav>
-		<div class="site-header__actions">
-			<a href="/#contact" class="btn btn-primary nav-cta">Liên hệ</a>
-			<button
-				type="button"
-				class="nav-toggle"
-				aria-label="Mở menu"
-				aria-expanded="false"
-				aria-controls="mobile-menu"
-			>
-				<span class="nav-toggle__icon nav-toggle__icon--open"><Icon name="menu" size={22} /></span>
-				<span class="nav-toggle__icon nav-toggle__icon--close"><Icon name="x" size={22} /></span>
-			</button>
-		</div>
-	</div>
+  <div class="site-header__inner">
+    <a href="/" class="brand">
+      <span class="brand__mark">{brandName.charAt(0)}</span>
+      <span class="brand__name">{brandName}<em>{brandHighlight}</em></span>
+    </a>
+    <nav class="nav">
+      {
+        links.map((link) => (
+          <a href={link.href} data-match={link.match}>
+            {link.label}
+          </a>
+        ))
+      }
+    </nav>
+    <div class="site-header__actions">
+      <a href="/#contact" class="btn btn-primary nav-cta">Liên hệ</a>
+      <button
+        type="button"
+        class="nav-toggle"
+        aria-label="Mở menu"
+        aria-expanded="false"
+        aria-controls="mobile-menu"
+      >
+        <span class="nav-toggle__icon nav-toggle__icon--open"
+          ><Icon name="menu" size={22} /></span
+        >
+        <span class="nav-toggle__icon nav-toggle__icon--close"
+          ><Icon name="x" size={22} /></span
+        >
+      </button>
+    </div>
+  </div>
 
-	<div class="mobile-menu" id="mobile-menu">
-		<nav class="mobile-menu__nav">
-			{links.map((link) => (
-				<a href={link.href} data-match={link.match}>{link.label}</a>
-			))}
-		</nav>
-		<a href="/#contact" class="btn btn-primary mobile-menu__cta">Liên hệ</a>
-	</div>
+  <div class="mobile-menu" id="mobile-menu">
+    <nav class="mobile-menu__nav">
+      {
+        links.map((link) => (
+          <a href={link.href} data-match={link.match}>
+            {link.label}
+          </a>
+        ))
+      }
+    </nav>
+    <a href="/#contact" class="btn btn-primary mobile-menu__cta">Liên hệ</a>
+  </div>
 </header>
 
 <script>
-	function updateActiveNav() {
-		const path = location.pathname.replace(/\/+$/, "") || "/";
+  function updateActiveNav() {
+    const path = location.pathname.replace(/\/+$/, "") || "/";
 
-		document.querySelectorAll<HTMLAnchorElement>(".site-header a[data-match]").forEach((a) => {
-			const hrefPath = a.getAttribute("href")!;
-			const matchType = a.dataset.match;
+    document
+      .querySelectorAll<HTMLAnchorElement>(".site-header a[data-match]")
+      .forEach((a) => {
+        const hrefPath = a.getAttribute("href")!;
+        const matchType = a.dataset.match;
 
-			let active = false;
-			if (matchType === "exact") active = path === hrefPath;
-			else if (matchType === "prefix") active = path === hrefPath || path.startsWith(`${hrefPath}/`);
+        let active = false;
+        if (matchType === "exact") active = path === hrefPath;
+        else if (matchType === "prefix")
+          active = path === hrefPath || path.startsWith(`${hrefPath}/`);
 
-			a.classList.toggle("is-active", active);
-		});
-	}
+        a.classList.toggle("is-active", active);
+      });
+  }
 
-	updateActiveNav();
-	window.addEventListener("popstate", updateActiveNav);
+  updateActiveNav();
+  window.addEventListener("popstate", updateActiveNav);
 
-	// ---- Menu mobile ----
-	const header = document.querySelector<HTMLElement>(".site-header");
-	const toggle = document.querySelector<HTMLButtonElement>(".nav-toggle");
-	const menu = document.querySelector<HTMLElement>("#mobile-menu");
+  // ---- Menu mobile ----
+  const header = document.querySelector<HTMLElement>(".site-header");
+  const toggle = document.querySelector<HTMLButtonElement>(".nav-toggle");
+  const menu = document.querySelector<HTMLElement>("#mobile-menu");
 
-	function setMenu(open: boolean) {
-		if (!header || !toggle) return;
-		header.classList.toggle("is-menu-open", open);
-		toggle.setAttribute("aria-expanded", String(open));
-		toggle.setAttribute("aria-label", open ? "Đóng menu" : "Mở menu");
-		document.body.style.overflow = open ? "hidden" : "";
-	}
+  function setMenu(open: boolean) {
+    if (!header || !toggle) return;
+    header.classList.toggle("is-menu-open", open);
+    toggle.setAttribute("aria-expanded", String(open));
+    toggle.setAttribute("aria-label", open ? "Đóng menu" : "Mở menu");
+    document.body.style.overflow = open ? "hidden" : "";
+  }
 
-	toggle?.addEventListener("click", () => {
-		setMenu(!header?.classList.contains("is-menu-open"));
-	});
+  toggle?.addEventListener("click", () => {
+    setMenu(!header?.classList.contains("is-menu-open"));
+  });
 
-	// Đóng khi bấm vào 1 link trong menu
-	menu?.querySelectorAll("a").forEach((a) => a.addEventListener("click", () => setMenu(false)));
+  // Đóng khi bấm vào 1 link trong menu
+  menu
+    ?.querySelectorAll("a")
+    .forEach((a) => a.addEventListener("click", () => setMenu(false)));
 
-	// Đóng khi bấm ra ngoài header
-	document.addEventListener("click", (e) => {
-		if (header?.classList.contains("is-menu-open") && !header.contains(e.target as Node)) {
-			setMenu(false);
-		}
-	});
+  // Đóng khi bấm ra ngoài header
+  document.addEventListener("click", (e) => {
+    if (
+      header?.classList.contains("is-menu-open") &&
+      !header.contains(e.target as Node)
+    ) {
+      setMenu(false);
+    }
+  });
 
-	// Đóng bằng phím ESC
-	document.addEventListener("keydown", (e) => {
-		if (e.key === "Escape") setMenu(false);
-	});
+  // Đóng bằng phím ESC
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") setMenu(false);
+  });
 
-	// Về desktop thì luôn đóng menu (tránh kẹt trạng thái)
-	const desktopQuery = window.matchMedia("(min-width: 961px)");
-	desktopQuery.addEventListener("change", (e) => {
-		if (e.matches) setMenu(false);
-	});
+  // Về desktop thì luôn đóng menu (tránh kẹt trạng thái)
+  const desktopQuery = window.matchMedia("(min-width: 961px)");
+  desktopQuery.addEventListener("change", (e) => {
+    if (e.matches) setMenu(false);
+  });
 </script>
 
 <style>
-	.site-header {
-		position: fixed;
-		top: clamp(0.75rem, 2vw, 1.5rem);
-		left: 50%;
-		transform: translateX(-50%);
-		width: min(1180px, calc(100% - 2rem));
-		z-index: 100;
-		background: rgba(15, 15, 17, 0.6);
-		backdrop-filter: blur(16px);
-		border: 1px solid rgba(212, 175, 55, 0.18);
-		border-radius: 999px;
-		box-shadow: 0 20px 45px -20px rgba(0, 0, 0, 0.6);
-	}
+  .site-header {
+    position: fixed;
+    top: clamp(0.75rem, 2vw, 1.5rem);
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(1180px, calc(100% - 2rem));
+    z-index: 100;
+    background: rgba(15, 15, 17, 0.6);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(212, 175, 55, 0.18);
+    border-radius: 999px;
+    box-shadow: 0 20px 45px -20px rgba(0, 0, 0, 0.6);
+  }
 
-	.site-header__inner {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 1.5rem;
-		padding: 0.75rem;
-		padding-left: 1.75rem;
-	}
+  .site-header__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 0.75rem;
+    padding-left: 1.75rem;
+  }
 
-	.brand {
-		display: flex;
-		align-items: center;
-		gap: 0.6rem;
-		font-family: var(--font-display);
-		font-weight: 700;
-		font-size: 1.15rem;
-	}
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.15rem;
+  }
 
-	.brand__mark {
-		display: grid;
-		place-items: center;
-		width: 34px;
-		height: 34px;
-		border-radius: var(--radius-sm);
-		background: linear-gradient(135deg, var(--primary-light), var(--secondary));
-		color: var(--canvas-deep);
-		font-weight: 800;
-	}
+  .brand__mark {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, var(--primary-light), var(--secondary));
+    color: var(--canvas-deep);
+    font-weight: 800;
+  }
 
-	.brand__name em {
-		font-style: normal;
-		color: var(--primary);
-	}
+  .brand__name em {
+    font-style: normal;
+    color: var(--primary);
+  }
 
-	.nav {
-		display: flex;
-		gap: 1.5rem;
-		font-size: 0.85rem;
-		font-weight: 500;
-		color: var(--text-muted);
-		white-space: nowrap;
-	}
+  .nav {
+    display: flex;
+    gap: 1.5rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
 
-	.nav a:hover {
-		color: var(--primary-light);
-	}
+  .nav a:hover {
+    color: var(--primary-light);
+  }
 
-	.nav a.is-active {
-		color: var(--primary-light);
-		font-weight: 700;
-	}
+  .nav a.is-active {
+    color: var(--primary-light);
+    font-weight: 700;
+  }
 
-	.site-header__actions {
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-	}
+  .site-header__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
 
-	.nav-cta {
-		padding: 0.6rem 1.35rem;
-		font-size: 0.85rem;
-	}
+  .nav-cta {
+    padding: 0.6rem 1.35rem;
+    font-size: 0.85rem;
+  }
 
-	/* Nút hamburger — chỉ hiện ở mobile */
-	.nav-toggle {
-		display: none;
-		place-items: center;
-		width: 44px;
-		height: 44px;
-		border: 1px solid rgba(212, 175, 55, 0.25);
-		border-radius: 50%;
-		background: rgba(255, 255, 255, 0.04);
-		color: var(--text-main);
-		cursor: pointer;
-	}
+  /* Nút hamburger - chỉ hiện ở mobile */
+  .nav-toggle {
+    display: none;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid rgba(212, 175, 55, 0.25);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-main);
+    cursor: pointer;
+  }
 
-	.nav-toggle__icon {
-		display: inline-flex;
-	}
+  .nav-toggle__icon {
+    display: inline-flex;
+  }
 
-	.nav-toggle__icon--close {
-		display: none;
-	}
+  .nav-toggle__icon--close {
+    display: none;
+  }
 
-	.site-header.is-menu-open .nav-toggle__icon--open {
-		display: none;
-	}
+  .site-header.is-menu-open .nav-toggle__icon--open {
+    display: none;
+  }
 
-	.site-header.is-menu-open .nav-toggle__icon--close {
-		display: inline-flex;
-	}
+  .site-header.is-menu-open .nav-toggle__icon--close {
+    display: inline-flex;
+  }
 
-	/* Panel menu trượt xuống dưới header pill */
-	.mobile-menu {
-		position: absolute;
-		top: calc(100% + 0.6rem);
-		left: 0;
-		right: 0;
-		display: flex;
-		flex-direction: column;
-		gap: 0.35rem;
-		padding: 0.75rem;
-		background: rgba(15, 15, 17, 0.92);
-		backdrop-filter: blur(16px);
-		border: 1px solid rgba(212, 175, 55, 0.18);
-		border-radius: var(--radius-lg);
-		box-shadow: 0 24px 50px -20px rgba(0, 0, 0, 0.7);
-		opacity: 0;
-		visibility: hidden;
-		transform: translateY(-10px);
-		transition: opacity 0.28s ease, transform 0.28s ease, visibility 0.28s;
-	}
+  /* Panel menu trượt xuống dưới header pill */
+  .mobile-menu {
+    position: absolute;
+    top: calc(100% + 0.6rem);
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.75rem;
+    background: rgba(15, 15, 17, 0.92);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(212, 175, 55, 0.18);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 24px 50px -20px rgba(0, 0, 0, 0.7);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+    transition:
+      opacity 0.28s ease,
+      transform 0.28s ease,
+      visibility 0.28s;
+  }
 
-	.site-header.is-menu-open .mobile-menu {
-		opacity: 1;
-		visibility: visible;
-		transform: none;
-	}
+  .site-header.is-menu-open .mobile-menu {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+  }
 
-	.mobile-menu__nav {
-		display: flex;
-		flex-direction: column;
-	}
+  .mobile-menu__nav {
+    display: flex;
+    flex-direction: column;
+  }
 
-	.mobile-menu__nav a {
-		padding: 0.85rem 1rem;
-		border-radius: var(--radius-md);
-		font-size: 0.95rem;
-		font-weight: 600;
-		color: var(--text-muted);
-	}
+  .mobile-menu__nav a {
+    padding: 0.85rem 1rem;
+    border-radius: var(--radius-md);
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
 
-	.mobile-menu__nav a:hover,
-	.mobile-menu__nav a.is-active {
-		color: var(--primary-light);
-		background: rgba(212, 175, 55, 0.08);
-	}
+  .mobile-menu__nav a:hover,
+  .mobile-menu__nav a.is-active {
+    color: var(--primary-light);
+    background: rgba(212, 175, 55, 0.08);
+  }
 
-	.mobile-menu__cta {
-		margin-top: 0.4rem;
-		width: 100%;
-		justify-content: center;
-	}
+  .mobile-menu__cta {
+    margin-top: 0.4rem;
+    width: 100%;
+    justify-content: center;
+  }
 
-	@media (max-width: 960px) {
-		.nav,
-		.nav-cta {
-			display: none;
-		}
+  @media (max-width: 960px) {
+    .nav,
+    .nav-cta {
+      display: none;
+    }
 
-		.nav-toggle {
-			display: grid;
-		}
-	}
+    .nav-toggle {
+      display: grid;
+    }
+  }
 
-	@media (max-width: 420px) {
-		.site-header__inner {
-			padding-inline: 1.1rem;
-		}
+  @media (max-width: 420px) {
+    .site-header__inner {
+      padding-inline: 1.1rem;
+    }
 
-		.brand__name {
-			font-size: 1.05rem;
-		}
-	}
+    .brand__name {
+      font-size: 1.05rem;
+    }
+  }
 </style>

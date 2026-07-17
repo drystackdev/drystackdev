@@ -21,6 +21,8 @@ const blogSchema = {
   cover: fields.image({ label: 'Ảnh bìa' }),
   date: fields.date({ label: 'Ngày đăng', validation: { isRequired: true } }),
   publish: fields.checkbox({ label: 'Xuất bản', defaultValue: false }),
+  readingTime: fields.integer({ label: 'Thời gian đọc' }),
+  canonical: fields.url({ label: 'Canonical' }),
   body: fields.content({ label: 'Nội dung', options: { heading: [2, 3, 4] } }),
   createdAt: fields.timestamp({ mode: 'created', label: 'Tạo lúc' }),
   updatedAt: fields.timestamp({ mode: 'updated', label: 'Sửa lúc' }),
@@ -32,14 +34,21 @@ test('describes the fields the AI can fill', () => {
     ['title', 'slug'],
     ['excerpt', 'text'],
     ['keywords', 'text'],
-    ['date', 'date'],
-    ['publish', 'checkbox'],
     ['body', 'content'],
   ]);
 });
 
 test('leaves out image fields — the model cannot produce bytes', () => {
   expect(describeField('cover', blogSchema.cover)).toBeUndefined();
+});
+
+// Not prose: a publish date or an on/off flag is a fact about the entry, and
+// one the model invents is indistinguishable from a real one.
+test('leaves out date, checkbox, number and url fields', () => {
+  expect(describeField('date', blogSchema.date)).toBeUndefined();
+  expect(describeField('publish', blogSchema.publish)).toBeUndefined();
+  expect(describeField('readingTime', blogSchema.readingTime)).toBeUndefined();
+  expect(describeField('canonical', blogSchema.canonical)).toBeUndefined();
 });
 
 // Stamped by the save pipeline, never by a person, so never by the AI.

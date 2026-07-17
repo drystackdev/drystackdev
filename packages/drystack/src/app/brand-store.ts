@@ -1,18 +1,18 @@
 // Pure IndexedDB persistence for the current "brand" (a personal git branch in
-// GitHub mode — see brand.tsx). Extracted out of brand.tsx (which is
+// GitHub mode - see brand.tsx). Extracted out of brand.tsx (which is
 // React/context-heavy) so the visual editor (VEI, packages/astro/src/editor)
 // can read/rotate the same record over the same origin's IndexedDB without
 // pulling the admin app's React tree. Re-exported from brand.tsx so existing
 // admin imports keep working unchanged.
-import { createStore, get, set, del, type UseStore } from 'idb-keyval';
+import { createStore, get, set, del, type UseStore } from "idb-keyval";
 
-import type { GitHubConfig } from '../config';
-import { serializeRepoConfig } from './repo-config';
+import type { GitHubConfig } from "../config";
+import { serializeRepoConfig } from "./repo-config";
 
 // Deliberately holds no merge base: the base a brand was cut from is a fact
 // about the two refs, and deploy re-derives it from GitHub every time (see
 // deploy/merge-base.ts). Storing it here meant that whenever the record was
-// lost, it got rebuilt with a *guessed* base — which made Deploy roll the
+// lost, it got rebuilt with a *guessed* base - which made Deploy roll the
 // default branch back to the brand's tree.
 export type BrandRecord = {
   ref: string;
@@ -24,7 +24,7 @@ export type BrandRecord = {
 let store: UseStore | undefined;
 function getStore(): UseStore {
   if (!store) {
-    store = createStore('drystack-brand', 'brands');
+    store = createStore("drystack-brand", "brands");
   }
   return store;
 }
@@ -34,14 +34,14 @@ function repoKey(config: GitHubConfig): string {
 }
 
 export function readBrandRecord(
-  config: GitHubConfig
+  config: GitHubConfig,
 ): Promise<BrandRecord | undefined> {
   return get(repoKey(config), getStore());
 }
 
 export function writeBrandRecord(
   config: GitHubConfig,
-  record: BrandRecord
+  record: BrandRecord,
 ): Promise<void> {
   return set(repoKey(config), record, getStore());
 }

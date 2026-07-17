@@ -8,9 +8,9 @@ import {
   setMany,
   get,
   clear,
-} from 'idb-keyval';
-import { TreeNode } from './trees';
-import * as s from 'superstruct';
+} from "idb-keyval";
+import { TreeNode } from "./trees";
+import * as s from "superstruct";
 
 type StoredTreeEntry = {
   path: string;
@@ -22,7 +22,7 @@ let _treeStore: UseStore;
 
 function getTreeStore() {
   if (!_treeStore) {
-    _treeStore = createStore('drystack-trees', 'trees');
+    _treeStore = createStore("drystack-trees", "trees");
   }
   return _treeStore;
 }
@@ -31,7 +31,7 @@ let _blobStore: UseStore;
 
 function getBlobStore() {
   if (!_blobStore) {
-    _blobStore = createStore('drystack-blobs', 'blobs');
+    _blobStore = createStore("drystack-blobs", "blobs");
   }
   return _blobStore;
 }
@@ -51,12 +51,12 @@ let _thumbStore: UseStore;
 
 function getThumbStore() {
   if (!_thumbStore) {
-    _thumbStore = createStore('drystack-thumbs', 'thumbs');
+    _thumbStore = createStore("drystack-thumbs", "thumbs");
   }
   return _thumbStore;
 }
 
-// Downscaled preview bytes, keyed `${blobSha}@${maxDim}` — see
+// Downscaled preview bytes, keyed `${blobSha}@${maxDim}` - see
 // `image-preview-cache.ts`. Cheap to regenerate, so this store is a pure
 // optimization: it's fine for it to be empty or garbage-collected.
 export function setThumbToPersistedCache(key: string, val: Uint8Array) {
@@ -76,7 +76,7 @@ const treeSchema = s.array(
     path: s.string(),
     mode: s.string(),
     sha: s.string(),
-  })
+  }),
 );
 
 function getStoredTrees() {
@@ -84,9 +84,9 @@ function getStoredTrees() {
     return _storedTreeCache;
   }
   const cache = new Map<string, StoredTreeEntry[]>();
-  return entries(getTreeStore()).then(entries => {
+  return entries(getTreeStore()).then((entries) => {
     for (const [sha, tree] of entries) {
-      if (typeof sha !== 'string') continue;
+      if (typeof sha !== "string") continue;
       let parsed;
       try {
         parsed = treeSchema.create(tree);
@@ -103,7 +103,7 @@ function getStoredTrees() {
 function constructTreeFromStoredTrees(
   sha: string,
   trees: Map<string, StoredTreeEntry[]>,
-  parentPath = ''
+  parentPath = "",
 ): TreeNode | undefined {
   const tree = new Map<string, TreeNode>();
   const storedTree = trees.get(sha);
@@ -111,8 +111,8 @@ function constructTreeFromStoredTrees(
     return;
   }
   for (const entry of storedTree) {
-    const innerPath = (parentPath === '' ? '' : parentPath + '/') + entry.path;
-    if (entry.mode === '040000') {
+    const innerPath = (parentPath === "" ? "" : parentPath + "/") + entry.path;
+    if (entry.mode === "040000") {
       const child = constructTreeFromStoredTrees(entry.sha, trees, innerPath);
       if (child) {
         tree.set(entry.path, child);
@@ -125,16 +125,16 @@ function constructTreeFromStoredTrees(
         mode: entry.mode,
         path: innerPath,
         sha: entry.sha,
-        type: entry.mode === '120000' ? 'symlink' : 'blob',
+        type: entry.mode === "120000" ? "symlink" : "blob",
       },
     });
   }
   return {
     entry: {
-      mode: '040000',
+      mode: "040000",
       path: parentPath,
       sha,
-      type: 'tree',
+      type: "tree",
     },
     children: tree,
   };
@@ -145,14 +145,14 @@ export function getTreeFromPersistedCache(sha: string) {
   if (stored instanceof Map) {
     return constructTreeFromStoredTrees(sha, stored);
   }
-  return stored.then(stored => constructTreeFromStoredTrees(sha, stored));
+  return stored.then((stored) => constructTreeFromStoredTrees(sha, stored));
 }
 
 export async function garbageCollectGitObjects(roots: string[]) {
   const treesToDelete = new Map<string, StoredTreeEntry[]>();
   const invalidTrees: IDBValidKey[] = [];
   for (const [sha, tree] of await getStoredTrees()) {
-    if (typeof sha !== 'string') {
+    if (typeof sha !== "string") {
       invalidTrees.push(sha);
       continue;
     }
@@ -187,8 +187,8 @@ export async function garbageCollectGitObjects(roots: string[]) {
   const treeKeysToDelete = [...treesToDelete.keys(), ...invalidTrees];
   // A thumbnail's lifetime tracks its source blob: drop it exactly when the
   // blob it was derived from is being collected (thumb keys are `${sha}@${dim}`).
-  const thumbsToDelete = allThumbs.filter(key =>
-    blobsToDelete.has(key.split('@')[0])
+  const thumbsToDelete = allThumbs.filter((key) =>
+    blobsToDelete.has(key.split("@")[0]),
   );
   await Promise.all([
     delMany([...blobsToDelete], getBlobStore()),
@@ -202,7 +202,7 @@ export async function garbageCollectGitObjects(roots: string[]) {
 
 export function setTreeToPersistedCache(
   sha: string,
-  children: Map<string, TreeNode>
+  children: Map<string, TreeNode>,
 ) {
   const allTrees: [string, StoredTreeEntry[]][] = [];
   collectTrees(sha, children, allTrees);
@@ -212,12 +212,12 @@ export function setTreeToPersistedCache(
 function collectTrees(
   sha: string,
   children: Map<string, TreeNode>,
-  allTrees: [string, StoredTreeEntry[]][]
+  allTrees: [string, StoredTreeEntry[]][],
 ) {
   const entries: StoredTreeEntry[] = [];
   for (const [path, entry] of children) {
     entries.push({
-      path: path.replace(/.*\//, ''),
+      path: path.replace(/.*\//, ""),
       mode: entry.entry.mode,
       sha: entry.entry.sha,
     });

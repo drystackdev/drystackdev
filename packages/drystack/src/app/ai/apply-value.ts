@@ -1,42 +1,41 @@
 // Maps a parsed YAML value onto a drystack form value. Lives beside the
 // admin app (not in api/) because the content field's conversion needs the
-// editor — the API route only ever deals in YAML text.
+// editor - the API route only ever deals in YAML text.
 
-import type { ComponentSchema } from '../../form/api';
-import { getInitialPropsValue } from '../../form/initial-values';
-import type { AiFieldSpec } from '../../api/ai/schema-to-yaml';
+import type { ComponentSchema } from "../../form/api";
+import { getInitialPropsValue } from "../../form/initial-values";
+import type { AiFieldSpec } from "../../api/ai/schema-to-yaml";
 
 const textEncoder = new TextEncoder();
 
 /**
  * Converts one YAML value into the form value for `schema`, or returns
- * `undefined` when the model produced something the field can't hold — a bad
+ * `undefined` when the model produced something the field can't hold - a bad
  * select option, a malformed date. Returning undefined (rather than throwing)
  * keeps one bad field from discarding an otherwise good generation.
  */
 export function aiValueToFormValue(
   spec: AiFieldSpec,
   schema: ComponentSchema,
-  raw: unknown
+  raw: unknown,
 ): unknown {
   switch (spec.kind) {
-    case 'text':
-    case 'url':
-      return typeof raw === 'string' ? raw : undefined;
+    case "text":
+      return typeof raw === "string" ? raw : undefined;
 
-    case 'slug': {
-      if (typeof raw !== 'string' || !raw.trim()) return undefined;
+    case "slug": {
+      if (typeof raw !== "string" || !raw.trim()) return undefined;
       // The AI only writes the human-readable half; the slug comes from the
       // field's own generator, so a model that never learned Vietnamese
       // diacritic folding can't produce a broken URL.
       return { name: raw, slug: (schema as any).slugify(raw) };
     }
 
-    case 'content': {
-      if (typeof raw !== 'string') return undefined;
+    case "content": {
+      if (typeof raw !== "string") return undefined;
       const field = schema as any;
       // `fields.content`'s form value is a ProseMirror EditorState, not a
-      // string — the only way to build one is to run the field's own parse
+      // string - the only way to build one is to run the field's own parse
       // over the HTML bytes, exactly as loading from disk would.
       return field.parse(undefined, {
         content: textEncoder.encode(stripDisallowedTags(raw)),
@@ -46,45 +45,23 @@ export function aiValueToFormValue(
       });
     }
 
-    case 'select':
-      return typeof raw === 'string' && spec.options?.includes(raw)
+    case "select":
+      return typeof raw === "string" && spec.options?.includes(raw)
         ? raw
         : undefined;
 
-    case 'multiselect': {
+    case "multiselect": {
       if (!Array.isArray(raw)) return undefined;
       const valid = raw.filter(
-        (v): v is string => typeof v === 'string' && !!spec.options?.includes(v)
+        (v): v is string =>
+          typeof v === "string" && !!spec.options?.includes(v),
       );
       return valid.length ? valid : undefined;
     }
 
-    case 'checkbox':
-      if (typeof raw === 'boolean') return raw;
-      // js-yaml already coerces `true`/`false`; this catches a model that
-      // quoted them.
-      if (raw === 'true') return true;
-      if (raw === 'false') return false;
-      return undefined;
-
-    case 'date': {
-      const text =
-        raw instanceof Date
-          ? raw.toISOString().slice(0, 10)
-          : typeof raw === 'string'
-            ? raw.trim()
-            : undefined;
-      if (!text || !/^\d{4}-\d{2}-\d{2}$/.test(text)) return undefined;
-      return text;
-    }
-
-    case 'integer': {
-      const n = typeof raw === 'number' ? raw : Number(raw);
-      return Number.isInteger(n) ? n : undefined;
-    }
-
-    case 'object': {
-      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+    case "object": {
+      if (!raw || typeof raw !== "object" || Array.isArray(raw))
+        return undefined;
       const fields = (schema as any).fields as Record<string, ComponentSchema>;
       // Start from the field's own defaults so children the model skipped keep
       // valid values rather than becoming undefined.
@@ -98,13 +75,13 @@ export function aiValueToFormValue(
       return out;
     }
 
-    case 'array': {
+    case "array": {
       if (!Array.isArray(raw)) return undefined;
       const element = spec.element!;
       const elementSchema = (schema as any).element as ComponentSchema;
       const items = raw
-        .map(item => aiValueToFormValue(element, elementSchema, item))
-        .filter(v => v !== undefined);
+        .map((item) => aiValueToFormValue(element, elementSchema, item))
+        .filter((v) => v !== undefined);
       return items.length ? items : undefined;
     }
 
@@ -118,5 +95,5 @@ export function aiValueToFormValue(
 // that don't exist, and the editor would carry the dead reference into the
 // saved HTML.
 function stripDisallowedTags(html: string): string {
-  return html.replace(/<img\b[^>]*>/gi, '');
+  return html.replace(/<img\b[^>]*>/gi, "");
 }

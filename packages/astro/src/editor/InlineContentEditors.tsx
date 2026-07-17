@@ -26,7 +26,10 @@ type ContentFieldSchema = {
   // block spacing, so the live page's typography is what shows while editing
   // (see the field's own inlineParse). Both produce the same HTML on the way
   // back out.
-  inlineParse(html: string, other: ReadonlyMap<string, Uint8Array>): EditorState;
+  inlineParse(
+    html: string,
+    other: ReadonlyMap<string, Uint8Array>,
+  ): EditorState;
   serialize(
     value: EditorState,
     extra?: { slug?: undefined; entryDirectory?: string },
@@ -64,7 +67,7 @@ type Spot = {
 
 // One live ProseMirror view bound to one `[data-dry-kind="content"]` element
 // already on the page. Mounts as soon as edit mode turns on (like a text
-// spot, unlike the array/object gear dialog) — the whole point is editing in
+// spot, unlike the array/object gear dialog) - the whole point is editing in
 // place, so there's nothing to wait for a click on.
 function InlineContentEditor({
   config,
@@ -86,14 +89,14 @@ function InlineContentEditor({
   // first one does, and re-fetching per paint would be pointless network.
   //
   // Seeded from disk *and* from the bus's blob store, because an image the
-  // admin has embedded but not yet saved exists only in the latter — parsing
+  // admin has embedded but not yet saved exists only in the latter - parsing
   // its HTML without those bytes would repoint the image (see edit-sync.ts).
   const assetsRef = useRef<ReadonlyMap<string, Uint8Array>>(new Map());
-  // Images this editor has already published bytes for — see stashContentBlobs.
+  // Images this editor has already published bytes for - see stashContentBlobs.
   const stashedRef = useRef<StashedBlobs>(new Set());
   // Both the painter below and onChange's publish start a fresh async chain
   // (an IndexedDB blob read, or a stash-then-publish) with no debounce or
-  // cancellation — typing fast, or two paints arriving close together, can
+  // cancellation - typing fast, or two paints arriving close together, can
   // let an older chain resolve after a newer one and overwrite it. One
   // shared instance since painter (apply) and onChange (publish) both write
   // to this same editor's `state`/the bus and must agree on what's latest.
@@ -101,8 +104,8 @@ function InlineContentEditor({
 
   // Reads the element's current HTML and turns it into an editor state, with
   // this entry's own assets/ bytes hydrated first (see listAssetFiles for why
-  // that ordering is load-bearing). Kicked off on mount; nothing renders — and
-  // so nothing touches the element — until it resolves, which leaves the
+  // that ordering is load-bearing). Kicked off on mount; nothing renders - and
+  // so nothing touches the element - until it resolves, which leaves the
   // server-rendered HTML on screen in the meantime.
   useEffect(() => {
     let cancelled = false;
@@ -134,7 +137,7 @@ function InlineContentEditor({
   stateRef.current = state;
 
   // ProseMirror empties an externally-mounted node on destroy() instead of
-  // leaving the last-rendered doc in it — so unlike every other spot kind,
+  // leaving the last-rendered doc in it - so unlike every other spot kind,
   // this element would go blank the moment edit mode turned off. Repaint it
   // from the final state.
   //
@@ -150,14 +153,14 @@ function InlineContentEditor({
     };
   }, [el, schema, entryDir]);
 
-  // Lets bind.ts hand this view any paint aimed at the element — a Reset, a
-  // fresh value fetched from source, an edit arriving from another tab —
+  // Lets bind.ts hand this view any paint aimed at the element - a Reset, a
+  // fresh value fetched from source, an edit arriving from another tab -
   // instead of assigning innerHTML underneath a live view. Registered even
   // before `state` resolves so a paint landing during that window isn't
   // applied directly and then immediately overwritten by the initial parse.
   useEffect(() => {
     return setContentSpotPainter(key, (html) => {
-      // assetsRef, not an empty map — re-parsing without this entry's bytes
+      // assetsRef, not an empty map - re-parsing without this entry's bytes
       // would repoint every embedded image (see listAssetFiles).
       //
       // Re-read the blob store first: an incoming paint can be an admin edit
@@ -190,9 +193,9 @@ function InlineContentEditor({
         setState(next);
         // One serialize for both halves of what a content edit publishes: the
         // HTML body, and the bytes of any image embedded in it that isn't on
-        // disk yet. The bytes go first — see stashContentBlobs.
+        // disk yet. The bytes go first - see stashContentBlobs.
         //
-        // Unthrottled — every keystroke starts its own stash-then-publish
+        // Unthrottled - every keystroke starts its own stash-then-publish
         // chain. Claimed up front so a slow chain (e.g. a large embedded
         // image's stash) that's still running when a later keystroke's
         // chain already published drops its own publish instead of
@@ -202,10 +205,12 @@ function InlineContentEditor({
         stashContentBlobs(out.other, assetsDir, stashedRef.current)
           .then(() => {
             if (!guardRef.current.isCurrent(key, token)) return;
-            return publishEdit(key, textDecoder.decode(out.content)).then(onChange);
+            return publishEdit(key, textDecoder.decode(out.content)).then(
+              onChange,
+            );
           })
           .catch(() => {
-            // A blob failed to stash — publishing now would embed an image
+            // A blob failed to stash - publishing now would embed an image
             // reference the bus can't resolve yet (see stashContentBlobs).
             // Leave the bus untouched; the next keystroke retries the stash.
           });
@@ -223,7 +228,7 @@ function readContentSpots(config: Config<any, any>): Spot[] {
       const key = el.getAttribute("data-dry");
       if (!key) return;
       const [type, singletonName, field] = key.split("::");
-      // Only top-level content fields on a singleton — a content field nested
+      // Only top-level content fields on a singleton - a content field nested
       // inside an array/object would need a per-path content filename, which
       // neither dry() nor the save path resolves yet.
       if (type !== "singleton" || !singletonName || !field) return;
@@ -246,7 +251,7 @@ function readContentSpots(config: Config<any, any>): Spot[] {
  * Mounts an inline editor onto every fields.content spot on the page. Rendered
  * by Toolbar.tsx inside VeiAdminProviders (the editor needs the admin's config
  * + urql context to open the media library for embedded images) and only while
- * edit mode is on — unmounting is what hands each element back to the page.
+ * edit mode is on - unmounting is what hands each element back to the page.
  */
 export function InlineContentEditors({
   config,

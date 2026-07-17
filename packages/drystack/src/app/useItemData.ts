@@ -1,35 +1,35 @@
-import { LRUCache } from 'lru-cache';
-import type { Client } from 'urql';
-import { toastQueue } from '@keystar/ui/toast';
-import { useCallback, useMemo } from 'react';
-import { Config } from '../config';
+import { LRUCache } from "lru-cache";
+import type { Client } from "urql";
+import { toastQueue } from "@keystar/ui/toast";
+import { useCallback, useMemo } from "react";
+import { Config } from "../config";
 import {
   AssetsFormField,
   ComponentSchema,
   ContentFormField,
   fields,
-} from '../form/api';
-import { parseProps } from '../form/parse-props';
-import { getAuth } from './auth';
-import { loadDataFile } from './required-files';
-import { useRouter } from './router';
-import { useBaseCommit, useRepoInfo, useTree } from './shell/data';
-import { getDirectoriesForTreeKey, getTreeKey } from './tree-key';
-import { TreeNode, getTreeNodeAtPath, TreeEntry, blobSha } from './trees';
-import { LOADING, useData } from './useData';
-import { FormatInfo, getEntryDataFilepath, MaybePromise } from './utils';
-import { toFormattedFormDataError } from '../form/error-formatting';
-import { parseRepoConfig, serializeRepoConfig } from './repo-config';
+} from "../form/api";
+import { parseProps } from "../form/parse-props";
+import { getAuth } from "./auth";
+import { loadDataFile } from "./required-files";
+import { useRouter } from "./router";
+import { useBaseCommit, useRepoInfo, useTree } from "./shell/data";
+import { getDirectoriesForTreeKey, getTreeKey } from "./tree-key";
+import { TreeNode, getTreeNodeAtPath, TreeEntry, blobSha } from "./trees";
+import { LOADING, useData } from "./useData";
+import { FormatInfo, getEntryDataFilepath, MaybePromise } from "./utils";
+import { toFormattedFormDataError } from "../form/error-formatting";
+import { parseRepoConfig, serializeRepoConfig } from "./repo-config";
 import {
   getBlobFromPersistedCache,
   setBlobToPersistedCache,
-} from './object-cache';
+} from "./object-cache";
 
 class TrackedMap<K, V> extends Map<K, V> {
   #onGet: (key: K) => void;
   constructor(
     onGet: (key: K) => void,
-    entries?: readonly (readonly [K, V])[] | null
+    entries?: readonly (readonly [K, V])[] | null,
   ) {
     super(entries);
     this.#onGet = onGet;
@@ -48,7 +48,7 @@ export function parseEntry(
     slug: { slug: string; field: string } | undefined;
     requireFrontmatter?: boolean;
   },
-  files: Map<string, Uint8Array>
+  files: Map<string, Uint8Array>,
 ) {
   const dataFilepath = getEntryDataFilepath(args.dirpath, args.format);
   const data = files.get(dataFilepath);
@@ -58,13 +58,13 @@ export function parseEntry(
   const { loaded, extraFakeFile } = loadDataFile(
     data,
     args.format,
-    args.requireFrontmatter
+    args.requireFrontmatter,
   );
   const filesWithFakeFile = new Map(files);
   if (extraFakeFile) {
     filesWithFakeFile.set(
       `${args.dirpath}/${extraFakeFile.path}`,
-      extraFakeFile.contents
+      extraFakeFile.contents,
     );
   }
   const usedFiles = new Set([dataFilepath]);
@@ -77,25 +77,25 @@ export function parseEntry(
   };
   const getFilesForAssetsOrContentField = (
     rootPath: string,
-    schema: ContentFormField<any, any, any> | AssetsFormField<any, any, any>
+    schema: ContentFormField<any, any, any> | AssetsFormField<any, any, any>,
   ) => {
-    const otherFiles = new TrackedMap<string, Uint8Array>(key => {
+    const otherFiles = new TrackedMap<string, Uint8Array>((key) => {
       usedFiles.add(`${rootPath}/${key}`);
     });
     const otherDirectories = new Map<string, TrackedMap<string, Uint8Array>>();
 
     for (const [filename] of filesWithFakeFile) {
-      if (filename.startsWith(rootPath + '/')) {
+      if (filename.startsWith(rootPath + "/")) {
         const relativePath = filename.slice(rootPath.length + 1);
         otherFiles.set(relativePath, filesWithFakeFile.get(filename)!);
       }
     }
     for (const dir of schema.directories ?? []) {
-      const dirFiles = new TrackedMap<string, Uint8Array>(relativePath =>
-        usedFiles.add(start + relativePath)
+      const dirFiles = new TrackedMap<string, Uint8Array>((relativePath) =>
+        usedFiles.add(start + relativePath),
       );
       const start = `${dir}${
-        args.slug?.slug === undefined ? '' : `/${args.slug?.slug}`
+        args.slug?.slug === undefined ? "" : `/${args.slug?.slug}`
       }/`;
       for (const [filename, val] of filesWithFakeFile) {
         if (filename.startsWith(start)) {
@@ -117,13 +117,13 @@ export function parseEntry(
       [],
       (schema, value, path, pathWithArrayFieldSlugs) => {
         if (path.length === 1 && path[0] === args.slug?.field) {
-          if (schema.formKind !== 'slug') {
+          if (schema.formKind !== "slug") {
             throw new Error(`slugField is not a slug field`);
           }
           return schema.parse(value, { slug: args.slug.slug });
         }
-        if (schema.formKind === 'asset') {
-          const suggestedFilenamePrefix = pathWithArrayFieldSlugs.join('/');
+        if (schema.formKind === "asset") {
+          const suggestedFilenamePrefix = pathWithArrayFieldSlugs.join("/");
           const filepath = schema.filename(value, {
             suggestedFilenamePrefix,
             slug: args.slug?.slug,
@@ -134,27 +134,27 @@ export function parseEntry(
                   schema.directory
                     ? `${schema.directory}${
                         args.slug?.slug === undefined
-                          ? ''
+                          ? ""
                           : `/${args.slug.slug}`
                       }`
                     : args.dirpath
-                }/${filepath}`
+                }/${filepath}`,
               )
             : undefined;
 
           return schema.parse(value, { asset, slug: args.slug?.slug });
         }
-        if (schema.formKind === 'content' || schema.formKind === 'assets') {
+        if (schema.formKind === "content" || schema.formKind === "assets") {
           const rootPath = `${args.dirpath}/${pathWithArrayFieldSlugs.join(
-            '/'
+            "/",
           )}`;
           // embedded assets (images, etc.) live in a directory shared by every
-          // field in this entry, not split per field path — see the "This
+          // field in this entry, not split per field path - see the "This
           // entry" media scope in markdoc/ui.tsx and the matching write path
           // in serialize-props.ts
           const { external, other } = getFilesForAssetsOrContentField(
             `${args.dirpath}/assets`,
-            schema
+            schema,
           );
 
           const content = schema.contentExtension
@@ -170,7 +170,7 @@ export function parseEntry(
 
         return schema.parse(value, undefined);
       },
-      false
+      false,
     );
   } catch (err) {
     throw toFormattedFormDataError(err);
@@ -192,8 +192,8 @@ type UseItemDataArgs = {
 };
 
 function getAllFilesInTree(tree: Map<string, TreeNode>): TreeEntry[] {
-  return [...tree.values()].flatMap(val =>
-    val.children ? getAllFilesInTree(val.children) : [val.entry]
+  return [...tree.values()].flatMap((val) =>
+    val.children ? getAllFilesInTree(val.children) : [val.entry],
   );
 }
 
@@ -204,20 +204,20 @@ export function useItemData(args: UseItemDataArgs) {
   const { basePath } = useRouter();
 
   const rootTree =
-    currentBranch.kind === 'loaded' ? currentBranch.data.tree : undefined;
+    currentBranch.kind === "loaded" ? currentBranch.data.tree : undefined;
   const locationsForTreeKey = useMemo(
     () =>
       getDirectoriesForTreeKey(
         fields.object(args.schema),
         args.dirpath,
         args.slug?.slug,
-        args.format
+        args.format,
       ),
-    [args.dirpath, args.format, args.schema, args.slug?.slug]
+    [args.dirpath, args.format, args.schema, args.slug?.slug],
   );
   const localTreeKey = useMemo(
     () => getTreeKey(locationsForTreeKey, rootTree ?? new Map()),
-    [locationsForTreeKey, rootTree]
+    [locationsForTreeKey, rootTree],
   );
   const tree = useMemo(() => {
     return rootTree ?? new Map();
@@ -225,11 +225,11 @@ export function useItemData(args: UseItemDataArgs) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localTreeKey, locationsForTreeKey]);
 
-  const hasLoaded = currentBranch.kind === 'loaded';
+  const hasLoaded = currentBranch.kind === "loaded";
 
   return useData(
     useCallback((): MaybePromise<
-      | 'not-found'
+      | "not-found"
       | {
           initialState: Record<string, unknown>;
           initialFiles: string[];
@@ -239,10 +239,10 @@ export function useItemData(args: UseItemDataArgs) {
       if (!hasLoaded) return LOADING;
       const dataFilepathSha = getTreeNodeAtPath(
         tree,
-        getEntryDataFilepath(args.dirpath, args.format)
+        getEntryDataFilepath(args.dirpath, args.format),
       )?.entry.sha;
       if (dataFilepathSha === undefined) {
-        return 'not-found' as const;
+        return "not-found" as const;
       }
       const _args = {
         dirpath: args.dirpath,
@@ -251,36 +251,36 @@ export function useItemData(args: UseItemDataArgs) {
         slug: args.slug,
       };
       const allBlobs = locationsForTreeKey
-        .flatMap(dir => {
+        .flatMap((dir) => {
           const node = getTreeNodeAtPath(tree, dir);
           if (!node) return [];
           return node.children
             ? getAllFilesInTree(node.children)
             : [node.entry];
         })
-        .map(entry => {
+        .map((entry) => {
           const blob = fetchBlob(
             args.config,
             entry.sha,
             entry.path,
             baseCommit,
             repoInfo,
-            basePath
+            basePath,
           );
           if (blob instanceof Uint8Array) {
             return [entry.path, blob] as const;
           }
-          return blob.then(blob => [entry.path, blob] as const);
+          return blob.then((blob) => [entry.path, blob] as const);
         });
 
       if (
         allBlobs.every((x): x is readonly [string, Uint8Array] =>
-          Array.isArray(x)
+          Array.isArray(x),
         )
       ) {
         const { initialFiles, initialState } = parseEntry(
           _args,
-          new Map(allBlobs)
+          new Map(allBlobs),
         );
 
         return {
@@ -290,7 +290,7 @@ export function useItemData(args: UseItemDataArgs) {
         };
       }
 
-      return Promise.all(allBlobs).then(async data => {
+      return Promise.all(allBlobs).then(async (data) => {
         const { initialState, initialFiles } = parseEntry(_args, new Map(data));
         return {
           initialState,
@@ -311,7 +311,7 @@ export function useItemData(args: UseItemDataArgs) {
       repoInfo,
       localTreeKey,
       basePath,
-    ])
+    ]),
   );
 }
 
@@ -324,8 +324,8 @@ const BLOB_CACHE_MAX_BYTES = 64 * 1024 * 1024;
 const blobCache = new LRUCache<string, MaybePromise<Uint8Array>>({
   maxSize: BLOB_CACHE_MAX_BYTES,
   // Clamp so a single oversized blob can't exceed maxSize (which would make
-  // lru-cache throw) — it just evicts everything else and stays resident.
-  sizeCalculation: value =>
+  // lru-cache throw) - it just evicts everything else and stays resident.
+  sizeCalculation: (value) =>
     value instanceof Uint8Array
       ? Math.min(BLOB_CACHE_MAX_BYTES, Math.max(1, value.byteLength))
       : 1,
@@ -338,26 +338,26 @@ export async function hydrateBlobCache(contents: Uint8Array) {
   return sha;
 }
 
-// A blob fetch that's actively being rate-limited by GitHub — surfaced
+// A blob fetch that's actively being rate-limited by GitHub - surfaced
 // separately from a generic fetch failure so callers can show one shared
 // "try again later" message instead of N per-thumbnail errors.
 export class GitHubRateLimitError extends Error {
   resetAt: Date | null;
   constructor(resetAt: Date | null) {
-    super('GitHub API rate limit reached');
-    this.name = 'GitHubRateLimitError';
+    super("GitHub API rate limit reached");
+    this.name = "GitHubRateLimitError";
     this.resetAt = resetAt;
   }
 }
 
 function rateLimitResetFromHeaders(headers: Headers): Date | null {
-  const reset = headers.get('x-ratelimit-reset');
+  const reset = headers.get("x-ratelimit-reset");
   if (!reset) return null;
   const seconds = Number(reset);
   return Number.isFinite(seconds) ? new Date(seconds * 1000) : null;
 }
 
-// A directory of thumbnails can hit the rate limit dozens of times at once —
+// A directory of thumbnails can hit the rate limit dozens of times at once -
 // show one toast per 30s window instead of one per failed blob.
 let lastRateLimitToastAt = 0;
 function notifyRateLimit(resetAt: Date | null) {
@@ -365,15 +365,15 @@ function notifyRateLimit(resetAt: Date | null) {
   if (now - lastRateLimitToastAt < 30_000) return;
   lastRateLimitToastAt = now;
   const resetText = resetAt
-    ? ` — try again after ${resetAt.toLocaleTimeString()}`
-    : '';
+    ? ` - try again after ${resetAt.toLocaleTimeString()}`
+    : "";
   toastQueue.critical(`GitHub API rate limit reached${resetText}`, {
     timeout: 8000,
   });
 }
 
 // Raw content is always fetched through an authenticated REST call, even for
-// public repos — an earlier version used unauthenticated
+// public repos - an earlier version used unauthenticated
 // raw.githubusercontent.com for public repos, but that endpoint is capped at
 // ~60 requests/hour per browser IP, which a single directory of thumbnails
 // in the File Manager can exhaust immediately. The authenticated
@@ -383,34 +383,34 @@ function notifyRateLimit(resetAt: Date | null) {
 async function fetchGitHubBlob(
   config: Config,
   oid: string,
-  basePath: string
+  basePath: string,
 ): Promise<Response> {
   const auth = await getAuth(config, basePath);
-  if (config.storage.kind !== 'github') {
-    throw new Error('fetchGitHubBlob requires GitHub storage');
+  if (config.storage.kind !== "github") {
+    throw new Error("fetchGitHubBlob requires GitHub storage");
   }
   const res = await fetch(
     `https://api.github.com/repos/${serializeRepoConfig(
-      config.storage.repo
+      config.storage.repo,
     )}/git/blobs/${oid}`,
     {
       headers: {
         Authorization: `Bearer ${auth!.accessToken}`,
-        Accept: 'application/vnd.github.raw',
+        Accept: "application/vnd.github.raw",
       },
-    }
+    },
   );
   if (
     !res.ok &&
     (res.status === 429 ||
-      (res.status === 403 && res.headers.get('x-ratelimit-remaining') === '0'))
+      (res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0"))
   ) {
     throw new GitHubRateLimitError(rateLimitResetFromHeaders(res.headers));
   }
   return res;
 }
 
-// Caps how many blob fetches are in flight at once across the whole app —
+// Caps how many blob fetches are in flight at once across the whole app -
 // a File Manager directory of N thumbnails would otherwise fire N requests
 // simultaneously on mount, which is both wasteful and makes hitting a rate
 // limit far more likely.
@@ -440,12 +440,12 @@ export function fetchBlob(
   filepath: string,
   commitSha: string,
   repoInfo: { owner: string; name: string; isPrivate: boolean } | null,
-  basePath: string
+  basePath: string,
 ): MaybePromise<Uint8Array> {
   if (blobCache.has(oid)) return blobCache.get(oid)!;
 
   const promise = (async () => {
-    const isLocal = config.storage.kind === 'local';
+    const isLocal = config.storage.kind === "local";
     if (!isLocal) {
       const stored = await getBlobFromPersistedCache(oid);
       if (stored) {
@@ -456,29 +456,29 @@ export function fetchBlob(
     return runBlobFetch(() =>
       isLocal
         ? fetch(`/api${basePath}/blob/${oid}/${filepath}`, {
-            headers: { 'no-cors': '1' },
+            headers: { "no-cors": "1" },
           })
-        : fetchGitHubBlob(config, oid, basePath)
+        : fetchGitHubBlob(config, oid, basePath),
     )
-      .then(async x => {
+      .then(async (x) => {
         if (!x.ok) {
           throw new Error(
             `Could not fetch blob ${oid} (${filepath}): ${
               x.status
-            }\n${await x.text()}`
+            }\n${await x.text()}`,
           );
         }
         return x.arrayBuffer();
       })
-      .then(x => {
+      .then((x) => {
         const array = new Uint8Array(x);
         blobCache.set(oid, array);
-        if (config.storage.kind !== 'local') {
+        if (config.storage.kind !== "local") {
           setBlobToPersistedCache(oid, array);
         }
         return array;
       })
-      .catch(err => {
+      .catch((err) => {
         blobCache.delete(oid);
         if (err instanceof GitHubRateLimitError) notifyRateLimit(err.resetAt);
         throw err;
@@ -491,7 +491,7 @@ export function fetchBlob(
 
 const textEncoderForBatch = new TextEncoder();
 
-// GitHub caps query cost/complexity — chunking keeps a single collection
+// GitHub caps query cost/complexity - chunking keeps a single collection
 // page from ever sending one enormous request, and keeps each request well
 // under that limit regardless of collection size.
 const BATCH_BLOB_CHUNK_SIZE = 100;
@@ -502,7 +502,7 @@ const BATCH_BLOB_CHUNK_SIZE = 100;
 // endpoints have no bulk-read equivalent, and the root `nodes(ids:)` batch
 // field takes GraphQL global ids, not git blob oids, so aliasing is the only
 // way to fold N blob reads into one request). This query is intentionally
-// built as a raw string rather than a `ts-gql` document — the number of
+// built as a raw string rather than a `ts-gql` document - the number of
 // aliases varies per call, which a statically codegen'd operation can't
 // express. `local` mode has no GraphQL endpoint at all, so it falls back to
 // one request per blob via `fetchBlob`.
@@ -512,7 +512,7 @@ export async function fetchBlobsBatch(
   entries: { oid: string; filepath: string }[],
   commitSha: string,
   repoInfo: { owner: string; name: string; isPrivate: boolean } | null,
-  basePath: string
+  basePath: string,
 ): Promise<Map<string, Uint8Array>> {
   const result = new Map<string, Uint8Array>();
   const uncached: typeof entries = [];
@@ -526,9 +526,9 @@ export async function fetchBlobsBatch(
   }
   if (!uncached.length) return result;
 
-  if (config.storage.kind !== 'github') {
+  if (config.storage.kind !== "github") {
     await Promise.all(
-      uncached.map(async entry => {
+      uncached.map(async (entry) => {
         result.set(
           entry.oid,
           await fetchBlob(
@@ -537,10 +537,10 @@ export async function fetchBlobsBatch(
             entry.filepath,
             commitSha,
             repoInfo,
-            basePath
-          )
+            basePath,
+          ),
         );
-      })
+      }),
     );
     return result;
   }
@@ -567,12 +567,10 @@ export async function fetchBlobsBatch(
     const chunk = stillUncached.slice(start, start + BATCH_BLOB_CHUNK_SIZE);
     const variableDefs = chunk
       .map((_, i) => `$oid${i}: GitObjectID!`)
-      .join(', ');
+      .join(", ");
     const selections = chunk
-      .map(
-        (_, i) => `e${i}: object(oid: $oid${i}) { ... on Blob { text } }`
-      )
-      .join('\n');
+      .map((_, i) => `e${i}: object(oid: $oid${i}) { ... on Blob { text } }`)
+      .join("\n");
     const query = `query BatchBlobs($owner: String!, $name: String!, ${variableDefs}) {
       repository(owner: $owner, name: $name) {
         ${selections}
@@ -592,7 +590,7 @@ export async function fetchBlobsBatch(
       | Record<string, { text?: string | null } | null>
       | undefined;
     chunk.forEach((entry, i) => {
-      const text = repository?.[`e${i}`]?.text ?? '';
+      const text = repository?.[`e${i}`]?.text ?? "";
       const bytes = textEncoderForBatch.encode(text);
       blobCache.set(entry.oid, bytes);
       setBlobToPersistedCache(entry.oid, bytes);

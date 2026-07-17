@@ -22,7 +22,7 @@ import {
   waitForMediaLibraryOpener,
   type MediaLibraryPick,
 } from "@drystack/core/media-library-bridge";
-// @ts-expect-error — provided by the drystack Astro integration's Vite plugin
+// @ts-expect-error - provided by the drystack Astro integration's Vite plugin
 import apiPath from "virtual:drystack-path";
 import { Badge } from "@keystar/ui/badge";
 import { ActionButton, Button, ButtonGroup } from "@keystar/ui/button";
@@ -79,7 +79,7 @@ import { isAssetKind } from "@drystack/core/edit-sync";
 import { CloudflareStatusInline } from "@drystack/core/deploy-cloudflare-status";
 import { useVeiDeploy } from "./deploy";
 
-// Loaded lazily (only once the visual editor actually enters edit mode) —
+// Loaded lazily (only once the visual editor actually enters edit mode) -
 // this chunk pulls in urql + graphcache + the admin's field-editor/file-
 // manager components, which would otherwise bloat every live-site page's JS
 // payload.
@@ -103,7 +103,7 @@ const InlineContentEditors = lazy(() =>
 
 type Spot = { key: string; name: string; field: string };
 
-// The single source of truth for "what's actually pending" — reads
+// The single source of truth for "what's actually pending" - reads
 // IndexedDB via getAllEdits() and drops any entry whose value happens to
 // equal its captured original (e.g. typed then reverted by hand). Shared by
 // the toolbar's badge/Save-Reset-enabled state and the review dialog's list
@@ -111,61 +111,63 @@ type Spot = { key: string; name: string; field: string };
 //
 // `kind` is read straight off the matching DOM element's data-dry-kind
 // (rather than threaded through from config) since that's the same
-// attribute bind.ts already dispatches on to paint the value — one fewer
+// attribute bind.ts already dispatches on to paint the value - one fewer
 // thing that could disagree. Defaults to 'text' if no matching element is on
 // this page (e.g. a pending edit for a singleton not rendered here).
 //
 // `label` is resolved from the singleton's own schema (same `field.label ??
 // key` fallback as the admin's computeFieldChanges) rather than the raw
-// field key, so the review dialog reads identically in the admin and here —
+// field key, so the review dialog reads identically in the admin and here -
 // see CLAUDE.md's UI-consistency expectations for this shared component.
 async function getPendingChanges(
   config: Config<any, any>,
 ): Promise<FieldChange[]> {
   const edits = await getAllEdits();
-  return edits
-    .map((e) => {
-      const [, name, field] = e.key.split("::");
-      const el = document.querySelector<HTMLElement>(
-        `[data-dry="${CSS.escape(e.key)}"]`,
-      );
-      const dryKind = el?.getAttribute("data-dry-kind");
-      const kind: "text" | "image" | "file" = isAssetKind(dryKind)
-        ? dryKind
-        : "text";
-      const fieldSchema = config.singletons?.[name]?.schema?.[field] as
-        | { label?: string }
-        | undefined;
-      return {
-        key: e.key,
-        label: fieldSchema?.label ?? field,
-        kind,
-        isContent: dryKind === "content",
-        before: getOriginalValue(e.key) ?? "",
-        after: e.value,
-      };
-    })
-    // On the raw bodies, before any summarizing below — two different bodies
-    // can share a word/character count (an <h6> turned into a <p> touches no
-    // words), and filtering on the summary would drop that edit from the list
-    // while it's still pending.
-    .filter((c) => c.before !== c.after)
-    .map(({ isContent, ...c }) =>
-      isContent
-        ? {
-            ...c,
-            diffBefore: prettifyContentHtml(c.before),
-            diffAfter: prettifyContentHtml(c.after),
-            before: summarizeContentChange(c.before),
-            after: summarizeContentChange(c.after),
-          }
-        : c,
-    );
+  return (
+    edits
+      .map((e) => {
+        const [, name, field] = e.key.split("::");
+        const el = document.querySelector<HTMLElement>(
+          `[data-dry="${CSS.escape(e.key)}"]`,
+        );
+        const dryKind = el?.getAttribute("data-dry-kind");
+        const kind: "text" | "image" | "file" = isAssetKind(dryKind)
+          ? dryKind
+          : "text";
+        const fieldSchema = config.singletons?.[name]?.schema?.[field] as
+          | { label?: string }
+          | undefined;
+        return {
+          key: e.key,
+          label: fieldSchema?.label ?? field,
+          kind,
+          isContent: dryKind === "content",
+          before: getOriginalValue(e.key) ?? "",
+          after: e.value,
+        };
+      })
+      // On the raw bodies, before any summarizing below - two different bodies
+      // can share a word/character count (an <h6> turned into a <p> touches no
+      // words), and filtering on the summary would drop that edit from the list
+      // while it's still pending.
+      .filter((c) => c.before !== c.after)
+      .map(({ isContent, ...c }) =>
+        isContent
+          ? {
+              ...c,
+              diffBefore: prettifyContentHtml(c.before),
+              diffAfter: prettifyContentHtml(c.after),
+              before: summarizeContentChange(c.before),
+              after: summarizeContentChange(c.after),
+            }
+          : c,
+      )
+  );
 }
 
 const adminBase = `/${String(apiPath).replace(/^\/+|\/+$/g, "")}`;
 
-// Whether the edit-mode toolbar was expanded, persisted across reloads —
+// Whether the edit-mode toolbar was expanded, persisted across reloads -
 // without this, refreshing the page while editing silently drops back to
 // view mode (pending edits themselves already survive via IndexedDB, see
 // bind.ts's applyPendingEdits, but the toolbar/contentEditable state didn't).
@@ -175,7 +177,7 @@ function readStoredEditing(): boolean {
   try {
     return localStorage.getItem(EDITING_STORAGE_KEY) === "1";
   } catch {
-    // localStorage can throw (e.g. blocked cookies) — just won't persist.
+    // localStorage can throw (e.g. blocked cookies) - just won't persist.
     return false;
   }
 }
@@ -185,12 +187,12 @@ function writeStoredEditing(value: boolean): void {
     if (value) localStorage.setItem(EDITING_STORAGE_KEY, "1");
     else localStorage.removeItem(EDITING_STORAGE_KEY);
   } catch {
-    // Same as above — best-effort persistence only.
+    // Same as above - best-effort persistence only.
   }
 }
 
 // Every editable spot rendered on the current page, read from the DOM.
-// Deduped by key — the same field can appear on multiple elements (e.g. a
+// Deduped by key - the same field can appear on multiple elements (e.g. a
 // site title in both the header and footer), and consumers below need one
 // entry per key, not one per DOM node, since they re-query all matching
 // elements by key when they need to touch the DOM.
@@ -210,7 +212,7 @@ function readSpots(): Spot[] {
 }
 
 // A dry spot the top-left indicator (see the hover/focus effect below) can
-// point at — captured together at the moment of the focus/hover event since
+// point at - captured together at the moment of the focus/hover event since
 // data-dry-kind isn't encoded in the data-dry key itself.
 type ActiveSpot = { key: string; kind: string };
 
@@ -239,10 +241,10 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [spots, setSpots] = useState<Spot[]>([]);
 
-  // Active-spot indicator — a permanent top-left HUD, on for the whole time
+  // Active-spot indicator - a permanent top-left HUD, on for the whole time
   // edit mode is on, showing which dry field is "in hand". A focused
   // (contentEditable, currently being typed into) spot wins outright over a
-  // merely hovered one — once something has focus, hover is ignored
+  // merely hovered one - once something has focus, hover is ignored
   // entirely until that focus clears, rather than just deprioritized, so
   // moving the mouse around while typing never disturbs the reading. Hover
   // uses the same delayed-clear pattern as the array gear button below
@@ -254,7 +256,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     ReturnType<typeof setTimeout> | undefined
   >(undefined);
 
-  // Container gear button — a floating icon portaled to <body>, shown while
+  // Container gear button - a floating icon portaled to <body>, shown while
   // hovering any fields.array OR fields.object container spot in edit mode
   // (identified by data-dry-kind="array"/"object", set server-side by
   // dry.item(), at any nesting depth), positioned over that element via
@@ -271,12 +273,12 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     undefined,
   );
   // The element currently backing arrayGearSpot, kept around purely so
-  // scroll/resize can recompute its rect — getBoundingClientRect() is
+  // scroll/resize can recompute its rect - getBoundingClientRect() is
   // viewport-relative and goes stale the instant the page scrolls.
   const arrayGearElRef = useRef<HTMLElement | null>(null);
 
   // isGithub gates the brand/merge/deploy flow Save triggers automatically
-  // (see onSave/runSave below) — local mode has no branch concept and keeps
+  // (see onSave/runSave below) - local mode has no branch concept and keeps
   // its old instant, confirm-free save.
   const isGithub = config.storage.kind === "github";
   const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
@@ -286,7 +288,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     label: deployLabel,
   } = useVeiDeploy(config);
 
-  // Hover dropdown state — the menu itself is portaled to <body>.
+  // Hover dropdown state - the menu itself is portaled to <body>.
   const refWrapRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
@@ -310,7 +312,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Hover detection for the container gear button — only active in edit
+  // Hover detection for the container gear button - only active in edit
   // mode. Delegated at the document level (capture phase) rather than one
   // listener per spot, since spots can appear/disappear as the array grows
   // or shrinks via template-clone (see bind.ts's renderArray). Matches the
@@ -370,7 +372,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     };
   }, [editing]);
 
-  // Active-spot focus/hover tracking (see the state above) — delegated at
+  // Active-spot focus/hover tracking (see the state above) - delegated at
   // the document level (capture phase) the same way as the array gear hover
   // detection, since spots come and go with the array template-clone. Focus
   // uses focusin/focusout (fires for the contentEditable text spots enabled
@@ -394,7 +396,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       const el = (e.target as HTMLElement)?.closest<HTMLElement>("[data-dry]");
       const key = el?.getAttribute("data-dry");
       if (!key) return;
-      // Only clear if this blur is for the spot we're currently reporting —
+      // Only clear if this blur is for the spot we're currently reporting -
       // a stale async blur from a spot that's no longer focused shouldn't
       // clobber whatever focused since.
       setFocusSpot((prev) => (prev?.key === key ? null : prev));
@@ -425,11 +427,11 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     };
   }, [editing]);
 
-  // Focus always wins outright over hover — see the state comment above.
+  // Focus always wins outright over hover - see the state comment above.
   const activeSpot = formatActiveSpot(focusSpot ?? hoverSpot);
 
-  // The admin provider boundary (VeiAdminProviders + FileManagerHost, lazy —
-  // see the lazy() imports above) — mounted whenever edit mode is on, not
+  // The admin provider boundary (VeiAdminProviders + FileManagerHost, lazy -
+  // see the lazy() imports above) - mounted whenever edit mode is on, not
   // lazily per-click, so both the field-editor dialogs below and the image/
   // file spot click handlers can assume it's either ready or not yet
   // attempted, with no per-click mount race to arbitrate. `currentBranch`
@@ -450,9 +452,9 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   // Caches a successful github resolution for the lifetime of this page load
   // (the visual editor mounts once and is never torn down) so toggling edit
   // mode off/on doesn't re-hit the network and remount VeiAdminProviders
-  // every time — only the first resolution per page load pays that cost.
+  // every time - only the first resolution per page load pays that cost.
   const resolvedProviderRef = useRef<{ currentBranch: string } | null>(null);
-  // Re-runs the resolution below on demand — requireProviderReady calls this
+  // Re-runs the resolution below on demand - requireProviderReady calls this
   // when blocked, so a click while blocked also kicks off a retry instead of
   // only toasting forever (the previous auth failure isn't retried
   // otherwise; only toggling edit mode off/on used to force one).
@@ -476,13 +478,13 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
         });
         return;
       }
-      // github mode needs an admin session — mounting the boundary without
+      // github mode needs an admin session - mounting the boundary without
       // one would hit the shell's own "not authenticated" redirect, which
       // would navigate this live-site tab to the admin login page. The
       // access-token cookie is short-lived (GitHub's OAuth expiry, a few
       // hours) and nothing else refreshes it while the user only ever
       // visits this live-site toolbar (never the admin SPA, which is where
-      // the urql authExchange that normally handles this lives) — so try a
+      // the urql authExchange that normally handles this lives) - so try a
       // silent refresh off the still-valid, much longer-lived refresh-token
       // cookie before bouncing the user to re-auth.
       setProviderState({ status: "loading" });
@@ -539,12 +541,12 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   };
 
   // Wired to every fields.image/fields.file spot's click (see bind.ts's
-  // handleAssetSpotClick) — opens the exact same file-manager dialog the
+  // handleAssetSpotClick) - opens the exact same file-manager dialog the
   // admin's ImageFieldInput/FileFieldInput uses, scoped to this singleton's
   // own assets folder (matching EntryDirectoryProvider's convention in
   // SingletonPage.tsx). Waits for FileManagerHost's opener to actually be
-  // registered (it mounts lazily alongside the provider boundary — see the
-  // lazy() imports above — so a click landing right as providerState flips
+  // registered (it mounts lazily alongside the provider boundary - see the
+  // lazy() imports above - so a click landing right as providerState flips
   // to 'ready' can otherwise race its own mount) before opening the picker.
   useEffect(() => {
     const registerHandler = (
@@ -576,7 +578,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   const startEditing = () => {
     enableEditing(refreshCount);
     setSpots(readSpots());
-    // Don't block entering edit mode on the network — repaint with the
+    // Don't block entering edit mode on the network - repaint with the
     // real current source once it resolves, fields with a pending edit
     // stay untouched.
     refreshFromLatestSource(config).then(refreshCount);
@@ -595,12 +597,12 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     else startEditing();
   };
 
-  // The actual save — commits (brand, in github mode) then, when something
+  // The actual save - commits (brand, in github mode) then, when something
   // landed there, merges that brand into the default branch (deploy.ts's
   // runDeploy via the deploy() hook, which owns its own conflict/nothing/
   // committed/error toasts) before re-syncing the DOM. That ordering matters:
   // refreshFromLatestSource reads off the *default* branch, which only has
-  // the new content once the merge lands — running it right after the brand
+  // the new content once the merge lands - running it right after the brand
   // commit would flash stale pre-merge content.
   const runSave = async () => {
     setSaving(true);
@@ -613,7 +615,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       }
       await refreshFromLatestSource(config);
       await refreshCount();
-      // github's own deploy() toast is the final word on success/failure —
+      // github's own deploy() toast is the final word on success/failure -
       // only show the generic one when there was nothing to merge (local
       // mode, or a github save with nothing pending).
       if (!deployed) toastQueue.positive("Changes saved", { timeout: 4000 });
@@ -625,7 +627,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   };
 
   // Github mode now folds merge+deploy into Save, so it gates behind a
-  // confirmation first — local mode has no branch/merge step and stays
+  // confirmation first - local mode has no branch/merge step and stays
   // instant, matching its previous behavior.
   const onSave = () => {
     if (isGithub) {
@@ -647,8 +649,8 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   };
 
   // Deep-link to a singleton's admin editor in a new tab. github mode needs an
-  // async branch lookup, so open the tab up front — preserving the click's user
-  // activation — and point it at the URL once resolved; a window.open() issued
+  // async branch lookup, so open the tab up front - preserving the click's user
+  // activation - and point it at the URL once resolved; a window.open() issued
   // after the await would be killed by the popup blocker.
   const goToAdmin = async (name: string) => {
     const tab = window.open("", "_blank");
@@ -711,13 +713,13 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
 
   return (
     <div className="dry-bar">
-      {/* Unified edit menu — a single pill that's always on screen. Collapsed
+      {/* Unified edit menu - a single pill that's always on screen. Collapsed
           it's just the edit FAB; enabling edit expands the action buttons out
           to the right (width collapse) and morphs the pencil into an ✕ that
           collapses the menu again. */}
       <div className={`dry-menu${editing ? " is-open" : ""}`}>
         <div className="dry-menu-pill">
-          {/* Toggle button — always visible, leads the pill. */}
+          {/* Toggle button - always visible, leads the pill. */}
           <Button
             prominence="high"
             aria-label={editing ? "Exit edit mode" : "Edit page"}
@@ -736,7 +738,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
             </span>
           </Button>
 
-          {/* Collapsible action group — revealed only in edit mode. */}
+          {/* Collapsible action group - revealed only in edit mode. */}
           <div className="dry-menu-actions">
             <div className="dry-menu-actions-inner">
               <div
@@ -802,12 +804,12 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
         </div>
       </div>
 
-      {/* Active-spot indicator — a permanent top-left HUD label, on for the
+      {/* Active-spot indicator - a permanent top-left HUD label, on for the
           whole time edit mode is on (not just while something's focused/
-          hovered — see the state above), so it's always there to glance at.
+          hovered - see the state above), so it's always there to glance at.
           Positioned/styled entirely in editor.css, independent of .dry-bar's
           own bottom-left placement. In github mode it's prefixed with the
-          build/deploy status (CloudflareStatusInline — busy label while
+          build/deploy status (CloudflareStatusInline - busy label while
           Save's merge/deploy is running, then whatever Cloudflare's build WS
           reports), folded into the same flat readout rather than a separate
           pill below it. */}
@@ -887,7 +889,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       {arrayGearSpot &&
         (() => {
           // An array with zero items has no template to seed the dialog's
-          // shape from (see bind.ts's captureArrayTemplate) — disable rather
+          // shape from (see bind.ts's captureArrayTemplate) - disable rather
           // than open an editor with nothing to show. An object has no such
           // "empty" state (every field always exists per schema), so it's
           // never disabled.
@@ -925,7 +927,9 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
                 setArrayGearSpot(null);
               }}
             >
-              <Icon src={arrayGearSpot.kind === "array" ? listIcon : bracesIcon} />
+              <Icon
+                src={arrayGearSpot.kind === "array" ? listIcon : bracesIcon}
+              />
             </button>,
             document.body,
           );
@@ -937,7 +941,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
         )}
       </DialogContainer>
 
-      {/* The admin provider boundary — mounted whenever edit mode is on (see
+      {/* The admin provider boundary - mounted whenever edit mode is on (see
           the providerState effect above). FileManagerHost makes
           openMediaLibrary() available for both the inline image/file spot
           click handlers and the field-editor dialog below; the container
@@ -982,7 +986,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
 }
 
 // The one asset-picking primitive shared by the single-image and single-file
-// spot click handlers above — opens the same file-manager dialog the admin's
+// spot click handlers above - opens the same file-manager dialog the admin's
 // ImageFieldInput/FileFieldInput use (scoped to this singleton's assets
 // folder), caches the picked bytes locally so previews and saves can resolve
 // before the file is servable, and returns the pick. Callers differ only in
@@ -1013,16 +1017,16 @@ async function pickAsset(
 
 // Resolves a dotted field path (e.g. "sections.0.items") against a
 // singleton's schema, walking one segment at a time the same way dry.ts's
-// resolveDrySpot does server-side — a numeric segment steps into an array's
+// resolveDrySpot does server-side - a numeric segment steps into an array's
 // `.element`, a name segment steps into an object's `.fields[name]`. A flat
 // `schema[field]` lookup (the old code here) only resolves a top-level field
-// name; any nested container path — an array item's own object wrapper
+// name; any nested container path - an array item's own object wrapper
 // ("sections.0"), a sub-field array nested inside it ("sections.0.items"),
 // or even a one-level-deep nested array under a standalone object
-// ("info.links") — would resolve to `undefined` and silently render nothing
+// ("info.links") - would resolve to `undefined` and silently render nothing
 // (see plan/de-quy-object.md, and Toolbar's onOver hover-detection, which
 // shows the gear button for any such spot regardless of whether this
-// resolves — the dialog looked like it "wouldn't open").
+// resolves - the dialog looked like it "wouldn't open").
 function resolveFieldSchema(
   config: Config<any, any>,
   name: string,
@@ -1048,10 +1052,10 @@ function resolveFieldSchema(
 
 // Renders the container editor for one fields.array or fields.object field
 // (at any nesting depth), seeded from its current live value (already up to
-// date with any pending item/sub-field edits — see bind.ts's
+// date with any pending item/sub-field edits - see bind.ts's
 // getContainerValueFromDom). Renders the admin's own ArrayFieldInput/
 // ObjectFieldInput unmodified (via FormValueContentFromPreviewProps, since no
-// Input override is set) — its Add/Edit modals mount the real per-element
+// Input override is set) - its Add/Edit modals mount the real per-element
 // Input (ImageFieldInput/FileFieldInput/ObjectFieldInput/ArrayFieldInput/…),
 // the same as inside the admin app, now that this dialog is mounted inside
 // the admin provider boundary (see Toolbar's VeiAdminProviders). Config
@@ -1070,7 +1074,7 @@ function ContainerFieldDialog({
   const [, name, field] = fieldKey.split("::");
   const fieldSchema = resolveFieldSchema(config, name, field);
   // unknown[] for array-of-*, Record<string, unknown> for a standalone
-  // object — whichever shape `fieldSchema.kind` calls for.
+  // object - whichever shape `fieldSchema.kind` calls for.
   // getContainerValueFromDom mirrors that dispatch off the same live spot,
   // so its result already matches; the fallback only matters before the
   // schema itself has resolved (first render).
@@ -1088,7 +1092,7 @@ function ContainerFieldDialog({
         ? // ArrayField<ComponentSchema>'s element / ObjectField's fields are
           // the broad ComponentSchema union, so ParsedValueForComponentSchema
           // resolves to a wide type that setValue's updater doesn't
-          // structurally match — this dialog's scope (any array/object
+          // structurally match - this dialog's scope (any array/object
           // nesting of text/image/file, see plan/de-quy-object.md)
           // guarantees the runtime shape lines up.
           createGetPreviewProps(fieldSchema, setValue as any, () => undefined)
@@ -1097,7 +1101,7 @@ function ContainerFieldDialog({
   );
 
   if (!fieldSchema || !getPreviewProps) return null;
-  // Same wide-type situation as setValue above — getPreviewProps expects the
+  // Same wide-type situation as setValue above - getPreviewProps expects the
   // schema-shaped value (array or object), which `value` always is at
   // runtime once seeded from getContainerValueFromDom/the schema-kind
   // default, just not provable from `unknown` alone.
@@ -1110,7 +1114,7 @@ function ContainerFieldDialog({
     }
     // A whole-container replace supersedes any inline item/sub-field edits
     // already queued for it (typed into a leaf spot before this dialog was
-    // opened) — otherwise a stale per-path edit would win back over this
+    // opened) - otherwise a stale per-path edit would win back over this
     // path when the file is written (see save.ts's mergeFieldEdits, which
     // layers per-path edits on top of the container edit).
     const edits = await getAllEdits();
@@ -1184,7 +1188,7 @@ function VeiReviewDialog({
   }, [config]);
 
   // Discard a single field's edit: drop it from the store, revert the live DOM
-  // back to its original value (text or image — see bind.ts), and refresh the
+  // back to its original value (text or image - see bind.ts), and refresh the
   // toolbar's pending count.
   const handleDelete = async (key: string) => {
     await publishDelete(key);
@@ -1203,7 +1207,7 @@ function VeiReviewDialog({
 }
 
 // Prefers the pending-blob cache (see edit-sync.ts) over the raw path, same
-// as bind.ts's paintImage — a freshly picked file's bytes are known locally
+// as bind.ts's paintImage - a freshly picked file's bytes are known locally
 // before it's guaranteed servable at its path (github mode needs a deploy to
 // catch up).
 function VeiImageThumb({ path }: { path: string }) {

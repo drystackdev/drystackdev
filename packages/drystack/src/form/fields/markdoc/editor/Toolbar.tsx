@@ -73,7 +73,7 @@ export function ToolbarButton(props: {
 }) {
   const state = useEditorState();
   const runCommand = useEditorDispatchCommand();
-  const isSelected = !!props.isSelected?.(state); // no `undefined` — stop "uncontrolled" state taking over
+  const isSelected = !!props.isSelected?.(state); // no `undefined` - stop "uncontrolled" state taking over
   const isDisabled = !props.command(state) || props.isDisabled?.(state);
   return useMemo(
     () => (
@@ -817,7 +817,7 @@ function getTextAlignState(state: EditorState): {
 
 // a single icon button (mirroring the active block's current alignment,
 // defaulting to left) that opens a dropdown of the same icon+label options
-// the old 4-button group used — collapses what used to be 4 toolbar slots
+// the old 4-button group used - collapses what used to be 4 toolbar slots
 // into 1.
 function AlignmentControls() {
   const state = useEditorState();

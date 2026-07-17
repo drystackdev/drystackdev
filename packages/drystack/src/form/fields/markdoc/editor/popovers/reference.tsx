@@ -1,12 +1,12 @@
-import { ReferenceElement, VirtualElement } from '@floating-ui/react';
-import { useLayoutEffect, useState } from 'react';
-import { useEditorViewInEffect } from '../editor-view';
-import { EditorView } from 'prosemirror-view';
+import { ReferenceElement, VirtualElement } from "@floating-ui/react";
+import { useLayoutEffect, useState } from "react";
+import { useEditorViewInEffect } from "../editor-view";
+import { EditorView } from "prosemirror-view";
 
 function getReferenceElementForRange(
   view: EditorView,
   from: number,
-  to: number
+  to: number,
 ): ReferenceElement | null {
   const nodeAtFrom = view.state.doc.nodeAt(from);
   if (nodeAtFrom !== null && to === from + nodeAtFrom.nodeSize) {
@@ -25,7 +25,7 @@ function getReferenceElementForRange(
 
 export function useEditorReferenceElement(
   from: number,
-  to: number
+  to: number,
 ): ReferenceElement | null {
   const [referenceElement, setReferenceElement] =
     useState<ReferenceElement | null>(null);
@@ -41,7 +41,7 @@ export function useEditorReferenceElement(
     update();
 
     // the referenced node's box can change size without any scroll/resize
-    // event floating-ui's own autoUpdate would catch — e.g. dragging an
+    // event floating-ui's own autoUpdate would catch - e.g. dragging an
     // image's resize handles just mutates its inline style. Watch the node's
     // DOM directly and hand floating-ui a fresh virtual element (new object
     // identity) whenever that happens, so the popover keeps tracking it

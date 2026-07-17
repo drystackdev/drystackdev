@@ -1,79 +1,59 @@
-import { AssetsFormField } from '../../api';
+import { AssetsFormField } from "../../api";
 import {
   DocumentFieldInput,
   getDefaultValue,
   serializeFromEditorStateHTML,
   createEditorSchema,
   parseToEditorStateHTML,
-} from '#field-ui/content';
-import type { EditorSchema } from '../markdoc/editor/schema';
-import type { EditorState } from 'prosemirror-state';
+} from "#field-ui/content";
+import type { EditorSchema } from "../markdoc/editor/schema";
+import type { EditorState } from "prosemirror-state";
 import {
+  EditorConfig,
   MarkdocEditorOptions,
   editorOptionsToConfig,
-} from '../markdoc/config';
+} from "../markdoc/config";
 import {
   countWordsAndChars,
   stripHtmlForPreview,
-} from '../../../app/collection-table/format-helpers';
+} from "../../../app/collection-table/format-helpers";
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
 export type ContentSummary = { wordCount: number; charCount: number };
 
-// The HTML tags this field's editor will actually keep, derived from the same
-// options that build its schema. The AI codec puts this in the prompt, so the
-// model is never invited to emit a tag `parse()` would silently drop.
+// A content field is the body of a page that already renders its own `<h1>`
+// from the entry's title, so a second one inside the body would be a duplicate
+// top-level heading. Callers can still pass `heading` explicitly to get h1 back.
+const defaultHeadingLevels = [2, 3, 4, 5, 6] as const;
+
+// The HTML tags this field's editor will actually keep, read off the same
+// resolved config that builds its schema. The AI codec puts this in the prompt,
+// so the model is never invited to emit a tag `parse()` would silently drop.
 //
 // `<img>` is never listed even when images are enabled: the model can't
 // produce asset bytes, and a made-up src would point at nothing (see the
-// content image src format — `/<entryDir>/assets/<name>`).
-// Mirrors `editorOptionsToConfig`'s defaults, which are `?? true` for most
-// marks — so the test is `!== false`, not truthiness. `content()` overrides
-// strikethrough/code to default off (see the call below), hence the plain
-// truthy test for those two.
+// content image src format - `/<entryDir>/assets/<name>`).
 //
 // Deliberately omits `table` and `grid` even though both default on for the
 // HTML editor: their markup is structural rather than prose, and a model
 // improvising it tends to produce nodes the schema drops on parse. Leaving
-// them out of the prompt costs nothing — a person can still add them by hand.
-function allowedHtmlTags(
-  options: Omit<MarkdocEditorOptions, 'image'> & { image?: boolean }
-): string[] {
-  const tags = ['p'];
-
-  const heading = options.heading;
-  // `heading` is either the levels themselves or a { levels, schema } object;
-  // testing for the `levels` key tells them apart without tripping over
-  // Array.isArray's inability to narrow a readonly array.
-  const levelsOpt =
-    typeof heading === 'object' && heading !== null && 'levels' in heading
-      ? heading.levels
-      : heading;
-  // `true`/undefined both mean "every level" — matching editorOptionsToConfig.
-  const levels =
-    levelsOpt === true || levelsOpt === undefined
-      ? [1, 2, 3, 4, 5, 6]
-      : Array.isArray(levelsOpt)
-        ? levelsOpt
-        : [];
-  for (const level of levels) tags.push(`h${level}`);
-
-  if (options.bold !== false) tags.push('strong');
-  if (options.italic !== false) tags.push('em');
-  // underline defaults on for the HTML-backed editor specifically.
-  if (options.underline !== false) tags.push('u');
-  if (options.link !== false) tags.push('a');
-  if (options.blockquote !== false) tags.push('blockquote');
-  if (options.unorderedList !== false) tags.push('ul');
-  if (options.orderedList !== false) tags.push('ol');
-  if (options.unorderedList !== false || options.orderedList !== false) {
-    tags.push('li');
-  }
-  if (options.strikethrough) tags.push('s');
-  if (options.code) tags.push('code');
-  if (options.divider) tags.push('hr');
+// them out of the prompt costs nothing - a person can still add them by hand.
+function allowedHtmlTags(config: EditorConfig): string[] {
+  const tags = ["p"];
+  for (const level of config.heading.levels) tags.push(`h${level}`);
+  if (config.bold) tags.push("strong");
+  if (config.italic) tags.push("em");
+  if (config.underline) tags.push("u");
+  if (config.link) tags.push("a");
+  if (config.blockquote) tags.push("blockquote");
+  if (config.unorderedList) tags.push("ul");
+  if (config.orderedList) tags.push("ol");
+  if (config.unorderedList || config.orderedList) tags.push("li");
+  if (config.strikethrough) tags.push("s");
+  if (config.code) tags.push("code");
+  if (config.divider) tags.push("hr");
   return tags;
 }
 
@@ -84,15 +64,21 @@ export function content({
 }: {
   label: string;
   description?: string;
-  options?: Omit<MarkdocEditorOptions, 'image'> & {
+  options?: Omit<MarkdocEditorOptions, "image"> & {
     image?: boolean;
   };
 }): content.Field {
   let schema: undefined | EditorSchema;
   let inlineSchema: undefined | EditorSchema;
   const config = editorOptionsToConfig(
-    { strikethrough: false, code: false, codeBlock: false, ...options },
-    true
+    {
+      strikethrough: false,
+      code: false,
+      codeBlock: false,
+      ...options,
+      heading: options.heading ?? defaultHeadingLevels,
+    },
+    true,
   );
   const getSchema = () => {
     if (!schema) {
@@ -100,7 +86,7 @@ export function content({
     }
     return schema;
   };
-  // Same schema, minus the editor's own block spacing — see inlineParse.
+  // Same schema, minus the editor's own block spacing - see inlineParse.
   const getInlineSchema = () => {
     if (!inlineSchema) {
       inlineSchema = createEditorSchema(config, {}, false, {
@@ -110,16 +96,16 @@ export function content({
     return inlineSchema;
   };
   return {
-    kind: 'form',
-    formKind: 'assets',
+    kind: "form",
+    formKind: "assets",
     htmlContentEditor: true,
     label,
-    aiMeta: { description, htmlTags: allowedHtmlTags(options) },
+    aiMeta: { description, htmlTags: allowedHtmlTags(config) },
     // the HTML body is written to its own file instead of living inline in
-    // the entry's YAML/JSON — `value` only carries the lightweight
+    // the entry's YAML/JSON - `value` only carries the lightweight
     // { wordCount, charCount } summary, so listing entries never has to
     // fetch (and parse) the full document
-    contentExtension: '.html',
+    contentExtension: ".html",
     defaultValue() {
       return getDefaultValue(getSchema());
     },
@@ -138,7 +124,7 @@ export function content({
       return parseToEditorStateHTML(html, getSchema(), other);
     },
     // parse() for an editor mounted onto a page that supplies its own
-    // typography — the visual editor's inline spots (see
+    // typography - the visual editor's inline spots (see
     // markdoc/editor/schema.tsx's `hostTypography`). Serializing the result
     // yields byte-identical HTML to parse()'s: the difference is only in what
     // the nodes render while being edited, never in what gets written.
@@ -151,7 +137,7 @@ export function content({
     serialize(value, extra) {
       const out = serializeFromEditorStateHTML(value, extra?.entryDirectory);
       const summary: ContentSummary = countWordsAndChars(
-        stripHtmlForPreview(out.value)
+        stripHtmlForPreview(out.value),
       );
       return {
         value: summary,
@@ -162,7 +148,7 @@ export function content({
     },
     reader: {
       parse(_value, extra) {
-        if (extra?.content === undefined) return '';
+        if (extra?.content === undefined) return "";
         return textDecoder.decode(extra.content);
       },
     },
@@ -173,7 +159,7 @@ export declare namespace content {
   type Field = AssetsFormField<EditorState, EditorState, string> & {
     inlineParse(
       html: string,
-      other: ReadonlyMap<string, Uint8Array>
+      other: ReadonlyMap<string, Uint8Array>,
     ): EditorState;
   };
 }

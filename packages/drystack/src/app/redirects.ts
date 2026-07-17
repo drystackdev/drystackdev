@@ -3,12 +3,12 @@
 //
 // The map is stored as a singleton (see the `__redirects` entry `config()`
 // injects in ../config.tsx) so it goes through the same commit/`/update`
-// machinery as any other content — one file, both storage kinds, and a free
+// machinery as any other content - one file, both storage kinds, and a free
 // editing UI in the CMS. The singleton is library-owned, not something a
 // site author declares, so this directory name is the single source of
-// truth for where the file lives — `../config.tsx` points the injected
+// truth for where the file lives - `../config.tsx` points the injected
 // singleton's `path` at the same constant, so the two can't drift apart.
-export const REDIRECTS_DIR = 'redirects';
+export const REDIRECTS_DIR = "redirects";
 export const REDIRECTS_FILE_PATH = `${REDIRECTS_DIR}/index.yaml`;
 
 export type RedirectEntry = {
@@ -23,28 +23,28 @@ export type RedirectEntry = {
 export function normalizeRedirectPath(path: string): string {
   const trimmed = path.trim();
   if (!trimmed) return trimmed;
-  const noTrailing = trimmed.replace(/\/+$/, '');
-  return noTrailing === '' ? '/' : noTrailing;
+  const noTrailing = trimmed.replace(/\/+$/, "");
+  return noTrailing === "" ? "/" : noTrailing;
 }
 
 // Coerce whatever the YAML `entries` value is into a clean RedirectEntry[].
 // Tolerant of a hand-edited or empty file: anything without a usable from/to is
 // dropped rather than throwing.
 export function parseRedirectEntries(value: unknown): RedirectEntry[] {
-  if (!value || typeof value !== 'object') return [];
+  if (!value || typeof value !== "object") return [];
   const raw = (value as { entries?: unknown }).entries;
   if (!Array.isArray(raw)) return [];
   const result: RedirectEntry[] = [];
   for (const item of raw) {
-    if (!item || typeof item !== 'object') continue;
-    const from = normalizeRedirectPath(String((item as any).from ?? ''));
-    const to = normalizeRedirectPath(String((item as any).to ?? ''));
+    if (!item || typeof item !== "object") continue;
+    const from = normalizeRedirectPath(String((item as any).from ?? ""));
+    const to = normalizeRedirectPath(String((item as any).to ?? ""));
     if (!from || !to) continue;
     const createdAt = (item as any).createdAt;
     result.push({
       from,
       to,
-      createdAt: createdAt == null ? '' : String(createdAt),
+      createdAt: createdAt == null ? "" : String(createdAt),
     });
   }
   return result;
@@ -53,18 +53,18 @@ export function parseRedirectEntries(value: unknown): RedirectEntry[] {
 // Add a `from → to` redirect, keeping the table flat (never a chain) and never
 // shadowing a live page.
 //
-// Worked example — the user's `bai-viet-1 → doi-ten-1 → doi-ten-2`:
+// Worked example - the user's `bai-viet-1 → doi-ten-1 → doi-ten-2`:
 //   start:            []
 //   append A→B:       [A→B]
 //   append B→C:       [A→C, B→C]   (A→B is *rewritten*, not chained)
 // so a hit on the oldest URL A resolves to the newest URL C in a single hop.
 //
-// Reuse of an old URL is handled too — appending X→A drops any stale `A→…`
+// Reuse of an old URL is handled too - appending X→A drops any stale `A→…`
 // entry, because a redirect out of A would otherwise hide the freshly-created
 // page now living at A.
 export function appendRedirect(
   entries: RedirectEntry[],
-  incoming: { from: string; to: string; createdAt?: string }
+  incoming: { from: string; to: string; createdAt?: string },
 ): RedirectEntry[] {
   const from = normalizeRedirectPath(incoming.from);
   const to = normalizeRedirectPath(incoming.to);
@@ -72,19 +72,19 @@ export function appendRedirect(
 
   // 1. Collapse chains: any entry currently pointing at `from` should now point
   //    straight at the new destination.
-  let next = entries.map(entry =>
-    normalizeRedirectPath(entry.to) === from ? { ...entry, to } : entry
+  let next = entries.map((entry) =>
+    normalizeRedirectPath(entry.to) === from ? { ...entry, to } : entry,
   );
 
-  // 2. The new destination is a live page again — drop any redirect *out of*
+  // 2. The new destination is a live page again - drop any redirect *out of*
   //    it so it isn't shadowed, and drop the entry we're about to (re)write.
   next = next.filter(
-    entry =>
+    (entry) =>
       normalizeRedirectPath(entry.from) !== to &&
-      normalizeRedirectPath(entry.from) !== from
+      normalizeRedirectPath(entry.from) !== from,
   );
 
-  // 3. Record the redirect itself — unless it collapsed into a self-redirect
+  // 3. Record the redirect itself - unless it collapsed into a self-redirect
   //    (e.g. the URL was renamed back to its original), in which case there is
   //    nothing to redirect.
   if (from !== to) {
@@ -122,5 +122,5 @@ export function serializeRedirectsFile(entries: RedirectEntry[]): string {
     seen.add(from);
     lines.push(`${from} ${to} 301`);
   }
-  return lines.join('\n');
+  return lines.join("\n");
 }

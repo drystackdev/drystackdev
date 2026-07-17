@@ -1,16 +1,16 @@
-import { ActionButton, ButtonGroup } from '@keystar/ui/button';
-import { FieldDescription, FieldLabel, FieldMessage } from '@keystar/ui/field';
-import { Icon } from '@keystar/ui/icon';
-import { trash2Icon } from '@keystar/ui/icon/icons/trash2Icon';
-import { Box, Flex } from '@keystar/ui/layout';
-import { tokenSchema } from '@keystar/ui/style';
+import { ActionButton, ButtonGroup } from "@keystar/ui/button";
+import { FieldDescription, FieldLabel, FieldMessage } from "@keystar/ui/field";
+import { Icon } from "@keystar/ui/icon";
+import { trash2Icon } from "@keystar/ui/icon/icons/trash2Icon";
+import { Box, Flex } from "@keystar/ui/layout";
+import { tokenSchema } from "@keystar/ui/style";
 
-import { useId, useReducer, useState } from 'react';
-import { FormFieldInputProps } from '../../api';
-import { openMediaLibraryMulti } from '../../../app/media-library/bridge';
-import { useMediaLibraryPreviewURL } from '../../../app/media-library/useMediaLibraryPreviewURL';
-import { useInView } from '../../../app/file-manager/useInView';
-import { useObjectURL } from '../image/ui';
+import { useId, useReducer, useState } from "react";
+import { FormFieldInputProps } from "../../api";
+import { openMediaLibraryMulti } from "../../../app/media-library/bridge";
+import { useMediaLibraryPreviewURL } from "../../../app/media-library/useMediaLibraryPreviewURL";
+import { useInView } from "../../../app/file-manager/useInView";
+import { useObjectURL } from "../image/ui";
 
 function ImageThumbnail(props: {
   path: string;
@@ -22,7 +22,7 @@ function ImageThumbnail(props: {
   const treeObjectUrl = useMediaLibraryPreviewURL(
     props.path,
     undefined,
-    inView
+    inView,
   );
   const objectUrl = freshObjectUrl ?? treeObjectUrl;
   return (
@@ -41,17 +41,17 @@ function ImageThumbnail(props: {
         UNSAFE_style={{
           width: 96,
           height: 96,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          overflow: 'hidden',
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
         }}
       >
         {objectUrl && (
           <img
             src={objectUrl}
             alt=""
-            style={{ display: 'block', maxWidth: '100%', maxHeight: '100%' }}
+            style={{ display: "block", maxWidth: "100%", maxHeight: "100%" }}
           />
         )}
       </Box>
@@ -68,14 +68,14 @@ export function ImagesFieldInput(
     label: string;
     description: string | undefined;
     validation: { isRequired?: boolean } | undefined;
-  }
+  },
 ) {
   const { value } = props;
   const [blurred, onBlur] = useReducer(() => true, false);
   // bytes for paths picked/uploaded this session, since a brand new pick
-  // isn't in the tree yet — see useMediaLibraryPreviewURL's tree-sha lookup
+  // isn't in the tree yet - see useMediaLibraryPreviewURL's tree-sha lookup
   const [freshContent, setFreshContent] = useState<Map<string, Uint8Array>>(
-    new Map()
+    new Map(),
   );
   const labelId = useId();
   const descriptionId = useId();
@@ -118,15 +118,15 @@ export function ImagesFieldInput(
       <ButtonGroup>
         <ActionButton
           onPress={async () => {
-            const picked = await openMediaLibraryMulti({ accept: 'image' });
+            const picked = await openMediaLibraryMulti({ accept: "image" });
             onBlur();
             if (picked?.length) {
-              setFreshContent(prev => {
+              setFreshContent((prev) => {
                 const next = new Map(prev);
                 for (const pick of picked) next.set(pick.path, pick.content);
                 return next;
               });
-              props.onChange([...value, ...picked.map(pick => pick.path)]);
+              props.onChange([...value, ...picked.map((pick) => pick.path)]);
             }
           }}
         >

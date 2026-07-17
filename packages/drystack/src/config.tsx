@@ -1,11 +1,11 @@
-import { ColorScheme } from '@keystar/ui/types';
-import { ReactElement } from 'react';
+import { ColorScheme } from "@keystar/ui/types";
+import { ReactElement } from "react";
 
-import { ComponentSchema, SlugFormField } from './form/api';
-import * as fields from './form/fields';
-import type { Locale } from './app/l10n/locales';
-import { RepoConfig } from './app/repo-config';
-import { REDIRECTS_DIR } from './app/redirects';
+import { ComponentSchema, SlugFormField } from "./form/api";
+import * as fields from "./form/fields";
+import type { Locale } from "./app/l10n/locales";
+import { RepoConfig } from "./app/repo-config";
+import { REDIRECTS_DIR } from "./app/redirects";
 
 // Common
 // ----------------------------------------------------------------------------
@@ -13,8 +13,8 @@ import { REDIRECTS_DIR } from './app/redirects';
 export type Format = {
   contentField?: string | [string, ...string[]];
 };
-export type EntryLayout = 'content' | 'form';
-export type Glob = '*' | '**';
+export type EntryLayout = "content" | "form";
+export type Glob = "*" | "**";
 export type Collection<
   Schema extends Record<string, ComponentSchema>,
   SlugField extends string,
@@ -49,7 +49,7 @@ type CommonConfig<Collections, Singletons> = {
 // ----------------------------------------------------------------------------
 
 // Opt-in, admin-only content generation. Omitting `ai` disables the feature
-// outright — no button, no banner, no request. The API key never lives here:
+// outright - no button, no banner, no request. The API key never lives here:
 // it's read server-side from DRY_AI_KEY (see api/ai/env.ts), so nothing in
 // this config object is secret and it can ship to the browser as-is.
 export type AiConfig<Collections, Singletons> = {
@@ -60,7 +60,7 @@ export type AiConfig<Collections, Singletons> = {
   lang?: string;
   /**
    * Which collections/singletons get a "Magic write" button, mapped to a
-   * description of what the entry *is* — this string goes straight into the
+   * description of what the entry *is* - this string goes straight into the
    * prompt, so write it for the model ("bài viết chi tiết về SEO, giọng
    * chuyên gia"), not as a UI label. A key that isn't listed here has no
    * button, and the generate route rejects it.
@@ -82,18 +82,18 @@ type CommonRemoteStorageConfig = {
 // ----------------------------------------------------------------------------
 
 type BrandMark = (props: {
-  colorScheme: Exclude<ColorScheme, 'auto'>; // we resolve "auto" to "light" or "dark" on the client
+  colorScheme: Exclude<ColorScheme, "auto">; // we resolve "auto" to "light" or "dark" on the client
 }) => ReactElement;
-export const NAVIGATION_DIVIDER_KEY = '---';
+export const NAVIGATION_DIVIDER_KEY = "---";
 // Reserved singleton key `config()` always injects for the redirect-on-
 // rename feature (see the definition below and `config()`'s implementation).
 // It's never part of a site's own `Collections`/`Singletons` generics, and a
-// site can't list it in `ui.navigation` either — it always renders on its
+// site can't list it in `ui.navigation` either - it always renders on its
 // own, in a fixed "System" nav section (see useNavItems.tsx), independent of
 // the site's collections/singletons grouping. That section's label isn't
 // configurable, so the key is deliberately left out of the `Navigation`
 // union below.
-export const REDIRECTS_SINGLETON_KEY = '__redirects';
+export const REDIRECTS_SINGLETON_KEY = "__redirects";
 type UserInterface<Collections, Singletons> = {
   brand?: {
     mark?: BrandMark;
@@ -112,7 +112,7 @@ type Navigation<K> = K[] | { [section: string]: K[] };
 // ----------------------------------------------------------------------------
 
 type GitHubStorageConfig = {
-  kind: 'github';
+  kind: "github";
   repo: RepoConfig;
 } & CommonRemoteStorageConfig;
 
@@ -133,7 +133,7 @@ export type GitHubConfig<
   singletons?: Singletons;
 } & CommonConfig<Collections, Singletons>;
 
-type LocalStorageConfig = { kind: 'local' };
+type LocalStorageConfig = { kind: "local" };
 
 export type LocalConfig<
   Collections extends {
@@ -175,28 +175,28 @@ export type Config<
 // Functions
 // ============================================================================
 
-// Injected into every resolved config by `config()` below — never declared by
+// Injected into every resolved config by `config()` below - never declared by
 // a site's own `drystack.config.ts`. Baking the schema/path in here (rather
 // than asking each site to declare a matching singleton, as earlier drafts of
 // this feature did) means the redirect-on-rename write path
 // (app/updating.tsx) and the Astro build step (packages/astro/src/index.ts)
-// can rely on this shape always existing, exactly as defined — a site can't
+// can rely on this shape always existing, exactly as defined - a site can't
 // rename, re-path, or accidentally drop the fields the write path depends on.
 const redirectsSingleton = singleton({
-  label: 'Redirects (301)',
+  label: "Redirects (301)",
   path: `${REDIRECTS_DIR}/`,
   schema: {
     entries: fields.array(
       fields.object({
-        from: fields.text({ label: 'Old URL' }),
-        to: fields.text({ label: 'New URL' }),
-        createdAt: fields.text({ label: 'Created' }),
+        from: fields.text({ label: "Old URL" }),
+        to: fields.text({ label: "New URL" }),
+        createdAt: fields.text({ label: "Created" }),
       }),
       {
-        label: 'Redirect list',
-        itemLabel: props =>
-          `${props.fields.from.value || '?'} → ${props.fields.to.value || '?'}`,
-      }
+        label: "Redirect list",
+        itemLabel: (props) =>
+          `${props.fields.from.value || "?"} → ${props.fields.to.value || "?"}`,
+      },
     ),
   },
 });
@@ -229,13 +229,13 @@ export function collection<
       : never;
   }[keyof Schema],
 >(
-  collection: Collection<Schema, SlugField & string>
+  collection: Collection<Schema, SlugField & string>,
 ): Collection<Schema, SlugField & string> {
   return collection;
 }
 
 export function singleton<Schema extends Record<string, ComponentSchema>>(
-  collection: Singleton<Schema>
+  collection: Singleton<Schema>,
 ): Singleton<Schema> {
   return collection;
 }

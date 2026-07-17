@@ -1,22 +1,22 @@
 // Pure 3-way merge logic for Deploy (see plan/brand.md §6-7). No React/IO here
-// — useDeploy.ts fetches blob text and calls into these functions.
-import { diff3Merge } from 'node-diff3';
+// - useDeploy.ts fetches blob text and calls into these functions.
+import { diff3Merge } from "node-diff3";
 
 // The only tree shape classifyChanges needs: a path→entry map where each entry
 // exposes its blob/tree `sha` and `type`. Declared as a covariant ReadonlyMap
 // so callers can pass a richer `Map<string, TreeEntry>` (admin) or a minimal
-// map built from the GitHub trees API (VEI) without a Map-invariance error —
+// map built from the GitHub trees API (VEI) without a Map-invariance error -
 // keeping this module free of any React/data.tsx dependency.
 export type ClassifyTree = ReadonlyMap<string, { sha: string; type: string }>;
 
 // .yaml/.html (+.yml) are the only extensions that ever get a real 3-way text
-// merge; everything else is "never conflicts" — the brand's version always
+// merge; everything else is "never conflicts" - the brand's version always
 // wins on divergence, per plan/brand.md §1.
-const MERGEABLE_EXTENSIONS = new Set(['.yaml', '.yml', '.html']);
+const MERGEABLE_EXTENSIONS = new Set([".yaml", ".yml", ".html"]);
 
 function extOf(path: string): string {
-  const i = path.lastIndexOf('.');
-  return i === -1 ? '' : path.slice(i).toLowerCase();
+  const i = path.lastIndexOf(".");
+  return i === -1 ? "" : path.slice(i).toLowerCase();
 }
 
 export type ChangeClassification = {
@@ -26,8 +26,8 @@ export type ChangeClassification = {
   // paths that existed at the base and should be removed (brand deleted them
   // and main left them untouched)
   takeOursDeletions: string[];
-  // paths needing a real 3-way text merge — both sides changed a mergeable
-  // file differently (including one side deleting it — see merge3.ts's
+  // paths needing a real 3-way text merge - both sides changed a mergeable
+  // file differently (including one side deleting it - see merge3.ts's
   // treatment of a missing side as empty text)
   conflictEligible: string[];
 };
@@ -40,7 +40,7 @@ export type ChangeClassification = {
 export function classifyChanges(
   base: ClassifyTree,
   ours: ClassifyTree,
-  theirs: ClassifyTree
+  theirs: ClassifyTree,
 ): ChangeClassification {
   const allPaths = new Set<string>([
     ...base.keys(),
@@ -58,7 +58,7 @@ export function classifyChanges(
     const t = theirs.get(path);
     // tree (directory) entries are implied by their children; only blobs
     // are independently meaningful to diff
-    if (b?.type === 'tree' || o?.type === 'tree' || t?.type === 'tree') {
+    if (b?.type === "tree" || o?.type === "tree" || t?.type === "tree") {
       continue;
     }
 
@@ -91,80 +91,80 @@ export function classifyChanges(
 // -----------------------------------------------------------------------------
 
 export type Hunk =
-  | { kind: 'ok'; lines: string[] }
-  | { kind: 'conflict'; ours: string[]; base: string[]; theirs: string[] };
+  | { kind: "ok"; lines: string[] }
+  | { kind: "conflict"; ours: string[]; base: string[]; theirs: string[] };
 
 export type FileMergeResult =
-  | { kind: 'clean'; content: string }
-  | { kind: 'conflict'; hunks: Hunk[] };
+  | { kind: "clean"; content: string }
+  | { kind: "conflict"; hunks: Hunk[] };
 
 // Splits keeping line terminators attached, so `.join('')` round-trips the
 // original text exactly (including a missing/present trailing newline).
 function splitLines(text: string): string[] {
-  if (text === '') return [];
+  if (text === "") return [];
   return text.match(/[^\n]*\n|[^\n]+$/g) ?? [];
 }
 
 // `oursText`/`theirsText` pass '' for a side that deleted the file (see
-// classifyChanges — a mergeable-extension delete-vs-modify is still routed
-// here rather than auto-resolved) — diff3 then surfaces it as an ordinary
+// classifyChanges - a mergeable-extension delete-vs-modify is still routed
+// here rather than auto-resolved) - diff3 then surfaces it as an ordinary
 // conflict with an empty side, reusing the same hunk UI instead of a special
 // "keep or delete" mode. useDeploy treats an all-empty resolved result as a
 // deletion (see resolveHunks below).
 export function merge3Text(
   oursText: string,
   baseText: string,
-  theirsText: string
+  theirsText: string,
 ): FileMergeResult {
   const regions = diff3Merge(
     splitLines(oursText),
     splitLines(baseText),
     splitLines(theirsText),
-    { excludeFalseConflicts: true }
+    { excludeFalseConflicts: true },
   );
 
-  const hunks: Hunk[] = regions.map(region =>
+  const hunks: Hunk[] = regions.map((region) =>
     region.conflict
       ? {
-          kind: 'conflict',
+          kind: "conflict",
           ours: region.conflict.a,
           base: region.conflict.o,
           theirs: region.conflict.b,
         }
-      : { kind: 'ok', lines: region.ok ?? [] }
+      : { kind: "ok", lines: region.ok ?? [] },
   );
 
-  if (hunks.every(h => h.kind === 'ok')) {
+  if (hunks.every((h) => h.kind === "ok")) {
     return {
-      kind: 'clean',
-      content: hunks.flatMap(h => (h as { lines: string[] }).lines).join(''),
+      kind: "clean",
+      content: hunks.flatMap((h) => (h as { lines: string[] }).lines).join(""),
     };
   }
-  return { kind: 'conflict', hunks };
+  return { kind: "conflict", hunks };
 }
 
 // Rebuilds a file's final text from a resolved FileMergeResult. `choices` has
 // one entry per conflict hunk, in the same order those hunks appear in
-// `hunks` (i.e. skipping 'ok' hunks) — exactly the order ConflictDialog
+// `hunks` (i.e. skipping 'ok' hunks) - exactly the order ConflictDialog
 // enumerates them in.
 export function resolveHunks(
   hunks: Hunk[],
-  choices: ('ours' | 'theirs')[]
+  choices: ("ours" | "theirs")[],
 ): string {
   let choiceIndex = 0;
   const parts: string[] = [];
   for (const hunk of hunks) {
-    if (hunk.kind === 'ok') {
+    if (hunk.kind === "ok") {
       parts.push(...hunk.lines);
     } else {
       const choice = choices[choiceIndex];
       choiceIndex++;
-      parts.push(...(choice === 'ours' ? hunk.ours : hunk.theirs));
+      parts.push(...(choice === "ours" ? hunk.ours : hunk.theirs));
     }
   }
-  return parts.join('');
+  return parts.join("");
 }
 
 export function conflictHunkCount(hunks: Hunk[]): number {
-  return hunks.filter(h => h.kind === 'conflict').length;
+  return hunks.filter((h) => h.kind === "conflict").length;
 }

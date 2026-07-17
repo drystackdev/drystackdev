@@ -1,39 +1,39 @@
-import { ButtonGroup, Button, ActionButton } from '@keystar/ui/button';
+import { ButtonGroup, Button, ActionButton } from "@keystar/ui/button";
 import {
   useDialogContainer,
   Dialog,
   DialogContainer,
-} from '@keystar/ui/dialog';
-import { Divider, Flex } from '@keystar/ui/layout';
-import { NumberField } from '@keystar/ui/number-field';
-import { Content } from '@keystar/ui/slots';
-import { TextField } from '@keystar/ui/text-field';
-import { Heading, Text } from '@keystar/ui/typography';
-import { useLocalizedStringFormatter } from '@react-aria/i18n';
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { clientSideValidateProp } from '../../../../errors';
-import { FormValueContentFromPreviewProps } from '../../../../form-from-preview';
-import { createGetPreviewProps } from '../../../../preview-props';
-import l10nMessages from '../../../../../app/l10n';
-import { Icon } from '@keystar/ui/icon';
-import { alignCenterIcon } from '@keystar/ui/icon/icons/alignCenterIcon';
-import { alignLeftIcon } from '@keystar/ui/icon/icons/alignLeftIcon';
-import { alignRightIcon } from '@keystar/ui/icon/icons/alignRightIcon';
-import { editIcon } from '@keystar/ui/icon/icons/editIcon';
-import { fileUpIcon } from '#icons/fileUpIcon';
-import { link2Icon } from '@keystar/ui/icon/icons/link2Icon';
-import { link2OffIcon } from '@keystar/ui/icon/icons/link2OffIcon';
-import { trash2Icon } from '@keystar/ui/icon/icons/trash2Icon';
-import { TooltipTrigger, Tooltip } from '@keystar/ui/tooltip';
-import { ToggleButton } from '@keystar/ui/button';
-import { openMediaLibrary } from '../../../../../app/media-library/bridge';
-import { EditorState, NodeSelection } from 'prosemirror-state';
-import { useEditorDispatchCommand, useEditorSchema } from '../editor-view';
-import { Node } from 'prosemirror-model';
-import { imageAttrsForPick, naturalRatioForPick } from '../image-pick';
-import { ImageAlign } from '../image-layout';
-import { useImageObjectUrl } from '../image-node-view';
-import { useMediaScope } from '../media-scope';
+} from "@keystar/ui/dialog";
+import { Divider, Flex } from "@keystar/ui/layout";
+import { NumberField } from "@keystar/ui/number-field";
+import { Content } from "@keystar/ui/slots";
+import { TextField } from "@keystar/ui/text-field";
+import { Heading, Text } from "@keystar/ui/typography";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { clientSideValidateProp } from "../../../../errors";
+import { FormValueContentFromPreviewProps } from "../../../../form-from-preview";
+import { createGetPreviewProps } from "../../../../preview-props";
+import l10nMessages from "../../../../../app/l10n";
+import { Icon } from "@keystar/ui/icon";
+import { alignCenterIcon } from "@keystar/ui/icon/icons/alignCenterIcon";
+import { alignLeftIcon } from "@keystar/ui/icon/icons/alignLeftIcon";
+import { alignRightIcon } from "@keystar/ui/icon/icons/alignRightIcon";
+import { editIcon } from "@keystar/ui/icon/icons/editIcon";
+import { fileUpIcon } from "#icons/fileUpIcon";
+import { link2Icon } from "@keystar/ui/icon/icons/link2Icon";
+import { link2OffIcon } from "@keystar/ui/icon/icons/link2OffIcon";
+import { trash2Icon } from "@keystar/ui/icon/icons/trash2Icon";
+import { TooltipTrigger, Tooltip } from "@keystar/ui/tooltip";
+import { ToggleButton } from "@keystar/ui/button";
+import { openMediaLibrary } from "../../../../../app/media-library/bridge";
+import { EditorState, NodeSelection } from "prosemirror-state";
+import { useEditorDispatchCommand, useEditorSchema } from "../editor-view";
+import { Node } from "prosemirror-model";
+import { imageAttrsForPick, naturalRatioForPick } from "../image-pick";
+import { ImageAlign } from "../image-layout";
+import { useImageObjectUrl } from "../image-node-view";
+import { useMediaScope } from "../media-scope";
 
 const MIN_SIZE = 24;
 
@@ -55,9 +55,9 @@ export function ImagePopover(props: {
         dispatch(
           state.tr.setNodeAttribute(
             props.pos,
-            'align',
-            align === value ? null : value
-          )
+            "align",
+            align === value ? null : value,
+          ),
         );
       }
       return true;
@@ -70,9 +70,9 @@ export function ImagePopover(props: {
           <TooltipTrigger>
             <ToggleButton
               prominence="low"
-              isSelected={align === 'left'}
+              isSelected={align === "left"}
               aria-label="Float left"
-              onPress={() => toggleAlign('left')}
+              onPress={() => toggleAlign("left")}
             >
               <Icon src={alignLeftIcon} />
             </ToggleButton>
@@ -81,9 +81,9 @@ export function ImagePopover(props: {
           <TooltipTrigger>
             <ToggleButton
               prominence="low"
-              isSelected={align === 'center'}
+              isSelected={align === "center"}
               aria-label="Center"
-              onPress={() => toggleAlign('center')}
+              onPress={() => toggleAlign("center")}
             >
               <Icon src={alignCenterIcon} />
             </ToggleButton>
@@ -92,9 +92,9 @@ export function ImagePopover(props: {
           <TooltipTrigger>
             <ToggleButton
               prominence="low"
-              isSelected={align === 'right'}
+              isSelected={align === "right"}
               aria-label="Float right"
-              onPress={() => toggleAlign('right')}
+              onPress={() => toggleAlign("right")}
             >
               <Icon src={alignRightIcon} />
             </ToggleButton>
@@ -115,9 +115,9 @@ export function ImagePopover(props: {
                       dispatch(
                         state.tr.setNodeAttribute(
                           props.pos,
-                          'lockAspectRatio',
-                          !lockAspectRatio
-                        )
+                          "lockAspectRatio",
+                          !lockAspectRatio,
+                        ),
                       );
                     }
                     return true;
@@ -133,27 +133,27 @@ export function ImagePopover(props: {
             <ActionButton prominence="low" onPress={() => setDialogOpen(true)}>
               <Icon src={editIcon} />
             </ActionButton>
-            <Tooltip>{stringFormatter.format('edit')}</Tooltip>
+            <Tooltip>{stringFormatter.format("edit")}</Tooltip>
           </TooltipTrigger>
           <TooltipTrigger>
             <ActionButton
               prominence="low"
               onPress={async () => {
                 const picked = await openMediaLibrary({
-                  accept: 'image',
+                  accept: "image",
                   local: mediaScope ?? undefined,
                 });
                 if (!picked || !schema.config.image) return;
                 const { src, filename } = imageAttrsForPick(
                   picked,
                   schema.config.image.transformFilename,
-                  schema.config.supportsMediaLibraryReferences
+                  schema.config.supportsMediaLibraryReferences,
                 );
                 // The node keeps the width/height it was given for the *old*
                 // image, so a replacement with a different aspect ratio would
                 // be squeezed into the previous one's box. With the ratio
                 // locked, re-derive the height from the width that's staying
-                // put — same rule the dialog's lock toggle applies
+                // put - same rule the dialog's lock toggle applies
                 // (`onLockToggle`). Only matters once an explicit width exists:
                 // with none, the image lays out at its own size and there's
                 // nothing to distort it.
@@ -166,18 +166,18 @@ export function ImagePopover(props: {
                 runCommand((state, dispatch) => {
                   if (dispatch) {
                     const { tr } = state;
-                    tr.setNodeAttribute(props.pos, 'src', src);
-                    tr.setNodeAttribute(props.pos, 'filename', filename);
+                    tr.setNodeAttribute(props.pos, "src", src);
+                    tr.setNodeAttribute(props.pos, "filename", filename);
                     // The old image's URL, which is what `srcUrl` still holds,
-                    // is now wrong for this node — and for a library reference
+                    // is now wrong for this node - and for a library reference
                     // (no bytes) it would be the only src the serializer sees.
-                    tr.setNodeAttribute(props.pos, 'srcUrl', '');
+                    tr.setNodeAttribute(props.pos, "srcUrl", "");
                     if (nextHeight != null) {
-                      tr.setNodeAttribute(props.pos, 'height', nextHeight);
+                      tr.setNodeAttribute(props.pos, "height", nextHeight);
                     }
                     const newState = state.apply(tr);
                     tr.setSelection(
-                      NodeSelection.create(newState.doc, props.pos)
+                      NodeSelection.create(newState.doc, props.pos),
                     );
                     dispatch(tr);
                   }
@@ -198,7 +198,7 @@ export function ImagePopover(props: {
               runCommand((state, dispatch) => {
                 if (dispatch) {
                   dispatch(
-                    state.tr.delete(props.pos, props.pos + props.node.nodeSize)
+                    state.tr.delete(props.pos, props.pos + props.node.nodeSize),
                   );
                 }
                 return true;
@@ -225,7 +225,7 @@ export function ImagePopover(props: {
             height={props.node.attrs.height}
             lockAspectRatio={lockAspectRatio}
             showLayoutFields={schema.config.htmlLayout}
-            onSubmit={value => {
+            onSubmit={(value) => {
               runCommand((state, dispatch) => {
                 if (dispatch) {
                   const { tr } = state;
@@ -235,7 +235,7 @@ export function ImagePopover(props: {
                   });
                   const newState = state.apply(tr);
                   tr.setSelection(
-                    NodeSelection.create(newState.doc, props.pos)
+                    NodeSelection.create(newState.doc, props.pos),
                   );
                   dispatch(tr);
                 }
@@ -271,16 +271,16 @@ function ImageDialog(props: {
   const schema = useEditorSchema();
   const [state, setState] = useState({ alt: props.alt, title: props.title });
   const imagesSchema = useMemo(
-    () => ({ kind: 'object' as const, fields: schema.config.image!.schema }),
-    [schema.config.image]
+    () => ({ kind: "object" as const, fields: schema.config.image!.schema }),
+    [schema.config.image],
   );
   const previewProps = useMemo(
     () => createGetPreviewProps(imagesSchema, setState, () => undefined),
-    [imagesSchema]
+    [imagesSchema],
   )(state);
 
   const [filenameWithoutExtension, filenameExtension] = splitFilename(
-    props.filename
+    props.filename,
   );
   const [forceValidation, setForceValidation] = useState(false);
   let [fileName, setFileName] = useState(filenameWithoutExtension);
@@ -288,19 +288,15 @@ function ImageDialog(props: {
 
   const [width, setWidth] = useState(props.width);
   const [height, setHeight] = useState(props.height);
-  const [lockAspectRatio, setLockAspectRatio] = useState(
-    props.lockAspectRatio
-  );
+  const [lockAspectRatio, setLockAspectRatio] = useState(props.lockAspectRatio);
   // measures the underlying image's natural size so the width/height fields
   // can keep it locked even before either field has ever been committed
   const objectUrl = useImageObjectUrl(props.node);
   const naturalRatioRef = useRef<number | null>(null);
 
   const ratioForField = useCallback(
-    () =>
-      naturalRatioRef.current ??
-      (width && height ? width / height : null),
-    [width, height]
+    () => naturalRatioRef.current ?? (width && height ? width / height : null),
+    [width, height],
   );
 
   const syncHeightFromWidth = useCallback(
@@ -308,7 +304,7 @@ function ImageDialog(props: {
       const ratio = ratioForField();
       if (ratio) setHeight(Math.round(w / ratio));
     },
-    [ratioForField]
+    [ratioForField],
   );
 
   const syncWidthFromHeight = useCallback(
@@ -316,22 +312,28 @@ function ImageDialog(props: {
       const ratio = ratioForField();
       if (ratio) setWidth(Math.round(h * ratio));
     },
-    [ratioForField]
+    [ratioForField],
   );
 
-  const onWidthField = useCallback((value: number) => {
-    if (!Number.isFinite(value) || value <= 0) return;
-    const w = Math.round(value);
-    setWidth(w);
-    if (lockAspectRatio) syncHeightFromWidth(w);
-  }, [lockAspectRatio, syncHeightFromWidth]);
+  const onWidthField = useCallback(
+    (value: number) => {
+      if (!Number.isFinite(value) || value <= 0) return;
+      const w = Math.round(value);
+      setWidth(w);
+      if (lockAspectRatio) syncHeightFromWidth(w);
+    },
+    [lockAspectRatio, syncHeightFromWidth],
+  );
 
-  const onHeightField = useCallback((value: number) => {
-    if (!Number.isFinite(value) || value <= 0) return;
-    const h = Math.round(value);
-    setHeight(h);
-    if (lockAspectRatio) syncWidthFromHeight(h);
-  }, [lockAspectRatio, syncWidthFromHeight]);
+  const onHeightField = useCallback(
+    (value: number) => {
+      if (!Number.isFinite(value) || value <= 0) return;
+      const h = Math.round(value);
+      setHeight(h);
+      if (lockAspectRatio) syncWidthFromHeight(h);
+    },
+    [lockAspectRatio, syncWidthFromHeight],
+  );
 
   const onLockToggle = useCallback(() => {
     const enabling = !lockAspectRatio;
@@ -347,8 +349,8 @@ function ImageDialog(props: {
   return (
     <Dialog size="small">
       <form
-        style={{ display: 'contents' }}
-        onSubmit={event => {
+        style={{ display: "contents" }}
+        onSubmit={(event) => {
           if (event.target !== event.currentTarget) return;
           event.preventDefault();
           setForceValidation(true);
@@ -360,7 +362,7 @@ function ImageDialog(props: {
             props.onSubmit({
               alt: state.alt,
               title: state.title,
-              filename: [fileName, filenameExtension].join('.'),
+              filename: [fileName, filenameExtension].join("."),
               ...(props.showLayoutFields
                 ? { width, height, lockAspectRatio }
                 : {}),
@@ -379,7 +381,7 @@ function ImageDialog(props: {
               isRequired
               errorMessage={
                 (fileNameTouched || forceValidation) && !fileName
-                  ? 'Please provide a file name.'
+                  ? "Please provide a file name."
                   : undefined
               }
               endElement={
@@ -433,17 +435,17 @@ function ImageDialog(props: {
           </Flex>
         </Content>
         <ButtonGroup>
-          <Button onPress={dismiss}>{stringFormatter.format('cancel')}</Button>
+          <Button onPress={dismiss}>{stringFormatter.format("cancel")}</Button>
           <Button prominence="high" type="submit">
-            {stringFormatter.format('save')}
+            {stringFormatter.format("save")}
           </Button>
         </ButtonGroup>
         {objectUrl && (
           <img
             src={objectUrl}
             alt=""
-            style={{ display: 'none' }}
-            onLoad={event => {
+            style={{ display: "none" }}
+            onLoad={(event) => {
               const img = event.currentTarget;
               if (img.naturalHeight) {
                 naturalRatioRef.current = img.naturalWidth / img.naturalHeight;
@@ -457,9 +459,9 @@ function ImageDialog(props: {
 }
 
 function splitFilename(filename: string): [string, string] {
-  const dotIndex = filename.lastIndexOf('.');
+  const dotIndex = filename.lastIndexOf(".");
   if (dotIndex === -1) {
-    return [filename, ''];
+    return [filename, ""];
   }
   return [filename.substring(0, dotIndex), filename.substring(dotIndex + 1)];
 }

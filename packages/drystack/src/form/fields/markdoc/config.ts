@@ -1,7 +1,7 @@
-import { text } from '../text';
-import { BasicFormField, SlugFormField, ComponentSchema } from '../../api';
-import { FieldDataError } from '../error';
-import { basicFormFieldWithSimpleReaderParse } from '../utils';
+import { text } from "../text";
+import { BasicFormField, SlugFormField, ComponentSchema } from "../../api";
+import { FieldDataError } from "../error";
+import { basicFormFieldWithSimpleReaderParse } from "../utils";
 
 type HeadingLevels = boolean | readonly (1 | 2 | 3 | 4 | 5 | 6)[];
 
@@ -10,8 +10,8 @@ export type BasicStringFormField =
   | SlugFormField<string, string, string, null>;
 
 const defaultAltField: SlugFormField<string, string, string, null> = text({
-  label: 'Alt text',
-  description: 'This text will be used by screen readers and search engines.',
+  label: "Alt text",
+  description: "This text will be used by screen readers and search engines.",
 });
 
 const emptyTitleField: BasicFormField<string> =
@@ -20,12 +20,12 @@ const emptyTitleField: BasicFormField<string> =
       return null;
     },
     defaultValue() {
-      return '';
+      return "";
     },
     parse(value) {
-      if (value === undefined) return '';
-      if (typeof value !== 'string') {
-        throw new FieldDataError('Must be string');
+      if (value === undefined) return "";
+      if (typeof value !== "string") {
+        throw new FieldDataError("Must be string");
       }
       return value;
     },
@@ -35,7 +35,7 @@ const emptyTitleField: BasicFormField<string> =
     serialize(value) {
       return { value };
     },
-    label: 'Title',
+    label: "Title",
   });
 
 export type EditorConfig = {
@@ -52,7 +52,7 @@ export type EditorConfig = {
   orderedList: boolean;
   unorderedList: boolean;
   table: boolean;
-  // multi-column layout block (div + CSS grid, 24 tracks). HTML-only — it
+  // multi-column layout block (div + CSS grid, 24 tracks). HTML-only - it
   // only round-trips through the HTML `content` field, never markdoc/mdx.
   grid: boolean;
   link: boolean;
@@ -72,7 +72,7 @@ export type EditorConfig = {
   // whether this field's serialization format supports storing an image by
   // reference (an unhydrated node resolved lazily from the shared media
   // library directory) rather than always embedding its bytes as a sibling
-  // file — only the HTML-backed `content` field supports this today
+  // file - only the HTML-backed `content` field supports this today
   supportsMediaLibraryReferences: boolean;
   // whether this field serializes to HTML and therefore supports block-level
   // layout that only round-trips through HTML: text alignment on paragraphs/
@@ -135,7 +135,7 @@ type EditorOptions = MarkdocEditorOptions | MDXEditorOptions;
 
 export function editorOptionsToConfig(
   options: EditorOptions,
-  isHtml = false
+  isHtml = false,
 ): EditorConfig {
   return {
     supportsMediaLibraryReferences: isHtml,
@@ -150,7 +150,7 @@ export function editorOptionsToConfig(
     heading: (() => {
       let levels = [];
       let levelsOpt =
-        typeof options.heading === 'object' && !Array.isArray(options.heading)
+        typeof options.heading === "object" && !Array.isArray(options.heading)
           ? (options.heading as { levels: HeadingLevels }).levels
           : (options.heading as HeadingLevels | undefined);
       if (levelsOpt === true || levelsOpt === undefined) {
@@ -163,8 +163,8 @@ export function editorOptionsToConfig(
         levels,
         schema:
           options.heading &&
-          typeof options.heading === 'object' &&
-          'schema' in options.heading
+          typeof options.heading === "object" &&
+          "schema" in options.heading
             ? options.heading.schema
             : {},
       };
@@ -184,7 +184,7 @@ export function editorOptionsToConfig(
             return {
               directory: opts?.directory,
               publicPath: opts?.publicPath,
-              transformFilename: opts?.transformFilename ?? (x => x),
+              transformFilename: opts?.transformFilename ?? ((x) => x),
               schema: {
                 alt: opts?.schema?.alt ?? defaultAltField,
                 title: opts?.schema?.title ?? emptyTitleField,
@@ -198,7 +198,7 @@ export function editorOptionsToConfig(
         ? undefined
         : {
             schema:
-              typeof options.codeBlock === 'object'
+              typeof options.codeBlock === "object"
                 ? options.codeBlock.schema
                 : {},
           },

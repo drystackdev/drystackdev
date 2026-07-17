@@ -1,10 +1,10 @@
-import { ReactNode, createContext, useContext, useMemo } from 'react';
+import { ReactNode, createContext, useContext, useMemo } from "react";
 
-import { PathContext } from '../../form/fields/text/path-slug-context';
+import { PathContext } from "../../form/fields/text/path-slug-context";
 import {
   FieldMagicWriteProvider,
   FieldMagicWriteValue,
-} from './field-magic-write-context';
+} from "./field-magic-write-context";
 
 // Which top-level fields the AI is mid-write on. A context rather than a prop
 // because the lock has to reach the editor at the bottom of the form
@@ -16,7 +16,7 @@ const AiLockedKeysContext = createContext<ReadonlySet<string>>(new Set());
  * Everything the form below needs from the AI feature: which fields are
  * locked, and (when the entry is opted in) what a per-field button would need
  * to start a write. Combined into one provider because they always mount
- * together at the same point — the page that owns the entry's state.
+ * together at the same point - the page that owns the entry's state.
  */
 export function AiLockProvider(props: {
   lockedKeys: ReadonlySet<string>;
@@ -45,6 +45,6 @@ export function useIsAiLocked(): boolean {
   return useMemo(() => {
     if (!lockedKeys.size) return false;
     const root = path[0];
-    return typeof root === 'string' && lockedKeys.has(root);
+    return typeof root === "string" && lockedKeys.has(root);
   }, [lockedKeys, path]);
 }

@@ -1,10 +1,10 @@
-import { gql } from '@ts-gql/tag/no-transform';
-import { assert } from 'emery';
-import { useContext, useState } from 'react';
+import { gql } from "@ts-gql/tag/no-transform";
+import { assert } from "emery";
+import { useContext, useState } from "react";
 
-import { ComponentSchema, fields } from '../form/api';
-import { dump, load } from 'js-yaml';
-import { useMutation } from 'urql';
+import { ComponentSchema, fields } from "../form/api";
+import { dump, load } from "js-yaml";
+import { useMutation } from "urql";
 import {
   fetchGitHubTreeData,
   hydrateTreeCacheWithEntries,
@@ -13,53 +13,53 @@ import {
   useCurrentUnscopedTree,
   useRepoInfo,
   useSetTreeSha,
-} from './shell/data';
-import { fetchBlob, hydrateBlobCache } from './useItemData';
-import { useConfig } from './shell/context';
-import { trashedPathFor } from './file-manager/useTrash';
-import { createCommitMutation } from './shell/useCommitFileChanges';
-import { FormatInfo, getEntryDataFilepath, getPathPrefix } from './path-utils';
+} from "./shell/data";
+import { fetchBlob, hydrateBlobCache } from "./useItemData";
+import { useConfig } from "./shell/context";
+import { trashedPathFor } from "./file-manager/useTrash";
+import { createCommitMutation } from "./shell/useCommitFileChanges";
+import { FormatInfo, getEntryDataFilepath, getPathPrefix } from "./path-utils";
 import {
   getTreeNodeAtPath,
   TreeEntry,
   TreeNode,
   treeSha,
   updateTreeWithChanges,
-} from './trees';
+} from "./trees";
 import {
   appendRedirect,
   parseRedirectEntries,
   REDIRECTS_FILE_PATH,
-} from './redirects';
-import { Config } from '..';
-import { getDirectoriesForTreeKey, getTreeKey } from './tree-key';
-import { AppSlugContext } from './onboarding/install-app';
-import { createUrqlClient } from './provider';
-import { serializeProps } from '../form/serialize-props';
-import { scopeEntriesWithPathPrefix } from './shell/path-prefix';
-import { useRouter } from './router';
-import { base64Encode } from '#base64';
-import { useEntryUploadSession } from './media-library/upload-session';
+} from "./redirects";
+import { Config } from "..";
+import { getDirectoriesForTreeKey, getTreeKey } from "./tree-key";
+import { AppSlugContext } from "./onboarding/install-app";
+import { createUrqlClient } from "./provider";
+import { serializeProps } from "../form/serialize-props";
+import { scopeEntriesWithPathPrefix } from "./shell/path-prefix";
+import { useRouter } from "./router";
+import { base64Encode } from "#base64";
+import { useEntryUploadSession } from "./media-library/upload-session";
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
-const frontmatterSplit = textEncoder.encode('---\n');
+const frontmatterSplit = textEncoder.encode("---\n");
 
 function combineFrontmatterAndContents(
   frontmatter: Uint8Array,
-  contents: Uint8Array
+  contents: Uint8Array,
 ) {
   const array = new Uint8Array(
     frontmatter.byteLength +
       contents.byteLength +
-      frontmatterSplit.byteLength * 2
+      frontmatterSplit.byteLength * 2,
   );
   array.set(frontmatterSplit);
   array.set(frontmatter, frontmatterSplit.byteLength);
   array.set(
     frontmatterSplit,
-    frontmatterSplit.byteLength + frontmatter.byteLength
+    frontmatterSplit.byteLength + frontmatter.byteLength,
   );
   array.set(contents, frontmatterSplit.byteLength * 2 + frontmatter.byteLength);
   return array;
@@ -79,24 +79,24 @@ export function serializeEntryToFiles(args: {
     args.slug?.value,
     true,
     // Where this entry's parent-less extra files (incl. a content field's
-    // assets/) land — basePath is already the full entry dir (slug included),
+    // assets/) land - basePath is already the full entry dir (slug included),
     // matching how those files are written below, so fields.content can emit
     // public image srcs that resolve on the live site.
-    args.basePath
+    args.basePath,
   );
   let dataContent = textEncoder.encode(dump(stateWithExtraFilesRemoved));
 
   if (args.format.contentField) {
-    const filename = `${args.format.contentField.path.join('/')}${
+    const filename = `${args.format.contentField.path.join("/")}${
       args.format.contentField.contentExtension
     }`;
     let contents: undefined | Uint8Array;
-    extraFiles = extraFiles.filter(x => {
+    extraFiles = extraFiles.filter((x) => {
       if (x.path !== filename) return true;
       contents = x.contents;
       return false;
     });
-    assert(contents !== undefined, 'Expected content field to be present');
+    assert(contents !== undefined, "Expected content field to be present");
     dataContent = combineFrontmatterAndContents(dataContent, contents);
   }
 
@@ -105,7 +105,7 @@ export function serializeEntryToFiles(args: {
       path: getEntryDataFilepath(args.basePath, args.format),
       contents: dataContent,
     },
-    ...extraFiles.map(file => ({
+    ...extraFiles.map((file) => ({
       path: `${
         file.parent
           ? args.slug
@@ -121,7 +121,7 @@ export function serializeEntryToFiles(args: {
 // Read the current redirect table from the tree, add `redirect`, and return the
 // serialized `redirects/index.yaml` addition (path already prefixed). Shared by
 // item save (rename) and delete so the 301 lands in the *same* commit / `/update`
-// call as the change that killed the old URL — no drift if the commit fails.
+// call as the change that killed the old URL - no drift if the commit fails.
 // Works for both storage kinds via the existing `fetchBlob` path.
 async function buildRedirectAddition(args: {
   config: Config;
@@ -135,14 +135,14 @@ async function buildRedirectAddition(args: {
   const path = args.pathPrefix + REDIRECTS_FILE_PATH;
   let entries = parseRedirectEntries(null);
   const existing = getTreeNodeAtPath(args.unscopedTree, path);
-  if (existing?.entry.type === 'blob' && existing.entry.sha) {
+  if (existing?.entry.type === "blob" && existing.entry.sha) {
     const bytes = await fetchBlob(
       args.config,
       existing.entry.sha,
       path,
       args.baseCommit,
       args.repoInfo,
-      args.rootPath
+      args.rootPath,
     );
     entries = parseRedirectEntries(load(textDecoder.decode(bytes)));
   }
@@ -153,26 +153,30 @@ async function buildRedirectAddition(args: {
 
 // stamps `fields.timestamp()` values into entry state right before it's
 // serialized for a real save (both local and github share this call site in
-// useUpsertItem below) — deliberately NOT done inside the field's own
+// useUpsertItem below) - deliberately NOT done inside the field's own
 // serialize(), since serializeEntryToFiles/serializeProps also run for
 // draft autosave and useHasChanged's change-detection diff, where a
 // self-updating `now` would make the form always look dirty.
 function stampTimestamps(
   schema: Record<string, ComponentSchema>,
-  state: unknown
+  state: unknown,
 ): unknown {
-  if (typeof state !== 'object' || state === null || Array.isArray(state)) {
+  if (typeof state !== "object" || state === null || Array.isArray(state)) {
     return state;
   }
   const nowIso = new Date().toISOString();
   const src = state as Record<string, unknown>;
   let next = src;
   for (const [key, field] of Object.entries(schema)) {
-    if (field.kind !== 'form' || field.formKind !== undefined || !field.timestamp)
+    if (
+      field.kind !== "form" ||
+      field.formKind !== undefined ||
+      !field.timestamp
+    )
       continue;
     const current = src[key];
-    const isEmpty = current == null || current === '';
-    if (field.timestamp === 'updated' || isEmpty) {
+    const isEmpty = current == null || current === "";
+    if (field.timestamp === "updated" || isEmpty) {
       if (next === src) next = { ...src };
       next[key] = nowIso;
     }
@@ -191,14 +195,14 @@ export function useUpsertItem(args: {
   slug: { value: string; field: string } | undefined;
 }) {
   const [state, setState] = useState<
-    | { kind: 'idle' }
-    | { kind: 'updated'; commitOid?: string }
-    | { kind: 'loading' }
-    | { kind: 'needs-fork' }
-    | { kind: 'error'; error: Error }
-    | { kind: 'needs-new-branch'; reason: string }
+    | { kind: "idle" }
+    | { kind: "updated"; commitOid?: string }
+    | { kind: "loading" }
+    | { kind: "needs-fork" }
+    | { kind: "error"; error: Error }
+    | { kind: "needs-new-branch"; reason: string }
   >({
-    kind: 'idle',
+    kind: "idle",
   });
   const baseCommit = useBaseCommit();
   const currentBranch = useCurrentBranch();
@@ -219,29 +223,29 @@ export function useUpsertItem(args: {
     }): Promise<boolean> => {
       try {
         const unscopedTree =
-          unscopedTreeData.kind === 'loaded'
+          unscopedTreeData.kind === "loaded"
             ? unscopedTreeData.data.tree
             : undefined;
         if (!unscopedTree) return false;
         if (
-          args.config.storage.kind === 'github' &&
+          args.config.storage.kind === "github" &&
           repoInfo &&
           !repoInfo.hasWritePermission &&
           appSlug?.value
         ) {
-          setState({ kind: 'needs-fork' });
+          setState({ kind: "needs-fork" });
           return false;
         }
-        setState({ kind: 'loading' });
+        setState({ kind: "loading" });
 
-        const pathPrefix = getPathPrefix(args.config.storage) ?? '';
+        const pathPrefix = getPathPrefix(args.config.storage) ?? "";
         let additions = serializeEntryToFiles({
           basePath: args.basePath,
           schema: args.schema,
           format: args.format,
           state: stampTimestamps(args.schema, args.state),
           slug: args.slug,
-        }).map(addition => ({
+        }).map((addition) => ({
           ...addition,
           path: pathPrefix + addition.path,
         }));
@@ -249,17 +253,17 @@ export function useUpsertItem(args: {
         const additionPathToSha = new Map(
           await Promise.all(
             additions.map(
-              async addition =>
+              async (addition) =>
                 [
                   addition.path,
                   await hydrateBlobCache(addition.contents),
-                ] as const
-            )
-          )
+                ] as const,
+            ),
+          ),
         );
 
         const filesToDelete = new Set(
-          args.initialFiles?.map(x => pathPrefix + x)
+          args.initialFiles?.map((x) => pathPrefix + x),
         );
         for (const file of additions) {
           filesToDelete.delete(file.path);
@@ -267,31 +271,34 @@ export function useUpsertItem(args: {
 
         // sweep uploads made this session (via the media library dialog,
         // for a cover/collection image or a content image) that never made
-        // it into the final saved state — e.g. the user picked a different
+        // it into the final saved state - e.g. the user picked a different
         // image afterwards, or deleted the content node before saving. A
         // tracked path counts as still referenced if it's one of this
         // save's own additions (an entry-local *embedded* content image
-        // that's still in the doc becomes its own addition — see
+        // that's still in the doc becomes its own addition - see
         // serializeProps's `formKind === 'content'` handling) or appears as
         // a literal substring of the serialized output (image/images/
         // file/files field values, and content's *library*-referenced
-        // image `src`s, are always written with a leading '/' — see
+        // image `src`s, are always written with a leading '/' - see
         // FileManagerRoot.resolvePicks and html/serialize.ts's image case).
         const trackedPaths = uploadSession.paths();
         if (trackedPaths.length) {
-          const additionPaths = new Set(additions.map(a => a.path));
+          const additionPaths = new Set(additions.map((a) => a.path));
           const combinedText = additions
-            .map(a => textDecoder.decode(a.contents))
-            .join('\n');
+            .map((a) => textDecoder.decode(a.contents))
+            .join("\n");
           for (const path of trackedPaths) {
             const prefixed = pathPrefix + path;
-            if (!additionPaths.has(prefixed) && !combinedText.includes(`/${path}`)) {
+            if (
+              !additionPaths.has(prefixed) &&
+              !combinedText.includes(`/${path}`)
+            ) {
               filesToDelete.add(prefixed);
             }
           }
         }
 
-        additions = additions.filter(addition => {
+        additions = additions.filter((addition) => {
           const sha = additionPathToSha.get(addition.path)!;
           const existing = getTreeNodeAtPath(unscopedTree, addition.path);
           return existing?.entry.sha !== sha;
@@ -312,21 +319,23 @@ export function useUpsertItem(args: {
               baseCommit: override?.sha ?? baseCommit,
               repoInfo,
               rootPath,
-            })
+            }),
           );
         }
 
-        const deletions: { path: string }[] = [...filesToDelete].map(path => ({
-          path,
-        }));
+        const deletions: { path: string }[] = [...filesToDelete].map(
+          (path) => ({
+            path,
+          }),
+        );
         const updatedTree = await updateTreeWithChanges(unscopedTree, {
           additions,
           deletions: [...filesToDelete],
         });
         await hydrateTreeCacheWithEntries(updatedTree.entries);
-        if (args.config.storage.kind === 'github') {
+        if (args.config.storage.kind === "github") {
           if (!repoInfo) {
-            throw new Error('Repo info not loaded');
+            throw new Error("Repo info not loaded");
           }
           const branch = {
             branchName: override?.branch ?? currentBranch,
@@ -339,7 +348,7 @@ export function useUpsertItem(args: {
                 expectedHeadOid,
                 message: { headline: `Update ${args.basePath}` },
                 fileChanges: {
-                  additions: additions.map(addition => ({
+                  additions: additions.map((addition) => ({
                     ...addition,
                     contents: base64Encode(addition.contents),
                   })),
@@ -349,16 +358,16 @@ export function useUpsertItem(args: {
             });
           let result = await runMutation(override?.sha ?? baseCommit);
           const gqlError = result.error?.graphQLErrors[0]?.originalError;
-          if (gqlError && 'type' in gqlError) {
-            if (gqlError.type === 'BRANCH_PROTECTION_RULE_VIOLATION') {
+          if (gqlError && "type" in gqlError) {
+            if (gqlError.type === "BRANCH_PROTECTION_RULE_VIOLATION") {
               setState({
-                kind: 'needs-new-branch',
+                kind: "needs-new-branch",
                 reason:
-                  'Changes must be made via pull request to this branch. Create a new branch to save changes.',
+                  "Changes must be made via pull request to this branch. Create a new branch to save changes.",
               });
               return false;
             }
-            if (gqlError.type === 'STALE_DATA') {
+            if (gqlError.type === "STALE_DATA") {
               // we don't want this to go into the cache yet
               // so we create a new client just for this
               const refData = await createUrqlClient(args.config, rootPath)
@@ -369,35 +378,35 @@ export function useUpsertItem(args: {
                 })
                 .toPromise();
               if (!refData.data?.repository?.ref?.target) {
-                throw new Error('Branch not found');
+                throw new Error("Branch not found");
               }
 
               const tree = scopeEntriesWithPathPrefix(
                 await fetchGitHubTreeData(
                   refData.data.repository.ref.target.oid,
                   args.config,
-                  rootPath
+                  rootPath,
                 ),
-                args.config
+                args.config,
               );
               const treeKey = getTreeKey(
                 getDirectoriesForTreeKey(
                   fields.object(args.schema),
                   args.basePath,
                   args.slug?.value,
-                  args.format
+                  args.format,
                 ),
-                tree.tree
+                tree.tree,
               );
               if (treeKey === args.currentLocalTreeKey) {
                 result = await runMutation(
-                  refData.data.repository.ref.target.oid
+                  refData.data.repository.ref.target.oid,
                 );
               } else {
                 setState({
-                  kind: 'needs-new-branch',
+                  kind: "needs-new-branch",
                   reason:
-                    'This entry has been updated since it was opened. Create a new branch to save changes.',
+                    "This entry has been updated since it was opened. Create a new branch to save changes.",
                 });
                 return false;
               }
@@ -406,14 +415,14 @@ export function useUpsertItem(args: {
 
           if (
             result.error?.graphQLErrors.some(
-              err =>
-                'type' in err &&
-                err.type === 'FORBIDDEN' &&
-                err.message === 'Resource not accessible by integration'
+              (err) =>
+                "type" in err &&
+                err.type === "FORBIDDEN" &&
+                err.message === "Resource not accessible by integration",
             )
           ) {
             throw new Error(
-              `The GitHub App is unable to commit to the repository. Please ensure that the drystack GitHub App is installed in the GitHub repository ${repoInfo.owner}/${repoInfo.name}`
+              `The GitHub App is unable to commit to the repository. Please ensure that the drystack GitHub App is installed in the GitHub repository ${repoInfo.owner}/${repoInfo.name}`,
             );
           }
 
@@ -423,19 +432,19 @@ export function useUpsertItem(args: {
           const target = result.data?.createCommitOnBranch?.ref?.target;
           if (target) {
             uploadSession.clear();
-            setState({ kind: 'updated', commitOid: target.oid });
+            setState({ kind: "updated", commitOid: target.oid });
             return true;
           }
-          throw new Error('Failed to update');
+          throw new Error("Failed to update");
         } else {
           const res = await fetch(`/api${rootPath}/update`, {
-            method: 'POST',
+            method: "POST",
             headers: {
-              'Content-Type': 'application/json',
-              'no-cors': '1',
+              "Content-Type": "application/json",
+              "no-cors": "1",
             },
             body: JSON.stringify({
-              additions: additions.map(addition => ({
+              additions: additions.map((addition) => ({
                 ...addition,
                 contents: base64Encode(addition.contents),
               })),
@@ -449,16 +458,16 @@ export function useUpsertItem(args: {
           const { tree } = await hydrateTreeCacheWithEntries(newTree);
           setTreeSha(await treeSha(tree));
           uploadSession.clear();
-          setState({ kind: 'updated' });
+          setState({ kind: "updated" });
           return true;
         }
       } catch (err) {
-        setState({ kind: 'error', error: err as Error });
+        setState({ kind: "error", error: err as Error });
         return false;
       }
     },
     () => {
-      setState({ kind: 'idle' });
+      setState({ kind: "idle" });
     },
   ] as const;
 }
@@ -466,16 +475,16 @@ export function useUpsertItem(args: {
 export function useDeleteItem(args: {
   basePath: string;
   initialFiles: string[];
-  storage: Config['storage'];
+  storage: Config["storage"];
 }) {
   const [state, setState] = useState<
-    | { kind: 'idle' }
-    | { kind: 'updated' }
-    | { kind: 'loading' }
-    | { kind: 'needs-fork' }
-    | { kind: 'error'; error: Error }
+    | { kind: "idle" }
+    | { kind: "updated" }
+    | { kind: "loading" }
+    | { kind: "needs-fork" }
+    | { kind: "error"; error: Error }
   >({
-    kind: 'idle',
+    kind: "idle",
   });
   const baseCommit = useBaseCommit();
   const currentBranch = useCurrentBranch();
@@ -493,38 +502,39 @@ export function useDeleteItem(args: {
     async (opts?: { redirect?: { from: string; to: string } }) => {
       try {
         const unscopedTree =
-          unscopedTreeData.kind === 'loaded'
+          unscopedTreeData.kind === "loaded"
             ? unscopedTreeData.data.tree
             : undefined;
         if (!unscopedTree) return false;
         if (
-          args.storage.kind === 'github' &&
+          args.storage.kind === "github" &&
           repoInfo &&
           !repoInfo.hasWritePermission &&
           appSlug?.value
         ) {
-          setState({ kind: 'needs-fork' });
+          setState({ kind: "needs-fork" });
           return false;
         }
-        setState({ kind: 'loading' });
-        const prefix = getPathPrefix(args.storage) ?? '';
+        setState({ kind: "loading" });
+        const prefix = getPathPrefix(args.storage) ?? "";
         // everything the schema knows about, plus every other file that
         // happens to live under this entry's own directory (e.g. orphaned
-        // local-media uploads the schema never referenced) — deleting an
+        // local-media uploads the schema never referenced) - deleting an
         // entry should take its whole folder with it
         const entryDirPrefix = `${prefix}${args.basePath}/`;
         const cascadeDeletions =
-          unscopedTreeData.kind === 'loaded'
+          unscopedTreeData.kind === "loaded"
             ? [...unscopedTreeData.data.entries.values()]
                 .filter(
-                  entry =>
-                    entry.type === 'blob' && entry.path.startsWith(entryDirPrefix)
+                  (entry) =>
+                    entry.type === "blob" &&
+                    entry.path.startsWith(entryDirPrefix),
                 )
-                .map(entry => entry.path)
+                .map((entry) => entry.path)
             : [];
         const deletions = [
           ...new Set([
-            ...args.initialFiles.map(x => prefix + x),
+            ...args.initialFiles.map((x) => prefix + x),
             ...cascadeDeletions,
           ]),
         ];
@@ -547,9 +557,9 @@ export function useDeleteItem(args: {
           deletions,
         });
         await hydrateTreeCacheWithEntries(updatedTree.entries);
-        if (args.storage.kind === 'github') {
+        if (args.storage.kind === "github") {
           if (!repoInfo) {
-            throw new Error('Repo info not loaded');
+            throw new Error("Repo info not loaded");
           }
           const { error } = await mutate({
             input: {
@@ -568,35 +578,35 @@ export function useDeleteItem(args: {
                       },
                     ]
                   : [],
-                deletions: deletions.map(path => ({ path })),
+                deletions: deletions.map((path) => ({ path })),
               },
             },
           });
           if (
             error?.graphQLErrors.some(
-              err =>
-                'type' in err &&
-                err.type === 'FORBIDDEN' &&
-                err.message === 'Resource not accessible by integration'
+              (err) =>
+                "type" in err &&
+                err.type === "FORBIDDEN" &&
+                err.message === "Resource not accessible by integration",
             )
           ) {
             throw new Error(
-              `The GitHub App is unable to commit to the repository. Please ensure that the drystack GitHub App is installed in the GitHub repository ${repoInfo.owner}/${repoInfo.name}`
+              `The GitHub App is unable to commit to the repository. Please ensure that the drystack GitHub App is installed in the GitHub repository ${repoInfo.owner}/${repoInfo.name}`,
             );
           }
           if (error) {
             throw error;
           }
-          setState({ kind: 'updated' });
+          setState({ kind: "updated" });
           return true;
         } else {
           // local storage: move the whole entry into the trash instead of
           // deleting it outright, so it can be restored from the File
-          // Manager — emulated as one request that both rewrites the bytes
+          // Manager - emulated as one request that both rewrites the bytes
           // at their `.deleted/...` path and removes the originals
           const additions = (
             await Promise.all(
-              deletions.map(async path => {
+              deletions.map(async (path) => {
                 const sha = getTreeNodeAtPath(unscopedTree, path)?.entry.sha;
                 if (!sha) return null;
                 const contents = await fetchBlob(
@@ -605,13 +615,13 @@ export function useDeleteItem(args: {
                   path,
                   baseCommit,
                   repoInfo,
-                  rootPath
+                  rootPath,
                 );
                 return {
                   path: trashedPathFor(path),
                   contents: base64Encode(contents),
                 };
-              })
+              }),
             )
           ).filter((x): x is NonNullable<typeof x> => x !== null);
           if (redirectAddition) {
@@ -621,14 +631,14 @@ export function useDeleteItem(args: {
             });
           }
           const res = await fetch(`/api${rootPath}/update`, {
-            method: 'POST',
+            method: "POST",
             headers: {
-              'Content-Type': 'application/json',
-              'no-cors': '1',
+              "Content-Type": "application/json",
+              "no-cors": "1",
             },
             body: JSON.stringify({
               additions,
-              deletions: deletions.map(path => ({ path })),
+              deletions: deletions.map((path) => ({ path })),
             }),
           });
           if (!res.ok) {
@@ -637,15 +647,15 @@ export function useDeleteItem(args: {
           const newTree: TreeEntry[] = await res.json();
           const { tree } = await hydrateTreeCacheWithEntries(newTree);
           setTreeSha(await treeSha(tree));
-          setState({ kind: 'updated' });
+          setState({ kind: "updated" });
           return true;
         }
       } catch (err) {
-        setState({ kind: 'error', error: err as Error });
+        setState({ kind: "error", error: err as Error });
       }
     },
     () => {
-      setState({ kind: 'idle' });
+      setState({ kind: "idle" });
     },
   ] as const;
 }
@@ -663,4 +673,4 @@ const FetchRef = gql`
       }
     }
   }
-` as import('../../__generated__/ts-gql/FetchRef').type;
+` as import("../../__generated__/ts-gql/FetchRef").type;

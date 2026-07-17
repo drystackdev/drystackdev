@@ -15,13 +15,12 @@ import { TooltipTrigger, Tooltip } from "@keystar/ui/tooltip";
 import { useMediaLibraryPreviewURL } from "../media-library/useMediaLibraryPreviewURL";
 import { useInView } from "./useInView";
 
-
 export type AssetListItemProps = {
   name: string;
   kind: "folder" | "file";
   path?: string;
   isImage?: boolean;
-  // bytes for a file uploaded/picked this session, not yet in the tree —
+  // bytes for a file uploaded/picked this session, not yet in the tree -
   // lets the thumbnail render immediately instead of waiting on a tree
   // refresh (see useMediaLibraryPreviewURL)
   previewContent?: Uint8Array;
@@ -42,7 +41,7 @@ export function AssetListItem(props: AssetListItemProps) {
     props.kind === "file" && props.isImage && props.path ? props.path : null,
     props.previewContent,
     inView,
-    true, // list thumbnail — a downscaled preview is plenty
+    true, // list thumbnail - a downscaled preview is plenty
   );
 
   const typeText =

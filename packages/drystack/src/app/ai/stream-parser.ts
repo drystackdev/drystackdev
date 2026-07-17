@@ -4,38 +4,38 @@
 // fills in as tokens arrive. This reads the shape the prompt pins down
 // instead: top-level `key:` lines at column 0, in the order the skeleton
 // listed them. That ordering is what makes "field finished" detectable at
-// all — a key is done the moment the *next* one starts.
+// all - a key is done the moment the *next* one starts.
 //
 // Scalars stream character by character. Arrays and objects don't: their
 // lines are buffered and handed to js-yaml once the block closes, so a
 // half-written list never reaches the form (and a partially-typed item never
 // shows up as a real one).
 
-import { load } from 'js-yaml';
+import { load } from "js-yaml";
 
 export type AiStreamEvent =
-  | { type: 'field-start'; key: string }
-  // Scalars only — the growing text so far, for live display.
-  | { type: 'field-progress'; key: string; text: string }
+  | { type: "field-start"; key: string }
+  // Scalars only - the growing text so far, for live display.
+  | { type: "field-progress"; key: string; text: string }
   // `raw` is the YAML-parsed value: a string for scalars, an array/object for
   // block kinds.
-  | { type: 'field-done'; key: string; raw: unknown }
-  | { type: 'error'; message: string };
+  | { type: "field-done"; key: string; raw: unknown }
+  | { type: "error"; message: string };
 
 type Pending = {
   key: string;
   /** the `foo:` line's own remainder, plus every line under it */
   lines: string[];
-  /** `key: |` — a block scalar, so the body is text, not structure */
+  /** `key: |` - a block scalar, so the body is text, not structure */
   isBlockScalar: boolean;
-  /** first line was `key:` with nothing after it — could be a list/map */
+  /** first line was `key:` with nothing after it - could be a list/map */
   isBlock: boolean;
 };
 
 const TOP_LEVEL_KEY = /^([A-Za-z_][A-Za-z0-9_-]*):(.*)$/;
 
 export class AiStreamParser {
-  #buffer = '';
+  #buffer = "";
   #pending: Pending | undefined;
   #emit: (event: AiStreamEvent) => void;
   #known: Set<string>;
@@ -48,13 +48,13 @@ export class AiStreamParser {
   write(chunk: string) {
     this.#buffer += chunk;
     let newlineIndex: number;
-    while ((newlineIndex = this.#buffer.indexOf('\n')) !== -1) {
+    while ((newlineIndex = this.#buffer.indexOf("\n")) !== -1) {
       const line = this.#buffer.slice(0, newlineIndex);
       this.#buffer = this.#buffer.slice(newlineIndex + 1);
       this.#line(line);
     }
     // A block scalar's last line sits unterminated in the buffer until its
-    // newline arrives. Show it appended to the lines already read — emitting
+    // newline arrives. Show it appended to the lines already read - emitting
     // the buffer alone would momentarily blank out everything above it.
     if (this.#pending?.isBlockScalar && this.#buffer) {
       this.#progress(this.#dedent([...this.#pending.lines, this.#buffer]));
@@ -65,7 +65,7 @@ export class AiStreamParser {
   end() {
     if (this.#buffer.trim()) {
       this.#line(this.#buffer);
-      this.#buffer = '';
+      this.#buffer = "";
     }
     this.#finish();
   }
@@ -74,10 +74,10 @@ export class AiStreamParser {
     // Models wrap YAML in a code fence often enough to be worth absorbing
     // rather than failing on.
     const fenced = rawLine.trim();
-    if (fenced === '```' || fenced.startsWith('```')) return;
+    if (fenced === "```" || fenced.startsWith("```")) return;
 
     const match = TOP_LEVEL_KEY.exec(rawLine);
-    // Only a match at column 0 with a key we asked for starts a new field —
+    // Only a match at column 0 with a key we asked for starts a new field -
     // otherwise `desc: foo` nested inside a list item would be mistaken for a
     // top-level key and truncate the array being built.
     if (match && this.#known.has(match[1])) {
@@ -87,12 +87,12 @@ export class AiStreamParser {
       this.#pending = {
         key,
         lines: [],
-        isBlockScalar: trimmed === '|' || trimmed === '|-' || trimmed === '|+',
-        isBlock: trimmed === '',
+        isBlockScalar: trimmed === "|" || trimmed === "|-" || trimmed === "|+",
+        isBlock: trimmed === "",
       };
-      this.#emit({ type: 'field-start', key });
+      this.#emit({ type: "field-start", key });
       if (trimmed && !this.#pending.isBlockScalar) {
-        // `key: value` — a one-liner, complete as soon as it's seen.
+        // `key: value` - a one-liner, complete as soon as it's seen.
         this.#pending.lines.push(rest);
         this.#progress(trimmed);
       }
@@ -108,7 +108,7 @@ export class AiStreamParser {
 
   #progress(text: string) {
     if (!this.#pending) return;
-    this.#emit({ type: 'field-progress', key: this.#pending.key, text });
+    this.#emit({ type: "field-progress", key: this.#pending.key, text });
   }
 
   #finish() {
@@ -118,7 +118,7 @@ export class AiStreamParser {
 
     if (pending.isBlockScalar) {
       this.#emit({
-        type: 'field-done',
+        type: "field-done",
         key: pending.key,
         raw: this.#dedent(pending.lines),
       });
@@ -127,23 +127,27 @@ export class AiStreamParser {
 
     if (!pending.isBlock) {
       this.#emit({
-        type: 'field-done',
+        type: "field-done",
         key: pending.key,
-        raw: pending.lines.join('\n').trim(),
+        raw: pending.lines.join("\n").trim(),
       });
       return;
     }
 
     // A structural block: hand the whole thing to js-yaml at once. Anything
-    // malformed drops just this field — a model that botched one list
+    // malformed drops just this field - a model that botched one list
     // shouldn't cost the user every other field in the response.
-    const text = `${pending.key}:\n${pending.lines.join('\n')}`;
+    const text = `${pending.key}:\n${pending.lines.join("\n")}`;
     try {
       const parsed = load(text) as Record<string, unknown>;
-      this.#emit({ type: 'field-done', key: pending.key, raw: parsed?.[pending.key] });
+      this.#emit({
+        type: "field-done",
+        key: pending.key,
+        raw: parsed?.[pending.key],
+      });
     } catch (err) {
       this.#emit({
-        type: 'error',
+        type: "error",
         message: `Không đọc được YAML của "${pending.key}": ${
           err instanceof Error ? err.message : String(err)
         }`,
@@ -155,12 +159,12 @@ export class AiStreamParser {
   // YAML framing, not part of the value. Measured from the first non-empty
   // line so nested HTML keeps its own relative shape.
   #dedent(lines: string[]): string {
-    const first = lines.find(l => l.trim());
-    if (!first) return '';
+    const first = lines.find((l) => l.trim());
+    if (!first) return "";
     const indent = first.length - first.trimStart().length;
     return lines
-      .map(l => (l.length >= indent ? l.slice(indent) : l.trimStart()))
-      .join('\n')
-      .replace(/\s+$/, '');
+      .map((l) => (l.length >= indent ? l.slice(indent) : l.trimStart()))
+      .join("\n")
+      .replace(/\s+$/, "");
   }
 }

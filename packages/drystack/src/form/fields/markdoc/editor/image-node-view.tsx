@@ -1,4 +1,4 @@
-import { Node as ProseMirrorNode } from 'prosemirror-model';
+import { Node as ProseMirrorNode } from "prosemirror-model";
 import {
   CSSProperties,
   PointerEvent as ReactPointerEvent,
@@ -6,17 +6,17 @@ import {
   useEffect,
   useRef,
   useState,
-} from 'react';
+} from "react";
 
-import { css, tokenSchema } from '@keystar/ui/style';
+import { css, tokenSchema } from "@keystar/ui/style";
 
-import { resolveMediaLibraryBytes } from '../../../../app/media-library/bridge';
-import { useEditorSchema, useEditorViewRef } from './editor-view';
-import { ImageAlign } from './image-layout';
+import { resolveMediaLibraryBytes } from "../../../../app/media-library/bridge";
+import { useEditorSchema, useEditorViewRef } from "./editor-view";
+import { ImageAlign } from "./image-layout";
 
 const MIN_SIZE = 24;
 
-type HandleDir = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
+type HandleDir = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 
 type Handle = {
   dir: HandleDir;
@@ -29,14 +29,62 @@ type Handle = {
 // 4 corners + 4 edge midpoints. `hx`/`vy` say which side the handle sits on:
 // +1 = east/south (drag towards + grows), -1 = west/north (drag towards + shrinks).
 const HANDLES: Handle[] = [
-  { dir: 'nw', hx: -1, vy: -1, cursor: 'nwse-resize', position: { top: 0, left: 0 } },
-  { dir: 'n', hx: 0, vy: -1, cursor: 'ns-resize', position: { top: 0, left: '50%' } },
-  { dir: 'ne', hx: 1, vy: -1, cursor: 'nesw-resize', position: { top: 0, left: '100%' } },
-  { dir: 'e', hx: 1, vy: 0, cursor: 'ew-resize', position: { top: '50%', left: '100%' } },
-  { dir: 'se', hx: 1, vy: 1, cursor: 'nwse-resize', position: { top: '100%', left: '100%' } },
-  { dir: 's', hx: 0, vy: 1, cursor: 'ns-resize', position: { top: '100%', left: '50%' } },
-  { dir: 'sw', hx: -1, vy: 1, cursor: 'nesw-resize', position: { top: '100%', left: 0 } },
-  { dir: 'w', hx: -1, vy: 0, cursor: 'ew-resize', position: { top: '50%', left: 0 } },
+  {
+    dir: "nw",
+    hx: -1,
+    vy: -1,
+    cursor: "nwse-resize",
+    position: { top: 0, left: 0 },
+  },
+  {
+    dir: "n",
+    hx: 0,
+    vy: -1,
+    cursor: "ns-resize",
+    position: { top: 0, left: "50%" },
+  },
+  {
+    dir: "ne",
+    hx: 1,
+    vy: -1,
+    cursor: "nesw-resize",
+    position: { top: 0, left: "100%" },
+  },
+  {
+    dir: "e",
+    hx: 1,
+    vy: 0,
+    cursor: "ew-resize",
+    position: { top: "50%", left: "100%" },
+  },
+  {
+    dir: "se",
+    hx: 1,
+    vy: 1,
+    cursor: "nwse-resize",
+    position: { top: "100%", left: "100%" },
+  },
+  {
+    dir: "s",
+    hx: 0,
+    vy: 1,
+    cursor: "ns-resize",
+    position: { top: "100%", left: "50%" },
+  },
+  {
+    dir: "sw",
+    hx: -1,
+    vy: 1,
+    cursor: "nesw-resize",
+    position: { top: "100%", left: 0 },
+  },
+  {
+    dir: "w",
+    hx: -1,
+    vy: 0,
+    cursor: "ew-resize",
+    position: { top: "50%", left: 0 },
+  },
 ];
 
 type DragState = {
@@ -62,7 +110,7 @@ export function useImageObjectUrl(node: ProseMirrorNode): string | undefined {
     const setFromBytes = (bytes: Uint8Array) => {
       if (cancelled) return;
       const blob = new Blob([bytes as BlobPart], {
-        type: filename.endsWith('.svg') ? 'image/svg+xml' : undefined,
+        type: filename.endsWith(".svg") ? "image/svg+xml" : undefined,
       });
       created = URL.createObjectURL(blob);
       setBlobUrl(created);
@@ -73,7 +121,7 @@ export function useImageObjectUrl(node: ProseMirrorNode): string | undefined {
     } else {
       // parsed from stored HTML without embedded bytes; the media library
       // directory is the source of truth for the actual file content
-      resolveMediaLibraryBytes(filename).then(bytes => {
+      resolveMediaLibraryBytes(filename).then((bytes) => {
         if (!bytes) return;
         setFromBytes(bytes);
       });
@@ -84,7 +132,7 @@ export function useImageObjectUrl(node: ProseMirrorNode): string | undefined {
     };
   }, [src, filename]);
 
-  // Bytes win when there are any — they're the only copy of an image that was
+  // Bytes win when there are any - they're the only copy of an image that was
   // inserted or replaced this session, and of an unsaved edit generally. But
   // they're not always reachable: a node parsed from a live page whose assets
   // couldn't be listed has none, and no resolver to find them either. Its
@@ -95,38 +143,50 @@ export function useImageObjectUrl(node: ProseMirrorNode): string | undefined {
 }
 
 // `float` (left/right) is applied to the outer, ProseMirror-tracked node
-// view container instead — see `imageContainerAlignStyle` — not here.
+// view container instead - see `imageContainerAlignStyle` - not here.
 // Floated content is taken out of normal flow, so if it only floated at
 // this inner level, the outer container (which `view.nodeDOM` and popover
 // positioning rely on) would have no in-flow content to size itself by
 // and would collapse to a zero-size box at its text position.
 function wrapperAlignStyle(align: ImageAlign | null): CSSProperties {
-  if (align === 'center') {
-    return { display: 'block', marginInline: 'auto' };
+  if (align === "center") {
+    return { display: "block", marginInline: "auto" };
   }
   return {};
 }
 
 // Applied to the outer node view container (see react-node-views.tsx's
-// `containerStyle`) so the float itself — and thus the box everything
-// measures the image node by — lives on the element ProseMirror actually
+// `containerStyle`) so the float itself - and thus the box everything
+// measures the image node by - lives on the element ProseMirror actually
 // tracks, not several layers of React-rendered content deep inside it.
 //
 // `lineHeight: 0` isn't cosmetic. Floating makes this container a block box,
-// so it lays its child out in an inline formatting context — and the child is
+// so it lays its child out in an inline formatting context - and the child is
 // the inline-block wrapper below, which therefore sits on the container's text
 // baseline with the strut's descender space left over beneath it. Measured at
 // 8px with a 16px/1.6 host font: the container came out 238px tall around a
 // 230px image. The published HTML floats the bare <img> (no baseline involved,
 // no gap), so the editor has to hug the image the same way. Only reachable
-// when floated — an unaligned image returns {} and stays inline, where sitting
+// when floated - an unaligned image returns {} and stays inline, where sitting
 // on the baseline is exactly what a plain <img> does too.
-export function imageContainerAlignStyle(align: ImageAlign | null): CSSProperties {
-  if (align === 'left') {
-    return { float: 'left', marginInlineEnd: '1em', marginBlock: '0.5em', lineHeight: 0 };
+export function imageContainerAlignStyle(
+  align: ImageAlign | null,
+): CSSProperties {
+  if (align === "left") {
+    return {
+      float: "left",
+      marginInlineEnd: "1em",
+      marginBlock: "0.5em",
+      lineHeight: 0,
+    };
   }
-  if (align === 'right') {
-    return { float: 'right', marginInlineStart: '1em', marginBlock: '0.5em', lineHeight: 0 };
+  if (align === "right") {
+    return {
+      float: "right",
+      marginInlineStart: "1em",
+      marginBlock: "0.5em",
+      lineHeight: 0,
+    };
   }
   return {};
 }
@@ -181,7 +241,7 @@ export function ImageNodeView(props: {
       }
       view.dispatch(tr);
     },
-    [viewRef]
+    [viewRef],
   );
 
   const onDragMove = useCallback((event: PointerEvent) => {
@@ -203,8 +263,8 @@ export function ImageNodeView(props: {
   }, []);
 
   const onDragEnd = useCallback(() => {
-    window.removeEventListener('pointermove', onDragMove);
-    window.removeEventListener('pointerup', onDragEnd);
+    window.removeEventListener("pointermove", onDragMove);
+    window.removeEventListener("pointerup", onDragEnd);
     const drag = dragRef.current;
     dragRef.current = null;
     setDragSize(null);
@@ -221,8 +281,7 @@ export function ImageNodeView(props: {
       if (!img) return;
       const rect = img.getBoundingClientRect();
       const ratio =
-        naturalRatioRef.current ??
-        (rect.height ? rect.width / rect.height : 1);
+        naturalRatioRef.current ?? (rect.height ? rect.width / rect.height : 1);
       dragRef.current = {
         hx: handle.hx,
         vy: handle.vy,
@@ -238,20 +297,20 @@ export function ImageNodeView(props: {
         width: Math.round(rect.width),
         height: Math.round(rect.height),
       });
-      window.addEventListener('pointermove', onDragMove);
-      window.addEventListener('pointerup', onDragEnd);
+      window.addEventListener("pointermove", onDragMove);
+      window.addEventListener("pointerup", onDragEnd);
     },
-    [onDragEnd, onDragMove]
+    [onDragEnd, onDragMove],
   );
 
   useEffect(() => {
     return () => {
-      window.removeEventListener('pointermove', onDragMove);
-      window.removeEventListener('pointerup', onDragEnd);
+      window.removeEventListener("pointermove", onDragMove);
+      window.removeEventListener("pointerup", onDragEnd);
     };
   }, [onDragEnd, onDragMove]);
 
-  // the lock toggle (in the image edit popover) only flips the attr — as
+  // the lock toggle (in the image edit popover) only flips the attr - as
   // soon as it flips on, resync height to the image's natural ratio at the
   // *current* width, rather than waiting for the next resize to notice
   const wasLockedRef = useRef(locked);
@@ -270,18 +329,18 @@ export function ImageNodeView(props: {
   const displayHeight = dragSize?.height ?? height ?? renderedSize?.height;
 
   const imgStyle: CSSProperties = {
-    display: 'block',
-    // The editor's own rounded corners are an admin aesthetic — the published
+    display: "block",
+    // The editor's own rounded corners are an admin aesthetic - the published
     // <img> has none, so imposing them on a host page (the visual editor's
     // inline spots) would make the image visibly change shape on entering
     // edit mode. See createEditorSchema's `hostTypography`.
     borderRadius: schema.hostTypography
       ? undefined
       : tokenSchema.size.radius.regular,
-    maxWidth: '100%',
+    maxWidth: "100%",
     // Caps an unsized image so it can't dominate the admin's editing pane.
     // The published <img> has no such cap, so on a host page this would shrink
-    // an image the moment edit mode turned on — there, whatever the page
+    // an image the moment edit mode turned on - there, whatever the page
     // already does with it is by definition right.
     maxHeight:
       schema.hostTypography || dragSize?.height != null || height != null
@@ -289,17 +348,18 @@ export function ImageNodeView(props: {
         : tokenSchema.size.scale[3600],
     width: dragSize?.width ?? width ?? undefined,
     height: dragSize?.height ?? height ?? undefined,
-    objectFit: displayWidth != null && displayHeight != null ? 'contain' : undefined,
+    objectFit:
+      displayWidth != null && displayHeight != null ? "contain" : undefined,
   };
 
   const wrapperStyle: CSSProperties = {
-    position: 'relative',
-    display: align === 'center' ? 'block' : 'inline-block',
+    position: "relative",
+    display: align === "center" ? "block" : "inline-block",
     // a block-level, non-replaced <span> would otherwise stretch to fill the
-    // paragraph's full width — shrink it back to the image's own size so the
+    // paragraph's full width - shrink it back to the image's own size so the
     // outline (and the `margin-inline: auto` centering) apply to the image,
     // not an invisible full-width box around it
-    width: align === 'center' ? 'fit-content' : undefined,
+    width: align === "center" ? "fit-content" : undefined,
     lineHeight: 0,
     ...wrapperAlignStyle(align),
   };
@@ -307,7 +367,11 @@ export function ImageNodeView(props: {
   const showControls = editable && isSelected;
 
   return (
-    <span style={wrapperStyle} className={wrapperClass} data-selected={isSelected}>
+    <span
+      style={wrapperStyle}
+      className={wrapperClass}
+      data-selected={isSelected}
+    >
       <img
         ref={imgRef}
         src={objectUrl}
@@ -316,7 +380,7 @@ export function ImageNodeView(props: {
         data-filename={node.attrs.filename}
         draggable={false}
         style={imgStyle}
-        onLoad={event => {
+        onLoad={(event) => {
           const img = event.currentTarget;
           if (img.naturalHeight) {
             naturalRatioRef.current = img.naturalWidth / img.naturalHeight;
@@ -330,11 +394,11 @@ export function ImageNodeView(props: {
       />
 
       {showControls &&
-        HANDLES.map(handle => (
+        HANDLES.map((handle) => (
           <span
             key={handle.dir}
             contentEditable={false}
-            onPointerDown={event => startDrag(handle, event)}
+            onPointerDown={(event) => startDrag(handle, event)}
             className={handleClass}
             style={{
               ...handle.position,
@@ -356,12 +420,12 @@ const wrapperClass = css({
 });
 
 const handleClass = css({
-  position: 'absolute',
+  position: "absolute",
   width: 10,
   height: 10,
-  transform: 'translate(-50%, -50%)',
-  boxSizing: 'border-box',
-  borderRadius: '50%',
+  transform: "translate(-50%, -50%)",
+  boxSizing: "border-box",
+  borderRadius: "50%",
   backgroundColor: tokenSchema.color.background.canvas,
   border: `2px solid ${tokenSchema.color.alias.borderSelected}`,
   zIndex: 1,

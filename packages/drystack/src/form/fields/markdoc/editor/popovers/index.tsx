@@ -1,32 +1,32 @@
-import { Mark, MarkType, Node, ResolvedPos } from 'prosemirror-model';
-import { EditorState, NodeSelection, TextSelection } from 'prosemirror-state';
-import { ReactElement, useMemo, useState } from 'react';
+import { Mark, MarkType, Node, ResolvedPos } from "prosemirror-model";
+import { EditorState, NodeSelection, TextSelection } from "prosemirror-state";
+import { ReactElement, useMemo, useState } from "react";
 
-import { ActionButton } from '@keystar/ui/button';
-import { EditorPopover, EditorPopoverProps } from '@keystar/ui/editor';
-import { Icon } from '@keystar/ui/icon';
-import { trash2Icon } from '@keystar/ui/icon/icons/trash2Icon';
-import { Divider, Flex } from '@keystar/ui/layout';
-import { TooltipTrigger, Tooltip } from '@keystar/ui/tooltip';
+import { ActionButton } from "@keystar/ui/button";
+import { EditorPopover, EditorPopoverProps } from "@keystar/ui/editor";
+import { Icon } from "@keystar/ui/icon";
+import { trash2Icon } from "@keystar/ui/icon/icons/trash2Icon";
+import { Divider, Flex } from "@keystar/ui/layout";
+import { TooltipTrigger, Tooltip } from "@keystar/ui/tooltip";
 
 import {
   useEditorDispatchCommand,
   useEditorSchema,
   useEditorViewRef,
-} from '../editor-view';
-import { EditorSchema, getEditorSchema } from '../schema';
-import { LinkToolbar } from './link-toolbar';
-import { useEditorReferenceElement } from './reference';
-import { ImagePopover } from './images';
-import { CellOptionsMenu, isSelectionInTableCell } from './table';
-import { GridItemControls, GridPopover } from './grid';
-import { Dialog, DialogContainer } from '@keystar/ui/dialog';
-import { FormValue } from '../FormValue';
-import { Heading } from '@keystar/ui/typography';
-import { pencilIcon } from '@keystar/ui/icon/icons/pencilIcon';
-import { ComponentSchema } from '../../../../api';
-import { toSerialized, useDeserializedValue } from '../props-serialization';
-import { TextField } from '@keystar/ui/text-field';
+} from "../editor-view";
+import { EditorSchema, getEditorSchema } from "../schema";
+import { LinkToolbar } from "./link-toolbar";
+import { useEditorReferenceElement } from "./reference";
+import { ImagePopover } from "./images";
+import { CellOptionsMenu, isSelectionInTableCell } from "./table";
+import { GridItemControls, GridPopover } from "./grid";
+import { Dialog, DialogContainer } from "@keystar/ui/dialog";
+import { FormValue } from "../FormValue";
+import { Heading } from "@keystar/ui/typography";
+import { pencilIcon } from "@keystar/ui/icon/icons/pencilIcon";
+import { ComponentSchema } from "../../../../api";
+import { toSerialized, useDeserializedValue } from "../props-serialization";
+import { TextField } from "@keystar/ui/text-field";
 
 type NodePopoverRenderer = (props: {
   node: Node;
@@ -34,10 +34,10 @@ type NodePopoverRenderer = (props: {
   pos: number;
 }) => ReactElement | null;
 
-// "Remove table" icon (a table with a torn/cut corner) — not in @keystar/ui's
+// "Remove table" icon (a table with a torn/cut corner) - not in @keystar/ui's
 // bundled set, but drawn in the same 24×24 stroke convention as its other
 // icons, so it goes through <Icon> like any of them. Used only for the two
-// table-specific remove buttons below — other node types keep `trash2Icon`.
+// table-specific remove buttons below - other node types keep `trash2Icon`.
 const tableDeleteIcon = (
   <path d="M21 12V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7m9-12H3m6-6v18m8-4l4 4m0-4l-4 4" />
 );
@@ -50,8 +50,8 @@ function ExtraAttributesMenuItem(props: {
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const componentSchema = useMemo(
-    () => ({ kind: 'object' as const, fields: props.schema }),
-    [props.schema]
+    () => ({ kind: "object" as const, fields: props.schema }),
+    [props.schema],
   );
   const value = useDeserializedValue(props.serialized, props.schema);
   const runCommand = useEditorDispatchCommand();
@@ -79,15 +79,15 @@ function ExtraAttributesMenuItem(props: {
             <FormValue
               schema={componentSchema}
               value={value}
-              onSave={value => {
+              onSave={(value) => {
                 runCommand((state, dispatch) => {
                   if (dispatch) {
                     dispatch(
                       state.tr.setNodeAttribute(
                         props.pos,
-                        'props',
-                        toSerialized(value, props.schema)
-                      )
+                        "props",
+                        toSerialized(value, props.schema),
+                      ),
                     );
                   }
                   return true;
@@ -103,7 +103,7 @@ function ExtraAttributesMenuItem(props: {
 
 function withShouldUse(
   val: NodePopoverRenderer,
-  shouldShow: (schema: EditorSchema) => boolean
+  shouldShow: (schema: EditorSchema) => boolean,
 ): NodePopoverRenderer & { shouldShow(schema: EditorSchema): boolean } {
   return Object.assign(val, { shouldShow });
 }
@@ -121,10 +121,10 @@ const popoverComponents: Record<
         <TextField
           aria-label="Code block language"
           value={props.node.attrs.language}
-          onChange={val => {
+          onChange={(val) => {
             const view = viewRef.current!;
             view.dispatch(
-              view.state.tr.setNodeAttribute(props.pos, 'language', val)
+              view.state.tr.setNodeAttribute(props.pos, "language", val),
             );
           }}
         />
@@ -144,7 +144,7 @@ const popoverComponents: Record<
               dispatchCommand((state, dispatch) => {
                 if (dispatch) {
                   dispatch(
-                    state.tr.delete(props.pos, props.pos + props.node.nodeSize)
+                    state.tr.delete(props.pos, props.pos + props.node.nodeSize),
                   );
                 }
                 return true;
@@ -178,7 +178,7 @@ const popoverComponents: Record<
               dispatchCommand((state, dispatch) => {
                 if (dispatch) {
                   dispatch(
-                    state.tr.delete(props.pos, props.pos + props.node.nodeSize)
+                    state.tr.delete(props.pos, props.pos + props.node.nodeSize),
                   );
                 }
                 return true;
@@ -214,8 +214,8 @@ const popoverComponents: Record<
                     dispatch(
                       state.tr.delete(
                         props.pos,
-                        props.pos + props.node.nodeSize
-                      )
+                        props.pos + props.node.nodeSize,
+                      ),
                     );
                   }
                   return true;
@@ -229,13 +229,13 @@ const popoverComponents: Record<
         </Flex>
       );
     },
-    schema => !!Object.keys(schema.config.heading.schema).length
+    (schema) => !!Object.keys(schema.config.heading.schema).length,
   ),
-} satisfies Partial<Record<keyof EditorSchema['nodes'], NodePopoverRenderer>>;
+} satisfies Partial<Record<keyof EditorSchema["nodes"], NodePopoverRenderer>>;
 
 // A table living inside a grid cell (`grid > grid_cell > table`) sits under
 // two popover-worthy ancestors, but the plain ancestor walk in
-// `getPopoverDecoration` stops at the first match — the table — so the
+// `getPopoverDecoration` stops at the first match - the table - so the
 // enclosing grid's controls (add/delete item, layout, settings) become
 // unreachable while editing that table. This merges both toolbars into one
 // instead of picking one over the other.
@@ -268,8 +268,8 @@ function TableInGridPopover(props: {
                 dispatch(
                   state.tr.delete(
                     props.table.pos,
-                    props.table.pos + props.table.node.nodeSize
-                  )
+                    props.table.pos + props.table.node.nodeSize,
+                  ),
                 );
               }
               return true;
@@ -284,14 +284,14 @@ function TableInGridPopover(props: {
   );
 }
 
-// Walks ancestors from `fromDepth` up looking for an enclosing `grid` node —
+// Walks ancestors from `fromDepth` up looking for an enclosing `grid` node -
 // used to detect the table-in-grid case above. Depth-generic (rather than
 // just checking the immediate parent) since a table sits a couple of levels
 // under its grid (`grid > grid_cell > table`).
 function findGridAncestor($pos: ResolvedPos, fromDepth: number) {
   for (let i = fromDepth; i > 0; i--) {
     const node = $pos.node(i);
-    if (node.type.name === 'grid') {
+    if (node.type.name === "grid") {
       return { node, pos: $pos.start(i) - 1 };
     }
   }
@@ -303,7 +303,7 @@ export function markAround($pos: ResolvedPos, markType: MarkType) {
   const start = parent.childAfter(parentOffset);
   if (!start.node) return null;
 
-  const mark = start.node.marks.find(mark => mark.type === markType);
+  const mark = start.node.marks.find((mark) => mark.type === markType);
   if (!mark) return null;
 
   let startIndex = $pos.index();
@@ -331,10 +331,10 @@ type MarkPopoverRenderer = (props: {
   to: number;
 }) => ReactElement | null;
 
-const LinkPopover: MarkPopoverRenderer = props => {
+const LinkPopover: MarkPopoverRenderer = (props) => {
   const dispatchCommand = useEditorDispatchCommand();
   const href = props.mark.attrs.href;
-  if (typeof href !== 'string') {
+  if (typeof href !== "string") {
     return null;
   }
   return (
@@ -345,13 +345,17 @@ const LinkPopover: MarkPopoverRenderer = props => {
         dispatchCommand((state, dispatch) => {
           if (dispatch) {
             dispatch(
-              state.tr.removeMark(props.from, props.to, state.schema.marks.link)
+              state.tr.removeMark(
+                props.from,
+                props.to,
+                state.schema.marks.link,
+              ),
             );
           }
           return true;
         });
       }}
-      onHrefChange={href => {
+      onHrefChange={(href) => {
         dispatchCommand((state, dispatch) => {
           if (dispatch) {
             dispatch(
@@ -360,8 +364,8 @@ const LinkPopover: MarkPopoverRenderer = props => {
                 .addMark(
                   props.from,
                   props.to,
-                  state.schema.marks.link.create({ href })
-                )
+                  state.schema.marks.link.create({ href }),
+                ),
             );
           }
           return true;
@@ -373,23 +377,23 @@ const LinkPopover: MarkPopoverRenderer = props => {
 
 type PopoverDecoration =
   | {
-      adaptToBoundary: EditorPopoverProps['adaptToBoundary'] & {};
-      kind: 'node';
+      adaptToBoundary: EditorPopoverProps["adaptToBoundary"] & {};
+      kind: "node";
       component: NodePopoverRenderer;
       node: Node;
       pos: number;
     }
   | {
-      adaptToBoundary: EditorPopoverProps['adaptToBoundary'] & {};
-      kind: 'mark';
+      adaptToBoundary: EditorPopoverProps["adaptToBoundary"] & {};
+      kind: "mark";
       component: MarkPopoverRenderer;
       mark: Mark;
       from: number;
       to: number;
     }
   | {
-      adaptToBoundary: EditorPopoverProps['adaptToBoundary'] & {};
-      kind: 'table-in-grid';
+      adaptToBoundary: EditorPopoverProps["adaptToBoundary"] & {};
+      kind: "table-in-grid";
       grid: { node: Node; pos: number };
       table: { node: Node; pos: number };
     };
@@ -404,33 +408,33 @@ function InlineComponentPopover(props: {
   const runCommand = useEditorDispatchCommand();
   const [isOpen, setIsOpen] = useState(false);
   const componentSchema = useMemo(
-    () => ({ kind: 'object' as const, fields: componentConfig.schema }),
-    [componentConfig.schema]
+    () => ({ kind: "object" as const, fields: componentConfig.schema }),
+    [componentConfig.schema],
   );
   const value = useDeserializedValue(
     props.node.attrs.props,
-    componentConfig.schema
+    componentConfig.schema,
   );
   const editorViewRef = useEditorViewRef();
-  if (componentConfig.kind === 'inline' && componentConfig.ToolbarView) {
+  if (componentConfig.kind === "inline" && componentConfig.ToolbarView) {
     return (
       <componentConfig.ToolbarView
         value={value}
-        onChange={value => {
+        onChange={(value) => {
           const view = editorViewRef.current!;
           view.dispatch(
             view.state.tr.setNodeAttribute(
               props.pos,
-              'props',
-              toSerialized(value, componentSchema.fields)
-            )
+              "props",
+              toSerialized(value, componentSchema.fields),
+            ),
           );
         }}
         onRemove={() => {
           runCommand((state, dispatch) => {
             if (dispatch) {
               dispatch(
-                state.tr.delete(props.pos, props.pos + props.node.nodeSize)
+                state.tr.delete(props.pos, props.pos + props.node.nodeSize),
               );
             }
             return true;
@@ -460,7 +464,7 @@ function InlineComponentPopover(props: {
               runCommand((state, dispatch) => {
                 if (dispatch) {
                   dispatch(
-                    state.tr.delete(props.pos, props.pos + props.node.nodeSize)
+                    state.tr.delete(props.pos, props.pos + props.node.nodeSize),
                   );
                 }
                 return true;
@@ -483,15 +487,15 @@ function InlineComponentPopover(props: {
             <FormValue
               schema={componentSchema}
               value={value}
-              onSave={value => {
+              onSave={(value) => {
                 runCommand((state, dispatch) => {
                   if (dispatch) {
                     dispatch(
                       state.tr.setNodeAttribute(
                         props.pos,
-                        'props',
-                        toSerialized(value, componentSchema.fields)
-                      )
+                        "props",
+                        toSerialized(value, componentSchema.fields),
+                      ),
                     );
                   }
                   return true;
@@ -505,18 +509,18 @@ function InlineComponentPopover(props: {
   );
 }
 
-const CustomMarkPopover: MarkPopoverRenderer = props => {
+const CustomMarkPopover: MarkPopoverRenderer = (props) => {
   const schema = getEditorSchema(props.state.schema);
   const componentConfig = schema.components[props.mark.type.name];
   const runCommand = useEditorDispatchCommand();
   const [isOpen, setIsOpen] = useState(false);
   const componentSchema = useMemo(
-    () => ({ kind: 'object' as const, fields: componentConfig.schema }),
-    [componentConfig.schema]
+    () => ({ kind: "object" as const, fields: componentConfig.schema }),
+    [componentConfig.schema],
   );
   const deserialized = useDeserializedValue(
     props.mark.attrs.props,
-    componentConfig.schema
+    componentConfig.schema,
   );
   return (
     <>
@@ -539,7 +543,7 @@ const CustomMarkPopover: MarkPopoverRenderer = props => {
               runCommand((state, dispatch) => {
                 if (dispatch) {
                   dispatch(
-                    state.tr.removeMark(props.from, props.to, props.mark.type)
+                    state.tr.removeMark(props.from, props.to, props.mark.type),
                   );
                 }
                 return true;
@@ -562,7 +566,7 @@ const CustomMarkPopover: MarkPopoverRenderer = props => {
             <FormValue
               schema={componentSchema}
               value={deserialized}
-              onSave={value => {
+              onSave={(value) => {
                 runCommand((state, dispatch) => {
                   if (dispatch) {
                     dispatch(
@@ -573,8 +577,8 @@ const CustomMarkPopover: MarkPopoverRenderer = props => {
                           props.to,
                           props.mark.type.create({
                             props: toSerialized(value, componentConfig.schema),
-                          })
-                        )
+                          }),
+                        ),
                     );
                   }
                   return true;
@@ -590,21 +594,23 @@ const CustomMarkPopover: MarkPopoverRenderer = props => {
 
 // Node popovers default to 'stick' so they don't jump above the reference
 // when space runs out. Images are floated (`float: left`/`float: right`),
-// so wrapped paragraph text can leave little room below them — 'stick' would
+// so wrapped paragraph text can leave little room below them - 'stick' would
 // then wedge the toolbar into that cramped space instead of moving it above
 // the image, so images get 'flip'.
 //
 // A grid hits the same cramped-space case from a different direction: as the
 // last block in the document there's nothing below it but the trailing
 // paragraph, which is far shorter than the toolbar, and `boundary` is the
-// editor's own DOM — so 'stick' has nowhere to put the toolbar except back on
+// editor's own DOM - so 'stick' has nowhere to put the toolbar except back on
 // top of the grid's cells. 'flip' moves it above the grid instead. Only
 // affects the case that was already broken: while the toolbar does fit below,
 // 'flip' leaves it exactly where 'stick' would.
-function popoverAdaptToBoundary(node: Node): EditorPopoverProps['adaptToBoundary'] & {} {
-  return node.type.name === 'image' || node.type.name === 'grid'
-    ? 'flip'
-    : 'stick';
+function popoverAdaptToBoundary(
+  node: Node,
+): EditorPopoverProps["adaptToBoundary"] & {} {
+  return node.type.name === "image" || node.type.name === "grid"
+    ? "flip"
+    : "stick";
 }
 
 function getPopoverDecoration(state: EditorState): PopoverDecoration | null {
@@ -613,7 +619,7 @@ function getPopoverDecoration(state: EditorState): PopoverDecoration | null {
     let decoration: PopoverDecoration | null = null;
     for (const [name, componentConfig] of Object.entries(schema.components)) {
       if (
-        componentConfig.kind !== 'mark' ||
+        componentConfig.kind !== "mark" ||
         !Object.keys(componentConfig.schema).length
       ) {
         continue;
@@ -629,8 +635,8 @@ function getPopoverDecoration(state: EditorState): PopoverDecoration | null {
         const rangeSize = aroundFrom.to - aroundFrom.from;
         if (!decoration || rangeSize < decoration.to - decoration.from) {
           decoration = {
-            adaptToBoundary: 'flip',
-            kind: 'mark',
+            adaptToBoundary: "flip",
+            kind: "mark",
             component: CustomMarkPopover,
             mark: aroundFrom.mark,
             from: aroundFrom.from,
@@ -642,7 +648,7 @@ function getPopoverDecoration(state: EditorState): PopoverDecoration | null {
     if (schema.marks.link) {
       const linkAroundFrom = markAround(
         state.selection.$from,
-        schema.marks.link
+        schema.marks.link,
       );
       const linkAroundTo = markAround(state.selection.$to, schema.marks.link);
       if (
@@ -653,8 +659,8 @@ function getPopoverDecoration(state: EditorState): PopoverDecoration | null {
         const rangeSize = linkAroundFrom.to - linkAroundFrom.from;
         if (!decoration || rangeSize < decoration.to - decoration.from) {
           return {
-            adaptToBoundary: 'flip',
-            kind: 'mark',
+            adaptToBoundary: "flip",
+            kind: "mark",
             component: LinkPopover,
             mark: linkAroundFrom.mark,
             from: linkAroundFrom.from,
@@ -672,10 +678,10 @@ function getPopoverDecoration(state: EditorState): PopoverDecoration | null {
 
   if (state.selection instanceof NodeSelection) {
     const node = state.selection.node;
-    if (editorSchema.components[node.type.name]?.kind === 'inline') {
+    if (editorSchema.components[node.type.name]?.kind === "inline") {
       return {
-        adaptToBoundary: 'stick',
-        kind: 'node',
+        adaptToBoundary: "stick",
+        kind: "node",
         node,
         component: InlineComponentPopover,
         pos: state.selection.from,
@@ -686,15 +692,15 @@ function getPopoverDecoration(state: EditorState): PopoverDecoration | null {
       component !== undefined &&
       (!component.shouldShow || component.shouldShow(editorSchema))
     ) {
-      if (node.type.name === 'table') {
+      if (node.type.name === "table") {
         const gridAncestor = findGridAncestor(
           state.selection.$from,
-          state.selection.$from.depth
+          state.selection.$from.depth,
         );
         if (gridAncestor) {
           return {
-            adaptToBoundary: 'flip',
-            kind: 'table-in-grid',
+            adaptToBoundary: "flip",
+            kind: "table-in-grid",
             grid: gridAncestor,
             table: { node, pos: state.selection.from },
           };
@@ -702,7 +708,7 @@ function getPopoverDecoration(state: EditorState): PopoverDecoration | null {
       }
       return {
         adaptToBoundary: popoverAdaptToBoundary(node),
-        kind: 'node',
+        kind: "node",
         node,
         component,
         pos: state.selection.from,
@@ -711,7 +717,7 @@ function getPopoverDecoration(state: EditorState): PopoverDecoration | null {
   }
 
   const commonAncestorPos = state.selection.$from.start(
-    state.selection.$from.sharedDepth(state.selection.to)
+    state.selection.$from.sharedDepth(state.selection.to),
   );
   const $pos = state.doc.resolve(commonAncestorPos);
 
@@ -724,12 +730,12 @@ function getPopoverDecoration(state: EditorState): PopoverDecoration | null {
       (!component.shouldShow || component.shouldShow(editorSchema))
     ) {
       const pos = $pos.start(i) - 1;
-      if (node.type.name === 'table') {
+      if (node.type.name === "table") {
         const gridAncestor = findGridAncestor($pos, i - 1);
         if (gridAncestor) {
           return {
-            adaptToBoundary: 'flip',
-            kind: 'table-in-grid',
+            adaptToBoundary: "flip",
+            kind: "table-in-grid",
             grid: gridAncestor,
             table: { node, pos },
           };
@@ -737,7 +743,7 @@ function getPopoverDecoration(state: EditorState): PopoverDecoration | null {
       }
       return {
         adaptToBoundary: popoverAdaptToBoundary(node),
-        kind: 'node',
+        kind: "node",
         node,
         component,
         pos,
@@ -753,23 +759,23 @@ function PopoverInner(props: {
   state: EditorState;
 }) {
   const from =
-    props.decoration.kind === 'node'
+    props.decoration.kind === "node"
       ? props.decoration.pos
-      : props.decoration.kind === 'table-in-grid'
+      : props.decoration.kind === "table-in-grid"
         ? props.decoration.table.pos
         : props.decoration.from;
   const to =
-    props.decoration.kind === 'node'
+    props.decoration.kind === "node"
       ? props.decoration.pos + props.decoration.node.nodeSize
-      : props.decoration.kind === 'table-in-grid'
+      : props.decoration.kind === "table-in-grid"
         ? props.decoration.table.pos + props.decoration.table.node.nodeSize
         : props.decoration.to;
 
   const reference = useEditorReferenceElement(from, to);
   const editorViewRef = useEditorViewRef();
   const isImage =
-    props.decoration.kind === 'node' &&
-    props.decoration.node.type.name === 'image';
+    props.decoration.kind === "node" &&
+    props.decoration.node.type.name === "image";
 
   return (
     reference && (
@@ -777,7 +783,7 @@ function PopoverInner(props: {
         adaptToBoundary={props.decoration.adaptToBoundary}
         // constrain to the editor's own content area rather than the
         // default `clippingAncestors` (which falls back to the viewport
-        // when no ancestor actually clips overflow) — otherwise, in a
+        // when no ancestor actually clips overflow) - otherwise, in a
         // split-pane layout, shift() treats the sidebar next to the editor
         // as free space and slides the popover under its buttons
         boundary={editorViewRef.current?.dom}
@@ -791,13 +797,13 @@ function PopoverInner(props: {
         // the toolbar
         UNSAFE_style={isImage ? { zIndex: 2 } : undefined}
       >
-        {props.decoration.kind === 'table-in-grid' ? (
+        {props.decoration.kind === "table-in-grid" ? (
           <TableInGridPopover
             grid={props.decoration.grid}
             table={props.decoration.table}
             state={props.state}
           />
-        ) : props.decoration.kind === 'node' ? (
+        ) : props.decoration.kind === "node" ? (
           <props.decoration.component
             {...props.decoration}
             state={props.state}
@@ -816,7 +822,7 @@ function PopoverInner(props: {
 export function EditorPopoverDecoration(props: { state: EditorState }) {
   const popoverDecoration = useMemo(
     () => getPopoverDecoration(props.state),
-    [props.state]
+    [props.state],
   );
   if (!popoverDecoration) return null;
   return <PopoverInner decoration={popoverDecoration} state={props.state} />;

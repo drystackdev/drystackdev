@@ -1,12 +1,12 @@
-import { EditorState, Plugin, PluginKey } from 'prosemirror-state';
-import { Decoration, DecorationSet, EditorView } from 'prosemirror-view';
+import { EditorState, Plugin, PluginKey } from "prosemirror-state";
+import { Decoration, DecorationSet, EditorView } from "prosemirror-view";
 
-import { css } from '@keystar/ui/style';
+import { css } from "@keystar/ui/style";
 
 // how close (in px) the pointer must be to a row boundary to activate its
 // resize handle
 const HANDLE_HITBOX = 6;
-// rows can't be dragged shorter than this, in px — roughly one line of text
+// rows can't be dragged shorter than this, in px - roughly one line of text
 // plus the cell's own padding
 const MIN_ROW_HEIGHT_PX = 24;
 
@@ -15,12 +15,12 @@ type Dragging = {
   startHeightPx: number;
   minPx: number;
   // doc position of the row being resized (always the row *above* the
-  // dragged boundary — resizing only ever changes one row's own height,
+  // dragged boundary - resizing only ever changes one row's own height,
   // unlike column resizing, which trades width between two neighbors to
   // keep the table's total width constant. A table has no such total-height
   // constraint, so there's nothing to trade with).
   rowPos: number;
-  // updated on every pointermove — `decorations()` reads this to render the
+  // updated on every pointermove - `decorations()` reads this to render the
   // live row-height preview (see `buildDragDecorations`)
   currentClientY: number;
 };
@@ -33,27 +33,27 @@ type PluginState = {
 };
 
 export const tableRowResizingKey = new PluginKey<PluginState>(
-  'tableRowResizing'
+  "tableRowResizing",
 );
 
 function domRowAround(target: EventTarget | null): HTMLElement | null {
   let node = target as HTMLElement | null;
-  while (node && node.nodeName !== 'TR') {
-    if (node.classList?.contains('ProseMirror')) return null;
+  while (node && node.nodeName !== "TR") {
+    if (node.classList?.contains("ProseMirror")) return null;
     node = node.parentElement;
   }
   return node;
 }
 
 // resolves the doc position of the row immediately above the boundary
-// nearest `event`'s y-position on the given side of the hovered row — or -1
+// nearest `event`'s y-position on the given side of the hovered row - or -1
 // if there's no such row (e.g. dragging the top edge of a table's first row)
 function edgeRowPos(
   view: EditorView,
   event: PointerEvent,
-  side: 'top' | 'bottom'
+  side: "top" | "bottom",
 ): number {
-  const offset = side === 'bottom' ? -HANDLE_HITBOX : HANDLE_HITBOX;
+  const offset = side === "bottom" ? -HANDLE_HITBOX : HANDLE_HITBOX;
   const found = view.posAtCoords({
     left: event.clientX,
     top: event.clientY + offset,
@@ -61,9 +61,9 @@ function edgeRowPos(
   if (!found) return -1;
   const $pos = view.state.doc.resolve(found.pos);
   for (let depth = $pos.depth; depth > 0; depth--) {
-    if ($pos.node(depth).type.spec.tableRole !== 'row') continue;
+    if ($pos.node(depth).type.spec.tableRole !== "row") continue;
     const rowStart = $pos.before(depth);
-    if (side === 'bottom') return rowStart;
+    if (side === "bottom") return rowStart;
     // side === 'top': the boundary belongs to the *previous* row, if any
     const table = $pos.node(depth - 1);
     const rowIndex = $pos.index(depth - 1);
@@ -79,13 +79,16 @@ function draggedHeightPx(dragging: Dragging, clientY: number): number {
 }
 
 // Live preview during a drag: renders a `style="height:…px"` override on the
-// dragged row via a decoration — the ProseMirror-sanctioned way to apply a
+// dragged row via a decoration - the ProseMirror-sanctioned way to apply a
 // transient visual change without tripping the DOM-mutation observer (see the
 // equivalent comment on `buildDragDecorations` in table-column-resize.ts).
 // Unlike column widths, a row's height has nowhere else it needs to be kept
 // in sync (no colgroup-style sibling structure derives from it), so the
 // decoration alone is sufficient here.
-function buildDragDecorations(state: EditorState, dragging: Dragging): Decoration[] {
+function buildDragDecorations(
+  state: EditorState,
+  dragging: Dragging,
+): Decoration[] {
   const node = state.doc.nodeAt(dragging.rowPos);
   if (!node) return [];
   const heightPx = draggedHeightPx(dragging, dragging.currentClientY);
@@ -99,7 +102,7 @@ function buildDragDecorations(state: EditorState, dragging: Dragging): Decoratio
 // Applies a plugin-only meta transaction directly via `view.updateState`
 // instead of `view.dispatch`, so the drag preview (which fires on every
 // animation frame) never reaches this app's `dispatchTransaction` (which
-// forwards every dispatched transaction to the form's `onChange`) — see the
+// forwards every dispatched transaction to the form's `onChange`) - see the
 // identical rationale on `updateViewMeta` in table-column-resize.ts.
 function updateViewMeta(view: EditorView, meta: unknown) {
   const tr = view.state.tr.setMeta(tableRowResizingKey, meta);
@@ -107,12 +110,20 @@ function updateViewMeta(view: EditorView, meta: unknown) {
 }
 
 function commitResize(view: EditorView, dragging: Dragging, heightPx: number) {
-  let tr = view.state.tr.setNodeAttribute(dragging.rowPos, 'heightPx', heightPx);
+  let tr = view.state.tr.setNodeAttribute(
+    dragging.rowPos,
+    "heightPx",
+    heightPx,
+  );
   tr = tr.setMeta(tableRowResizingKey, { setHandle: -1 });
   view.dispatch(tr);
 }
 
-function startDrag(view: EditorView, activeHandle: number, event: PointerEvent) {
+function startDrag(
+  view: EditorView,
+  activeHandle: number,
+  event: PointerEvent,
+) {
   const rowDom = view.nodeDOM(activeHandle) as HTMLElement | null;
   if (!rowDom) return;
 
@@ -140,8 +151,8 @@ function startDrag(view: EditorView, activeHandle: number, event: PointerEvent) 
     });
   };
   const finish = () => {
-    win.removeEventListener('pointermove', move);
-    win.removeEventListener('pointerup', finish);
+    win.removeEventListener("pointermove", move);
+    win.removeEventListener("pointerup", finish);
     if (rafId != null) {
       win.cancelAnimationFrame(rafId);
       rafId = null;
@@ -149,13 +160,13 @@ function startDrag(view: EditorView, activeHandle: number, event: PointerEvent) 
     if (!tableRowResizingKey.getState(view.state)?.dragging) return;
     commitResize(view, dragging, draggedHeightPx(dragging, lastClientY));
   };
-  win.addEventListener('pointermove', move);
-  win.addEventListener('pointerup', finish);
+  win.addEventListener("pointermove", move);
+  win.addEventListener("pointerup", finish);
 }
 
 // Row-height resizing for tables: dragging a handle at a row's bottom edge
 // changes that row's own height (a table has no fixed total height to trade
-// against, unlike columns — see `Dragging.rowPos`) and commits the result as
+// against, unlike columns - see `Dragging.rowPos`) and commits the result as
 // a `heightPx` attr on the row, rendered as inline `style="height:…px"` (see
 // `rowHeightDOMAttrs` in schema.tsx).
 export function tableRowResizing(): Plugin<PluginState> {
@@ -165,13 +176,13 @@ export function tableRowResizing(): Plugin<PluginState> {
       init: () => ({ activeHandle: -1, dragging: null }),
       apply(tr, prev) {
         const meta = tr.getMeta(tableRowResizingKey);
-        if (meta && 'setHandle' in meta) {
+        if (meta && "setHandle" in meta) {
           return { activeHandle: meta.setHandle, dragging: null };
         }
-        if (meta && 'setDragging' in meta) {
+        if (meta && "setDragging" in meta) {
           return { ...prev, dragging: meta.setDragging };
         }
-        if (meta && 'updateDragY' in meta && prev.dragging) {
+        if (meta && "updateDragY" in meta && prev.dragging) {
           return {
             ...prev,
             dragging: { ...prev.dragging, currentClientY: meta.updateDragY },
@@ -182,7 +193,7 @@ export function tableRowResizing(): Plugin<PluginState> {
           const node = tr.doc.nodeAt(mapped);
           return {
             ...prev,
-            activeHandle: node?.type.spec.tableRole === 'row' ? mapped : -1,
+            activeHandle: node?.type.spec.tableRole === "row" ? mapped : -1,
           };
         }
         return prev;
@@ -200,7 +211,7 @@ export function tableRowResizing(): Plugin<PluginState> {
         if (!pluginState?.dragging) return;
         return DecorationSet.create(
           state.doc,
-          buildDragDecorations(state, pluginState.dragging)
+          buildDragDecorations(state, pluginState.dragging),
         );
       },
       handleDOMEvents: {
@@ -213,9 +224,9 @@ export function tableRowResizing(): Plugin<PluginState> {
           if (target) {
             const rect = target.getBoundingClientRect();
             if (event.clientY - rect.top <= HANDLE_HITBOX) {
-              handle = edgeRowPos(view, event, 'top');
+              handle = edgeRowPos(view, event, "top");
             } else if (rect.bottom - event.clientY <= HANDLE_HITBOX) {
-              handle = edgeRowPos(view, event, 'bottom');
+              handle = edgeRowPos(view, event, "bottom");
             }
           }
           if (handle !== pluginState.activeHandle) {
@@ -225,7 +236,11 @@ export function tableRowResizing(): Plugin<PluginState> {
         },
         pointerleave(view) {
           const pluginState = tableRowResizingKey.getState(view.state);
-          if (pluginState && pluginState.activeHandle > -1 && !pluginState.dragging) {
+          if (
+            pluginState &&
+            pluginState.activeHandle > -1 &&
+            !pluginState.dragging
+          ) {
             updateViewMeta(view, { setHandle: -1 });
           }
           return false;
@@ -233,7 +248,11 @@ export function tableRowResizing(): Plugin<PluginState> {
         pointerdown(view, event) {
           if (!view.editable) return false;
           const pluginState = tableRowResizingKey.getState(view.state);
-          if (!pluginState || pluginState.activeHandle === -1 || pluginState.dragging) {
+          if (
+            !pluginState ||
+            pluginState.activeHandle === -1 ||
+            pluginState.dragging
+          ) {
             return false;
           }
           startDrag(view, pluginState.activeHandle, event);
@@ -245,9 +264,9 @@ export function tableRowResizing(): Plugin<PluginState> {
   });
 }
 
-// A resizable boundary announces itself through the cursor alone — no painted
+// A resizable boundary announces itself through the cursor alone - no painted
 // line on the row's edge. The hitbox is geometric (see the `pointermove`
 // handler), so nothing but the cursor depends on this.
 const resizeCursorClass = css({
-  '& td, & th': { cursor: 'row-resize' },
+  "& td, & th": { cursor: "row-resize" },
 });

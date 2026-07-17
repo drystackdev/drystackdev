@@ -1,12 +1,12 @@
-import React, { ReactNode } from 'react';
-import { isNotFoundError } from './not-found';
+import React, { ReactNode } from "react";
+import { isNotFoundError } from "./not-found";
 
 type ErrorBoundaryProps = {
   fallback: ReactNode | ((message: string) => ReactNode);
   children: ReactNode;
   // Changing any value in this array (e.g. after a "reset entry data" action
   // fixes the underlying cause) clears a caught error and lets `children`
-  // mount again — without this, a thrown error permanently unmounts
+  // mount again - without this, a thrown error permanently unmounts
   // `children`, so nothing children do (retrying a fetch, refreshing data)
   // can ever recover the boundary on its own.
   resetKeys?: readonly unknown[];
@@ -44,7 +44,7 @@ export class ErrorBoundary extends React.Component<
 
   render() {
     if (this.state.message) {
-      return typeof this.props.fallback === 'function'
+      return typeof this.props.fallback === "function"
         ? this.props.fallback(this.state.message)
         : this.props.fallback;
     }

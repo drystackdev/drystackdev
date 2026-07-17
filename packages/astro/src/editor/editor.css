@@ -5,7 +5,7 @@
    site's own styles.
 
    Theme: KeystarProvider's colour scheme follows the admin's stored choice
-   (localStorage 'drystack-color-scheme': auto|light|dark — see index.tsx), NOT
+   (localStorage 'drystack-color-scheme': auto|light|dark - see index.tsx), NOT
    the OS `prefers-color-scheme`. Raw elements that live inside the provider
    (the edit pill, the review dialog) therefore read Keystar's own `--kui-*`
    scheme tokens so they track that choice. Only `.dry-ref-menu`, which React-
@@ -19,14 +19,16 @@ body.editing [data-dry] {
   cursor: text;
 }
 /* enableEditing() only adds this once the just-applied outline above has
-   painted at least one frame (see bind.ts) — starting the transition any
+   painted at least one frame (see bind.ts) - starting the transition any
    earlier would animate from the pre-editing (outline-less) paint into blue,
    flashing white/default before settling. */
 body.editing.dry-anim-ready [data-dry] {
-  transition: outline-color 0.2s ease-out, outline-offset 0.2s ease-out;
+  transition:
+    outline-color 0.2s ease-out,
+    outline-offset 0.2s ease-out;
 }
 /* :focus keeps the emphasis outline while a spot is being typed into (it's
-   contentEditable), even after the pointer moves off it — otherwise moving
+   contentEditable), even after the pointer moves off it - otherwise moving
    the mouse away mid-edit silently drops the highlight. */
 body.editing [data-dry]:hover,
 body.editing [data-dry]:focus {
@@ -34,7 +36,7 @@ body.editing [data-dry]:focus {
   outline-offset: 5px;
 }
 
-/* fields.image spots aren't contenteditable — clicking opens the same
+/* fields.image spots aren't contenteditable - clicking opens the same
    file-manager picker the admin's image field uses (see bind.ts's
    handleImageSpotClick). Style as a clickable target instead of a text
    caret, with a translucent scrim + hint on hover so it reads as "click to
@@ -42,13 +44,15 @@ body.editing [data-dry]:focus {
 body.editing [data-dry-kind="image"] {
   cursor: pointer !important;
   position: relative;
-  transition: filter 0.15s ease, outline-offset 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
+  transition:
+    filter 0.15s ease,
+    outline-offset 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
 }
 body.editing [data-dry-kind="image"]:hover {
   filter: brightness(0.85);
 }
 
-/* fields.file spots — same "click to change" affordance as fields.image
+/* fields.file spots - same "click to change" affordance as fields.image
    (see bind.ts's handleAssetSpotClick), minus the brightness dim (a file spot
    is typically a download link or filename, not an image preview). */
 body.editing [data-dry-kind="file"] {
@@ -60,7 +64,7 @@ body.editing [data-dry-kind="file"] {
   scroll-margin: 80px;
 }
 
-/* fields.array containers aren't contenteditable themselves — their items
+/* fields.array containers aren't contenteditable themselves - their items
    (data-dry-kind="text" spots one level down) are. Swap the inherited text
    caret for a default cursor and a dashed outline so a container reads as a
    distinct "structured" region rather than another editable text spot. */
@@ -69,14 +73,14 @@ body.editing [data-dry-kind="array"] {
 }
 
 /* Array-of-object item wrappers (data-dry-kind="object") are structural
-   markers too — the editable spots are the text/image sub-fields one level
+   markers too - the editable spots are the text/image sub-fields one level
    down. Keep the default cursor so a wrapper doesn't read as a text spot. */
 body.editing [data-dry-kind="object"] {
   cursor: default !important;
 }
 
 /* Floating gear button shown while hovering a fields.array container in edit
-   mode (see Toolbar.tsx) — portaled to <body>, positioned via inline
+   mode (see Toolbar.tsx) - portaled to <body>, positioned via inline
    top/right computed from the spot's getBoundingClientRect. Disabled (see the
    "dry.array.length == 0" rule in Toolbar.tsx) rather than hidden, so the
    affordance stays visible but inert until the array has at least one item
@@ -106,7 +110,7 @@ body.editing [data-dry-kind="object"] {
   opacity: 0.7;
 }
 
-/* Hover/focus label for the gear button — CSS-only (content: attr()) rather
+/* Hover/focus label for the gear button - CSS-only (content: attr()) rather
    than Keystar's Tooltip/TooltipTrigger, since this button is a plain
    portaled DOM node (not a KeystarProvider-aware component) and react-aria's
    tooltip trigger relies on FocusableContext to wire up its hover/focus
@@ -127,7 +131,9 @@ body.editing [data-dry-kind="object"] {
   white-space: nowrap;
   opacity: 0;
   transform: translateY(-4px);
-  transition: opacity 0.12s ease, transform 0.12s ease;
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
   pointer-events: none;
 }
 .dry-array-gear[data-dry-tooltip]:hover::after,
@@ -138,7 +144,7 @@ body.editing [data-dry-kind="object"] {
 
 /* The editor's mount node (ROOT_ID in index.tsx), a direct child of <body>.
    KeystarProvider wraps everything below it in a div with `isolation: isolate`,
-   which opens a stacking context — so a z-index on .dry-bar only competes with
+   which opens a stacking context - so a z-index on .dry-bar only competes with
    its siblings *inside* that wrapper, never with the host page's sections
    (which are `position: relative; z-index: 1..60`). The z-index has to live
    here, on the outermost element, to actually lift the whole editor tree. */
@@ -149,7 +155,7 @@ body.editing [data-dry-kind="object"] {
 
 /* Keystar portals its overlays (the Review dialog + its blanket, tooltips,
    toasts) to <body> via react-aria's default target, so they mount as direct
-   children of <body> — outside #drystack-editor-root's stacking context and
+   children of <body> - outside #drystack-editor-root's stacking context and
    with no z-index of their own. Without this, the host page's positioned
    sections (z-index 1..60) paint over the dialog. Lift any Keystar overlay
    layer that lands directly on <body>. The main editor provider is nested
@@ -170,7 +176,7 @@ body > .kui-scheme--auto {
   gap: 4px;
 }
 
-/* Single edit affordance — a Keystar Button forced into a round FAB. The icon
+/* Single edit affordance - a Keystar Button forced into a round FAB. The icon
    morphs (rotate + scale + fade) but the button keeps one constant background:
    no colour change on toggle. */
 .dry-fab {
@@ -224,7 +230,7 @@ body > .kui-scheme--auto {
   transform: rotate(90deg) scale(0.3);
 }
 
-/* Unified menu — an always-visible pill led by its FAB, shared by both bar
+/* Unified menu - an always-visible pill led by its FAB, shared by both bar
    menus (deploy and edit). Collapsed it hugs the lone FAB and reads as a round
    button; opening it slides the action buttons out to the right. Colours come
    from Keystar's own scheme tokens (set on the KeystarProvider wrapper this bar
@@ -257,7 +263,7 @@ body > .kui-scheme--auto {
   box-shadow: none !important;
 }
 
-/* Action group — the pill widens first (grid-column collapse); the buttons
+/* Action group - the pill widens first (grid-column collapse); the buttons
    only fade/slide in once it's fully open, so icons never show before the menu
    has finished expanding. On close they fade out first, then the pill shrinks. */
 .dry-menu-actions {
@@ -305,19 +311,19 @@ body > .kui-scheme--auto {
   pointer-events: none;
 }
 
-/* Active-spot indicator — a permanent top-left HUD label, on screen for the
+/* Active-spot indicator - a permanent top-left HUD label, on screen for the
    whole time edit mode is on (unlike the rest of the bar, it doesn't wait
-   for a hover/focus to mount — see Toolbar.tsx), showing which dry field is
+   for a hover/focus to mount - see Toolbar.tsx), showing which dry field is
    focused or hovered, e.g. "Text - Singleton: demo.array.0.name". Plain
    debug-overlay styling (small, black background) rather than matching the
-   rest of the bar's pill treatment, and deliberately un-styled/un-animated —
+   rest of the bar's pill treatment, and deliberately un-styled/un-animated -
    it's meant to read as a flat readout, not another piece of UI chrome.
    `pointer-events: none` so it never blocks clicks on whatever the host
    page renders underneath it (often a logo/nav in that same top-left
    corner). */
 .dry-active-spot {
   position: fixed;
-  gap: .5rem;
+  gap: 0.5rem;
   top: 0px;
   left: 0px;
   z-index: 2147483000;
@@ -345,7 +351,7 @@ body > .kui-scheme--auto {
   font-weight: 700;
   display: inline-block;
   text-align: center;
-  margin-left: .5em;
+  margin-left: 0.5em;
 }
 .dry-active-spot-kind--text {
   color: #7dd3fc;
@@ -366,7 +372,7 @@ body > .kui-scheme--auto {
   color: #fdba74;
 }
 
-/* Build/deploy status prefix — folded into .dry-active-spot's own line (see
+/* Build/deploy status prefix - folded into .dry-active-spot's own line (see
    Toolbar.tsx) rather than a separate pill underneath it, so it's just a
    small icon + small text ahead of the path label, not another piece of UI
    chrome. Inherits .dry-active-spot's font-size/pointer-events; only needs
@@ -379,8 +385,8 @@ body > .kui-scheme--auto {
 }
 
 /* Hover dropdown listing the singletons editable on the page. Rendered through
-   a portal to <body> (see Toolbar) so the menu's overflow:hidden — needed for
-   the collapse animation — never clips it. */
+   a portal to <body> (see Toolbar) so the menu's overflow:hidden - needed for
+   the collapse animation - never clips it. */
 .dry-ref {
   display: flex;
 }
@@ -433,7 +439,7 @@ body > .kui-scheme--auto {
 
 /* Review-changes accordion/diff styling now lives as scoped emotion classes
    in drystack core's ChangePreviewDialog (packages/drystack/src/app/
-   change-preview/), shared with the admin — see Toolbar.tsx's import. */
+   change-preview/), shared with the admin - see Toolbar.tsx's import. */
 
 /* Only the singleton hover dropdown (.dry-ref-menu) needs a media query: it's
    portaled straight to <body> with React's createPortal, outside any

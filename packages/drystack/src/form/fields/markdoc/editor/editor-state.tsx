@@ -1,44 +1,44 @@
-import { history } from 'prosemirror-history';
-import { keymap } from 'prosemirror-keymap';
-import { Mark, Node } from 'prosemirror-model';
-import { EditorState, Selection } from 'prosemirror-state';
-import { tableEditing } from 'prosemirror-tables';
+import { history } from "prosemirror-history";
+import { keymap } from "prosemirror-keymap";
+import { Mark, Node } from "prosemirror-model";
+import { EditorState, Selection } from "prosemirror-state";
+import { tableEditing } from "prosemirror-tables";
 
-import { tokenSchema } from '@keystar/ui/style';
-import { SCHEME_AUTO, THEME_DEFAULT } from '@keystar/ui/primitives';
+import { tokenSchema } from "@keystar/ui/style";
+import { SCHEME_AUTO, THEME_DEFAULT } from "@keystar/ui/primitives";
 
-import { autocompleteDecoration } from './autocomplete/decoration';
-import { blockHandle } from './block-handle';
-import { codeBlockSyntaxHighlighting } from './code-block-highlighting';
-import { keymapForSchema } from './commands/keymap';
-import { dropCursor } from './dropcursor';
-import { gapCursor } from './gapcursor';
-import { imageDropPlugin } from './images';
-import { inputRules } from './inputrules/inputrules';
+import { autocompleteDecoration } from "./autocomplete/decoration";
+import { blockHandle } from "./block-handle";
+import { codeBlockSyntaxHighlighting } from "./code-block-highlighting";
+import { keymapForSchema } from "./commands/keymap";
+import { dropCursor } from "./dropcursor";
+import { gapCursor } from "./gapcursor";
+import { imageDropPlugin } from "./images";
+import { inputRules } from "./inputrules/inputrules";
 import {
   enterInputRulesForSchema,
   inputRulesForSchema,
-} from './inputrules/rules';
-import { keydownHandler } from './keydown';
-import { pasteLinks } from './links';
-import { markdocClipboard } from './markdoc/clipboard';
-import { nodeInSelectionDecorations } from './node-in-selection';
-import { placeholderPlugin } from './placeholder';
-import { tableCellFocusHighlight } from './popovers/table';
-import { reactNodeViews } from './react-node-views';
-import { getEditorSchema } from './schema';
-import { tableColumnResizing } from './table-column-resize';
-import { tableRowResizing } from './table-row-resize';
-import { trailingParagraph } from './trailing-paragraph';
-import { ySyncPlugin, yCursorPlugin, yUndoPlugin } from 'y-prosemirror';
-import { Awareness } from 'y-protocols/awareness.js';
-import * as Y from 'yjs';
+} from "./inputrules/rules";
+import { keydownHandler } from "./keydown";
+import { pasteLinks } from "./links";
+import { markdocClipboard } from "./markdoc/clipboard";
+import { nodeInSelectionDecorations } from "./node-in-selection";
+import { placeholderPlugin } from "./placeholder";
+import { tableCellFocusHighlight } from "./popovers/table";
+import { reactNodeViews } from "./react-node-views";
+import { getEditorSchema } from "./schema";
+import { tableColumnResizing } from "./table-column-resize";
+import { tableRowResizing } from "./table-row-resize";
+import { trailingParagraph } from "./trailing-paragraph";
+import { ySyncPlugin, yCursorPlugin, yUndoPlugin } from "y-prosemirror";
+import { Awareness } from "y-protocols/awareness.js";
+import * as Y from "yjs";
 
 const cursorBuilder = (user: any) => {
-  const cursor = document.createElement('span');
-  cursor.classList.add('ProseMirror-yjs-cursor');
+  const cursor = document.createElement("span");
+  cursor.classList.add("ProseMirror-yjs-cursor");
   cursor.style.borderColor = user.color;
-  const userDiv = document.createElement('div');
+  const userDiv = document.createElement("div");
   userDiv.style.backgroundColor = user.color;
   userDiv.insertBefore(document.createTextNode(user.name), null);
   cursor.insertBefore(userDiv, null);
@@ -50,7 +50,7 @@ export function createEditorState(
   selection?: Selection,
   storedMarks?: readonly Mark[] | null,
   yXmlFragment?: Y.XmlFragment,
-  awareness?: Awareness
+  awareness?: Awareness,
 ) {
   const schema = getEditorSchema(doc.type.schema);
   return EditorState.create({
@@ -82,7 +82,7 @@ export function createEditorState(
         width: 2,
         // The cursor element is appended to `editorView.dom.offsetParent`, which
         // for the inline visual editor is a live-page ancestor outside the
-        // Keystar token scope — so its `--kui-*`-based colour (and the block
+        // Keystar token scope - so its `--kui-*`-based colour (and the block
         // dropcursor's ::before/::after circles) would resolve to nothing and
         // the bar would be invisible. Carrying the token+scheme classes on the
         // element itself makes the vars resolve wherever it lands. Harmless in

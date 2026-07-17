@@ -4,7 +4,7 @@ import type { Command, EditorState } from "prosemirror-state";
 import { NodeSelection, Selection } from "prosemirror-state";
 
 // The grid is a flat CSS-grid whose track count is configurable per grid (the
-// `columns` attr, default 24 — like a 24-unit design grid). Each `grid_cell`
+// `columns` attr, default 24 - like a 24-unit design grid). Each `grid_cell`
 // spans N of those tracks; cells that overflow the track count wrap onto a new
 // visual row via the grid's auto-flow. On mobile the whole thing collapses to
 // a single column (see GRID_RESPONSIVE_CSS).
@@ -12,7 +12,7 @@ export const GRID_DEFAULT_COLUMNS = 24;
 export const GRID_DEFAULT_SPAN = 12;
 export const GRID_DEFAULT_ROW_SPAN = 1;
 export const GRID_DEFAULT_GAP = "0.5em";
-// explicit row-track count — an even split of the grid's height into N equal
+// explicit row-track count - an even split of the grid's height into N equal
 // (`1fr`) rows. `1` (the default) behaves the same as leaving it unset: a
 // single auto-sized row that grows with content.
 export const GRID_DEFAULT_ROWS = 1;
@@ -38,7 +38,7 @@ export const GRID_GAP_OPTIONS = [
 export type GridPlaceAxis = "start" | "center" | "end";
 // stored as `"<align-content> <justify-content>"` (vertical then horizontal),
 // i.e. the value for the cell's `place-content`. null means "no explicit
-// placement" — content just flows full-width from the top.
+// placement" - content just flows full-width from the top.
 export type GridPlace = `${GridPlaceAxis} ${GridPlaceAxis}` | null;
 
 // inline style for the grid container `<div data-dry-grid>`. Kept in one
@@ -97,7 +97,7 @@ export function cellStyleString(attrs: {
   return style;
 }
 
-// generic "clamp a span to [1, max]" — used for both a cell's column span
+// generic "clamp a span to [1, max]" - used for both a cell's column span
 // (against the grid's `columns`) and its row span (against `rows`)
 export function clampSpan(
   span: number,
@@ -198,7 +198,7 @@ export function findGrid(state: EditorState): Located | null {
   return null;
 }
 
-// insert a new cell immediately after the focused one ("thêm cột" — the
+// insert a new cell immediately after the focused one ("thêm cột" - the
 // focused cell is the anchor), inheriting the focused cell's span so the new
 // item matches its current width
 export const addCellAfterFocused: Command = (state, dispatch) => {
@@ -217,8 +217,8 @@ export const addCellAfterFocused: Command = (state, dispatch) => {
 };
 
 // append a new cell at the very end of the enclosing grid ("thêm item" / the
-// trailing "+"). The new cell inherits the current span — the focused cell's
-// if one is focused, otherwise the grid's last cell — rather than snapping
+// trailing "+"). The new cell inherits the current span - the focused cell's
+// if one is focused, otherwise the grid's last cell - rather than snapping
 // back to the default width.
 export const appendCellToGrid: Command = (state, dispatch) => {
   const grid = findGrid(state);
@@ -240,7 +240,7 @@ export const appendCellToGrid: Command = (state, dispatch) => {
   return true;
 };
 
-// the toolbar "+" — insert a new cell to the right of the focused one, falling
+// the toolbar "+" - insert a new cell to the right of the focused one, falling
 // back to appending at the grid's end when nothing is focused so the button is
 // never a dead click.
 export const addCell: Command = chainCommands(
@@ -267,7 +267,7 @@ export const deleteFocusedCell: Command = (state, dispatch) => {
 // move the caret into the previous/next sibling cell within the same grid.
 // Bound to Tab / Shift-Tab. At the grid's first/last cell there is nowhere to
 // go, but we still consume the key (return true) so focus never escapes the
-// editor — an unhandled Tab blurs the whole contenteditable.
+// editor - an unhandled Tab blurs the whole contenteditable.
 export function moveToAdjacentCell(direction: 1 | -1): Command {
   return (state, dispatch) => {
     const cell = findGridCell(state);
@@ -324,7 +324,7 @@ export function setGridColumns(gridPos: number, columns: number): Command {
     const oldColumns: number = grid.attrs.columns;
     if (nextColumns === oldColumns) return false;
     if (dispatch) {
-      // setNodeAttribute uses a SetAttr step, so no child positions shift —
+      // setNodeAttribute uses a SetAttr step, so no child positions shift -
       // each cell sits at `gridPos + 1 + offset` throughout the transaction
       let tr = state.tr.setNodeAttribute(gridPos, "columns", nextColumns);
       grid.forEach((cell, offset) => {
@@ -342,8 +342,8 @@ export function setGridColumns(gridPos: number, columns: number): Command {
   };
 }
 
-// unlike columns, rows have no per-cell attribute to rescale — cells don't
-// carry a row span, they just auto-flow — so this is a plain attribute set.
+// unlike columns, rows have no per-cell attribute to rescale - cells don't
+// carry a row span, they just auto-flow - so this is a plain attribute set.
 export function setGridRows(gridPos: number, rows: number): Command {
   return (state, dispatch) => {
     const grid = state.doc.nodeAt(gridPos);

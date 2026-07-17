@@ -18,10 +18,10 @@ import { useInView } from "./useInView";
 export type AssetCardProps = {
   name: string;
   kind: "folder" | "file";
-  // real tree path — only required when selectable/deletable
+  // real tree path - only required when selectable/deletable
   path?: string;
   isImage?: boolean;
-  // bytes for a file uploaded/picked this session, not yet in the tree —
+  // bytes for a file uploaded/picked this session, not yet in the tree -
   // lets the thumbnail render immediately instead of waiting on a tree
   // refresh (see useMediaLibraryPreviewURL)
   previewContent?: Uint8Array;
@@ -33,7 +33,7 @@ export type AssetCardProps = {
   onDelete?: () => void;
   onRestore?: () => void;
   onOpen: () => void;
-  // shown dimmed and non-interactive — used for files excluded by a picker's
+  // shown dimmed and non-interactive - used for files excluded by a picker's
   // `accept` filter, which the plan wants visible-but-unselectable rather
   // than hidden entirely
   disabled?: boolean;
@@ -54,15 +54,15 @@ export function AssetCard(props: AssetCardProps) {
     props.kind === "file" && props.isImage && props.path ? props.path : null,
     props.previewContent,
     inView,
-    true, // grid card — a downscaled thumbnail is plenty
+    true, // grid card - a downscaled thumbnail is plenty
   );
   const [isHovered, setIsHovered] = useState(false);
 
   const infoText =
     props.kind === "folder" ? "Folder" : getFileTypeLabel(props.name);
-  // truncated filename gets an ellipsis — surface the full name + type as a
+  // truncated filename gets an ellipsis - surface the full name + type as a
   // native tooltip so it's still discoverable on hover
-  const fullLabel = `${props.name} — ${infoText}`;
+  const fullLabel = `${props.name} - ${infoText}`;
 
   return (
     <Flex

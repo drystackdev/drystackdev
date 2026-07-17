@@ -143,7 +143,7 @@ function SidebarFooter() {
   );
 }
 
-// no brand/deploy in local mode — brand is a github-only concept (plan/brand.md §12)
+// no brand/deploy in local mode - brand is a github-only concept (plan/brand.md §12)
 // brand chip + new-branch button share a row, Deploy always gets its own line
 // below regardless of how long the brand label gets
 function SidebarGitActions() {

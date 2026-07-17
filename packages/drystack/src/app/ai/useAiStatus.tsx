@@ -4,10 +4,10 @@ import {
   useContext,
   useEffect,
   useState,
-} from 'react';
+} from "react";
 
-import { useConfig } from '../shell/context';
-import { useRouter } from '../router';
+import { useConfig } from "../shell/context";
+import { useRouter } from "../router";
 
 export type AiStatus = {
   configured: boolean;
@@ -27,7 +27,7 @@ export function useAiStatus(): AiStatus | undefined {
 
 /**
  * Asks the server once whether an AI key is present. The answer never
- * includes the key itself — only whether one is configured, and what it
+ * includes the key itself - only whether one is configured, and what it
  * points at.
  */
 export function AiStatusProvider(props: { children: ReactNode }) {
@@ -37,13 +37,13 @@ export function AiStatusProvider(props: { children: ReactNode }) {
   const hasAiConfig = !!config.ai;
 
   useEffect(() => {
-    // No `ai` block means the routes 404 — asking would only produce a
+    // No `ai` block means the routes 404 - asking would only produce a
     // misleading "not configured" for a feature nobody turned on.
     if (!hasAiConfig) return;
     let cancelled = false;
     fetch(`/api${basePath}/ai/status`)
-      .then(res => (res.ok ? res.json() : undefined))
-      .then(data => {
+      .then((res) => (res.ok ? res.json() : undefined))
+      .then((data) => {
         if (!cancelled && data) setStatus(data);
       })
       .catch(() => {

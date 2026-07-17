@@ -1,8 +1,8 @@
-import { toastQueue } from '@keystar/ui/toast';
-import { Text } from '@keystar/ui/typography';
-import { useLocale } from '@react-aria/i18n';
-import { UseStore, clear, createStore, del, get, set } from 'idb-keyval';
-import { useState, useMemo } from 'react';
+import { toastQueue } from "@keystar/ui/toast";
+import { Text } from "@keystar/ui/typography";
+import { useLocale } from "@react-aria/i18n";
+import { UseStore, clear, createStore, del, get, set } from "idb-keyval";
+import { useState, useMemo } from "react";
 
 const units = {
   seconds: 60,
@@ -17,7 +17,7 @@ const units = {
 function formatTimeAgo(
   targetDate: Date,
   currentDate: Date,
-  formatter: Intl.RelativeTimeFormat
+  formatter: Intl.RelativeTimeFormat,
 ) {
   let duration = (targetDate.getTime() - currentDate.getTime()) / 1000;
 
@@ -30,7 +30,7 @@ function formatTimeAgo(
     }
     duration /= amount;
   }
-  return 'unknown';
+  return "unknown";
 }
 
 function RelativeTime(props: { date: Date }) {
@@ -38,7 +38,7 @@ function RelativeTime(props: { date: Date }) {
   const [now] = useState(() => new Date());
   const formatted = useMemo(() => {
     const formatter = new Intl.RelativeTimeFormat(locale);
-    formatter.format(props.date.getTime() - now.getTime(), 'second');
+    formatter.format(props.date.getTime() - now.getTime(), "second");
     return formatTimeAgo(props.date, now, formatter);
   }, [locale, now, props.date]);
   return <time dateTime={props.date.toISOString()}>{formatted}</time>;
@@ -46,11 +46,11 @@ function RelativeTime(props: { date: Date }) {
 
 export function showDraftRestoredToast(
   savedAt: Date,
-  hasChangedSince: boolean
+  hasChangedSince: boolean,
 ) {
   toastQueue.info(
     <Text>
-      Restored draft from <RelativeTime date={savedAt} />.{' '}
+      Restored draft from <RelativeTime date={savedAt} />.{" "}
       {hasChangedSince && (
         <Text color="accent">
           Other changes have been made to this entry since the draft. You may
@@ -58,7 +58,7 @@ export function showDraftRestoredToast(
         </Text>
       )}
     </Text>,
-    { timeout: 8000 }
+    { timeout: 8000 },
   );
 }
 
@@ -66,19 +66,19 @@ let store: UseStore;
 
 function getStore() {
   if (!store) {
-    store = createStore('drystack', 'items');
+    store = createStore("drystack", "items");
   }
   return store;
 }
 
 type Key =
-  | readonly [kind: 'collection', collection: string, slug: string]
+  | readonly [kind: "collection", collection: string, slug: string]
   | readonly [
-      kind: 'collection-create',
+      kind: "collection-create",
       collection: string,
       duplicateSlug?: string,
     ]
-  | readonly [kind: 'singleton', singleton: string];
+  | readonly [kind: "singleton", singleton: string];
 
 // the as anys are because the indexeddb types dont't accept readonly arrays
 
@@ -98,19 +98,19 @@ export async function clearDrafts() {
   await clear(getStore());
 }
 
-// per-collection entries-table column visibility/widths — kept in its own
+// per-collection entries-table column visibility/widths - kept in its own
 // store since, unlike drafts, it should never be cleared alongside
 // in-progress entry edits
 let viewsStore: UseStore;
 
 function getViewsStore() {
   if (!viewsStore) {
-    // separate database (not just a separate store within 'drystack') —
+    // separate database (not just a separate store within 'drystack') -
     // idb-keyval's createStore only creates the object store during
     // onupgradeneeded, which won't fire for existing users' 'drystack' DB
     // since opening it here doesn't bump its version. A distinct DB name
     // guarantees onupgradeneeded runs and the store gets created.
-    viewsStore = createStore('drystack-views', 'collection-views');
+    viewsStore = createStore("drystack-views", "collection-views");
   }
   return viewsStore;
 }
@@ -125,14 +125,14 @@ export type CollectionViewState = {
 };
 
 export function getCollectionViewState(
-  collection: string
+  collection: string,
 ): Promise<CollectionViewState | undefined> {
   return get(collection, getViewsStore());
 }
 
 export function setCollectionViewState(
   collection: string,
-  val: CollectionViewState
+  val: CollectionViewState,
 ) {
   return set(collection, val, getViewsStore());
 }

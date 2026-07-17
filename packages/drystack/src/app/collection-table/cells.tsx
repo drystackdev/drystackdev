@@ -34,7 +34,7 @@ const lineClampStyle = css({
 const dimText = { color: "neutralSecondary" as const, size: "small" as const };
 
 export function EmptyCell() {
-  return <Text {...dimText}>—</Text>;
+  return <Text {...dimText}>-</Text>;
 }
 
 const slugStyle = css({
@@ -45,7 +45,7 @@ const slugStyle = css({
   overflow: "hidden",
   wordBreak: "break-all",
   fontStyle: "italic",
-  lineHeight: 1.5
+  lineHeight: 1.5,
 });
 
 export function NameCell(props: { title: string; slug: string }) {
@@ -58,7 +58,7 @@ export function NameCell(props: { title: string; slug: string }) {
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
-          lineHeight: 2
+          lineHeight: 2,
         }}
       >
         {props.title}
@@ -76,7 +76,7 @@ export function NameCell(props: { title: string; slug: string }) {
   );
 }
 
-// a non-designated fields.slug()/fields.text() column — the value shape is
+// a non-designated fields.slug()/fields.text() column - the value shape is
 // the only way to tell them apart at this point (see DisplayKind's
 // 'slugPair' case in column-model.ts)
 export function SlugPairCell(props: { value: unknown }) {

@@ -1,20 +1,20 @@
 // Shared per-field edit bus used by both the admin app and the visual editor
 // (packages/astro/src/editor) to keep an in-progress edit in sync across
 // browser tabs. Persistence is IndexedDB (DB `drystack-edits`, stores `edits`
-// + `meta`) — the same physical database is visible to every tab of this
+// + `meta`) - the same physical database is visible to every tab of this
 // origin, so a write from one tab is already readable from another as soon
 // as the transaction commits. BroadcastChannel (with a localStorage
 // `storage`-event fallback for browsers without it) exists only to push an
 // immediate notification to already-open tabs instead of waiting for their
 // next poll/reload.
-import type { ArrayField, ComponentSchema, ObjectField } from '..';
-import { isContentEditorField } from '../form/fields/content/is-content-field';
+import type { ArrayField, ComponentSchema, ObjectField } from "..";
+import { isContentEditorField } from "../form/fields/content/is-content-field";
 
-const DB_NAME = 'drystack-edits';
-const STORE_NAME = 'edits';
-const META_STORE_NAME = 'meta';
-const SOURCE_STORE_NAME = 'source';
-const BLOB_STORE_NAME = 'blobs';
+const DB_NAME = "drystack-edits";
+const STORE_NAME = "edits";
+const META_STORE_NAME = "meta";
+const SOURCE_STORE_NAME = "source";
+const BLOB_STORE_NAME = "blobs";
 
 export type PendingEdit = { key: string; value: string; updatedAt: number };
 
@@ -23,10 +23,14 @@ function openDb(): Promise<IDBDatabase> {
     const req = indexedDB.open(DB_NAME, 4);
     req.onupgradeneeded = () => {
       const db = req.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
-      if (!db.objectStoreNames.contains(META_STORE_NAME)) db.createObjectStore(META_STORE_NAME);
-      if (!db.objectStoreNames.contains(SOURCE_STORE_NAME)) db.createObjectStore(SOURCE_STORE_NAME);
-      if (!db.objectStoreNames.contains(BLOB_STORE_NAME)) db.createObjectStore(BLOB_STORE_NAME);
+      if (!db.objectStoreNames.contains(STORE_NAME))
+        db.createObjectStore(STORE_NAME);
+      if (!db.objectStoreNames.contains(META_STORE_NAME))
+        db.createObjectStore(META_STORE_NAME);
+      if (!db.objectStoreNames.contains(SOURCE_STORE_NAME))
+        db.createObjectStore(SOURCE_STORE_NAME);
+      if (!db.objectStoreNames.contains(BLOB_STORE_NAME))
+        db.createObjectStore(BLOB_STORE_NAME);
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -36,7 +40,7 @@ function openDb(): Promise<IDBDatabase> {
 export async function getAllEdits(): Promise<PendingEdit[]> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
+    const tx = db.transaction(STORE_NAME, "readonly");
     const req = tx.objectStore(STORE_NAME).getAll();
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -46,7 +50,7 @@ export async function getAllEdits(): Promise<PendingEdit[]> {
 export async function setEdit(key: string, value: string): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const tx = db.transaction(STORE_NAME, "readwrite");
     tx.objectStore(STORE_NAME).put({ key, value, updatedAt: Date.now() }, key);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
@@ -56,7 +60,7 @@ export async function setEdit(key: string, value: string): Promise<void> {
 export async function deleteEdit(key: string): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const tx = db.transaction(STORE_NAME, "readwrite");
     tx.objectStore(STORE_NAME).delete(key);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
@@ -67,7 +71,7 @@ export async function deleteEdits(keys: string[]): Promise<void> {
   if (keys.length === 0) return;
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const tx = db.transaction(STORE_NAME, "readwrite");
     const store = tx.objectStore(STORE_NAME);
     for (const key of keys) store.delete(key);
     tx.oncomplete = () => resolve();
@@ -78,17 +82,19 @@ export async function deleteEdits(keys: string[]): Promise<void> {
 export async function clearEdits(): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const tx = db.transaction(STORE_NAME, "readwrite");
     tx.objectStore(STORE_NAME).clear();
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
 }
 
-export async function getMeta<T = unknown>(key: string): Promise<T | undefined> {
+export async function getMeta<T = unknown>(
+  key: string,
+): Promise<T | undefined> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(META_STORE_NAME, 'readonly');
+    const tx = db.transaction(META_STORE_NAME, "readonly");
     const req = tx.objectStore(META_STORE_NAME).get(key);
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -98,7 +104,7 @@ export async function getMeta<T = unknown>(key: string): Promise<T | undefined> 
 export async function setMeta(key: string, value: unknown): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(META_STORE_NAME, 'readwrite');
+    const tx = db.transaction(META_STORE_NAME, "readwrite");
     tx.objectStore(META_STORE_NAME).put(value, key);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
@@ -110,20 +116,20 @@ export async function setMeta(key: string, value: unknown): Promise<void> {
 // Last-known field values fetched straight from the real source (local API,
 // or the GitHub Contents API) for a singleton, persisted across reloads.
 // Exists to bridge the gap between a github-mode save succeeding (the commit
-// is live) and the next static build/deploy actually shipping it — without
+// is live) and the next static build/deploy actually shipping it - without
 // this, reloading the page during that window shows the stale pre-deploy
 // HTML with nothing to paint over it, since a save clears the per-field
 // pending-edit entries as soon as it succeeds. Populated wherever
 // getLatestFieldValues is already being fetched (entering edit mode, right
-// after save) — no extra network calls. Cleared once a newer buildVersion
+// after save) - no extra network calls. Cleared once a newer buildVersion
 // confirms the static build has actually caught up (discardEditsIfBuildIsNewer),
 // so a stale cache entry can never paint over fresher static HTML.
 export async function getSourceCache(
-  singletonName: string
+  singletonName: string,
 ): Promise<Record<string, string> | undefined> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(SOURCE_STORE_NAME, 'readonly');
+    const tx = db.transaction(SOURCE_STORE_NAME, "readonly");
     const req = tx.objectStore(SOURCE_STORE_NAME).get(singletonName);
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -132,11 +138,11 @@ export async function getSourceCache(
 
 export async function setSourceCache(
   singletonName: string,
-  values: Record<string, string>
+  values: Record<string, string>,
 ): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(SOURCE_STORE_NAME, 'readwrite');
+    const tx = db.transaction(SOURCE_STORE_NAME, "readwrite");
     tx.objectStore(SOURCE_STORE_NAME).put(values, singletonName);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
@@ -146,7 +152,7 @@ export async function setSourceCache(
 export async function clearSourceCache(): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(SOURCE_STORE_NAME, 'readwrite');
+    const tx = db.transaction(SOURCE_STORE_NAME, "readwrite");
     tx.objectStore(SOURCE_STORE_NAME).clear();
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
@@ -158,26 +164,31 @@ export async function clearSourceCache(): Promise<void> {
 // Bytes for a `fields.image` value picked/uploaded through the visual
 // editor, keyed by the repo path the media library wrote them to (e.g.
 // `/assets/foo.png`). A freshly-uploaded image isn't guaranteed to be
-// servable at that path yet — local dev serves it immediately, but github
+// servable at that path yet - local dev serves it immediately, but github
 // mode only gets a real URL once the next Cloudflare build ships it (see
 // `astro:build:done`'s assets mirror). Caching the bytes here lets the field
 // preview instantly from the blob and survive a reload during that gap,
 // mirroring the source cache above. Cleared once a newer buildVersion
 // confirms the static build has caught up (discardEditsIfBuildIsNewer).
-export async function putPendingBlob(path: string, content: Uint8Array): Promise<void> {
+export async function putPendingBlob(
+  path: string,
+  content: Uint8Array,
+): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(BLOB_STORE_NAME, 'readwrite');
+    const tx = db.transaction(BLOB_STORE_NAME, "readwrite");
     tx.objectStore(BLOB_STORE_NAME).put(content, path);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
 }
 
-export async function getPendingBlob(path: string): Promise<Uint8Array | undefined> {
+export async function getPendingBlob(
+  path: string,
+): Promise<Uint8Array | undefined> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(BLOB_STORE_NAME, 'readonly');
+    const tx = db.transaction(BLOB_STORE_NAME, "readonly");
     const req = tx.objectStore(BLOB_STORE_NAME).get(path);
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -191,11 +202,11 @@ export async function getPendingBlob(path: string): Promise<Uint8Array | undefin
 // without re-keying at the call site. Flat: a name still containing a `/` sits
 // in a subdirectory, which the admin never writes embedded images into.
 export async function getPendingBlobsUnder(
-  dir: string
+  dir: string,
 ): Promise<Map<string, Uint8Array>> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(BLOB_STORE_NAME, 'readonly');
+    const tx = db.transaction(BLOB_STORE_NAME, "readonly");
     const store = tx.objectStore(BLOB_STORE_NAME);
     const keysReq = store.getAllKeys();
     const valsReq = store.getAll();
@@ -206,9 +217,9 @@ export async function getPendingBlobsUnder(
       const prefix = `${dir}/`;
       for (let i = 0; i < keys.length; i++) {
         const key = keys[i];
-        if (typeof key !== 'string' || !key.startsWith(prefix)) continue;
+        if (typeof key !== "string" || !key.startsWith(prefix)) continue;
         const name = key.slice(prefix.length);
-        if (name.includes('/')) continue;
+        if (name.includes("/")) continue;
         out.set(name, vals[i]);
       }
       resolve(out);
@@ -220,7 +231,7 @@ export async function getPendingBlobsUnder(
 export async function deletePendingBlob(path: string): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(BLOB_STORE_NAME, 'readwrite');
+    const tx = db.transaction(BLOB_STORE_NAME, "readwrite");
     tx.objectStore(BLOB_STORE_NAME).delete(path);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
@@ -230,7 +241,7 @@ export async function deletePendingBlob(path: string): Promise<void> {
 export async function clearPendingBlobs(): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(BLOB_STORE_NAME, 'readwrite');
+    const tx = db.transaction(BLOB_STORE_NAME, "readwrite");
     tx.objectStore(BLOB_STORE_NAME).clear();
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
@@ -244,51 +255,59 @@ export async function clearPendingBlobs(): Promise<void> {
 // editor already renders (packages/astro/src/dry.ts), so both surfaces
 // address the same field the same way.
 
-export function editKey(type: 'singleton', name: string, field: string): string {
+export function editKey(
+  type: "singleton",
+  name: string,
+  field: string,
+): string {
   return `${type}::${name}::${field}`;
 }
 
-export function parseEditKey(
-  key: string
-): { type: string; name: string; field: string } {
-  const [type, name, field] = key.split('::');
+export function parseEditKey(key: string): {
+  type: string;
+  name: string;
+  field: string;
+} {
+  const [type, name, field] = key.split("::");
   return { type, name, field };
 }
 
 export type SyncableFieldKind =
-  | 'text'
-  | 'image'
-  | 'file'
-  | 'array'
-  | 'object'
-  | 'content';
+  | "text"
+  | "image"
+  | "file"
+  | "array"
+  | "object"
+  | "content";
 
 // A field counts as syncable when its schema is `kind: 'form'` and either
-// `formKind: 'slug'` (fields.text — this fork, and the name field inside
+// `formKind: 'slug'` (fields.text - this fork, and the name field inside
 // fields.slug share that tag), `columnKind: 'image'` (fields.image),
 // `columnKind: 'file'` (fields.file), or it's the HTML rich-text
 // fields.content (see isContentEditorField), or when it's `kind: 'array'`
-// (fields.array) or `kind: 'object'` (fields.object — standalone at any
+// (fields.array) or `kind: 'object'` (fields.object - standalone at any
 // depth, not just top-level). Shared by the admin's publish effect
 // (SingletonPage.tsx) and the visual editor's dry() helper so both recognize
 // the same fields, and dispatch on how a field's value gets edited/painted
 // (contenteditable text, media-library picker, a live ProseMirror mount for
-// 'content', or a container's recursive read/paint — see bind.ts's
+// 'content', or a container's recursive read/paint - see bind.ts's
 // readContainerValue/paintContainerValue), the same way.
 export function getSyncableFieldKind(
-  fieldSchema: ComponentSchema | undefined
+  fieldSchema: ComponentSchema | undefined,
 ): SyncableFieldKind | undefined {
   if (!fieldSchema) return undefined;
-  if (fieldSchema.kind === 'array') return 'array';
-  if (fieldSchema.kind === 'object') return 'object';
-  if (fieldSchema.kind !== 'form') return undefined;
-  if ((fieldSchema as { formKind?: string }).formKind === 'slug') return 'text';
-  if ((fieldSchema as { columnKind?: string }).columnKind === 'image') return 'image';
-  if ((fieldSchema as { columnKind?: string }).columnKind === 'file') return 'file';
+  if (fieldSchema.kind === "array") return "array";
+  if (fieldSchema.kind === "object") return "object";
+  if (fieldSchema.kind !== "form") return undefined;
+  if ((fieldSchema as { formKind?: string }).formKind === "slug") return "text";
+  if ((fieldSchema as { columnKind?: string }).columnKind === "image")
+    return "image";
+  if ((fieldSchema as { columnKind?: string }).columnKind === "file")
+    return "file";
   // Checked after the columnKind branches above: fields.content shares
   // `formKind: 'assets'` with fields.image/fields.file's underlying tag, so
   // only the `htmlContentEditor` marker distinguishes it.
-  if (isContentEditorField(fieldSchema)) return 'content';
+  if (isContentEditorField(fieldSchema)) return "content";
   return undefined;
 }
 
@@ -298,18 +317,18 @@ export function getSyncableFieldKind(
 // easy: the bus carries strings, and their form values either are one or
 // JSON-encode to one losslessly. A content field's form value is a ProseMirror
 // EditorState, so each side converts via a serialize/parse round trip through
-// the field's own schema — the body travels as raw HTML, matching what the
+// the field's own schema - the body travels as raw HTML, matching what the
 // visual editor already publishes and what save.ts already expects to read.
 //
 // The catch is embedded images. `parse` resolves each `<img>`'s bytes out of
 // the `other` map handed to it, and a filename missing from that map parses to
 // a zero-byte node (markdoc/editor/html/parse.ts's UNHYDRATED_IMAGE_BYTES)
-// that serializes back out as `/media-library/<name>` — silently repointing
+// that serializes back out as `/media-library/<name>` - silently repointing
 // the image to the shared library. So a receiver must never parse incoming
 // HTML with a half-populated map. Both surfaces build `other` the same way:
 //
 //   1. Images already in the receiver's own doc, harvested from its current
-//      state via serialize().other — bytes it necessarily already holds.
+//      state via serialize().other - bytes it necessarily already holds.
 //   2. Images the *sender* just embedded, which exist nowhere on disk yet.
 //      The publisher stashes those into the `blobs` store beside the HTML
 //      (keyed by their eventual repo path, `<entryDir>/assets/<filename>`,
@@ -328,13 +347,13 @@ export function getSyncableFieldKind(
 export type StashedBlobs = Set<string>;
 
 // Writes the embedded image bytes that have to accompany a content field's
-// HTML on the bus — `other` as returned by the field's own serialize(), whose
+// HTML on the bus - `other` as returned by the field's own serialize(), whose
 // keys are relative to `<entryDir>/assets`. Await this *before* publishing the
 // body: a receiver woken by the broadcast reads the bytes it references
 // straight away, so publishing first leaves a window where those images
 // resolve to nothing (see above for what that silently does to them).
 //
-// Marks a name stashed only *after* its write commits — marking it first (the
+// Marks a name stashed only *after* its write commits - marking it first (the
 // original bug here) means a rejected `putPendingBlob` (quota exceeded, tx
 // error) permanently skips that name on every later retry, since `stashed`
 // already claims it's on disk. A rejection here propagates to the caller,
@@ -342,25 +361,25 @@ export type StashedBlobs = Set<string>;
 export async function stashContentBlobs(
   other: ReadonlyMap<string, Uint8Array>,
   assetsDir: string,
-  stashed: StashedBlobs
+  stashed: StashedBlobs,
 ): Promise<void> {
   await Promise.all(
     [...other].map(async ([name, bytes]) => {
       if (stashed.has(name)) return;
       await putPendingBlob(`${assetsDir}/${name}`, bytes);
       stashed.add(name);
-    })
+    }),
   );
 }
 
 // Per-key monotonic token so an async publish/apply chain can tell whether
 // it's still the most recent one issued for that key before writing its
-// result — several content-sync call sites (SingletonPage.tsx,
+// result - several content-sync call sites (SingletonPage.tsx,
 // InlineContentEditors.tsx) start a fresh async chain (IndexedDB read +
 // schema round-trip) per keystroke/message with no cancellation, so a slower
 // older chain can otherwise finish after a faster newer one and overwrite it
 // with stale content. `claim` at the point the async work starts; `isCurrent`
-// right before committing its result — if the token has moved on, drop the
+// right before committing its result - if the token has moved on, drop the
 // result instead of applying it.
 export type LatestGuard = {
   claim(key: string): number;
@@ -383,7 +402,7 @@ export function createLatestGuard(): LatestGuard {
 
 // Splices one leaf edit into a nested array/object value tree, walking
 // `path` (e.g. ["0", "tags", "1", "label"] for a bus key's
-// "cards.0.tags.1.label" suffix) down `schema` in lockstep — an array
+// "cards.0.tags.1.label" suffix) down `schema` in lockstep - an array
 // segment is a numeric index into `schema`'s `element`, an object segment is
 // a field name into `schema`'s `fields`. Copy-on-write only along the spine
 // actually touched (mirrors the immutability convention every caller already
@@ -399,11 +418,11 @@ export function spliceValueEdit(
   prev: unknown,
   path: readonly string[],
   schema: ComponentSchema,
-  setLeaf: (leafSchema: ComponentSchema, prevLeaf: unknown) => unknown
+  setLeaf: (leafSchema: ComponentSchema, prevLeaf: unknown) => unknown,
 ): unknown {
   if (path.length === 0) return setLeaf(schema, prev);
   const [seg, ...rest] = path;
-  if (schema.kind === 'array') {
+  if (schema.kind === "array") {
     const idx = Number(seg);
     if (!Number.isInteger(idx) || idx < 0) return prev;
     const arr = Array.isArray(prev) ? [...prev] : [];
@@ -411,21 +430,21 @@ export function spliceValueEdit(
       arr[idx],
       rest,
       (schema as ArrayField<ComponentSchema>).element,
-      setLeaf
+      setLeaf,
     );
     return arr;
   }
-  if (schema.kind === 'object') {
+  if (schema.kind === "object") {
     const subSchema = (schema as ObjectField).fields[seg];
     if (!subSchema) return prev;
     const obj =
-      typeof prev === 'object' && prev !== null && !Array.isArray(prev)
+      typeof prev === "object" && prev !== null && !Array.isArray(prev)
         ? { ...(prev as Record<string, unknown>) }
         : {};
     obj[seg] = spliceValueEdit(obj[seg], rest, subSchema, setLeaf);
     return obj;
   }
-  return prev; // schema has no further nesting — malformed path, no-op.
+  return prev; // schema has no further nesting - malformed path, no-op.
 }
 
 // A syncable field whose value is edited via the media-library picker
@@ -435,32 +454,38 @@ export function spliceValueEdit(
 // computeFieldChanges.ts) agrees, instead of each hand-rolling the same
 // `kind === 'image' || kind === 'file'` check.
 export function isAssetKind(
-  kind: string | undefined | null
-): kind is 'image' | 'file' {
-  return kind === 'image' || kind === 'file';
+  kind: string | undefined | null,
+): kind is "image" | "file" {
+  return kind === "image" || kind === "file";
 }
 
 // --- Cross-tab bus -----------------------------------------------------
 
 export type EditBusMessage =
-  | { type: 'set'; key: string; value: string; updatedAt: number; origin: string }
-  | { type: 'delete'; key: string; origin: string }
-  | { type: 'clear'; origin: string };
+  | {
+      type: "set";
+      key: string;
+      value: string;
+      updatedAt: number;
+      origin: string;
+    }
+  | { type: "delete"; key: string; origin: string }
+  | { type: "clear"; origin: string };
 
-const CHANNEL_NAME = 'drystack-edits';
-const FALLBACK_STORAGE_KEY = '__drystack_edits_bus__';
+const CHANNEL_NAME = "drystack-edits";
+const FALLBACK_STORAGE_KEY = "__drystack_edits_bus__";
 
 // Identifies this tab so it can ignore its own broadcasts (BroadcastChannel
 // already excludes the sending context, but the localStorage fallback's
 // `storage` event does not carry a sender identity of its own).
 const origin =
-  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 let channel: BroadcastChannel | undefined;
 function getChannel(): BroadcastChannel | undefined {
-  if (typeof BroadcastChannel === 'undefined') return undefined;
+  if (typeof BroadcastChannel === "undefined") return undefined;
   if (!channel) channel = new BroadcastChannel(CHANNEL_NAME);
   return channel;
 }
@@ -473,26 +498,26 @@ function broadcast(msg: EditBusMessage): void {
   }
   // Safari < 15.4 and other environments without BroadcastChannel: piggyback
   // on the `storage` event, which already hands every other tab the new
-  // value via `event.newValue` — no separate wake-then-reread-IndexedDB step
+  // value via `event.newValue` - no separate wake-then-reread-IndexedDB step
   // needed. Only fires in *other* tabs, never the one that wrote it.
-  if (typeof localStorage !== 'undefined') {
+  if (typeof localStorage !== "undefined") {
     localStorage.setItem(FALLBACK_STORAGE_KEY, JSON.stringify(msg));
   }
 }
 
 export async function publishEdit(key: string, value: string): Promise<void> {
   await setEdit(key, value);
-  broadcast({ type: 'set', key, value, updatedAt: Date.now(), origin });
+  broadcast({ type: "set", key, value, updatedAt: Date.now(), origin });
 }
 
 export async function publishDelete(key: string): Promise<void> {
   await deleteEdit(key);
-  broadcast({ type: 'delete', key, origin });
+  broadcast({ type: "delete", key, origin });
 }
 
 export async function publishClear(): Promise<void> {
   await clearEdits();
-  broadcast({ type: 'clear', origin });
+  broadcast({ type: "clear", origin });
 }
 
 // Subscribes to edits published from other tabs (this tab's own publishes
@@ -504,10 +529,10 @@ export function subscribeEdits(cb: (msg: EditBusMessage) => void): () => void {
       if (e.data.origin === origin) return;
       cb(e.data);
     };
-    bc.addEventListener('message', handler);
-    return () => bc.removeEventListener('message', handler);
+    bc.addEventListener("message", handler);
+    return () => bc.removeEventListener("message", handler);
   }
-  if (typeof window === 'undefined') return () => {};
+  if (typeof window === "undefined") return () => {};
   const handler = (e: StorageEvent) => {
     if (e.key !== FALLBACK_STORAGE_KEY || !e.newValue) return;
     try {
@@ -518,6 +543,6 @@ export function subscribeEdits(cb: (msg: EditBusMessage) => void): () => void {
       // ignore malformed payloads written by a mismatched version in another tab
     }
   };
-  window.addEventListener('storage', handler);
-  return () => window.removeEventListener('storage', handler);
+  window.addEventListener("storage", handler);
+  return () => window.removeEventListener("storage", handler);
 }

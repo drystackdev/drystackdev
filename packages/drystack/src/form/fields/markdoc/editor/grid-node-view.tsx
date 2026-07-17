@@ -21,7 +21,7 @@ import {
 import { GRID_DEFAULT_COLUMNS, GRID_DEFAULT_ROWS, clampSpan } from "./grid";
 
 // A ProseMirror editor is a *single* contenteditable, so `document.activeElement`
-// is always the editor root — never an individual cell. That means CSS
+// is always the editor root - never an individual cell. That means CSS
 // `:focus-within` on a cell never fires. Instead we ask the editor state
 // whether the current selection lives inside this cell (by matching the cell's
 // position against the selection's ancestors) and mark it as active ourselves.
@@ -42,7 +42,7 @@ type NodeViewProps = {
 // The grid container the editor actually renders. `data-dry-grid` matches the
 // serialized markup so the resize handles can locate their container. `gap`
 // comes from the node attr (editable from the toolbar). The container itself
-// has no border/padding — the dashed edit affordance lives on each cell.
+// has no border/padding - the dashed edit affordance lives on each cell.
 export function GridNodeView(props: NodeViewProps) {
   const columns: number = props.node.attrs.columns ?? GRID_DEFAULT_COLUMNS;
   const rows: number = props.node.attrs.rows ?? GRID_DEFAULT_ROWS;
@@ -63,7 +63,7 @@ export function GridNodeView(props: NodeViewProps) {
   );
 }
 
-// which dimension(s) a given handle drives — the corner handle drives both,
+// which dimension(s) a given handle drives - the corner handle drives both,
 // the edge strips drive only their own axis
 type ResizeAxis = "column" | "row" | "both";
 
@@ -96,7 +96,7 @@ export function GridCellView(props: NodeViewProps) {
   const isActive =
     selfPos != null && isSelectionInsideCell(editorState, selfPos);
 
-  // the admin's cell padding is dropped on a host page — see cellPaddingClass
+  // the admin's cell padding is dropped on a host page - see cellPaddingClass
   const { hostTypography } = useEditorSchema();
 
   const viewRef = useEditorViewRef();
@@ -145,7 +145,7 @@ export function GridCellView(props: NodeViewProps) {
       const dx = event.clientX - drag.startX;
       const dy = event.clientY - drag.startY;
       // (size + gap) / pitch == the unit count; snap to whole 1/N steps.
-      // An edge strip only drives its own axis — the other stays put.
+      // An edge strip only drives its own axis - the other stays put.
       const nextSpan =
         drag.axis === "row"
           ? drag.lastSpan
@@ -194,7 +194,7 @@ export function GridCellView(props: NodeViewProps) {
       const computed = gridEl ? getComputedStyle(gridEl) : null;
       const columnGap = (computed && parseFloat(computed.columnGap)) || 16;
       const rowGap = (computed && parseFloat(computed.rowGap)) || 16;
-      // the grid's track counts live on the parent grid node — read them off
+      // the grid's track counts live on the parent grid node - read them off
       // ProseMirror state so the drag snaps (and the readout reads) against
       // this grid's own column/row count
       const view = viewRef.current;
@@ -258,7 +258,7 @@ export function GridCellView(props: NodeViewProps) {
     >
       {/* when the cell is placed (display:grid + place-content), wrap the
           editable content in a real block so the paragraphs aren't direct grid
-          items — Chromium drops the caret from an *empty* editable grid item */}
+          items - Chromium drops the caret from an *empty* editable grid item */}
       {place ? <div className={placeContentClass}>{children}</div> : children}
       {resizeLabel && (
         <span
@@ -270,7 +270,7 @@ export function GridCellView(props: NodeViewProps) {
           {resizeLabel.rows}
         </span>
       )}
-      {/* invisible edge strips — hover to reveal, drag to resize a single
+      {/* invisible edge strips - hover to reveal, drag to resize a single
           axis (right edge: columns, bottom edge: rows) */}
       <span
         contentEditable={false}
@@ -286,7 +286,7 @@ export function GridCellView(props: NodeViewProps) {
         onPointerDown={(event) => startDrag(event, "row")}
         aria-hidden="true"
       />
-      {/* corner handle drives both dimensions at once — dragging
+      {/* corner handle drives both dimensions at once - dragging
           horizontally resizes the column span, vertically the row span */}
       <span
         contentEditable={false}
@@ -342,18 +342,18 @@ const cellClass = css({
 
 // Breathing room between a cell's dashed edge and its content, so the admin's
 // items don't read as text jammed against the outline. The published cell has
-// no padding (see cellStyleString), so this is admin-only — on a host page it
+// no padding (see cellStyleString), so this is admin-only - on a host page it
 // would shift the cell's content the moment edit mode turned on. See
 // createEditorSchema's `hostTypography`.
 const cellPaddingClass = css({
   padding: "0.5rem",
 });
 
-// diameter of the corner handle — the two edge strips below stop short of
+// diameter of the corner handle - the two edge strips below stop short of
 // it (rather than overlapping) so each handle owns a clean hit zone
 const CORNER_HANDLE_SIZE = 24;
 
-// bottom-right corner grip — dragging it resizes both the column span
+// bottom-right corner grip - dragging it resizes both the column span
 // (horizontal) and row span (vertical) in one gesture. Sits just inside the
 // cell's corner (a small inset from each edge) rather than straddling it, so
 // the icon reads as fully contained in the item instead of spilling out.
@@ -386,7 +386,7 @@ const resizeHandleClass = css({
   },
 });
 
-// right-edge strip — invisible until hovered, drags to resize the column
+// right-edge strip - invisible until hovered, drags to resize the column
 // span only. Runs the full height of the cell; where it overlaps the corner
 // handle's zone, the corner wins (higher z-index) so the two don't fight
 // over the same pixels.
@@ -406,7 +406,7 @@ const edgeHandleRightClass = css({
   transition: "opacity 0.15s",
 });
 
-// bottom-edge strip — mirrors the right-edge strip, resizing the row span
+// bottom-edge strip - mirrors the right-edge strip, resizing the row span
 // only. Runs the full width of the cell; same corner overlap handling.
 const edgeHandleBottomClass = css({
   position: "absolute",

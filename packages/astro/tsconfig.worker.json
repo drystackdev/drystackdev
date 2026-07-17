@@ -4,7 +4,7 @@
     // Isolated from tsconfig.json's "node" types on purpose: @cloudflare/
     // workers-types augments globals (Response, WebSocket, ResponseInit,
     // etc.) that would otherwise clash with lib.dom's versions used by the
-    // rest of this package's browser code — see the "include"/"exclude"
+    // rest of this package's browser code - see the "include"/"exclude"
     // split below, which is what actually keeps the two type-universes
     // from mixing in one `tsc` run.
     "types": ["@cloudflare/workers-types"]

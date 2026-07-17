@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react';
-import { useConfig } from '../shell/context';
-import { useBaseCommit, useRepoInfo, useTree } from '../shell/data';
-import { useRouter } from '../router';
-import { fetchBlob } from '../useItemData';
-import { getTreeNodeAtPath } from '../trees';
+import { useEffect, useState } from "react";
+import { useConfig } from "../shell/context";
+import { useBaseCommit, useRepoInfo, useTree } from "../shell/data";
+import { useRouter } from "../router";
+import { fetchBlob } from "../useItemData";
+import { getTreeNodeAtPath } from "../trees";
 
 const textDecoder = new TextDecoder();
 
-// decoded UTF-8 text content of a real tree path — same data source as
+// decoded UTF-8 text content of a real tree path - same data source as
 // `useMediaLibraryPreviewURL`, but returns text instead of an object URL
 export function useFileTextContent(path: string | null) {
   const config = useConfig();
@@ -15,9 +15,9 @@ export function useFileTextContent(path: string | null) {
   const repoInfo = useRepoInfo();
   const { basePath } = useRouter();
   const tree = useTree().current;
-  const relativePath = path?.replace(/^\/+/, '');
+  const relativePath = path?.replace(/^\/+/, "");
   const sha =
-    relativePath && tree.kind === 'loaded'
+    relativePath && tree.kind === "loaded"
       ? getTreeNodeAtPath(tree.data.tree, relativePath)?.entry.sha
       : undefined;
 
@@ -30,14 +30,14 @@ export function useFileTextContent(path: string | null) {
     }
     let cancelled = false;
     Promise.resolve(
-      fetchBlob(config, sha, relativePath, baseCommit, repoInfo, basePath)
+      fetchBlob(config, sha, relativePath, baseCommit, repoInfo, basePath),
     )
-      .then(bytes => {
+      .then((bytes) => {
         if (cancelled) return;
         setText(textDecoder.decode(bytes));
       })
       .catch(() => {
-        // leave text null — caller keeps showing its existing empty state
+        // leave text null - caller keeps showing its existing empty state
       });
     return () => {
       cancelled = true;

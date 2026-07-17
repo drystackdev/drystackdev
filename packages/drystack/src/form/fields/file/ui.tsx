@@ -1,16 +1,16 @@
-import { ButtonGroup, ActionButton, Button } from '@keystar/ui/button';
-import { FieldDescription, FieldLabel, FieldMessage } from '@keystar/ui/field';
-import { Icon } from '@keystar/ui/icon';
-import { fileCodeIcon } from '@keystar/ui/icon/icons/fileCodeIcon';
-import { Flex, Box } from '@keystar/ui/layout';
-import { Text } from '@keystar/ui/typography';
+import { ButtonGroup, ActionButton, Button } from "@keystar/ui/button";
+import { FieldDescription, FieldLabel, FieldMessage } from "@keystar/ui/field";
+import { Icon } from "@keystar/ui/icon";
+import { fileCodeIcon } from "@keystar/ui/icon/icons/fileCodeIcon";
+import { Flex, Box } from "@keystar/ui/layout";
+import { Text } from "@keystar/ui/typography";
 
-import { useId, useReducer, useState } from 'react';
-import { FormFieldInputProps } from '../../api';
-import { openMediaLibrary } from '../../../app/media-library/bridge';
-import { useMediaLibraryPreviewURL } from '../../../app/media-library/useMediaLibraryPreviewURL';
-import { useEntryDirectoryContext } from '../../../app/entry-form';
-import { useObjectURL } from '../image/ui';
+import { useId, useReducer, useState } from "react";
+import { FormFieldInputProps } from "../../api";
+import { openMediaLibrary } from "../../../app/media-library/bridge";
+import { useMediaLibraryPreviewURL } from "../../../app/media-library/useMediaLibraryPreviewURL";
+import { useEntryDirectoryContext } from "../../../app/entry-form";
+import { useObjectURL } from "../image/ui";
 
 // TODO: button labels ("Choose from library", "Remove", "Download") need i18n support
 export function FileFieldInput(
@@ -18,12 +18,12 @@ export function FileFieldInput(
     label: string;
     description: string | undefined;
     validation: { isRequired?: boolean } | undefined;
-  }
+  },
 ) {
   const { value } = props;
   const [blurred, onBlur] = useReducer(() => true, false);
   // caches the bytes for a file picked/uploaded in this session, since a
-  // brand new upload isn't in the tree yet — useMediaLibraryPreviewURL
+  // brand new upload isn't in the tree yet - useMediaLibraryPreviewURL
   // resolves via tree sha and can't find it until the tree next refreshes
   const [freshUpload, setFreshUpload] = useState<{
     path: string;
@@ -31,7 +31,7 @@ export function FileFieldInput(
   } | null>(null);
   const freshObjectUrl = useObjectURL(
     freshUpload && freshUpload.path === value ? freshUpload.content : null,
-    undefined
+    undefined,
   );
   const treeObjectUrl = useMediaLibraryPreviewURL(value);
   const objectUrl = freshObjectUrl ?? treeObjectUrl;
@@ -62,9 +62,9 @@ export function FileFieldInput(
         <ActionButton
           onPress={async () => {
             const picked = await openMediaLibrary({
-              accept: 'any',
+              accept: "any",
               local: entryDirectory
-                ? { directory: `${entryDirectory}/assets`, label: 'This entry' }
+                ? { directory: `${entryDirectory}/assets`, label: "This entry" }
                 : undefined,
             });
             onBlur();
@@ -91,7 +91,7 @@ export function FileFieldInput(
             {objectUrl && (
               <Button
                 href={objectUrl}
-                download={value.split('/').pop()}
+                download={value.split("/").pop()}
                 prominence="low"
               >
                 Download
@@ -110,8 +110,8 @@ export function FileFieldInput(
         >
           <Flex alignItems="center" gap="regular">
             <Icon src={fileCodeIcon} />
-            <Text UNSAFE_style={{ wordBreak: 'break-all' }}>
-              {value.split('/').pop()}
+            <Text UNSAFE_style={{ wordBreak: "break-all" }}>
+              {value.split("/").pop()}
             </Text>
           </Flex>
         </Box>

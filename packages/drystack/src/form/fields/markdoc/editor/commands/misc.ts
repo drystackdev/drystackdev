@@ -1,7 +1,7 @@
-import { setBlockType } from 'prosemirror-commands';
-import { NodeType } from 'prosemirror-model';
-import { Command, NodeSelection } from 'prosemirror-state';
-import { getEditorSchema } from '../schema';
+import { setBlockType } from "prosemirror-commands";
+import { NodeType } from "prosemirror-model";
+import { Command, NodeSelection } from "prosemirror-state";
+import { getEditorSchema } from "../schema";
 
 export function insertNode(nodeType: NodeType): Command {
   return (state, dispatch) => {
@@ -20,7 +20,7 @@ export function insertNode(nodeType: NodeType): Command {
 
 export function toggleCodeBlock(
   codeBlock: NodeType,
-  paragraph: NodeType
+  paragraph: NodeType,
 ): Command {
   return (state, dispatch, view) => {
     const codeBlockPositions: [start: number, end: number][] = [];
@@ -50,7 +50,7 @@ export function insertTable(tableType: NodeType): Command {
   const cellType = rowType.contentMatch.defaultType!;
   const headerType = getEditorSchema(tableType.schema).nodes.table_header!;
   // give every column an explicit, equal share up front rather than
-  // leaving `widthPercent` at its `null` (auto) default — see
+  // leaving `widthPercent` at its `null` (auto) default - see
   // resolveEffectiveColumnWidths/rebalanceColumnWidthsForInsert, which rely
   // on columns already having a real width to redistribute when a new one
   // is inserted later.
@@ -63,8 +63,8 @@ export function insertTable(tableType: NodeType): Command {
     const row = rowType.create(undefined, [cell, cell, cell]);
     dispatch?.(
       state.tr.replaceSelectionWith(
-        tableType.create(undefined, [headerRow, row, row])
-      )
+        tableType.create(undefined, [headerRow, row, row]),
+      ),
     );
 
     return true;

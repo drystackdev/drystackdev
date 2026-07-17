@@ -1,33 +1,36 @@
 // Orchestrates Deploy: merges the current brand into the default branch
 // (client-side 3-way merge, §6 of plan/brand.md), commits once, rotates to a
 // fresh brand, then hands the resulting commit off to DeployButton for build
-// tracking. No GitHub merge API involved — see plan/brand.md §2 for why.
-import { useCallback, useRef, useState } from 'react';
-import { useMutation } from 'urql';
-import { gql } from '@ts-gql/tag/no-transform';
+// tracking. No GitHub merge API involved - see plan/brand.md §2 for why.
+import { useCallback, useRef, useState } from "react";
+import { useMutation } from "urql";
+import { gql } from "@ts-gql/tag/no-transform";
 
-import { GitHubConfig } from '../../config';
-import { base64Encode } from '#base64';
-import { getAuth } from '../auth';
-import { useRouter } from '../router';
+import { GitHubConfig } from "../../config";
+import { base64Encode } from "#base64";
+import { getAuth } from "../auth";
+import { useRouter } from "../router";
 import {
   createBrand,
   removeBrandRecord,
   useCurrentBrand,
   useSetBrandRecord,
-} from '../brand';
-import { useCreateBranchMutation, useDeleteBranchMutation } from '../branch-selection';
-import { createCommitMutation } from '../shell/useCommitFileChanges';
+} from "../brand";
+import {
+  useCreateBranchMutation,
+  useDeleteBranchMutation,
+} from "../branch-selection";
+import { createCommitMutation } from "../shell/useCommitFileChanges";
 import {
   Ref_base,
   fetchGitHubTreeData,
   useCurrentBranch,
   useRepoInfo,
-} from '../shell/data';
-import { useConfig } from '../shell/context';
-import { useViewer } from '../shell/viewer-data';
-import { fetchBlob } from '../useItemData';
-import { createUrqlClient } from '../provider';
+} from "../shell/data";
+import { useConfig } from "../shell/context";
+import { useViewer } from "../shell/viewer-data";
+import { fetchBlob } from "../useItemData";
+import { createUrqlClient } from "../provider";
 import {
   ChangeClassification,
   Hunk,
@@ -35,26 +38,26 @@ import {
   conflictHunkCount,
   merge3Text,
   resolveHunks,
-} from './merge3';
-import { fetchMergeBase } from './merge-base';
+} from "./merge3";
+import { fetchMergeBase } from "./merge-base";
 
 export type ConflictFileState = {
   path: string;
   hunks: Hunk[];
-  choices: ('ours' | 'theirs' | null)[];
+  choices: ("ours" | "theirs" | null)[];
 };
 
 export type DeployState =
   // `pullRequestURL` is only set for errors the editor can't resolve in-app
   // (a protected default branch): it's the escape hatch, not a general field.
-  | { kind: 'idle'; error?: string; pullRequestURL?: string }
-  | { kind: 'loading'; label: string }
-  | { kind: 'conflicts'; files: ConflictFileState[] }
-  | { kind: 'merged'; commitOid: string; branch: string };
+  | { kind: "idle"; error?: string; pullRequestURL?: string }
+  | { kind: "loading"; label: string }
+  | { kind: "conflicts"; files: ConflictFileState[] }
+  | { kind: "merged"; commitOid: string; branch: string };
 
 type ConflictResolution =
-  | { action: 'submit'; files: ConflictFileState[] }
-  | { action: 'cancel' };
+  | { action: "submit"; files: ConflictFileState[] }
+  | { action: "cancel" };
 
 const textDecoder = new TextDecoder();
 const textEncoder = new TextEncoder();
@@ -70,21 +73,25 @@ const FetchBranchRefQuery = gql`
     }
   }
   ${Ref_base}
-` as import('../../../__generated__/ts-gql/FetchBranchRef').type;
+` as import("../../../__generated__/ts-gql/FetchBranchRef").type;
 
 async function fetchFreshRef(
   config: GitHubConfig,
   basePath: string,
   owner: string,
   name: string,
-  refName: string
+  refName: string,
 ): Promise<{ id: string; commitSha: string; treeSha: string } | null> {
   const result = await createUrqlClient(config, basePath)
     .query(FetchBranchRefQuery, { owner, name, ref: `refs/heads/${refName}` })
     .toPromise();
   const ref = result.data?.repository?.ref;
-  if (!ref || ref.target?.__typename !== 'Commit') return null;
-  return { id: ref.id, commitSha: ref.target.oid, treeSha: ref.target.tree.oid };
+  if (!ref || ref.target?.__typename !== "Commit") return null;
+  return {
+    id: ref.id,
+    commitSha: ref.target.oid,
+    treeSha: ref.target.tree.oid,
+  };
 }
 
 async function fetchBlobTextIfPresent(
@@ -93,10 +100,17 @@ async function fetchBlobTextIfPresent(
   path: string,
   commitSha: string,
   repoInfo: { owner: string; name: string; isPrivate: boolean },
-  basePath: string
+  basePath: string,
 ): Promise<string> {
-  if (!entry) return '';
-  const bytes = await fetchBlob(config, entry.sha, path, commitSha, repoInfo, basePath);
+  if (!entry) return "";
+  const bytes = await fetchBlob(
+    config,
+    entry.sha,
+    path,
+    commitSha,
+    repoInfo,
+    basePath,
+  );
   return textDecoder.decode(bytes);
 }
 
@@ -112,90 +126,107 @@ export function useDeploy() {
   const [, deleteBranch] = useDeleteBranchMutation();
   const [, commit] = useMutation(createCommitMutation);
 
-  const [state, setState] = useState<DeployState>({ kind: 'idle' });
+  const [state, setState] = useState<DeployState>({ kind: "idle" });
   // resolved by submitConflicts/cancelConflicts, which read the live (possibly
   // just-edited) file list straight out of state rather than a stale closure
-  const conflictResolverRef = useRef<((resolution: ConflictResolution) => void) | null>(
-    null
-  );
+  const conflictResolverRef = useRef<
+    ((resolution: ConflictResolution) => void) | null
+  >(null);
 
   const setHunkChoice = useCallback(
-    (path: string, hunkIndex: number, choice: 'ours' | 'theirs') => {
-      setState(prev => {
-        if (prev.kind !== 'conflicts') return prev;
+    (path: string, hunkIndex: number, choice: "ours" | "theirs") => {
+      setState((prev) => {
+        if (prev.kind !== "conflicts") return prev;
         return {
-          kind: 'conflicts',
-          files: prev.files.map(f =>
+          kind: "conflicts",
+          files: prev.files.map((f) =>
             f.path !== path
               ? f
               : {
                   ...f,
-                  choices: f.choices.map((c, i) => (i === hunkIndex ? choice : c)),
-                }
+                  choices: f.choices.map((c, i) =>
+                    i === hunkIndex ? choice : c,
+                  ),
+                },
           ),
         };
       });
     },
-    []
+    [],
   );
 
   const submitConflicts = useCallback(() => {
-    setState(prev => {
-      if (prev.kind === 'conflicts') {
-        conflictResolverRef.current?.({ action: 'submit', files: prev.files });
+    setState((prev) => {
+      if (prev.kind === "conflicts") {
+        conflictResolverRef.current?.({ action: "submit", files: prev.files });
       }
       return prev;
     });
   }, []);
   const cancelConflicts = useCallback(() => {
-    conflictResolverRef.current?.({ action: 'cancel' });
+    conflictResolverRef.current?.({ action: "cancel" });
   }, []);
 
   const deploy = useCallback(async () => {
-    if (config.storage.kind !== 'github' || !repoInfo || !viewer || !brand) {
+    if (config.storage.kind !== "github" || !repoInfo || !viewer || !brand) {
       return;
     }
     const githubConfig = config as GitHubConfig;
     if (currentBranch !== brand.ref) {
       // shouldn't normally happen (DeployButton only renders once brand is
       // resolved), but guards against deploying the wrong thing
-      setState({ kind: 'idle', error: 'Brand chưa sẵn sàng, thử lại sau.' });
+      setState({ kind: "idle", error: "Brand chưa sẵn sàng, thử lại sau." });
       return;
     }
 
     // One attempt = fetch fresh main+brand refs, classify & merge, commit.
     // Loops only on STALE_DATA (main moved between fetch and commit).
-    async function runOneAttempt(): Promise<'done' | 'retry'> {
+    async function runOneAttempt(): Promise<"done" | "retry"> {
       const [mainRef, brandRef] = await Promise.all([
-        fetchFreshRef(githubConfig, basePath, repoInfo!.owner, repoInfo!.name, repoInfo!.defaultBranch),
-        fetchFreshRef(githubConfig, basePath, repoInfo!.owner, repoInfo!.name, brand!.ref),
+        fetchFreshRef(
+          githubConfig,
+          basePath,
+          repoInfo!.owner,
+          repoInfo!.name,
+          repoInfo!.defaultBranch,
+        ),
+        fetchFreshRef(
+          githubConfig,
+          basePath,
+          repoInfo!.owner,
+          repoInfo!.name,
+          brand!.ref,
+        ),
       ]);
       if (!mainRef) {
-        setState({ kind: 'idle', error: 'Không tìm thấy nhánh mặc định.' });
-        return 'done';
+        setState({ kind: "idle", error: "Không tìm thấy nhánh mặc định." });
+        return "done";
       }
       if (!brandRef) {
         setState({
-          kind: 'idle',
-          error: 'Brand hiện tại không còn tồn tại — vui lòng tải lại trang.',
+          kind: "idle",
+          error: "Brand hiện tại không còn tồn tại - vui lòng tải lại trang.",
         });
-        return 'done';
+        return "done";
       }
 
       // The 3-way base is the *merge base* of the two refs as git sees it right
-      // now — never a value carried on the brand record. Throwing here aborts
+      // now - never a value carried on the brand record. Throwing here aborts
       // the whole deploy (the caller's try/catch surfaces it): merging against
       // a wrong base is how main gets rolled back, so no base means no deploy.
       const auth = await getAuth(githubConfig, basePath);
       if (!auth) {
-        setState({ kind: 'idle', error: 'Phiên GitHub đã hết hạn — đăng nhập lại.' });
-        return 'done';
+        setState({
+          kind: "idle",
+          error: "Phiên GitHub đã hết hạn - đăng nhập lại.",
+        });
+        return "done";
       }
       const mergeBase = await fetchMergeBase(
         auth.accessToken,
         `${repoInfo!.owner}/${repoInfo!.name}`,
         mainRef.commitSha,
-        brandRef.commitSha
+        brandRef.commitSha,
       );
 
       const [baseTree, oursTree, theirsTree] = await Promise.all([
@@ -207,17 +238,16 @@ export function useDeploy() {
       const classification: ChangeClassification = classifyChanges(
         baseTree.entries,
         oursTree.entries,
-        theirsTree.entries
+        theirsTree.entries,
       );
 
       const additions: { path: string; contents: Uint8Array }[] = [];
-      const deletions: { path: string }[] = classification.takeOursDeletions.map(
-        path => ({ path })
-      );
+      const deletions: { path: string }[] =
+        classification.takeOursDeletions.map((path) => ({ path }));
 
-      setState({ kind: 'loading', label: 'Loading changed files…' });
+      setState({ kind: "loading", label: "Loading changed files…" });
       await Promise.all(
-        classification.takeOursAdditions.map(async path => {
+        classification.takeOursAdditions.map(async (path) => {
           const entry = oursTree.entries.get(path)!;
           const contents = await fetchBlob(
             githubConfig,
@@ -225,14 +255,14 @@ export function useDeploy() {
             path,
             brandRef.commitSha,
             repoInfo!,
-            basePath
+            basePath,
           );
           additions.push({ path, contents });
-        })
+        }),
       );
 
       if (classification.conflictEligible.length > 0) {
-        setState({ kind: 'loading', label: 'Checking for conflicts…' });
+        setState({ kind: "loading", label: "Checking for conflicts…" });
         const conflictFiles: ConflictFileState[] = [];
         for (const path of classification.conflictEligible) {
           const [baseText, oursText, theirsText] = await Promise.all([
@@ -242,7 +272,7 @@ export function useDeploy() {
               path,
               mergeBase.commitSha,
               repoInfo!,
-              basePath
+              basePath,
             ),
             fetchBlobTextIfPresent(
               githubConfig,
@@ -250,7 +280,7 @@ export function useDeploy() {
               path,
               brandRef.commitSha,
               repoInfo!,
-              basePath
+              basePath,
             ),
             fetchBlobTextIfPresent(
               githubConfig,
@@ -258,15 +288,18 @@ export function useDeploy() {
               path,
               mainRef.commitSha,
               repoInfo!,
-              basePath
+              basePath,
             ),
           ]);
           const result = merge3Text(oursText, baseText, theirsText);
-          if (result.kind === 'clean') {
-            if (result.content === '') {
+          if (result.kind === "clean") {
+            if (result.content === "") {
               deletions.push({ path });
             } else {
-              additions.push({ path, contents: textEncoder.encode(result.content) });
+              additions.push({
+                path,
+                contents: textEncoder.encode(result.content),
+              });
             }
           } else {
             conflictFiles.push({
@@ -278,33 +311,38 @@ export function useDeploy() {
         }
 
         if (conflictFiles.length > 0) {
-          setState({ kind: 'conflicts', files: conflictFiles });
-          const resolution = await new Promise<ConflictResolution>(resolve => {
-            conflictResolverRef.current = resolve;
-          });
+          setState({ kind: "conflicts", files: conflictFiles });
+          const resolution = await new Promise<ConflictResolution>(
+            (resolve) => {
+              conflictResolverRef.current = resolve;
+            },
+          );
           conflictResolverRef.current = null;
-          if (resolution.action === 'cancel') {
-            setState({ kind: 'idle' });
-            return 'done';
+          if (resolution.action === "cancel") {
+            setState({ kind: "idle" });
+            return "done";
           }
           for (const file of resolution.files) {
-            const choices = file.choices.map(c => c ?? 'ours');
+            const choices = file.choices.map((c) => c ?? "ours");
             const text = resolveHunks(file.hunks, choices);
-            if (text === '') {
+            if (text === "") {
               deletions.push({ path: file.path });
             } else {
-              additions.push({ path: file.path, contents: textEncoder.encode(text) });
+              additions.push({
+                path: file.path,
+                contents: textEncoder.encode(text),
+              });
             }
           }
         }
       }
 
       if (additions.length === 0 && deletions.length === 0) {
-        setState({ kind: 'idle', error: 'Không có thay đổi nào để deploy.' });
-        return 'done';
+        setState({ kind: "idle", error: "Không có thay đổi nào để deploy." });
+        return "done";
       }
 
-      setState({ kind: 'loading', label: 'Deploying…' });
+      setState({ kind: "loading", label: "Deploying…" });
       const result = await commit({
         input: {
           branch: {
@@ -314,7 +352,7 @@ export function useDeploy() {
           expectedHeadOid: mainRef.commitSha,
           message: { headline: `Deploy: ${brand!.label}` },
           fileChanges: {
-            additions: additions.map(a => ({
+            additions: additions.map((a) => ({
               path: a.path,
               contents: base64Encode(a.contents),
             })),
@@ -324,11 +362,11 @@ export function useDeploy() {
       });
 
       const gqlError = result.error?.graphQLErrors[0]?.originalError;
-      if (gqlError && 'type' in gqlError) {
-        if (gqlError.type === 'STALE_DATA') {
-          return 'retry'; // main moved again while we were merging — redo from scratch
+      if (gqlError && "type" in gqlError) {
+        if (gqlError.type === "STALE_DATA") {
+          return "retry"; // main moved again while we were merging - redo from scratch
         }
-        if (gqlError.type === 'BRANCH_PROTECTION_RULE_VIOLATION') {
+        if (gqlError.type === "BRANCH_PROTECTION_RULE_VIOLATION") {
           // The default branch requires a pull request, so no amount of
           // retrying gets this commit in. Unlike updating.tsx's
           // `needs-new-branch`, moving to another branch isn't a fix here: the
@@ -336,27 +374,27 @@ export function useDeploy() {
           // Deploy has. The brand still holds every change (nothing was
           // committed), so the only way forward is a PR opened by hand.
           setState({
-            kind: 'idle',
+            kind: "idle",
             error:
-              'Nhánh mặc định được bảo vệ — thay đổi phải vào qua pull request. ' +
-              'Brand vẫn giữ nguyên các thay đổi, hãy mở pull request để gộp.',
+              "Nhánh mặc định được bảo vệ - thay đổi phải vào qua pull request. " +
+              "Brand vẫn giữ nguyên các thay đổi, hãy mở pull request để gộp.",
             pullRequestURL: `https://github.com/${repoInfo!.owner}/${repoInfo!.name}/compare/${encodeURIComponent(
-              repoInfo!.defaultBranch
+              repoInfo!.defaultBranch,
             )}...${encodeURIComponent(brand!.ref)}?expand=1`,
           });
-          return 'done';
+          return "done";
         }
       }
       const target = result.data?.createCommitOnBranch?.ref?.target;
       // createCommitMutation's `target` doesn't select __typename (no
-      // existing caller needed it — see shell/useCommitFileChanges.ts), so
+      // existing caller needed it - see shell/useCommitFileChanges.ts), so
       // narrow structurally instead: only the Commit variant selected `tree`.
-      if (result.error || !target || !('tree' in target)) {
+      if (result.error || !target || !("tree" in target)) {
         setState({
-          kind: 'idle',
-          error: result.error?.message ?? 'Deploy thất bại.',
+          kind: "idle",
+          error: result.error?.message ?? "Deploy thất bại.",
         });
-        return 'done';
+        return "done";
       }
 
       const newCommitOid = target.oid;
@@ -375,23 +413,27 @@ export function useDeploy() {
         push(`${basePath}/branch/${encodeURIComponent(newRecord.ref)}`);
       }
 
-      setState({ kind: 'merged', commitOid: newCommitOid, branch: repoInfo!.defaultBranch });
-      return 'done';
+      setState({
+        kind: "merged",
+        commitOid: newCommitOid,
+        branch: repoInfo!.defaultBranch,
+      });
+      return "done";
     }
 
-    setState({ kind: 'loading', label: 'Preparing deploy…' });
+    setState({ kind: "loading", label: "Preparing deploy…" });
     try {
       for (let attempt = 0; attempt < MAX_STALE_DATA_RETRIES; attempt++) {
-        if ((await runOneAttempt()) === 'done') return;
+        if ((await runOneAttempt()) === "done") return;
       }
       setState({
-        kind: 'idle',
-        error: 'Nhánh mặc định thay đổi liên tục — vui lòng thử lại.',
+        kind: "idle",
+        error: "Nhánh mặc định thay đổi liên tục - vui lòng thử lại.",
       });
     } catch (err) {
       setState({
-        kind: 'idle',
-        error: err instanceof Error ? err.message : 'Deploy thất bại.',
+        kind: "idle",
+        error: err instanceof Error ? err.message : "Deploy thất bại.",
       });
     }
   }, [
@@ -408,7 +450,14 @@ export function useDeploy() {
     push,
   ]);
 
-  const reset = useCallback(() => setState({ kind: 'idle' }), []);
+  const reset = useCallback(() => setState({ kind: "idle" }), []);
 
-  return { state, deploy, setHunkChoice, submitConflicts, cancelConflicts, reset };
+  return {
+    state,
+    deploy,
+    setHunkChoice,
+    submitConflicts,
+    cancelConflicts,
+    reset,
+  };
 }

@@ -1,4 +1,4 @@
-import { useRouter } from './router';
+import { useRouter } from "./router";
 import {
   FormEvent,
   ReactElement,
@@ -7,20 +7,20 @@ import {
   useMemo,
   useRef,
   useState,
-} from 'react';
+} from "react";
 
-import { Badge } from '@keystar/ui/badge';
-import { Button } from '@keystar/ui/button';
-import { DialogContainer } from '@keystar/ui/dialog';
-import { Flex } from '@keystar/ui/layout';
-import { Notice } from '@keystar/ui/notice';
-import { ProgressCircle } from '@keystar/ui/progress';
-import { Heading, Text } from '@keystar/ui/typography';
+import { Badge } from "@keystar/ui/badge";
+import { Button } from "@keystar/ui/button";
+import { DialogContainer } from "@keystar/ui/dialog";
+import { Flex } from "@keystar/ui/layout";
+import { Notice } from "@keystar/ui/notice";
+import { ProgressCircle } from "@keystar/ui/progress";
+import { Heading, Text } from "@keystar/ui/typography";
 
-import { Config } from '../config';
-import { clientSideValidateProp } from '../form/errors';
-import { getInitialPropsValue } from '../form/initial-values';
-import { useEventCallback } from '../form/fields/use-event-callback';
+import { Config } from "../config";
+import { clientSideValidateProp } from "../form/errors";
+import { getInitialPropsValue } from "../form/initial-values";
+import { useEventCallback } from "../form/fields/use-event-callback";
 import {
   getDataFileExtension,
   getPathPrefix,
@@ -29,34 +29,34 @@ import {
   getSingletonPath,
   isGitHubConfig,
   useShowRestoredDraftMessage,
-} from './utils';
+} from "./utils";
 
-import { CreateBranchDuringUpdateDialog } from './ItemPage';
-import { PageBody, PageHeader, PageRoot } from './shell/page';
-import { useBaseCommit, useCurrentBranch, useRepoInfo } from './shell/data';
-import { useConfig } from './shell/context';
-import { AiLockProvider } from './ai/lock-context';
-import { MagicWriteButton, useAiEntryDescription } from './ai/MagicWriteButton';
-import { useMagicWrite } from './ai/useMagicWrite';
-import { useHasChanged } from './useHasChanged';
+import { CreateBranchDuringUpdateDialog } from "./ItemPage";
+import { PageBody, PageHeader, PageRoot } from "./shell/page";
+import { useBaseCommit, useCurrentBranch, useRepoInfo } from "./shell/data";
+import { useConfig } from "./shell/context";
+import { AiLockProvider } from "./ai/lock-context";
+import { MagicWriteButton, useAiEntryDescription } from "./ai/MagicWriteButton";
+import { useMagicWrite } from "./ai/useMagicWrite";
+import { useHasChanged } from "./useHasChanged";
 import {
   ChangePreviewDialog,
   type FieldChange,
-} from './change-preview/ChangePreviewDialog';
-import { computeFieldChanges } from './change-preview/computeFieldChanges';
-import { AdminImageThumb } from './change-preview/AdminImageThumb';
-import { parseEntry, useItemData } from './useItemData';
-import { serializeEntryToFiles, useUpsertItem } from './updating';
-import { ResetEntryDataButton } from './reset-entry-data';
-import { Icon } from '@keystar/ui/icon';
-import { ForkRepoDialog } from './fork-repo';
+} from "./change-preview/ChangePreviewDialog";
+import { computeFieldChanges } from "./change-preview/computeFieldChanges";
+import { AdminImageThumb } from "./change-preview/AdminImageThumb";
+import { parseEntry, useItemData } from "./useItemData";
+import { serializeEntryToFiles, useUpsertItem } from "./updating";
+import { ResetEntryDataButton } from "./reset-entry-data";
+import { Icon } from "@keystar/ui/icon";
+import { ForkRepoDialog } from "./fork-repo";
 import {
   EntryDirectoryProvider,
   FormForEntry,
   containerWidthForEntryLayout,
-} from './entry-form';
-import { notFound } from './not-found';
-import { delDraft, getDraft, setDraft } from './persistence';
+} from "./entry-form";
+import { notFound } from "./not-found";
+import { delDraft, getDraft, setDraft } from "./persistence";
 import {
   createLatestGuard,
   editKey,
@@ -73,21 +73,21 @@ import {
   type LatestGuard,
   type StashedBlobs,
   type SyncableFieldKind,
-} from './edit-sync';
-import * as s from 'superstruct';
-import { useData } from './useData';
-import { ActionGroup, Item } from '@keystar/ui/action-group';
-import { useMediaQuery, breakpointQueries } from '@keystar/ui/style';
-import { githubIcon } from '@keystar/ui/icon/icons/githubIcon';
-import { externalLinkIcon } from '@keystar/ui/icon/icons/externalLinkIcon';
-import { historyIcon } from '@keystar/ui/icon/icons/historyIcon';
-import { usePreviewProps, useSingleton } from './preview-props';
-import { ComponentSchema, GenericPreviewProps } from '..';
-import { copyEntryToClipboard, getPastedEntry } from './entry-clipboard';
-import { clipboardPasteIcon } from '@keystar/ui/icon/icons/clipboardPasteIcon';
-import { clipboardCopyIcon } from '@keystar/ui/icon/icons/clipboardCopyIcon';
-import { setValueToPreviewProps } from '../form/get-value';
-import { toastQueue } from '@keystar/ui/toast';
+} from "./edit-sync";
+import * as s from "superstruct";
+import { useData } from "./useData";
+import { ActionGroup, Item } from "@keystar/ui/action-group";
+import { useMediaQuery, breakpointQueries } from "@keystar/ui/style";
+import { githubIcon } from "@keystar/ui/icon/icons/githubIcon";
+import { externalLinkIcon } from "@keystar/ui/icon/icons/externalLinkIcon";
+import { historyIcon } from "@keystar/ui/icon/icons/historyIcon";
+import { usePreviewProps, useSingleton } from "./preview-props";
+import { ComponentSchema, GenericPreviewProps } from "..";
+import { copyEntryToClipboard, getPastedEntry } from "./entry-clipboard";
+import { clipboardPasteIcon } from "@keystar/ui/icon/icons/clipboardPasteIcon";
+import { clipboardCopyIcon } from "@keystar/ui/icon/icons/clipboardCopyIcon";
+import { setValueToPreviewProps } from "../form/get-value";
+import { toastQueue } from "@keystar/ui/toast";
 
 type SingletonPageProps = {
   singleton: string;
@@ -109,7 +109,7 @@ function SingletonPageInner(
     changes: FieldChange[];
     onRevertField: (key: string) => void;
     magicWrite: ReturnType<typeof useMagicWrite>;
-  }
+  },
 ) {
   const [reviewOpen, setReviewOpen] = useState(false);
   const isBelowDesktop = useMediaQuery(breakpointQueries.below.desktop);
@@ -118,13 +118,16 @@ function SingletonPageInner(
   const [forceValidation, setForceValidation] = useState(false);
 
   const { schema, singletonConfig } = useSingleton(props.singleton);
-  const aiEntryDescription = useAiEntryDescription(useConfig(), props.singleton);
+  const aiEntryDescription = useAiEntryDescription(
+    useConfig(),
+    props.singleton,
+  );
 
   const router = useRouter();
 
   const previewHref = useMemo(() => {
     if (!singletonConfig.previewUrl) return undefined;
-    return singletonConfig.previewUrl.replace('{branch}', currentBranch);
+    return singletonConfig.previewUrl.replace("{branch}", currentBranch);
   }, [currentBranch, singletonConfig.previewUrl]);
   const isGitHub = isGitHubConfig(props.config);
   const formatInfo = getSingletonFormat(props.config, props.singleton);
@@ -134,14 +137,14 @@ function SingletonPageInner(
   const viewHref =
     isGitHub && singletonExists && repoInfo
       ? `${getRepoUrl(repoInfo)}${
-          formatInfo.dataLocation === 'index'
+          formatInfo.dataLocation === "index"
             ? `/tree/${currentBranch}/${
-                getPathPrefix(props.config.storage) ?? ''
+                getPathPrefix(props.config.storage) ?? ""
               }${singletonPath}`
             : `/blob/${
-                getPathPrefix(props.config.storage) ?? ''
+                getPathPrefix(props.config.storage) ?? ""
               }${currentBranch}/${singletonPath}${getDataFileExtension(
-                formatInfo
+                formatInfo,
               )}`
         }`
       : undefined;
@@ -156,57 +159,57 @@ function SingletonPageInner(
       rel?: string;
     }[] = [
       {
-        key: 'reset',
-        label: 'Reset',
+        key: "reset",
+        label: "Reset",
         icon: historyIcon,
       },
       {
-        key: 'copy',
-        label: 'Copy entry',
+        key: "copy",
+        label: "Copy entry",
         icon: clipboardCopyIcon,
       },
       {
-        key: 'paste',
-        label: 'Paste entry',
+        key: "paste",
+        label: "Paste entry",
         icon: clipboardPasteIcon,
       },
     ];
     if (previewHref) {
       actions.push({
-        key: 'preview',
-        label: 'Preview',
+        key: "preview",
+        label: "Preview",
         icon: externalLinkIcon,
         href: previewHref,
-        target: '_blank',
-        rel: 'noopener noreferrer',
+        target: "_blank",
+        rel: "noopener noreferrer",
       });
     }
     if (viewHref) {
       actions.push({
-        key: 'view',
-        label: 'View on GitHub',
+        key: "view",
+        label: "View on GitHub",
         icon: githubIcon,
         href: viewHref,
-        target: '_blank',
-        rel: 'noopener noreferrer',
+        target: "_blank",
+        rel: "noopener noreferrer",
       });
     }
     return actions;
   }, [previewHref, viewHref]);
 
-  const formID = 'singleton-form';
+  const formID = "singleton-form";
 
   const baseCommit = useBaseCommit();
 
   // build tracking now lives on the Deploy button (deploy/DeployButton.tsx):
   // saves commit to the editor's brand branch, which never triggers a
-  // Cloudflare build on its own — only merging a brand into the default
+  // Cloudflare build on its own - only merging a brand into the default
   // branch does. See plan/brand.md §11.
 
   const isCreating = props.initialState === null;
 
   const onCreate = async () => {
-    if (props.updateResult.kind === 'loading' || !props.hasChanged) return;
+    if (props.updateResult.kind === "loading" || !props.hasChanged) return;
     if (!clientSideValidateProp(schema, props.state, undefined)) {
       setForceValidation(true);
       return;
@@ -219,7 +222,7 @@ function SingletonPageInner(
       props.state,
       formatInfo,
       singletonConfig.schema,
-      undefined
+      undefined,
     );
   };
 
@@ -227,13 +230,13 @@ function SingletonPageInner(
     const entry = await getPastedEntry(
       formatInfo,
       singletonConfig.schema,
-      undefined
+      undefined,
     );
     if (entry) {
       setValueToPreviewProps(entry, props.previewProps);
-      toastQueue.positive('Entry pasted', {
+      toastQueue.positive("Entry pasted", {
         shouldCloseOnAction: true,
-        actionLabel: 'Undo',
+        actionLabel: "Undo",
         onAction: () => {
           setValueToPreviewProps(props.state, props.previewProps);
         },
@@ -255,168 +258,172 @@ function SingletonPageInner(
           : null
       }
     >
-    <PageRoot containerWidth={containerWidthForEntryLayout(singletonConfig)}>
-      <PageHeader>
-        <Flex flex alignItems="center" gap="regular">
-          <Heading elementType="h1" id="page-title" size="small">
-            {singletonConfig.label}
-          </Heading>
-          {props.updateResult.kind === 'loading' ? (
-            <ProgressCircle
-              aria-label={`Updating ${singletonConfig.label}`}
-              isIndeterminate
-              size="small"
-              alignSelf="center"
-            />
-          ) : (
-            props.hasChanged && (
-              <button
-                type="button"
-                onClick={() => setReviewOpen(true)}
-                aria-label="Review changes"
-                style={{ all: 'unset', display: 'inline-flex', cursor: 'pointer' }}
+      <PageRoot containerWidth={containerWidthForEntryLayout(singletonConfig)}>
+        <PageHeader>
+          <Flex flex alignItems="center" gap="regular">
+            <Heading elementType="h1" id="page-title" size="small">
+              {singletonConfig.label}
+            </Heading>
+            {props.updateResult.kind === "loading" ? (
+              <ProgressCircle
+                aria-label={`Updating ${singletonConfig.label}`}
+                isIndeterminate
+                size="small"
+                alignSelf="center"
+              />
+            ) : (
+              props.hasChanged && (
+                <button
+                  type="button"
+                  onClick={() => setReviewOpen(true)}
+                  aria-label="Review changes"
+                  style={{
+                    all: "unset",
+                    display: "inline-flex",
+                    cursor: "pointer",
+                  }}
+                >
+                  <Badge tone="pending">Unsaved</Badge>
+                </button>
+              )
+            )}
+          </Flex>
+          <ActionGroup
+            buttonLabelBehavior="hide"
+            overflowMode="collapse"
+            prominence="low"
+            density="compact"
+            maxWidth={isBelowDesktop ? "element.regular" : undefined} // force switch to action menu on small devices
+            items={menuActions}
+            disabledKeys={props.hasChanged ? [] : ["reset"]}
+            onAction={(key) => {
+              switch (key) {
+                case "reset":
+                  props.onReset();
+                  break;
+                case "copy":
+                  onCopy();
+                  break;
+                case "paste":
+                  onPaste();
+                  break;
+              }
+            }}
+          >
+            {(item) => (
+              <Item
+                key={item.key}
+                textValue={item.label}
+                href={item.href}
+                target={item.target}
+                rel={item.rel}
               >
-                <Badge tone="pending">Unsaved</Badge>
-              </button>
-            )
-          )}
-        </Flex>
-        <ActionGroup
-          buttonLabelBehavior="hide"
-          overflowMode="collapse"
-          prominence="low"
-          density="compact"
-          maxWidth={isBelowDesktop ? 'element.regular' : undefined} // force switch to action menu on small devices
-          items={menuActions}
-          disabledKeys={props.hasChanged ? [] : ['reset']}
-          onAction={key => {
-            switch (key) {
-              case 'reset':
-                props.onReset();
-                break;
-              case 'copy':
-                onCopy();
-                break;
-              case 'paste':
-                onPaste();
-                break;
-            }
-          }}
-        >
-          {item => (
-            <Item
-              key={item.key}
-              textValue={item.label}
-              href={item.href}
-              target={item.target}
-              rel={item.rel}
-            >
-              <Icon src={item.icon} />
-              <Text>{item.label}</Text>
-            </Item>
-          )}
-        </ActionGroup>
-        {aiEntryDescription && (
-          <MagicWriteButton
-            entryLabel={singletonConfig.label}
-            schema={singletonConfig.schema}
-            state={props.state}
-            magicWrite={props.magicWrite}
-          />
-        )}
-        <Button
-          form={formID}
-          isPending={props.updateResult.kind === 'loading'}
-          prominence="high"
-          type="submit"
-        >
-          {isCreating ? 'Create' : 'Save'}
-        </Button>
-      </PageHeader>
-      <Flex
-        elementType="form"
-        id={formID}
-        onSubmit={(event: FormEvent) => {
-          if (event.target !== event.currentTarget) return;
-          event.preventDefault();
-          onCreate();
-        }}
-        direction="column"
-        gap="xxlarge"
-        height="100%"
-        minHeight={0}
-        minWidth={0}
-      >
-        {props.updateResult.kind === 'error' && (
-          <Notice tone="critical">{props.updateResult.error.message}</Notice>
-        )}
-        {props.magicWrite.error && (
-          <Notice tone="critical">{props.magicWrite.error}</Notice>
-        )}
-        <EntryDirectoryProvider value={singletonPath}>
-          <FormForEntry
-            previewProps={props.previewProps as any}
-            forceValidation={forceValidation}
-            entryLayout={singletonConfig.entryLayout}
-            formatInfo={formatInfo}
-            slugField={undefined}
-          />
-        </EntryDirectoryProvider>
-        <DialogContainer
-          // ideally this would be a popover on desktop but using a DialogTrigger wouldn't work since
-          // this doesn't open on click but after doing a network request and it failing and manually wiring about a popover and modal would be a pain
-          onDismiss={props.onResetUpdateItem}
-        >
-          {props.updateResult.kind === 'needs-new-branch' && (
-            <CreateBranchDuringUpdateDialog
-              branchOid={baseCommit}
-              onCreate={async newBranch => {
-                router.push(
-                  `${router.basePath}/branch/${encodeURIComponent(
-                    newBranch
-                  )}/singleton/${encodeURIComponent(props.singleton)}`
-                );
-                props.onUpdate({ branch: newBranch, sha: baseCommit });
-              }}
-              reason={props.updateResult.reason}
-              onDismiss={props.onResetUpdateItem}
+                <Icon src={item.icon} />
+                <Text>{item.label}</Text>
+              </Item>
+            )}
+          </ActionGroup>
+          {aiEntryDescription && (
+            <MagicWriteButton
+              entryLabel={singletonConfig.label}
+              schema={singletonConfig.schema}
+              state={props.state}
+              magicWrite={props.magicWrite}
             />
           )}
-        </DialogContainer>
-        <DialogContainer
-          // ideally this would be a popover on desktop but using a DialogTrigger
-          // wouldn't work since this doesn't open on click but after doing a
-          // network request and it failing and manually wiring about a popover
-          // and modal would be a pain
-          onDismiss={props.onResetUpdateItem}
+          <Button
+            form={formID}
+            isPending={props.updateResult.kind === "loading"}
+            prominence="high"
+            type="submit"
+          >
+            {isCreating ? "Create" : "Save"}
+          </Button>
+        </PageHeader>
+        <Flex
+          elementType="form"
+          id={formID}
+          onSubmit={(event: FormEvent) => {
+            if (event.target !== event.currentTarget) return;
+            event.preventDefault();
+            onCreate();
+          }}
+          direction="column"
+          gap="xxlarge"
+          height="100%"
+          minHeight={0}
+          minWidth={0}
         >
-          {props.updateResult.kind === 'needs-fork' &&
-            isGitHubConfig(props.config) && (
-              <ForkRepoDialog
-                onCreate={async () => {
-                  props.onUpdate();
+          {props.updateResult.kind === "error" && (
+            <Notice tone="critical">{props.updateResult.error.message}</Notice>
+          )}
+          {props.magicWrite.error && (
+            <Notice tone="critical">{props.magicWrite.error}</Notice>
+          )}
+          <EntryDirectoryProvider value={singletonPath}>
+            <FormForEntry
+              previewProps={props.previewProps as any}
+              forceValidation={forceValidation}
+              entryLayout={singletonConfig.entryLayout}
+              formatInfo={formatInfo}
+              slugField={undefined}
+            />
+          </EntryDirectoryProvider>
+          <DialogContainer
+            // ideally this would be a popover on desktop but using a DialogTrigger wouldn't work since
+            // this doesn't open on click but after doing a network request and it failing and manually wiring about a popover and modal would be a pain
+            onDismiss={props.onResetUpdateItem}
+          >
+            {props.updateResult.kind === "needs-new-branch" && (
+              <CreateBranchDuringUpdateDialog
+                branchOid={baseCommit}
+                onCreate={async (newBranch) => {
+                  router.push(
+                    `${router.basePath}/branch/${encodeURIComponent(
+                      newBranch,
+                    )}/singleton/${encodeURIComponent(props.singleton)}`,
+                  );
+                  props.onUpdate({ branch: newBranch, sha: baseCommit });
                 }}
+                reason={props.updateResult.reason}
                 onDismiss={props.onResetUpdateItem}
-                config={props.config}
               />
             )}
-        </DialogContainer>
-        <DialogContainer onDismiss={() => setReviewOpen(false)}>
-          {reviewOpen && (
-            <ChangePreviewDialog
-              changes={props.changes}
-              onDelete={props.onRevertField}
-              renderImage={(path: string) => <AdminImageThumb path={path} />}
-            />
-          )}
-        </DialogContainer>
-      </Flex>
-    </PageRoot>
+          </DialogContainer>
+          <DialogContainer
+            // ideally this would be a popover on desktop but using a DialogTrigger
+            // wouldn't work since this doesn't open on click but after doing a
+            // network request and it failing and manually wiring about a popover
+            // and modal would be a pain
+            onDismiss={props.onResetUpdateItem}
+          >
+            {props.updateResult.kind === "needs-fork" &&
+              isGitHubConfig(props.config) && (
+                <ForkRepoDialog
+                  onCreate={async () => {
+                    props.onUpdate();
+                  }}
+                  onDismiss={props.onResetUpdateItem}
+                  config={props.config}
+                />
+              )}
+          </DialogContainer>
+          <DialogContainer onDismiss={() => setReviewOpen(false)}>
+            {reviewOpen && (
+              <ChangePreviewDialog
+                changes={props.changes}
+                onDelete={props.onRevertField}
+                renderImage={(path: string) => <AdminImageThumb path={path} />}
+              />
+            )}
+          </DialogContainer>
+        </Flex>
+      </PageRoot>
     </AiLockProvider>
   );
 }
 
-// A field value as it lives in the admin form's own state — wider than
+// A field value as it lives in the admin form's own state - wider than
 // `PendingEdit`'s bus-string, since a fields.array/fields.object value here
 // is the real array/object, not its JSON-encoded bus form. fields.content is
 // the exception and isn't covered: its form value is the editor's own state
@@ -427,7 +434,7 @@ const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
 // The narrow slice of a fields.content schema this file drives. Typed
-// structurally — mirroring the visual editor's InlineContentEditors.tsx — so
+// structurally - mirroring the visual editor's InlineContentEditors.tsx - so
 // the admin page doesn't pull the field's own module graph in. The state
 // itself stays opaque: this module only round-trips it through these two.
 type ContentFieldSchema = {
@@ -438,7 +445,7 @@ type ContentFieldSchema = {
       other: ReadonlyMap<string, Uint8Array>;
       external: ReadonlyMap<string, ReadonlyMap<string, Uint8Array>>;
       slug: undefined;
-    }
+    },
   ): unknown;
   serialize(value: unknown): {
     value: unknown;
@@ -449,7 +456,7 @@ type ContentFieldSchema = {
 
 // Rebuilds a content field's form value from the raw HTML on the bus.
 // Parsing with an `other` map missing any image the HTML names silently
-// repoints it — edit-sync.ts spells out how — so this assembles the map from
+// repoints it - edit-sync.ts spells out how - so this assembles the map from
 // every source that can hold one, weakest first:
 //
 //   `ownValues`  the field's value in this form, mined for the bytes of the
@@ -463,7 +470,7 @@ async function contentFromBusValue(
   fieldSchema: ContentFieldSchema,
   html: string,
   assetsDir: string,
-  ownValues: readonly unknown[]
+  ownValues: readonly unknown[],
 ): Promise<unknown> {
   const other = new Map<string, Uint8Array>();
   for (const value of ownValues) {
@@ -483,7 +490,7 @@ async function contentFromBusValue(
   });
 }
 
-// The edit-sync bus only carries strings (see edit-sync.ts's PendingEdit) —
+// The edit-sync bus only carries strings (see edit-sync.ts's PendingEdit) -
 // fields.image/fields.file's `null` (no value) is represented on the bus as
 // '', the same sentinel bind.ts's paintAssetSpot and the visual editor's
 // save.ts already use. fields.array/fields.object's value is JSON-encoded,
@@ -494,41 +501,41 @@ async function contentFromBusValue(
 function toBusValue(
   kind: SyncableFieldKind,
   value: unknown,
-  fieldSchema: ComponentSchema
+  fieldSchema: ComponentSchema,
 ): string | undefined {
   // fields.content travels as raw HTML, the same encoding the visual editor
   // publishes and save.ts reads back. Its embedded image bytes ride along
-  // separately — see stashContentBlobs, which the publish effect pairs with
+  // separately - see stashContentBlobs, which the publish effect pairs with
   // this.
-  if (kind === 'content') {
+  if (kind === "content") {
     return textDecoder.decode(
-      (fieldSchema as unknown as ContentFieldSchema).serialize(value).content
+      (fieldSchema as unknown as ContentFieldSchema).serialize(value).content,
     );
   }
   if (isAssetKind(kind)) {
-    if (value === null) return '';
-    return typeof value === 'string' ? value : undefined;
+    if (value === null) return "";
+    return typeof value === "string" ? value : undefined;
   }
-  if (kind === 'array') {
+  if (kind === "array") {
     return Array.isArray(value) ? JSON.stringify(value) : undefined;
   }
-  if (kind === 'object') {
-    return typeof value === 'object' && value !== null && !Array.isArray(value)
+  if (kind === "object") {
+    return typeof value === "object" && value !== null && !Array.isArray(value)
       ? JSON.stringify(value)
       : undefined;
   }
-  return typeof value === 'string' ? value : undefined;
+  return typeof value === "string" ? value : undefined;
 }
 
-// Every bus-decodable kind — i.e. all but 'content', whose value needs the
+// Every bus-decodable kind - i.e. all but 'content', whose value needs the
 // entry's image bytes and an async round trip through the field's own schema
 // (contentFromBusValue). Callers dispatch content away before reaching here.
 function fromBusValue(
-  kind: Exclude<SyncableFieldKind, 'content'>,
-  busValue: string
+  kind: Exclude<SyncableFieldKind, "content">,
+  busValue: string,
 ): FieldValue {
-  if (isAssetKind(kind)) return busValue === '' ? null : busValue;
-  if (kind === 'array') {
+  if (isAssetKind(kind)) return busValue === "" ? null : busValue;
+  if (kind === "array") {
     try {
       const parsed = JSON.parse(busValue);
       return Array.isArray(parsed) ? parsed : [];
@@ -536,10 +543,12 @@ function fromBusValue(
       return [];
     }
   }
-  if (kind === 'object') {
+  if (kind === "object") {
     try {
       const parsed = JSON.parse(busValue);
-      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? parsed
+        : {};
     } catch {
       return {};
     }
@@ -558,9 +567,9 @@ function applyContainerPathEdit(
   baseField: string,
   field: string,
   busValue: string,
-  baseSchema: ComponentSchema
+  baseSchema: ComponentSchema,
 ): unknown {
-  const path = field.slice(baseField.length + 1).split('.');
+  const path = field.slice(baseField.length + 1).split(".");
   return spliceValueEdit(current, path, baseSchema, (leafSchema, prevLeaf) => {
     const leafKind = getSyncableFieldKind(leafSchema);
     // A content field nested inside a container is left alone: nothing
@@ -568,7 +577,7 @@ function applyContainerPathEdit(
     // save.ts only resolves a content filename for one), so a key that reaches
     // here is malformed. Writing the raw HTML in as if it were a text leaf
     // would put a string where the form expects an editor state.
-    if (leafKind === 'content') return prevLeaf;
+    if (leafKind === "content") return prevLeaf;
     return leafKind ? fromBusValue(leafKind, busValue) : busValue;
   });
 }
@@ -582,7 +591,7 @@ function LocalSingletonPage(
           treeKey: string | undefined;
         }
       | undefined;
-  }
+  },
 ) {
   const { singleton, initialFiles, initialState, localTreeKey, config, draft } =
     props;
@@ -595,17 +604,17 @@ function LocalSingletonPage(
       state:
         draft?.state ??
         (initialState === null ? getInitialPropsValue(schema) : initialState),
-    })
+    }),
   );
 
   // Per-field values a *remote* save/reset (another tab, or the visual
-  // editor) has already committed to disk — see the subscribeEdits handler
+  // editor) has already committed to disk - see the subscribeEdits handler
   // below. Merged into `initialState` for the hasChanged/"Unsaved" check so
   // content saved from elsewhere doesn't keep showing as locally unsaved.
   // Reset alongside `state` whenever the tree genuinely reloads (below):
   // the fresh `initialState` prop already carries these values then.
   // Values are whatever the form state holds for that field, content's
-  // editor-state object included — this only ever spreads them back over
+  // editor-state object included - this only ever spreads them back over
   // `initialState`, never inspects them.
   const [committedOverrides, setCommittedOverrides] = useState<
     Record<string, unknown>
@@ -638,11 +647,11 @@ function LocalSingletonPage(
 
   const changes = useMemo(
     () => computeFieldChanges(schema, effectiveInitialState, state),
-    [schema, effectiveInitialState, state]
+    [schema, effectiveInitialState, state],
   );
 
   useEffect(() => {
-    const key = ['singleton', singleton] as const;
+    const key = ["singleton", singleton] as const;
     if (hasChanged) {
       const serialized = serializeEntryToFiles({
         basePath: singletonPath,
@@ -651,7 +660,7 @@ function LocalSingletonPage(
         slug: undefined,
         state,
       });
-      const files = new Map(serialized.map(x => [x.path, x.contents]));
+      const files = new Map(serialized.map((x) => [x.path, x.contents]));
       const data: s.Infer<typeof storedValSchema> = {
         beforeTreeKey: localTreeKey,
         files,
@@ -674,17 +683,17 @@ function LocalSingletonPage(
 
   const onPreviewPropsChange = useCallback(
     (cb: (state: Record<string, unknown>) => Record<string, unknown>) => {
-      setState(state => ({
+      setState((state) => ({
         localTreeKey: state.localTreeKey,
         state: cb(state.state),
       }));
     },
-    []
+    [],
   );
 
   const magicWriteEntry = useMemo(
-    () => ({ kind: 'singleton' as const, key: props.singleton }),
-    [props.singleton]
+    () => ({ kind: "singleton" as const, key: props.singleton }),
+    [props.singleton],
   );
   const magicWrite = useMagicWrite({
     entry: magicWriteEntry,
@@ -695,7 +704,7 @@ function LocalSingletonPage(
   // --- Cross-tab / visual-editor sync (fields.text + fields.image) ---
   //
   // `lastSyncedRef` tracks, per field, the value already reflected on the
-  // shared edit-sync bus — set either right before we publish it (below) or
+  // shared edit-sync bus - set either right before we publish it (below) or
   // right after we apply an incoming remote value. Diffing against it
   // (instead of the previous render's `state`) is what stops an incoming
   // remote update from immediately bouncing back out as if it were a local
@@ -703,14 +712,14 @@ function LocalSingletonPage(
   const lastSyncedRef = useRef<Record<string, string> | undefined>(undefined);
   // Lets the long-lived subscribeEdits callback below read the *current*
   // state without re-subscribing on every keystroke (state isn't in that
-  // effect's deps) — assigned fresh every render.
+  // effect's deps) - assigned fresh every render.
   const stateRef = useRef(state);
   stateRef.current = state;
-  // Embedded content images already written to the bus's blob store — see
+  // Embedded content images already written to the bus's blob store - see
   // stashContentBlobs.
   const stashedBlobsRef = useRef<StashedBlobs>(new Set());
   // The values of `field` this form can mine for embedded image bytes when
-  // rebuilding an incoming content edit — see contentFromBusValue for why the
+  // rebuilding an incoming content edit - see contentFromBusValue for why the
   // as-loaded value is in here and not just the current one. Reads through
   // refs: the long-lived subscribeEdits callback below must see the newest of
   // both without re-subscribing.
@@ -721,11 +730,11 @@ function LocalSingletonPage(
       (initialStateRef.current as Record<string, unknown> | null)?.[field],
       (stateRef.current as Record<string, unknown>)[field],
     ],
-    []
+    [],
   );
   // A content field's incoming-edit resolution (contentFromBusValue) and
   // outgoing-publish (stashContentBlobs) are both async with no natural
-  // ordering — a slower older chain can finish after a faster newer one and
+  // ordering - a slower older chain can finish after a faster newer one and
   // overwrite it. `applyGuardRef` guards state writes from the mount
   // catch-up effect and the live subscribeEdits handler below (they share
   // one instance so a stale mount-time resolution can't clobber a newer live
@@ -735,7 +744,7 @@ function LocalSingletonPage(
   const publishGuardRef = useRef<LatestGuard>(createLatestGuard());
   // Fields a 'delete'/'clear' message wanted to fold into committedOverrides
   // but couldn't yet (see below) because their content resolution was still
-  // in flight — settled by the subscribeEdits 'set' handler once that
+  // in flight - settled by the subscribeEdits 'set' handler once that
   // resolution actually lands.
   const deferredCommitRef = useRef<Set<string>>(new Set());
   if (!lastSyncedRef.current) {
@@ -746,15 +755,15 @@ function LocalSingletonPage(
       const busValue = toBusValue(
         kind,
         (state as Record<string, unknown>)[field],
-        fieldSchema
+        fieldSchema,
       );
       if (busValue !== undefined) lastSyncedRef.current[field] = busValue;
     }
   }
 
   // Catch up on mount: a field can already have a pending edit sitting in
-  // the shared IndexedDB store — e.g. typed/picked in the visual editor, or
-  // in an admin tab that's since been closed — before this tab ever
+  // the shared IndexedDB store - e.g. typed/picked in the visual editor, or
+  // in an admin tab that's since been closed - before this tab ever
   // subscribed to the bus, so a live-only subscription would never see it.
   // Apply whatever is already there once, the same way the visual editor's
   // applyPendingEdits() does for the DOM on load.
@@ -762,7 +771,7 @@ function LocalSingletonPage(
   // A fields.array/fields.object field can have edits at two granularities:
   // a whole-container replace (field === its base field, published by the
   // visual editor's container dialog) and/or per-path edits (field ===
-  // "baseField.<path>", typed inline into a leaf spot at any depth) —
+  // "baseField.<path>", typed inline into a leaf spot at any depth) -
   // processed in two passes so a container edit is applied first and
   // per-path edits then splice on top of it, mirroring save.ts's
   // mergeFieldEdits precedence.
@@ -771,21 +780,21 @@ function LocalSingletonPage(
     (async () => {
       const edits = await getAllEdits();
       if (cancelled) return;
-      const relevant = edits.filter(edit => {
+      const relevant = edits.filter((edit) => {
         const { type, name } = parseEditKey(edit.key);
-        return type === 'singleton' && name === singleton;
+        return type === "singleton" && name === singleton;
       });
       const updates: Record<string, unknown> = {};
       for (const edit of relevant) {
         const { field } = parseEditKey(edit.key);
-        const baseField = field.split('.')[0];
+        const baseField = field.split(".")[0];
         if (field !== baseField) continue;
         const fieldSchema = singletonConfig.schema[baseField];
         const kind = getSyncableFieldKind(fieldSchema);
         if (!kind) continue;
         if (lastSyncedRef.current![field] === edit.value) continue;
         lastSyncedRef.current![field] = edit.value;
-        if (kind === 'content') {
+        if (kind === "content") {
           // Guarded and caught, unlike a plain `await`: a rejection here
           // (e.g. IndexedDB unavailable) must not abort this loop and drop
           // every other field's edit queued after it, and a slower
@@ -797,7 +806,7 @@ function LocalSingletonPage(
               fieldSchema as unknown as ContentFieldSchema,
               edit.value,
               `${singletonPath}/assets`,
-              ownContentValues(baseField)
+              ownContentValues(baseField),
             );
             if (cancelled) return;
             if (applyGuardRef.current.isCurrent(baseField, token)) {
@@ -813,26 +822,28 @@ function LocalSingletonPage(
       }
       for (const edit of relevant) {
         const { field } = parseEditKey(edit.key);
-        const baseField = field.split('.')[0];
+        const baseField = field.split(".")[0];
         if (field === baseField) continue;
         const baseSchema = singletonConfig.schema[baseField];
         const kind = getSyncableFieldKind(baseSchema);
-        if (kind !== 'array' && kind !== 'object') continue;
+        if (kind !== "array" && kind !== "object") continue;
         if (lastSyncedRef.current![field] === edit.value) continue;
         lastSyncedRef.current![field] = edit.value;
         if (!(baseField in updates)) {
-          updates[baseField] = (stateRef.current as Record<string, unknown>)[baseField];
+          updates[baseField] = (stateRef.current as Record<string, unknown>)[
+            baseField
+          ];
         }
         updates[baseField] = applyContainerPathEdit(
           updates[baseField],
           baseField,
           field,
           edit.value,
-          baseSchema
+          baseSchema,
         );
       }
       if (Object.keys(updates).length > 0) {
-        onPreviewPropsChange(s => ({ ...s, ...updates }));
+        onPreviewPropsChange((s) => ({ ...s, ...updates }));
       }
     })();
     return () => {
@@ -857,7 +868,7 @@ function LocalSingletonPage(
       // readable before it. Serializing the whole doc per keystroke is what
       // the visual editor's own inline editor already does.
       const serialized =
-        kind === 'content'
+        kind === "content"
           ? (fieldSchema as unknown as ContentFieldSchema).serialize(value)
           : undefined;
       const busValue = serialized
@@ -867,14 +878,14 @@ function LocalSingletonPage(
       if (lastSyncedRef.current![field] === busValue) continue;
       lastSyncedRef.current![field] = busValue;
       // Debounced so fast typing doesn't flood other tabs with a broadcast
-      // per keystroke — still "live" at ~200ms (plan.md open question 3).
+      // per keystroke - still "live" at ~200ms (plan.md open question 3).
       // A picked image only fires this once (no keystrokes), so the same
       // debounce just adds one imperceptible 200ms hop for it.
       timers.push(
         setTimeout(async () => {
           // Claimed here, not at schedule time: a slower earlier timer's
           // stash can still be in flight when a newer one already fired and
-          // published — this makes the older one drop its stale publish
+          // published - this makes the older one drop its stale publish
           // instead of overwriting the newer content once its stash finally
           // resolves.
           const token = publishGuardRef.current.claim(field);
@@ -883,10 +894,10 @@ function LocalSingletonPage(
               await stashContentBlobs(
                 serialized.other,
                 `${singletonPath}/assets`,
-                stashedBlobsRef.current
+                stashedBlobsRef.current,
               );
             } catch {
-              // A blob failed to write — publishing now would embed an
+              // A blob failed to write - publishing now would embed an
               // image reference the bus can't resolve yet (see
               // stashContentBlobs). Leave the bus untouched; the field
               // stays dirty and the next state change retries the stash.
@@ -894,39 +905,39 @@ function LocalSingletonPage(
             }
           }
           if (!publishGuardRef.current.isCurrent(field, token)) return;
-          publishEdit(editKey('singleton', singleton, field), busValue);
-        }, 200)
+          publishEdit(editKey("singleton", singleton, field), busValue);
+        }, 200),
       );
     }
     return () => timers.forEach(clearTimeout);
   }, [state, singleton, singletonConfig.schema, singletonPath]);
 
   useEffect(() => {
-    return subscribeEdits(msg => {
-      if (msg.type === 'set') {
+    return subscribeEdits((msg) => {
+      if (msg.type === "set") {
         const { type, name, field } = parseEditKey(msg.key);
-        if (type !== 'singleton' || name !== singleton) return;
+        if (type !== "singleton" || name !== singleton) return;
         // A fields.array/fields.object field's edit can be nested
-        // (baseField.<path>, a per-path inline edit at any depth) — the base
+        // (baseField.<path>, a per-path inline edit at any depth) - the base
         // field is what's tagged in the schema and on the form's own
         // wrapper element either way.
-        const baseField = field.split('.')[0];
+        const baseField = field.split(".")[0];
         const baseSchema = singletonConfig.schema[baseField];
         const kind = getSyncableFieldKind(baseSchema);
         if (!kind) return;
-        // Don't stomp on what the user is actively typing — the field's
+        // Don't stomp on what the user is actively typing - the field's
         // wrapper div carries data-field (object/ui.tsx) for exactly this
         // check. Last-write-wins once they move on: either their own next
         // edit publishes over this, or a later message applies here.
         const fieldEl = document.querySelector(
-          `[data-field="${CSS.escape(baseField)}"]`
+          `[data-field="${CSS.escape(baseField)}"]`,
         );
         if (fieldEl?.contains(document.activeElement)) return;
         lastSyncedRef.current![field] = msg.value;
-        if (kind === 'content') {
+        if (kind === "content") {
           // Async, unlike every other kind: rehydrating the body's images
           // means a read from the blob store first. lastSyncedRef being
-          // stamped above only dedupes reprocessing the same value — it
+          // stamped above only dedupes reprocessing the same value - it
           // doesn't gate which resolved promise's result actually gets
           // written, so applyGuardRef (shared with the mount catch-up
           // effect above) is what makes an older, slower-resolving message
@@ -936,17 +947,20 @@ function LocalSingletonPage(
             baseSchema as unknown as ContentFieldSchema,
             msg.value,
             `${singletonPath}/assets`,
-            ownContentValues(baseField)
+            ownContentValues(baseField),
           )
-            .then(next => {
+            .then((next) => {
               if (!applyGuardRef.current.isCurrent(baseField, token)) return;
-              onPreviewPropsChange(s => ({ ...s, [baseField]: next }));
+              onPreviewPropsChange((s) => ({ ...s, [baseField]: next }));
               // A 'delete'/'clear' for this field arrived while this
               // resolution was still in flight and deferred committing it
               // (see below) rather than freezing the stale pre-resolution
-              // value as the new baseline — settle it now with the fresh one.
+              // value as the new baseline - settle it now with the fresh one.
               if (deferredCommitRef.current.delete(baseField)) {
-                setCommittedOverrides(prev => ({ ...prev, [baseField]: next }));
+                setCommittedOverrides((prev) => ({
+                  ...prev,
+                  [baseField]: next,
+                }));
               }
             })
             .catch(() => {
@@ -956,41 +970,47 @@ function LocalSingletonPage(
           return;
         }
         if (field === baseField) {
-          onPreviewPropsChange(s => ({
+          onPreviewPropsChange((s) => ({
             ...s,
             [baseField]: fromBusValue(kind, msg.value),
           }));
           return;
         }
-        // Per-path array/object edit ("baseField.<path>" at any depth) —
+        // Per-path array/object edit ("baseField.<path>" at any depth) -
         // splice the new value into the container's current state rather
         // than replacing the whole field.
-        if (kind !== 'array' && kind !== 'object') return;
-        onPreviewPropsChange(s => {
+        if (kind !== "array" && kind !== "object") return;
+        onPreviewPropsChange((s) => {
           const current = (s as Record<string, unknown>)[baseField];
           return {
             ...s,
-            [baseField]: applyContainerPathEdit(current, baseField, field, msg.value, baseSchema),
+            [baseField]: applyContainerPathEdit(
+              current,
+              baseField,
+              field,
+              msg.value,
+              baseSchema,
+            ),
           };
         });
         return;
       }
-      // 'delete' / 'clear' — the field(s) are no longer pending anywhere,
+      // 'delete' / 'clear' - the field(s) are no longer pending anywhere,
       // because they were just saved (or discarded) on another tab/surface.
       // Whatever this tab currently shows for them is that same saved/
       // reverted value (it already tracked live 'set' messages up to this
-      // point), so it becomes the new "nothing to save" baseline — otherwise
+      // point), so it becomes the new "nothing to save" baseline - otherwise
       // the Unsaved badge and the full-entry draft (both driven by
       // hasChanged, which compares against `initialState`) would keep
       // treating already-committed content as locally unsaved forever.
       const fields =
-        msg.type === 'delete'
+        msg.type === "delete"
           ? (() => {
               const { type, name, field } = parseEditKey(msg.key);
-              return type === 'singleton' && name === singleton ? [field] : [];
+              return type === "singleton" && name === singleton ? [field] : [];
             })()
           : Object.keys(singletonConfig.schema);
-      setCommittedOverrides(prev => {
+      setCommittedOverrides((prev) => {
         let next: Record<string, unknown> | undefined;
         for (const field of fields) {
           const fieldSchema = singletonConfig.schema[field];
@@ -1001,11 +1021,15 @@ function LocalSingletonPage(
           // 'content' is exempt: its value is the editor's own state object,
           // which this layer deliberately treats as opaque.
           if (
-            (kind === 'text' && typeof value !== 'string') ||
-            (isAssetKind(kind) && typeof value !== 'string' && value !== null) ||
-            (kind === 'array' && !Array.isArray(value)) ||
-            (kind === 'object' &&
-              (typeof value !== 'object' || value === null || Array.isArray(value)))
+            (kind === "text" && typeof value !== "string") ||
+            (isAssetKind(kind) &&
+              typeof value !== "string" &&
+              value !== null) ||
+            (kind === "array" && !Array.isArray(value)) ||
+            (kind === "object" &&
+              (typeof value !== "object" ||
+                value === null ||
+                Array.isArray(value)))
           ) {
             continue;
           }
@@ -1015,10 +1039,13 @@ function LocalSingletonPage(
           // message arrived), but `state` hasn't caught up to it yet.
           // Freezing today's stale `value` as the new baseline would desync
           // `state` from `effectiveInitialState` permanently once the
-          // resolution lands — defer instead; the 'set' handler above
+          // resolution lands - defer instead; the 'set' handler above
           // commits it once that resolution actually settles.
           const busValue = toBusValue(kind, value, fieldSchema);
-          if (busValue === undefined || lastSyncedRef.current![field] !== busValue) {
+          if (
+            busValue === undefined ||
+            lastSyncedRef.current![field] !== busValue
+          ) {
             deferredCommitRef.current.add(field);
             continue;
           }
@@ -1040,7 +1067,7 @@ function LocalSingletonPage(
   const previewProps = usePreviewProps(
     schema,
     onPreviewPropsChange,
-    state as Record<string, unknown>
+    state as Record<string, unknown>,
   );
 
   const formatInfo = getSingletonFormat(config, singleton);
@@ -1057,11 +1084,11 @@ function LocalSingletonPage(
   const update = useEventCallback(_update);
 
   // A successful save means this singleton's synced fields now match what's
-  // pending — drop those keys from the shared edit-sync bus so a
+  // pending - drop those keys from the shared edit-sync bus so a
   // visual-editor tab that had them queued (from live-typed/picked edits it
   // received earlier) stops treating already-saved content as unreviewed.
   useEffect(() => {
-    if (updateResult.kind !== 'updated') return;
+    if (updateResult.kind !== "updated") return;
     for (const [field, fieldSchema] of Object.entries(singletonConfig.schema)) {
       const kind = getSyncableFieldKind(fieldSchema);
       if (!kind) continue;
@@ -1072,7 +1099,7 @@ function LocalSingletonPage(
       //
       // But only once `state` has actually caught up to whatever's on the
       // bus: a content field's incoming edit can still be resolving
-      // asynchronously (contentFromBusValue) when Save runs — lastSyncedRef
+      // asynchronously (contentFromBusValue) when Save runs - lastSyncedRef
       // is already stamped with that edit's bus value, but `state` (what
       // was just saved) isn't yet. Deleting the key in that window would
       // make the in-flight edit unrecoverable: the save wrote the stale
@@ -1081,12 +1108,15 @@ function LocalSingletonPage(
       const busValue = toBusValue(
         kind,
         (stateRef.current as Record<string, unknown>)[field],
-        fieldSchema
+        fieldSchema,
       );
-      if (busValue !== undefined && lastSyncedRef.current![field] !== busValue) {
+      if (
+        busValue !== undefined &&
+        lastSyncedRef.current![field] !== busValue
+      ) {
         continue;
       }
-      publishDelete(editKey('singleton', singleton, field));
+      publishDelete(editKey("singleton", singleton, field));
     }
   }, [updateResult, singleton, singletonConfig.schema]);
 
@@ -1095,18 +1125,18 @@ function LocalSingletonPage(
       effectiveInitialState === null
         ? getInitialPropsValue(schema)
         : effectiveInitialState,
-    [effectiveInitialState, schema]
+    [effectiveInitialState, schema],
   );
   const onReset = () =>
     setState({ localTreeKey: localTreeKey, state: resetState });
   const onRevertField = useCallback(
     (key: string) => {
-      setState(s => ({
+      setState((s) => ({
         localTreeKey: s.localTreeKey,
         state: { ...s.state, [key]: resetState[key] },
       }));
     },
-    [resetState]
+    [resetState],
   );
   return (
     <SingletonPageInner
@@ -1144,15 +1174,15 @@ function SingletonPageWrapper(props: { singleton: string; config: Config }) {
   );
   const format = useMemo(
     () => getSingletonFormat(props.config, props.singleton),
-    [props.config, props.singleton]
+    [props.config, props.singleton],
   );
 
   const dirpath = getSingletonPath(props.config, props.singleton);
 
   const draftData = useData(
     useCallback(async () => {
-      const raw = await getDraft(['singleton', props.singleton]);
-      if (!raw) throw new Error('No draft found');
+      const raw = await getDraft(["singleton", props.singleton]);
+      if (!raw) throw new Error("No draft found");
       const stored = storedValSchema.create(raw);
       const parsed = parseEntry(
         {
@@ -1161,14 +1191,14 @@ function SingletonPageWrapper(props: { singleton: string; config: Config }) {
           schema: singletonConfig.schema,
           slug: undefined,
         },
-        stored.files
+        stored.files,
       );
       return {
         state: parsed.initialState,
         savedAt: stored.savedAt,
         treeKey: stored.beforeTreeKey,
       };
-    }, [dirpath, format, props.singleton, singletonConfig.schema])
+    }, [dirpath, format, props.singleton, singletonConfig.schema]),
   );
 
   const itemData = useItemData({
@@ -1178,12 +1208,17 @@ function SingletonPageWrapper(props: { singleton: string; config: Config }) {
     format,
     slug: undefined,
   });
-  if (itemData.kind === 'error') {
+  if (itemData.kind === "error") {
     return (
       <PageRoot>
         {header}
         <PageBody>
-          <Flex direction="column" gap="large" alignItems="start" margin="xxlarge">
+          <Flex
+            direction="column"
+            gap="large"
+            alignItems="start"
+            margin="xxlarge"
+          >
             <Notice tone="critical">{itemData.error.message}</Notice>
             <ResetEntryDataButton
               config={props.config}
@@ -1199,7 +1234,7 @@ function SingletonPageWrapper(props: { singleton: string; config: Config }) {
     );
   }
 
-  if (itemData.kind === 'loading' || draftData.kind === 'loading') {
+  if (itemData.kind === "loading" || draftData.kind === "loading") {
     return (
       <PageRoot>
         {header}
@@ -1225,15 +1260,15 @@ function SingletonPageWrapper(props: { singleton: string; config: Config }) {
       singleton={props.singleton}
       config={props.config}
       initialState={
-        itemData.data === 'not-found' ? null : itemData.data.initialState
+        itemData.data === "not-found" ? null : itemData.data.initialState
       }
       initialFiles={
-        itemData.data === 'not-found' ? [] : itemData.data.initialFiles
+        itemData.data === "not-found" ? [] : itemData.data.initialFiles
       }
       localTreeKey={
-        itemData.data === 'not-found' ? undefined : itemData.data.localTreeKey
+        itemData.data === "not-found" ? undefined : itemData.data.localTreeKey
       }
-      draft={draftData.kind === 'loaded' ? draftData.data : undefined}
+      draft={draftData.kind === "loaded" ? draftData.data : undefined}
     />
   );
 }

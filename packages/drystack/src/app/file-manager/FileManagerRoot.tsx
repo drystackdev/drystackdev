@@ -66,14 +66,14 @@ type EntriesNav =
       rootDir: string;
       subPath: string;
       label: string;
-      // where "back" should return to — a collection's entry list, or
+      // where "back" should return to - a collection's entry list, or
       // straight to the Entries root (singletons have no entry list)
       parent:
         | { kind: "root" }
         | { kind: "collection"; key: string; label: string };
     };
 
-// the real directory currently on screen, plus a bytes-fetching helper — used
+// the real directory currently on screen, plus a bytes-fetching helper - used
 // by both the "Library"/"Trash" tabs (fixed root) and the "Entries" tab (root
 // changes as you drill into a collection/singleton/slug)
 function useAssetActions() {
@@ -146,7 +146,7 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
 
   // uploads made in *picker* mode aren't reflected in the shared tree until
-  // it naturally refreshes (see useMediaLibraryUpload's note) — cache them
+  // it naturally refreshes (see useMediaLibraryUpload's note) - cache them
   // locally so they show up immediately in this dialog session
   const [sessionUploads, setSessionUploads] = useState<Map<string, Uint8Array>>(
     new Map(),
@@ -163,7 +163,7 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
     currentDir = joinDir(entriesNav.rootDir, entriesNav.subPath);
   }
 
-  // only used to detect upload conflicts against whichever tab is active —
+  // only used to detect upload conflicts against whichever tab is active -
   // NOT used for rendering a grid (each `renderRealDirectory` call computes
   // its own directory listing scoped to its own root, see below; sharing one
   // "active tab" listing across every tab's grid meant an inactive tab could
@@ -215,11 +215,11 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
   }
 
   async function afterMutation(result: Awaited<ReturnType<typeof trashPaths>>) {
-    // Only local mode has a manual tree-sha setter — `useSetTreeSha` throws in
+    // Only local mode has a manual tree-sha setter - `useSetTreeSha` throws in
     // github mode (no SetTreeShaContext provider there). In github mode the
     // tree refreshes on its own from the `createCommitOnBranch` result via
     // urql's normalized cache, exactly like useUpsertItem's github save path,
-    // so calling setTreeSha here would both be wrong and throw — leaving e.g.
+    // so calling setTreeSha here would both be wrong and throw - leaving e.g.
     // the New Folder dialog open because the throw skips its close call.
     if (mode.kind === "page" && result && config.storage.kind === "local") {
       setTreeSha(await treeSha(result.tree));
@@ -244,7 +244,7 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
     }
     // picker mode: uploads aren't reflected in the shared tree until it
     // naturally refreshes, so cache the committed bytes locally under their
-    // final (possibly renamed) path — `result` is undefined here whenever a
+    // final (possibly renamed) path - `result` is undefined here whenever a
     // conflict dialog opened instead, in which case the `onResolve` handler
     // below does this same caching once the conflicts are resolved
     if (result) {
@@ -302,7 +302,7 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
 
   // there's no such thing as an empty folder in this app's git-backed
   // storage model, so "creating a folder" means uploading the files the
-  // user picked straight into the not-yet-existing directory — the new
+  // user picked straight into the not-yet-existing directory - the new
   // path can't collide with anything, so conflict resolution never fires
   async function handleCreateFolder(name: string, files: File[]) {
     if (!currentDir) return;
@@ -347,7 +347,7 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
     if (!confirmAction || isConfirming) return;
     const { kind, paths } = confirmAction;
     // Keep the dialog open (and its primary button in a pending state) until
-    // the mutation actually finishes — closing early would leave the user
+    // the mutation actually finishes - closing early would leave the user
     // unsure whether the delete/restore succeeded.
     setIsConfirming(true);
     try {
@@ -399,11 +399,11 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
     canDelete: boolean;
     canRestore: boolean;
     // ancestor crumbs (e.g. "Entries > My Collection") shown before this
-    // directory's own root — lets a nested view like a collection entry's
+    // directory's own root - lets a nested view like a collection entry's
     // assets folder navigate back up past its own root
     extraCrumbs?: { key: string; label: string; onNavigate: () => void }[];
   }) {
-    // scoped to *this* tab's own root — deliberately not the shared
+    // scoped to *this* tab's own root - deliberately not the shared
     // `currentDir`/`activeDirChildren` above, which only reflect whichever
     // tab is active. Every applicable tab's content is computed on every
     // render (see `tabs` below), so each call needs its own directory.
@@ -412,7 +412,7 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
     const searchResults = useSearchResults(options.rootDir, search);
 
     // freshly-uploaded files in picker mode aren't in the tree yet (see
-    // `sessionUploads`) — merge them into the current directory's listing so
+    // `sessionUploads`) - merge them into the current directory's listing so
     // they show up immediately, same as `dirChildren` would once caught up
     const sessionRows = !searchResults
       ? [...sessionUploads.keys()]
@@ -555,7 +555,7 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
 
   function renderEntriesTab() {
     // called unconditionally, every render, regardless of `entriesNav.step`
-    // — `renderRealDirectory` calls hooks internally, and React requires the
+    // - `renderRealDirectory` calls hooks internally, and React requires the
     // same hooks to run in the same order on every render of this component
     // instance. `entriesNav.step` is state that changes over that lifetime,
     // so branching around this call (only invoking it for the 'dir' step)
@@ -689,7 +689,7 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
   const canCreateFolder = mode.kind === "page" && canUpload;
 
   // built as a plain array (rather than conditionally including <Item>
-  // elements with `&&`) so every Item is unconditional — react-stately's
+  // elements with `&&`) so every Item is unconditional - react-stately's
   // collection components reject `false` as a child
   const tabs: { key: string; label: string; content: ReactNode }[] = [];
   if (hasLocalTab) {
@@ -912,8 +912,8 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
       )}
 
       {/* Custom Dialog rather than AlertDialog: AlertDialog auto-closes the
-          moment its primary button is pressed, but we need it to stay open —
-          with the button in a pending state — until the trash/delete/restore
+          moment its primary button is pressed, but we need it to stay open -
+          with the button in a pending state - until the trash/delete/restore
           actually completes. */}
       <DialogContainer
         onDismiss={() => {

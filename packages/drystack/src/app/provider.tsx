@@ -1,42 +1,45 @@
 import {
   ClientSideOnlyDocumentElement,
   KeystarProvider,
-} from '@keystar/ui/core';
-import { injectGlobal } from '@keystar/ui/style';
-import { Toaster } from '@keystar/ui/toast';
-import { useMemo, type JSX } from 'react';
+} from "@keystar/ui/core";
+import { injectGlobal } from "@keystar/ui/style";
+import { Toaster } from "@keystar/ui/toast";
+import { useMemo, type JSX } from "react";
 import {
   Provider as UrqlProvider,
   createClient,
   fetchExchange,
   Client,
-} from 'urql';
-import { cacheExchange } from '@urql/exchange-graphcache';
-import { authExchange } from '@urql/exchange-auth';
-import { getAuth, getSyncAuth } from './auth';
-import { GitHubAppShellQuery } from './shell/data';
-import { persistedExchange } from '@urql/exchange-persisted';
-import { relayPagination } from '@urql/exchange-graphcache/extras';
+} from "urql";
+import { cacheExchange } from "@urql/exchange-graphcache";
+import { authExchange } from "@urql/exchange-auth";
+import { getAuth, getSyncAuth } from "./auth";
+import { GitHubAppShellQuery } from "./shell/data";
+import { persistedExchange } from "@urql/exchange-persisted";
+import { relayPagination } from "@urql/exchange-graphcache/extras";
 
-import { Config } from '../config';
-import { ThemeProvider, useTheme } from './shell/theme';
-import { parseRepoConfig } from './repo-config';
-import { useRouter } from './router';
+import { Config } from "../config";
+import { ThemeProvider, useTheme } from "./shell/theme";
+import { parseRepoConfig } from "./repo-config";
+import { useRouter } from "./router";
 
 export function createUrqlClient(config: Config, basePath: string): Client {
   const repo =
-    config.storage.kind === 'github'
+    config.storage.kind === "github"
       ? parseRepoConfig(config.storage.repo)
-      : { owner: 'repo-owner', name: 'repo-name' };
+      : { owner: "repo-owner", name: "repo-name" };
   return createClient({
-    // urql's Client throws synchronously if `url` is falsy — local mode never
+    // urql's Client throws synchronously if `url` is falsy - local mode never
     // actually issues a GraphQL request (all local reads/writes go through
     // the REST /api/*/tree,blob,update endpoints), so this just needs to be
     // *some* non-empty string, not a real GraphQL endpoint.
-    url: config.storage.kind === 'github' ? 'https://api.github.com/graphql' : 'about:blank',
-    requestPolicy: 'cache-and-network',
+    url:
+      config.storage.kind === "github"
+        ? "https://api.github.com/graphql"
+        : "about:blank",
+    requestPolicy: "cache-and-network",
     exchanges: [
-      authExchange(async utils => {
+      authExchange(async (utils) => {
         let authState = await getAuth(config, basePath);
         return {
           addAuthToOperation(operation) {
@@ -54,12 +57,14 @@ export function createUrqlClient(config: Config, basePath: string): Client {
           willAuthError(operation) {
             authState = getSyncAuth(config);
             if (
-              'definitions' in operation.query &&
-              operation.query.definitions[0]?.kind === 'OperationDefinition' &&
-              operation.query.definitions[0]?.name?.value.includes('AppShell') &&
+              "definitions" in operation.query &&
+              operation.query.definitions[0]?.kind === "OperationDefinition" &&
+              operation.query.definitions[0]?.name?.value.includes(
+                "AppShell",
+              ) &&
               !authState
             ) {
-              if (config.storage.kind === 'github') {
+              if (config.storage.kind === "github") {
                 window.location.href = `/api${basePath}/github/login`;
               }
               return true;
@@ -88,12 +93,12 @@ export function createUrqlClient(config: Config, basePath: string): Client {
                   query: GitHubAppShellQuery,
                   variables: repo,
                 },
-                data => {
+                (data) => {
                   if (
                     data?.repository?.refs?.nodes &&
                     result.createRef &&
-                    typeof result.createRef === 'object' &&
-                    'ref' in result.createRef
+                    typeof result.createRef === "object" &&
+                    "ref" in result.createRef
                   ) {
                     return {
                       ...data,
@@ -110,7 +115,7 @@ export function createUrqlClient(config: Config, basePath: string): Client {
                     };
                   }
                   return data;
-                }
+                },
               );
             },
             deleteRef(result, args, cache, _info) {
@@ -119,16 +124,16 @@ export function createUrqlClient(config: Config, basePath: string): Client {
                   query: GitHubAppShellQuery,
                   variables: repo,
                 },
-                data => {
+                (data) => {
                   if (
                     data?.repository?.refs?.nodes &&
                     result.deleteRef &&
-                    typeof result.deleteRef === 'object' &&
-                    '__typename' in result.deleteRef &&
-                    typeof args.input === 'object' &&
+                    typeof result.deleteRef === "object" &&
+                    "__typename" in result.deleteRef &&
+                    typeof args.input === "object" &&
                     args.input !== null &&
-                    'refId' in args.input &&
-                    typeof args.input.refId === 'string'
+                    "refId" in args.input &&
+                    typeof args.input.refId === "string"
                   ) {
                     const refId = args.input.refId;
                     return {
@@ -138,20 +143,20 @@ export function createUrqlClient(config: Config, basePath: string): Client {
                         refs: {
                           ...data.repository.refs,
                           nodes: data.repository.refs.nodes.filter(
-                            x => x?.id !== refId
+                            (x) => x?.id !== refId,
                           ),
                         },
                       },
                     };
                   }
                   return data;
-                }
+                },
               );
             },
           },
         },
       }),
-      ...(config.storage.kind === 'github'
+      ...(config.storage.kind === "github"
         ? []
         : [
             persistedExchange({
@@ -177,7 +182,7 @@ export default function Provider({
   // module on public pages, and a top-level injectGlobal would lock scroll on
   // the live site even though this Provider never mounts there. emotion dedupes
   // the insertion, so calling it during render is cheap and applies before paint.
-  injectGlobal({ body: { overflow: 'hidden' } });
+  injectGlobal({ body: { overflow: "hidden" } });
 
   const themeContext = useTheme();
   const { push: navigate, basePath } = useRouter();
@@ -187,7 +192,7 @@ export default function Provider({
     <ThemeProvider value={themeContext}>
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <KeystarProvider
-        locale={config.locale || 'en-US'}
+        locale={config.locale || "en-US"}
         colorScheme={themeContext.theme}
         router={keystarRouter}
       >
@@ -199,7 +204,7 @@ export default function Provider({
         <UrqlProvider
           value={useMemo(
             () => createUrqlClient(config, basePath),
-            [config, basePath]
+            [config, basePath],
           )}
         >
           {children}

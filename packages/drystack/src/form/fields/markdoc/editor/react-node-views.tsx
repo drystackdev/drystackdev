@@ -1,11 +1,11 @@
-import { Node, NodeType, Schema } from 'prosemirror-model';
+import { Node, NodeType, Schema } from "prosemirror-model";
 import {
   EditorState,
   NodeSelection,
   Plugin,
   PluginKey,
-} from 'prosemirror-state';
-import { NodeView, NodeViewConstructor } from 'prosemirror-view';
+} from "prosemirror-state";
+import { NodeView, NodeViewConstructor } from "prosemirror-view";
 import {
   CSSProperties,
   ReactElement,
@@ -14,10 +14,10 @@ import {
   useCallback,
   useLayoutEffect,
   useState,
-} from 'react';
-import { createPortal } from 'react-dom';
-import { useEditorViewRef } from './editor-view';
-import { css } from '@keystar/ui/style';
+} from "react";
+import { createPortal } from "react-dom";
+import { useEditorViewRef } from "./editor-view";
+import { css } from "@keystar/ui/style";
 
 type NodeViewInfo = {
   key: string;
@@ -51,7 +51,7 @@ type ReactNodeViewSpec = {
   // like `float` that remove an element from normal flow: if only the
   // nested React content floats, this outer container has no in-flow
   // content left to size itself by and collapses to a zero-size box at
-  // its text position — which breaks anything that measures the node via
+  // its text position - which breaks anything that measures the node via
   // `view.nodeDOM` (e.g. popover positioning), since the reported
   // position never reflects the actually-floated content.
   containerStyle?: (node: Node) => CSSProperties;
@@ -78,7 +78,7 @@ function NodeViewContentDOM(props: { node: HTMLElement }) {
             view.focus();
           }
         },
-        [props.node, viewRef]
+        [props.node, viewRef],
       )}
     />
   );
@@ -108,7 +108,7 @@ const NodeViewWrapper = memo(function NodeViewWrapper(props: {
 export function NodeViews(props: { state: EditorState }): ReactElement | null {
   const pluginState = reactNodeViewKey.getState(props.state)!;
   const [nodeViews, setNodeViews] = useState(
-    () => new Map(pluginState.nodeViews)
+    () => new Map(pluginState.nodeViews),
   );
   useLayoutEffect(() => {
     return pluginState.register(() => {
@@ -141,7 +141,7 @@ export function NodeViews(props: { state: EditorState }): ReactElement | null {
             getPos={getPos}
           />,
           dom,
-          key
+          key,
         );
       })}
     </>
@@ -152,7 +152,7 @@ function getReactNodeViewSpec(type: NodeType): ReactNodeViewSpec | undefined {
   return type.spec.reactNodeView as ReactNodeViewSpec | undefined;
 }
 
-const displayContentsClassName = css({ display: 'contents' });
+const displayContentsClassName = css({ display: "contents" });
 
 function elementWithDisplayContents(tag: keyof HTMLElementTagNameMap) {
   const element = document.createElement(tag);
@@ -160,7 +160,7 @@ function elementWithDisplayContents(tag: keyof HTMLElementTagNameMap) {
   return element;
 }
 
-const reactNodeViewKey = new PluginKey<ReactNodeViewsState>('reactNodeViews');
+const reactNodeViewKey = new PluginKey<ReactNodeViewsState>("reactNodeViews");
 
 export function reactNodeViews(schema: Schema) {
   const nodes = new Set<NodeType>();
@@ -177,7 +177,7 @@ export function reactNodeViews(schema: Schema) {
         return {
           nodeViews: new Map(),
           callbacks,
-          register: callback => {
+          register: (callback) => {
             callbacks.add(callback);
             return () => {
               callbacks.delete(callback);
@@ -191,7 +191,7 @@ export function reactNodeViews(schema: Schema) {
     },
     props: {
       nodeViews: Object.fromEntries(
-        [...nodes].map(type => [
+        [...nodes].map((type) => [
           type.name,
           (node, view, getPos): NodeView => {
             if (type.spec.nodeView) {
@@ -199,15 +199,15 @@ export function reactNodeViews(schema: Schema) {
             }
             const reactNodeViewSpec = getReactNodeViewSpec(type);
 
-            const dom = document.createElement(type.isInline ? 'span' : 'div');
-            dom.setAttribute('data-node-type', type.name);
+            const dom = document.createElement(type.isInline ? "span" : "div");
+            dom.setAttribute("data-node-type", type.name);
             const applyContainerStyle = (n: Node) => {
               const style = reactNodeViewSpec?.containerStyle?.(n);
               if (!style) return;
               // reset first so a style no longer present after an attr
               // change (e.g. align going from 'left' back to unset)
               // doesn't linger from a previous application
-              dom.setAttribute('style', '');
+              dom.setAttribute("style", "");
               Object.assign(dom.style, style);
             };
             applyContainerStyle(node);
@@ -215,11 +215,11 @@ export function reactNodeViews(schema: Schema) {
               reactNodeViewSpec?.rendersOwnContent || type.isLeaf
                 ? undefined
                 : elementWithDisplayContents(
-                    type.inlineContent ? 'div' : 'span'
+                    type.inlineContent ? "div" : "span",
                   );
 
             const inner = elementWithDisplayContents(
-              type.inlineContent ? 'div' : 'span'
+              type.inlineContent ? "div" : "span",
             );
             dom.appendChild(inner);
 
@@ -265,7 +265,7 @@ export function reactNodeViews(schema: Schema) {
               },
             };
           },
-        ])
+        ]),
       ),
     },
   });

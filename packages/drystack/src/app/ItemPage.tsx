@@ -1,5 +1,5 @@
-import { useLocalizedStringFormatter } from '@react-aria/i18n';
-import { isHotkey } from 'is-hotkey';
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import { isHotkey } from "is-hotkey";
 import {
   CSSProperties,
   FormEvent,
@@ -12,82 +12,79 @@ import {
   useEffect,
   useMemo,
   useState,
-} from 'react';
-import * as s from 'superstruct';
+} from "react";
+import * as s from "superstruct";
 
-import { ActionGroup, Item } from '@keystar/ui/action-group';
-import { Badge } from '@keystar/ui/badge';
-import { Button, ButtonGroup } from '@keystar/ui/button';
-import { Combobox } from '@keystar/ui/combobox';
-import { AlertDialog, Dialog, DialogContainer } from '@keystar/ui/dialog';
-import { Icon } from '@keystar/ui/icon';
-import { copyPlusIcon } from '@keystar/ui/icon/icons/copyPlusIcon';
-import { clipboardCopyIcon } from '@keystar/ui/icon/icons/clipboardCopyIcon';
-import { clipboardPasteIcon } from '@keystar/ui/icon/icons/clipboardPasteIcon';
-import { externalLinkIcon } from '@keystar/ui/icon/icons/externalLinkIcon';
-import { githubIcon } from '@keystar/ui/icon/icons/githubIcon';
-import { historyIcon } from '@keystar/ui/icon/icons/historyIcon';
-import { trash2Icon } from '@keystar/ui/icon/icons/trash2Icon';
-import { Box, Flex } from '@keystar/ui/layout';
-import { Notice } from '@keystar/ui/notice';
-import { ProgressCircle } from '@keystar/ui/progress';
-import { Radio, RadioGroup } from '@keystar/ui/radio';
-import { Content } from '@keystar/ui/slots';
+import { ActionGroup, Item } from "@keystar/ui/action-group";
+import { Badge } from "@keystar/ui/badge";
+import { Button, ButtonGroup } from "@keystar/ui/button";
+import { Combobox } from "@keystar/ui/combobox";
+import { AlertDialog, Dialog, DialogContainer } from "@keystar/ui/dialog";
+import { Icon } from "@keystar/ui/icon";
+import { copyPlusIcon } from "@keystar/ui/icon/icons/copyPlusIcon";
+import { clipboardCopyIcon } from "@keystar/ui/icon/icons/clipboardCopyIcon";
+import { clipboardPasteIcon } from "@keystar/ui/icon/icons/clipboardPasteIcon";
+import { externalLinkIcon } from "@keystar/ui/icon/icons/externalLinkIcon";
+import { githubIcon } from "@keystar/ui/icon/icons/githubIcon";
+import { historyIcon } from "@keystar/ui/icon/icons/historyIcon";
+import { trash2Icon } from "@keystar/ui/icon/icons/trash2Icon";
+import { Box, Flex } from "@keystar/ui/layout";
+import { Notice } from "@keystar/ui/notice";
+import { ProgressCircle } from "@keystar/ui/progress";
+import { Radio, RadioGroup } from "@keystar/ui/radio";
+import { Content } from "@keystar/ui/slots";
 import {
   breakpointQueries,
   css,
   tokenSchema,
   useMediaQuery,
-} from '@keystar/ui/style';
-import { TextField } from '@keystar/ui/text-field';
-import { Heading, Text } from '@keystar/ui/typography';
+} from "@keystar/ui/style";
+import { TextField } from "@keystar/ui/text-field";
+import { Heading, Text } from "@keystar/ui/typography";
 
-import { Config } from '../config';
-import { ComponentSchema, GenericPreviewProps, ObjectField } from '../form/api';
-import { clientSideValidateProp } from '../form/errors';
-import { useEventCallback } from '../form/fields/use-event-callback';
+import { Config } from "../config";
+import { ComponentSchema, GenericPreviewProps, ObjectField } from "../form/api";
+import { clientSideValidateProp } from "../form/errors";
+import { useEventCallback } from "../form/fields/use-event-callback";
 
 import {
   prettyErrorForCreateBranchMutation,
   useCreateBranchMutation,
-} from './branch-selection';
+} from "./branch-selection";
 import {
   EntryDirectoryProvider,
   FormForEntry,
   containerWidthForEntryLayout,
-} from './entry-form';
-import { ForkRepoDialog } from './fork-repo';
-import l10nMessages from './l10n';
-import { NotFoundBoundary, notFound } from './not-found';
-import { getDataFileExtension, getPathPrefix } from './path-utils';
-import { useRouter } from './router';
-import { HeaderBreadcrumbs } from './shell/HeaderBreadcrumbs';
-import { useConfig } from './shell/context';
-import { AiLockProvider } from './ai/lock-context';
-import {
-  MagicWriteButton,
-  useAiEntryDescription,
-} from './ai/MagicWriteButton';
-import { useMagicWrite } from './ai/useMagicWrite';
-import { useBaseCommit, useCurrentBranch, useRepoInfo } from './shell/data';
-import { PageBody, PageHeader, PageRoot } from './shell/page';
-import { useSlugFieldInfo } from './slugs';
-import { useSlugsInCollection } from './useSlugsInCollection';
-import { delDraft, getDraft, setDraft } from './persistence';
+} from "./entry-form";
+import { ForkRepoDialog } from "./fork-repo";
+import l10nMessages from "./l10n";
+import { NotFoundBoundary, notFound } from "./not-found";
+import { getDataFileExtension, getPathPrefix } from "./path-utils";
+import { useRouter } from "./router";
+import { HeaderBreadcrumbs } from "./shell/HeaderBreadcrumbs";
+import { useConfig } from "./shell/context";
+import { AiLockProvider } from "./ai/lock-context";
+import { MagicWriteButton, useAiEntryDescription } from "./ai/MagicWriteButton";
+import { useMagicWrite } from "./ai/useMagicWrite";
+import { useBaseCommit, useCurrentBranch, useRepoInfo } from "./shell/data";
+import { PageBody, PageHeader, PageRoot } from "./shell/page";
+import { useSlugFieldInfo } from "./slugs";
+import { useSlugsInCollection } from "./useSlugsInCollection";
+import { delDraft, getDraft, setDraft } from "./persistence";
 import {
   serializeEntryToFiles,
   useDeleteItem,
   useUpsertItem,
-} from './updating';
-import { useHasChanged } from './useHasChanged';
+} from "./updating";
+import { useHasChanged } from "./useHasChanged";
 import {
   ChangePreviewDialog,
   type FieldChange,
-} from './change-preview/ChangePreviewDialog';
-import { computeFieldChanges } from './change-preview/computeFieldChanges';
-import { AdminImageThumb } from './change-preview/AdminImageThumb';
-import { parseEntry, useItemData } from './useItemData';
-import { ResetEntryDataButton } from './reset-entry-data';
+} from "./change-preview/ChangePreviewDialog";
+import { computeFieldChanges } from "./change-preview/computeFieldChanges";
+import { AdminImageThumb } from "./change-preview/AdminImageThumb";
+import { parseEntry, useItemData } from "./useItemData";
+import { ResetEntryDataButton } from "./reset-entry-data";
 import {
   getBranchPrefix,
   getCollection,
@@ -97,13 +94,13 @@ import {
   getSlugFromState,
   isGitHubConfig,
   useShowRestoredDraftMessage,
-} from './utils';
-import { DataState, useData, suspendOnData } from './useData';
-import { useCollection, usePreviewProps } from './preview-props';
-import { ErrorBoundary } from './error-boundary';
-import { copyEntryToClipboard, getPastedEntry } from './entry-clipboard';
-import { setValueToPreviewProps } from '../form/get-value';
-import { toastQueue } from '@keystar/ui/toast';
+} from "./utils";
+import { DataState, useData, suspendOnData } from "./useData";
+import { useCollection, usePreviewProps } from "./preview-props";
+import { ErrorBoundary } from "./error-boundary";
+import { copyEntryToClipboard, getPastedEntry } from "./entry-clipboard";
+import { setValueToPreviewProps } from "../form/get-value";
+import { toastQueue } from "@keystar/ui/toast";
 
 type ItemPageProps = {
   collection: string;
@@ -123,12 +120,12 @@ const codeText = css({
 });
 
 // AlertDialog hardcodes `size="small"` with no way to opt into a larger
-// size — override the width it reads via CSS custom property directly
+// size - override the width it reads via CSS custom property directly
 // (see @keystar/ui's Dialog.tsx: `width: 'var(--dialog-width)'`), since
 // `UNSAFE_style` on AlertDialog passes straight through to the inline
 // style of the underlying Dialog and beats the size-driven class.
 const wideDialogStyle = {
-  '--dialog-width': tokenSchema.size.dialog.medium,
+  "--dialog-width": tokenSchema.size.dialog.medium,
 } as CSSProperties;
 
 const storedValSchema = s.type({
@@ -158,7 +155,7 @@ function ItemPageInner(
     changes: FieldChange[];
     onRevertField: (key: string) => void;
     magicWrite: ReturnType<typeof useMagicWrite>;
-  }
+  },
 ) {
   const {
     collection,
@@ -180,8 +177,8 @@ function ItemPageInner(
   const urlForSlug = (slug: string) =>
     collectionConfig.previewUrl
       ? collectionConfig.previewUrl
-          .replace('{slug}', slug)
-          .replace('{branch}', currentBranch)
+          .replace("{slug}", slug)
+          .replace("{branch}", currentBranch)
       : undefined;
   const previewHref = urlForSlug(props.itemSlug);
   const { push, replace } = router;
@@ -191,8 +188,8 @@ function ItemPageInner(
     to: string;
   } | null>(null);
   // The redirect decision the user last made (or explicitly declined) for
-  // this rename, kept around so a subsequent branch-protection/fork retry —
-  // which re-invokes the save — doesn't silently drop it.
+  // this rename, kept around so a subsequent branch-protection/fork retry -
+  // which re-invokes the save - doesn't silently drop it.
   const [confirmedRedirect, setConfirmedRedirect] = useState<
     { from: string; to: string } | undefined
   >(undefined);
@@ -211,21 +208,21 @@ function ItemPageInner(
       if (await deleteItem({ redirect })) {
         push(`${props.basePath}/collection/${encodeURIComponent(collection)}`);
       }
-    }
+    },
   );
 
   const onDuplicate = () => {
     push(
       `${props.basePath}/collection/${encodeURIComponent(
-        collection
-      )}/create?duplicate=${itemSlug}`
+        collection,
+      )}/create?duplicate=${itemSlug}`,
     );
   };
-  const isSavingDisabled = updateResult.kind === 'loading' || !props.hasChanged;
+  const isSavingDisabled = updateResult.kind === "loading" || !props.hasChanged;
 
   // build tracking now lives on the Deploy button (deploy/DeployButton.tsx):
   // saves commit to the editor's brand branch, which never triggers a
-  // Cloudflare build on its own — only merging a brand into the default
+  // Cloudflare build on its own - only merging a brand into the default
   // branch does. See plan/brand.md §11.
 
   // Saves the entry, optionally folding a `from → to` 301 into the same
@@ -234,16 +231,18 @@ function ItemPageInner(
   const saveAndMaybeNavigate = useEventCallback(
     async (redirect?: { from: string; to: string }) => {
       const slug = getSlugFromState(collectionConfig, props.state);
-      const hasUpdated = await parentOnUpdate(redirect ? { redirect } : undefined);
+      const hasUpdated = await parentOnUpdate(
+        redirect ? { redirect } : undefined,
+      );
       if (hasUpdated && slug !== itemSlug) {
         replace(
           `${props.basePath}/collection/${encodeURIComponent(
-            collection
-          )}/item/${encodeURIComponent(slug)}`
+            collection,
+          )}/item/${encodeURIComponent(slug)}`,
         );
       }
       return hasUpdated;
-    }
+    },
   );
 
   const onUpdate = useEventCallback(async () => {
@@ -253,7 +252,7 @@ function ItemPageInner(
       return false;
     }
     const slug = getSlugFromState(collectionConfig, props.state);
-    // Renaming a published entry silently 404s its old URL — hold off on
+    // Renaming a published entry silently 404s its old URL - hold off on
     // saving and ask whether to leave a 301 behind (only possible when the
     // collection declares `previewUrl`, since that's how we derive the
     // public path from a slug; drystack itself doesn't know the site's
@@ -280,9 +279,9 @@ function ItemPageInner(
     });
     if (entry) {
       setValueToPreviewProps(entry, props.previewProps);
-      toastQueue.positive('Entry pasted', {
+      toastQueue.positive("Entry pasted", {
         shouldCloseOnAction: true,
-        actionLabel: 'Undo',
+        actionLabel: "Undo",
         onAction: () => {
           setValueToPreviewProps(props.state, props.previewProps);
         },
@@ -291,33 +290,33 @@ function ItemPageInner(
   });
 
   const viewHref =
-    config.storage.kind !== 'local' && repoInfo
+    config.storage.kind !== "local" && repoInfo
       ? `${getRepoUrl(repoInfo)}${
-          formatInfo.dataLocation === 'index'
+          formatInfo.dataLocation === "index"
             ? `/tree/${currentBranch}/${
-                getPathPrefix(config.storage) ?? ''
+                getPathPrefix(config.storage) ?? ""
               }${currentBasePath}`
             : `/blob/${currentBranch}/${
-                getPathPrefix(config.storage) ?? ''
+                getPathPrefix(config.storage) ?? ""
               }${currentBasePath}${getDataFileExtension(formatInfo)}`
         }`
       : undefined;
 
-  const formID = 'item-edit-form';
+  const formID = "item-edit-form";
 
   // allow shortcuts "cmd+s" and "ctrl+s" to save
   useEffect(() => {
     const listener = (event: KeyboardEvent) => {
-      if (updateResult.kind === 'loading') {
+      if (updateResult.kind === "loading") {
         return;
       }
-      if (isHotkey('mod+s', event)) {
+      if (isHotkey("mod+s", event)) {
         event.preventDefault();
         onUpdate();
       }
     };
-    document.addEventListener('keydown', listener);
-    return () => document.removeEventListener('keydown', listener);
+    document.addEventListener("keydown", listener);
+    return () => document.removeEventListener("keydown", listener);
   }, [updateResult.kind, onUpdate]);
 
   return (
@@ -338,7 +337,7 @@ function ItemPageInner(
         headerActions={
           <HeaderActions
             formID={formID}
-            isLoading={updateResult.kind === 'loading'}
+            isLoading={updateResult.kind === "loading"}
             hasChanged={props.hasChanged}
             onDelete={onDelete}
             onOpenReview={() => setReviewOpen(true)}
@@ -360,10 +359,10 @@ function ItemPageInner(
         }
         {...props}
       >
-        {updateResult.kind === 'error' && (
+        {updateResult.kind === "error" && (
           <Notice tone="critical">{updateResult.error.message}</Notice>
         )}
-        {deleteResult.kind === 'error' && (
+        {deleteResult.kind === "error" && (
           <Notice tone="critical">{deleteResult.error.message}</Notice>
         )}
         {props.magicWrite.error && (
@@ -414,15 +413,15 @@ function ItemPageInner(
               }}
             >
               <Text>
-                This entry is currently at{' '}
+                This entry is currently at{" "}
                 <Text elementType="span" UNSAFE_className={codeText}>
                   {pendingRename.from}
                 </Text>
-                . Renaming it will change its URL to{' '}
+                . Renaming it will change its URL to{" "}
                 <Text elementType="span" UNSAFE_className={codeText}>
                   {pendingRename.to}
-                </Text>{' '}
-                — without a redirect, the old URL will 404.
+                </Text>{" "}
+                - without a redirect, the old URL will 404.
               </Text>
             </AlertDialog>
           )}
@@ -432,14 +431,14 @@ function ItemPageInner(
           // this doesn't open on click but after doing a network request and it failing and manually wiring about a popover and modal would be a pain
           onDismiss={props.onResetUpdateItem}
         >
-          {updateResult.kind === 'needs-new-branch' && (
+          {updateResult.kind === "needs-new-branch" && (
             <CreateBranchDuringUpdateDialog
               branchOid={baseCommit}
-              onCreate={async newBranch => {
+              onCreate={async (newBranch) => {
                 const itemBasePath = `${
                   router.basePath
                 }/branch/${encodeURIComponent(
-                  newBranch
+                  newBranch,
                 )}/collection/${encodeURIComponent(collection)}/item/`;
                 router.push(itemBasePath + encodeURIComponent(itemSlug));
                 const slug = getSlugFromState(collectionConfig, props.state);
@@ -465,7 +464,7 @@ function ItemPageInner(
           // and modal would be a pain
           onDismiss={props.onResetUpdateItem}
         >
-          {updateResult.kind === 'needs-fork' &&
+          {updateResult.kind === "needs-fork" &&
             isGitHubConfig(props.config) && (
               <ForkRepoDialog
                 onCreate={async () => {
@@ -476,8 +475,8 @@ function ItemPageInner(
                   if (hasUpdated && slug !== itemSlug) {
                     router.replace(
                       `${props.basePath}/collection/${encodeURIComponent(
-                        collection
-                      )}/item/${encodeURIComponent(slug)}`
+                        collection,
+                      )}/item/${encodeURIComponent(slug)}`,
                     );
                   }
                 }}
@@ -493,15 +492,15 @@ function ItemPageInner(
           // and modal would be a pain
           onDismiss={resetDeleteItem}
         >
-          {deleteResult.kind === 'needs-fork' &&
+          {deleteResult.kind === "needs-fork" &&
             isGitHubConfig(props.config) && (
               <ForkRepoDialog
                 onCreate={async () => {
                   await deleteItem();
                   router.push(
                     `${props.basePath}/collection/${encodeURIComponent(
-                      collection
-                    )}`
+                      collection,
+                    )}`,
                   );
                 }}
                 onDismiss={resetDeleteItem}
@@ -528,7 +527,7 @@ function LocalItemPage(
     draft:
       | { state: Record<string, unknown>; savedAt: Date; treeKey: string }
       | undefined;
-  }
+  },
 ) {
   const {
     collection,
@@ -540,8 +539,8 @@ function LocalItemPage(
   } = props;
   const { collectionConfig, schema } = useCollection(collection);
   const magicWriteEntry = useMemo(
-    () => ({ kind: 'collection' as const, key: collection }),
-    [collection]
+    () => ({ kind: "collection" as const, key: collection }),
+    [collection],
   );
 
   const [{ state, localTreeKey: localTreeKeyInState }, setState] = useState({
@@ -557,14 +556,14 @@ function LocalItemPage(
 
   const onPreviewPropsChange = useCallback(
     (
-      stateUpdater: (state: Record<string, unknown>) => Record<string, unknown>
+      stateUpdater: (state: Record<string, unknown>) => Record<string, unknown>,
     ) => {
-      setState(state => ({
+      setState((state) => ({
         localTreeKey: state.localTreeKey,
         state: stateUpdater(state.state),
       }));
     },
-    []
+    [],
   );
 
   const previewProps = usePreviewProps(schema, onPreviewPropsChange, state);
@@ -578,7 +577,7 @@ function LocalItemPage(
 
   const changes = useMemo(
     () => computeFieldChanges(schema, initialState, state),
-    [schema, initialState, state]
+    [schema, initialState, state],
   );
 
   const slug = getSlugFromState(collectionConfig, state);
@@ -596,7 +595,7 @@ function LocalItemPage(
   });
 
   useEffect(() => {
-    const key = ['collection', collection, props.itemSlug] as const;
+    const key = ["collection", collection, props.itemSlug] as const;
     if (hasChanged) {
       const serialized = serializeEntryToFiles({
         basePath: futureBasePath,
@@ -605,7 +604,7 @@ function LocalItemPage(
         slug: { field: collectionConfig.slugField, value: slug },
         state,
       });
-      const files = new Map(serialized.map(x => [x.path, x.contents]));
+      const files = new Map(serialized.map((x) => [x.path, x.contents]));
       const data: s.Infer<typeof storedValSchema> = {
         beforeTreeKey: localTreeKey,
         slug,
@@ -641,12 +640,12 @@ function LocalItemPage(
   };
   const onRevertField = useCallback(
     (key: string) => {
-      setState(s => ({
+      setState((s) => ({
         localTreeKey: s.localTreeKey,
         state: { ...s.state, [key]: initialState[key] },
       }));
     },
-    [initialState]
+    [initialState],
   );
   return (
     <ItemPageInner
@@ -709,11 +708,11 @@ function HeaderActions(props: {
   const [deleteAlertIsOpen, setDeleteAlertOpen] = useState(false);
   const [duplicateAlertIsOpen, setDuplicateAlertOpen] = useState(false);
   const otherSlugs = useSlugsInCollection(collection).filter(
-    s => s !== itemSlug
+    (s) => s !== itemSlug,
   );
   const itemUrl = previewUrl ? urlForSlug(itemSlug) : undefined;
   const parentUrl = previewUrl
-    ? previewUrl.split('{slug}')[0].replace(/\/$/, '') || '/'
+    ? previewUrl.split("{slug}")[0].replace(/\/$/, "") || "/"
     : undefined;
   const menuActions = useMemo(() => {
     type ActionType = {
@@ -727,49 +726,49 @@ function HeaderActions(props: {
     };
     let items: ActionType[] = [
       {
-        key: 'reset',
-        label: 'Reset changes', // TODO: l10n
+        key: "reset",
+        label: "Reset changes", // TODO: l10n
         icon: historyIcon,
       },
       {
-        key: 'delete',
-        label: 'Delete entry…', // TODO: l10n
+        key: "delete",
+        label: "Delete entry…", // TODO: l10n
         icon: trash2Icon,
       },
       {
-        key: 'copy',
-        label: 'Copy entry', // TODO: l10n
+        key: "copy",
+        label: "Copy entry", // TODO: l10n
         icon: clipboardCopyIcon,
       },
       {
-        key: 'paste',
-        label: 'Paste entry', // TODO: l10n
+        key: "paste",
+        label: "Paste entry", // TODO: l10n
         icon: clipboardPasteIcon,
       },
       {
-        key: 'duplicate',
-        label: 'Duplicate entry…', // TODO: l10n
+        key: "duplicate",
+        label: "Duplicate entry…", // TODO: l10n
         icon: copyPlusIcon,
       },
     ];
     if (previewHref) {
       items.push({
-        key: 'preview',
-        label: 'Preview',
+        key: "preview",
+        label: "Preview",
         icon: externalLinkIcon,
         href: previewHref,
-        target: '_blank',
-        rel: 'noopener noreferrer',
+        target: "_blank",
+        rel: "noopener noreferrer",
       });
     }
     if (viewHref) {
       items.push({
-        key: 'view',
-        label: 'View on GitHub',
+        key: "view",
+        label: "View on GitHub",
         icon: githubIcon,
         href: viewHref,
-        target: '_blank',
-        rel: 'noopener noreferrer',
+        target: "_blank",
+        rel: "noopener noreferrer",
       });
     }
 
@@ -795,9 +794,9 @@ function HeaderActions(props: {
           onClick={onOpenReview}
           aria-label="Review changes"
           style={{
-            all: 'unset',
-            display: 'inline-flex',
-            cursor: 'pointer',
+            all: "unset",
+            display: "inline-flex",
+            cursor: "pointer",
           }}
         >
           {isBelowDesktop ? (
@@ -820,31 +819,31 @@ function HeaderActions(props: {
   })();
 
   return (
-    <Flex alignItems="center" gap={{ mobile: 'small', tablet: 'regular' }}>
+    <Flex alignItems="center" gap={{ mobile: "small", tablet: "regular" }}>
       {indicatorElement}
       <ActionGroup
         buttonLabelBehavior="hide"
         overflowMode="collapse"
         prominence="low"
         density="compact"
-        maxWidth={isBelowDesktop ? 'element.regular' : undefined} // force switch to action menu on small devices
+        maxWidth={isBelowDesktop ? "element.regular" : undefined} // force switch to action menu on small devices
         items={menuActions}
-        disabledKeys={hasChanged ? [] : ['reset']}
-        onAction={key => {
+        disabledKeys={hasChanged ? [] : ["reset"]}
+        onAction={(key) => {
           switch (key) {
-            case 'reset':
+            case "reset":
               onReset();
               break;
-            case 'delete':
+            case "delete":
               setDeleteAlertOpen(true);
               break;
-            case 'copy':
+            case "copy":
               onCopy();
               break;
-            case 'paste':
+            case "paste":
               onPaste();
               break;
-            case 'duplicate':
+            case "duplicate":
               if (hasChanged) {
                 setDuplicateAlertOpen(true);
               } else {
@@ -854,7 +853,7 @@ function HeaderActions(props: {
           }
         }}
       >
-        {item => (
+        {(item) => (
           <Item
             key={item.key}
             textValue={item.label}
@@ -882,7 +881,7 @@ function HeaderActions(props: {
         prominence="high"
         type="submit"
       >
-        {stringFormatter.format('save')}
+        {stringFormatter.format("save")}
       </Button>
       <DialogContainer onDismiss={() => setDeleteAlertOpen(false)}>
         {deleteAlertIsOpen && (
@@ -891,7 +890,7 @@ function HeaderActions(props: {
             parentUrl={parentUrl}
             otherSlugs={otherSlugs}
             urlForSlug={urlForSlug}
-            onDelete={redirect => {
+            onDelete={(redirect) => {
               setDeleteAlertOpen(false);
               onDelete(redirect);
             }}
@@ -919,7 +918,7 @@ function HeaderActions(props: {
 
 // Deleting a published entry silently 404s its old URL, same as a rename.
 // `itemUrl`/`parentUrl` are only defined when the collection declares
-// `previewUrl` (see ItemPageInner) — without a public URL there's nothing to
+// `previewUrl` (see ItemPageInner) - without a public URL there's nothing to
 // redirect *from*, so the picker is skipped and this behaves like a plain
 // delete confirmation.
 function DeleteEntryDialog(props: {
@@ -930,15 +929,15 @@ function DeleteEntryDialog(props: {
   onDelete: (redirect?: { from: string; to: string }) => void;
   onDismiss: () => void;
 }) {
-  const [target, setTarget] = useState<'none' | 'parent' | 'entry'>('none');
+  const [target, setTarget] = useState<"none" | "parent" | "entry">("none");
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
 
   const redirect = (() => {
     if (!props.itemUrl) return undefined;
-    if (target === 'parent' && props.parentUrl) {
+    if (target === "parent" && props.parentUrl) {
       return { from: props.itemUrl, to: props.parentUrl };
     }
-    if (target === 'entry' && selectedSlug) {
+    if (target === "entry" && selectedSlug) {
       const to = props.urlForSlug(selectedSlug);
       return to ? { from: props.itemUrl, to } : undefined;
     }
@@ -951,7 +950,7 @@ function DeleteEntryDialog(props: {
       tone="critical"
       cancelLabel="Cancel"
       primaryActionLabel="Yes, delete"
-      isPrimaryActionDisabled={target === 'entry' && !selectedSlug}
+      isPrimaryActionDisabled={target === "entry" && !selectedSlug}
       autoFocusButton="cancel"
       UNSAFE_style={wideDialogStyle}
       onPrimaryAction={() => props.onDelete(redirect)}
@@ -962,7 +961,7 @@ function DeleteEntryDialog(props: {
           <RadioGroup
             label="After deleting, the old URL should"
             value={target}
-            onChange={value => setTarget(value as typeof target)}
+            onChange={(value) => setTarget(value as typeof target)}
           >
             <Radio value="none">Return a 404 (no redirect)</Radio>
             {props.parentUrl && (
@@ -979,17 +978,17 @@ function DeleteEntryDialog(props: {
             <Radio value="entry">301 redirect to another entry</Radio>
           </RadioGroup>
         )}
-        {props.itemUrl && target === 'entry' && (
+        {props.itemUrl && target === "entry" && (
           <Combobox
             aria-label="Target entry"
-            defaultItems={props.otherSlugs.map(slug => ({ slug }))}
+            defaultItems={props.otherSlugs.map((slug) => ({ slug }))}
             selectedKey={selectedSlug}
-            onSelectionChange={key =>
-              setSelectedSlug(typeof key === 'string' ? key : null)
+            onSelectionChange={(key) =>
+              setSelectedSlug(typeof key === "string" ? key : null)
             }
             menuTrigger="focus"
           >
-            {item => (
+            {(item) => (
               <Item key={item.slug} textValue={item.slug}>
                 <Text>{item.slug}</Text>
               </Item>
@@ -1009,7 +1008,7 @@ export function CreateBranchDuringUpdateDialog(props: {
 }) {
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const repoInfo = useRepoInfo();
-  const [branchName, setBranchName] = useState('');
+  const [branchName, setBranchName] = useState("");
   const [{ error, fetching, data }, createBranch] = useCreateBranchMutation();
   const isLoading = fetching || !!data?.createRef?.__typename;
 
@@ -1018,7 +1017,7 @@ export function CreateBranchDuringUpdateDialog(props: {
   const propsForBranchPrefix = branchPrefix
     ? {
         UNSAFE_className: css({
-          '& input': {
+          "& input": {
             paddingInlineStart: tokenSchema.size.space.xsmall,
           },
         }),
@@ -1038,11 +1037,11 @@ export function CreateBranchDuringUpdateDialog(props: {
   return (
     <Dialog>
       <form
-        style={{ display: 'contents' }}
-        onSubmit={async event => {
+        style={{ display: "contents" }}
+        onSubmit={async (event) => {
           if (event.target !== event.currentTarget) return;
           event.preventDefault();
-          const fullBranchName = (branchPrefix ?? '') + branchName;
+          const fullBranchName = (branchPrefix ?? "") + branchName;
           const name = `refs/heads/${fullBranchName}`;
           const result = await createBranch({
             input: { name, oid: props.branchOid, repositoryId: repoInfo!.id },
@@ -1052,7 +1051,7 @@ export function CreateBranchDuringUpdateDialog(props: {
           }
         }}
       >
-        <Heading>{stringFormatter.format('newBranch')}</Heading>
+        <Heading>{stringFormatter.format("newBranch")}</Heading>
         <Content>
           <Flex gap="large" direction="column">
             <TextField
@@ -1068,7 +1067,7 @@ export function CreateBranchDuringUpdateDialog(props: {
         </Content>
         <ButtonGroup>
           <Button isDisabled={isLoading} onPress={props.onDismiss}>
-            {stringFormatter.format('cancel')}
+            {stringFormatter.format("cancel")}
           </Button>
           <Button isPending={isLoading} prominence="high" type="submit">
             Create branch and save
@@ -1091,7 +1090,7 @@ function ItemPageOuterWrapper(props: ItemPageWrapperProps) {
   if (!collectionConfig) notFound();
   const format = useMemo(
     () => getCollectionFormat(props.config, props.collection),
-    [props.config, props.collection]
+    [props.config, props.collection],
   );
 
   const slugInfo = useMemo(() => {
@@ -1101,7 +1100,7 @@ function ItemPageOuterWrapper(props: ItemPageWrapperProps) {
   const itemBasePath = getCollectionItemPath(
     props.config,
     props.collection,
-    props.itemSlug
+    props.itemSlug,
   );
   // bumped after a successful "reset entry data" write so the ErrorBoundary
   // below clears its caught error and re-mounts its children, giving
@@ -1112,24 +1111,24 @@ function ItemPageOuterWrapper(props: ItemPageWrapperProps) {
     useCallback(async () => {
       try {
         const raw = await getDraft([
-          'collection',
+          "collection",
           props.collection,
           props.itemSlug,
         ]);
-        if (!raw) throw new Error('No draft found');
+        if (!raw) throw new Error("No draft found");
         const stored = storedValSchema.create(raw);
         const parsed = parseEntry(
           {
             dirpath: getCollectionItemPath(
               props.config,
               props.collection,
-              stored.slug
+              stored.slug,
             ),
             format: getCollectionFormat(props.config, props.collection),
             schema: collectionConfig.schema,
             slug: { field: collectionConfig.slugField, slug: stored.slug },
           },
-          stored.files
+          stored.files,
         );
         return {
           state: parsed.initialState,
@@ -1137,7 +1136,7 @@ function ItemPageOuterWrapper(props: ItemPageWrapperProps) {
           treeKey: stored.beforeTreeKey,
         };
       } catch {}
-    }, [collectionConfig, props.collection, props.config, props.itemSlug])
+    }, [collectionConfig, props.collection, props.config, props.itemSlug]),
   );
 
   const itemData = useItemData({
@@ -1160,7 +1159,7 @@ function ItemPageOuterWrapper(props: ItemPageWrapperProps) {
     >
       <ErrorBoundary
         resetKeys={[resetNonce]}
-        fallback={message => (
+        fallback={(message) => (
           <ItemPageShell {...props}>
             <PageBody>
               <Flex direction="column" gap="large" alignItems="start">
@@ -1172,10 +1171,13 @@ function ItemPageOuterWrapper(props: ItemPageWrapperProps) {
                   format={format}
                   slug={
                     collectionConfig.slugField
-                      ? { field: collectionConfig.slugField, value: props.itemSlug }
+                      ? {
+                          field: collectionConfig.slugField,
+                          value: props.itemSlug,
+                        }
                       : undefined
                   }
-                  onReset={() => setResetNonce(n => n + 1)}
+                  onReset={() => setResetNonce((n) => n + 1)}
                 />
               </Flex>
             </PageBody>
@@ -1199,7 +1201,11 @@ function ItemPageOuterWrapper(props: ItemPageWrapperProps) {
             </ItemPageShell>
           }
         >
-          <ItemPageWrapper draftData={draftData} itemData={itemData} {...props} />
+          <ItemPageWrapper
+            draftData={draftData}
+            itemData={itemData}
+            {...props}
+          />
         </Suspense>
       </ErrorBoundary>
     </NotFoundBoundary>
@@ -1212,18 +1218,18 @@ function ItemPageWrapper(
       { state: any; savedAt: Date; treeKey: string } | undefined
     >;
     itemData: DataState<
-      | 'not-found'
+      | "not-found"
       | {
           initialState: Record<string, unknown>;
           initialFiles: string[];
           localTreeKey: string;
         }
     >;
-  }
+  },
 ) {
   const deferredDraftData = useDeferredValue(props.draftData);
   const itemData = suspendOnData(props.itemData);
-  if (itemData === 'not-found') notFound();
+  if (itemData === "not-found") notFound();
 
   const loadedDraft = suspendOnData(deferredDraftData);
   return (
@@ -1244,17 +1250,17 @@ function ItemPageShell(
   props: ItemPageWrapperProps & {
     children: ReactNode;
     headerActions?: ReactNode;
-  }
+  },
 ) {
   const collectionConfig = getCollection(props.config, props.collection);
   const collectionHref = `${props.basePath}/collection/${props.collection}`;
   const breadcrumbItems = [
     {
-      key: 'collection',
+      key: "collection",
       label: collectionConfig.label,
       href: collectionHref,
     },
-    { key: 'item', label: props.itemSlug },
+    { key: "item", label: props.itemSlug },
   ];
 
   return (

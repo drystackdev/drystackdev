@@ -1,34 +1,34 @@
-import { useEffect, useRef, useState } from 'react';
-import { ActionButton, Button } from '@keystar/ui/button';
-import { Icon } from '@keystar/ui/icon';
-import { chevronLeftIcon } from '@keystar/ui/icon/icons/chevronLeftIcon';
-import { chevronRightIcon } from '@keystar/ui/icon/icons/chevronRightIcon';
-import { trash2Icon } from '@keystar/ui/icon/icons/trash2Icon';
-import { xIcon } from '@keystar/ui/icon/icons/xIcon';
-import { zoomInIcon } from '@keystar/ui/icon/icons/zoomInIcon';
-import { zoomOutIcon } from '@keystar/ui/icon/icons/zoomOutIcon';
-import { Flex } from '@keystar/ui/layout';
-import { tokenSchema } from '@keystar/ui/style';
-import { Text } from '@keystar/ui/typography';
+import { useEffect, useRef, useState } from "react";
+import { ActionButton, Button } from "@keystar/ui/button";
+import { Icon } from "@keystar/ui/icon";
+import { chevronLeftIcon } from "@keystar/ui/icon/icons/chevronLeftIcon";
+import { chevronRightIcon } from "@keystar/ui/icon/icons/chevronRightIcon";
+import { trash2Icon } from "@keystar/ui/icon/icons/trash2Icon";
+import { xIcon } from "@keystar/ui/icon/icons/xIcon";
+import { zoomInIcon } from "@keystar/ui/icon/icons/zoomInIcon";
+import { zoomOutIcon } from "@keystar/ui/icon/icons/zoomOutIcon";
+import { Flex } from "@keystar/ui/layout";
+import { tokenSchema } from "@keystar/ui/style";
+import { Text } from "@keystar/ui/typography";
 
 import {
   useMediaLibraryPrefetch,
   useMediaLibraryPreviewURL,
-} from '../media-library/useMediaLibraryPreviewURL';
-import { getHighlightLanguage, isImagePath } from './file-kind';
-import { highlightCode } from './highlightCode';
-import { useFileTextContent } from './useFileTextContent';
-import { useInView } from './useInView';
+} from "../media-library/useMediaLibraryPreviewURL";
+import { getHighlightLanguage, isImagePath } from "./file-kind";
+import { highlightCode } from "./highlightCode";
+import { useFileTextContent } from "./useFileTextContent";
+import { useInView } from "./useInView";
 
 const MIN_ZOOM = 25;
 const MAX_ZOOM = 400;
 const ZOOM_STEP = 10;
 
 // translucent circular chrome so the nav arrows stay legible over any photo,
-// light or dark — these float on top of the image itself, not the app chrome
+// light or dark - these float on top of the image itself, not the app chrome
 const navButtonStyle = {
-  backgroundColor: 'rgba(0, 0, 0, 0.45)',
-  color: '#fff',
+  backgroundColor: "rgba(0, 0, 0, 0.45)",
+  color: "#fff",
   borderRadius: 999,
   height: 44,
   minWidth: 44,
@@ -39,7 +39,7 @@ const zoomInputStyle = {
   height: tokenSchema.size.element.regular,
   paddingInlineStart: tokenSchema.size.space.regular,
   paddingInlineEnd: 22,
-  textAlign: 'center' as const,
+  textAlign: "center" as const,
   borderRadius: tokenSchema.size.radius.regular,
   border: `${tokenSchema.size.border.regular} solid ${tokenSchema.color.alias.borderIdle}`,
   backgroundColor: tokenSchema.color.alias.backgroundIdle,
@@ -58,14 +58,14 @@ export function AssetPreviewOverlay(props: {
   onClose: () => void;
 }) {
   const { path, siblings, onNavigate, onDelete, onClose } = props;
-  const filename = path.split('/').pop()!;
+  const filename = path.split("/").pop()!;
   const isImage = isImagePath(path);
   const highlightLang = getHighlightLanguage(path);
   const objectUrl = useMediaLibraryPreviewURL(isImage ? path : null);
   const textContent = useFileTextContent(isImage ? null : path);
 
   const [zoom, setZoomRaw] = useState(100);
-  const [zoomInput, setZoomInput] = useState('100');
+  const [zoomInput, setZoomInput] = useState("100");
   const stageRef = useRef<HTMLDivElement | null>(null);
 
   const index = siblings.indexOf(path);
@@ -81,7 +81,7 @@ export function AssetPreviewOverlay(props: {
           siblings[(index - 1 + siblings.length) % siblings.length],
           siblings[(index + 1) % siblings.length],
         ]
-      : []
+      : [],
   );
 
   function prevPath() {
@@ -95,9 +95,9 @@ export function AssetPreviewOverlay(props: {
   }
 
   function setZoom(updater: number | ((current: number) => number)) {
-    setZoomRaw(prev => {
+    setZoomRaw((prev) => {
       const next = clampZoom(
-        Math.round(typeof updater === 'function' ? updater(prev) : updater)
+        Math.round(typeof updater === "function" ? updater(prev) : updater),
       );
       setZoomInput(String(next));
       return next;
@@ -116,43 +116,43 @@ export function AssetPreviewOverlay(props: {
     onNavigate(target);
   }
 
-  // mouse-wheel zoom — attached as a native, non-passive listener so
+  // mouse-wheel zoom - attached as a native, non-passive listener so
   // `preventDefault` actually stops the page from scrolling while zooming.
-  // Only wired up for images — text previews need normal scroll-to-read.
+  // Only wired up for images - text previews need normal scroll-to-read.
   useEffect(() => {
     const el = stageRef.current;
     if (!el || !isImage) return;
     function handleWheel(event: WheelEvent) {
       event.preventDefault();
-      setZoom(z => z + (event.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP));
+      setZoom((z) => z + (event.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP));
     }
-    el.addEventListener('wheel', handleWheel, { passive: false });
-    return () => el.removeEventListener('wheel', handleWheel);
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
   }, [isImage]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
+      if (event.key === "Escape") {
         onClose();
         return;
       }
       const target = event.target;
       const isTyping =
         target instanceof HTMLElement &&
-        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA");
       if (isTyping) return;
-      if (event.key === 'ArrowLeft' && canPrev) goTo(prevPath());
-      else if (event.key === 'ArrowRight' && canNext) goTo(nextPath());
-      else if (isImage && (event.key === '+' || event.key === '=')) {
+      if (event.key === "ArrowLeft" && canPrev) goTo(prevPath());
+      else if (event.key === "ArrowRight" && canNext) goTo(nextPath());
+      else if (isImage && (event.key === "+" || event.key === "=")) {
         event.preventDefault();
-        setZoom(z => z + ZOOM_STEP);
-      } else if (isImage && (event.key === '-' || event.key === '_')) {
+        setZoom((z) => z + ZOOM_STEP);
+      } else if (isImage && (event.key === "-" || event.key === "_")) {
         event.preventDefault();
-        setZoom(z => z - ZOOM_STEP);
+        setZoom((z) => z - ZOOM_STEP);
       }
     }
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, siblings, isImage]);
 
@@ -161,29 +161,33 @@ export function AssetPreviewOverlay(props: {
       direction="column"
       backgroundColor="canvas"
       UNSAFE_style={{
-        position: 'fixed',
+        position: "fixed",
         inset: 0,
         zIndex: 100,
       }}
     >
       <Flex
-        alignItems={{mobile: "flex-end", tablet: "center"}}
+        alignItems={{ mobile: "flex-end", tablet: "center" }}
         justifyContent="space-between"
         gap="regular"
         borderBottom="muted"
-        direction={{mobile: "column", tablet: "row"}}
+        direction={{ mobile: "column", tablet: "row" }}
         UNSAFE_style={{ padding: 12, flexShrink: 0 }}
       >
-        <Flex alignItems="center" gap="regular" UNSAFE_style={{ minWidth: 0, maxWidth: '100%' }}>
+        <Flex
+          alignItems="center"
+          gap="regular"
+          UNSAFE_style={{ minWidth: 0, maxWidth: "100%" }}
+        >
           <ActionButton aria-label="Close" onPress={onClose}>
             <Icon src={xIcon} />
           </ActionButton>
           <Text
             UNSAFE_style={{
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              lineHeight: '1.5rem',
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              lineHeight: "1.5rem",
             }}
           >
             {filename}
@@ -196,32 +200,32 @@ export function AssetPreviewOverlay(props: {
               <ActionButton
                 aria-label="Zoom out"
                 isDisabled={zoom <= MIN_ZOOM}
-                onPress={() => setZoom(z => z - ZOOM_STEP)}
+                onPress={() => setZoom((z) => z - ZOOM_STEP)}
               >
                 <Icon src={zoomOutIcon} />
               </ActionButton>
-              <div style={{ position: 'relative', display: 'inline-flex' }}>
+              <div style={{ position: "relative", display: "inline-flex" }}>
                 <input
                   type="text"
                   inputMode="numeric"
                   aria-label="Zoom percentage"
                   value={zoomInput}
-                  onChange={event =>
-                    setZoomInput(event.target.value.replace(/[^\d]/g, ''))
+                  onChange={(event) =>
+                    setZoomInput(event.target.value.replace(/[^\d]/g, ""))
                   }
                   onBlur={commitZoomInput}
-                  onKeyDown={event => {
-                    if (event.key === 'Enter') event.currentTarget.blur();
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") event.currentTarget.blur();
                   }}
                   style={zoomInputStyle}
                 />
                 <Text
                   UNSAFE_style={{
-                    position: 'absolute',
+                    position: "absolute",
                     right: 8,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    pointerEvents: 'none',
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    pointerEvents: "none",
                     opacity: 0.7,
                   }}
                 >
@@ -231,7 +235,7 @@ export function AssetPreviewOverlay(props: {
               <ActionButton
                 aria-label="Zoom in"
                 isDisabled={zoom >= MAX_ZOOM}
-                onPress={() => setZoom(z => z + ZOOM_STEP)}
+                onPress={() => setZoom((z) => z + ZOOM_STEP)}
               >
                 <Icon src={zoomInIcon} />
               </ActionButton>
@@ -251,7 +255,7 @@ export function AssetPreviewOverlay(props: {
         flex={1}
         alignItems="center"
         justifyContent="center"
-        UNSAFE_style={{ position: 'relative', minHeight: 0, overflow: 'auto' }}
+        UNSAFE_style={{ position: "relative", minHeight: 0, overflow: "auto" }}
       >
         {canPrev && (
           <ActionButton
@@ -259,10 +263,10 @@ export function AssetPreviewOverlay(props: {
             onPress={() => goTo(prevPath())}
             UNSAFE_style={{
               ...navButtonStyle,
-              position: 'absolute',
+              position: "absolute",
               left: 16,
-              top: '50%',
-              transform: 'translateY(-50%)',
+              top: "50%",
+              transform: "translateY(-50%)",
             }}
           >
             <Icon src={chevronLeftIcon} />
@@ -274,10 +278,10 @@ export function AssetPreviewOverlay(props: {
             onPress={() => goTo(nextPath())}
             UNSAFE_style={{
               ...navButtonStyle,
-              position: 'absolute',
+              position: "absolute",
               right: 16,
-              top: '50%',
-              transform: 'translateY(-50%)',
+              top: "50%",
+              transform: "translateY(-50%)",
             }}
           >
             <Icon src={chevronRightIcon} />
@@ -291,11 +295,11 @@ export function AssetPreviewOverlay(props: {
                 alt=""
                 draggable={false}
                 style={{
-                  display: 'block',
-                  maxWidth: '85vw',
-                  maxHeight: '75vh',
+                  display: "block",
+                  maxWidth: "85vw",
+                  maxHeight: "75vh",
                   transform: `scale(${zoom / 100})`,
-                  transformOrigin: 'center',
+                  transformOrigin: "center",
                 }}
               />
             )
@@ -304,11 +308,11 @@ export function AssetPreviewOverlay(props: {
                 style={{
                   margin: 0,
                   padding: 16,
-                  maxWidth: '85vw',
-                  maxHeight: '75vh',
-                  overflow: 'auto',
-                  textAlign: 'left',
-                  fontFamily: 'monospace',
+                  maxWidth: "85vw",
+                  maxHeight: "75vh",
+                  overflow: "auto",
+                  textAlign: "left",
+                  fontFamily: "monospace",
                   fontSize: 13,
                   lineHeight: 1.6,
                   backgroundColor: tokenSchema.color.background.surface,
@@ -317,7 +321,9 @@ export function AssetPreviewOverlay(props: {
                 }}
               >
                 <code>
-                  {highlightLang ? highlightCode(textContent, highlightLang) : textContent}
+                  {highlightLang
+                    ? highlightCode(textContent, highlightLang)
+                    : textContent}
                 </code>
               </pre>
             )}
@@ -330,11 +336,11 @@ export function AssetPreviewOverlay(props: {
           borderTop="muted"
           UNSAFE_style={{
             padding: 12,
-            overflowX: 'auto',
+            overflowX: "auto",
             flexShrink: 0,
           }}
         >
-          {siblings.map(siblingPath => (
+          {siblings.map((siblingPath) => (
             <FilmstripThumb
               key={siblingPath}
               path={siblingPath}
@@ -355,7 +361,7 @@ function FilmstripThumb(props: {
 }) {
   const [ref, inView] = useInView<HTMLButtonElement>();
   const url = useMediaLibraryPreviewURL(props.path, undefined, inView, true);
-  const name = props.path.split('/').pop();
+  const name = props.path.split("/").pop();
 
   return (
     <ActionButton
@@ -363,13 +369,13 @@ function FilmstripThumb(props: {
       aria-label={`Show ${name}`}
       onPress={props.onSelect}
       UNSAFE_style={{
-        height: 'unset',
+        height: "unset",
         padding: 2,
         flexShrink: 0,
         border: `2px solid ${
           props.isActive
             ? tokenSchema.color.alias.borderSelected
-            : 'transparent'
+            : "transparent"
         }`,
         borderRadius: 6,
       }}
@@ -379,10 +385,10 @@ function FilmstripThumb(props: {
           src={url}
           alt=""
           style={{
-            display: 'block',
+            display: "block",
             width: 64,
             height: 64,
-            objectFit: 'cover',
+            objectFit: "cover",
             borderRadius: 3,
           }}
         />

@@ -66,7 +66,7 @@ export function MagicWriteDialog(props: {
 
   return (
     <Dialog>
-      <Heading>Magic write — {props.entryLabel}</Heading>
+      <Heading>Magic write - {props.entryLabel}</Heading>
       <Content>
         <form
           style={{ display: 'contents' }}
@@ -143,7 +143,7 @@ function ColumnPicker(props: {
   const { specs, selection, onChange } = props;
 
   // The two columns are mutually exclusive per field, but a field may be in
-  // neither — "ignore this one entirely" is a real choice, so these are
+  // neither - "ignore this one entirely" is a real choice, so these are
   // checkboxes rather than a radio pair.
   const set = (key: string, column: Exclude<Column, 'none'>, checked: boolean) => {
     onChange({ ...selection, [key]: checked ? column : 'none' });

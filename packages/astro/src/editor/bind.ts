@@ -1,8 +1,8 @@
-import type { Config } from '@drystack/core';
-import { refreshAuth } from '@drystack/core/auth';
-// @ts-expect-error — provided by the drystack Astro integration's Vite plugin
-import apiPath from 'virtual:drystack-path';
-import type { DryMapEntry } from '../dry';
+import type { Config } from "@drystack/core";
+import { refreshAuth } from "@drystack/core/auth";
+// @ts-expect-error - provided by the drystack Astro integration's Vite plugin
+import apiPath from "virtual:drystack-path";
+import type { DryMapEntry } from "../dry";
 import {
   getAllEdits,
   publishEdit,
@@ -16,17 +16,17 @@ import {
   getPendingBlob,
   clearPendingBlobs,
   type EditBusMessage,
-} from './store';
-import { getLatestFieldValues } from './save';
+} from "./store";
+import { getLatestFieldValues } from "./save";
 
-const BUILD_VERSION_KEY = 'buildVersion';
+const BUILD_VERSION_KEY = "buildVersion";
 
 let editing = false;
 let onChangeCallback: (() => void) | undefined;
 
 // The server-rendered (on-disk) value for each editable key, captured before
 // any pending edit is painted over it. Lets the review dialog show a
-// before/after diff entirely client-side — no file-read round-trip needed.
+// before/after diff entirely client-side - no file-read round-trip needed.
 const originalValues = new Map<string, string>();
 
 function rememberOriginal(key: string, value: string) {
@@ -46,16 +46,16 @@ export function resetOriginalValue(key: string, value: string) {
 }
 
 function isImageSpot(el: HTMLElement): boolean {
-  return el.getAttribute('data-dry-kind') === 'image';
+  return el.getAttribute("data-dry-kind") === "image";
 }
 
 function isFileSpot(el: HTMLElement): boolean {
-  return el.getAttribute('data-dry-kind') === 'file';
+  return el.getAttribute("data-dry-kind") === "file";
 }
 
 // image and file spots share every editing behavior below (not
 // contentEditable, edited via the media-library picker, value lives in
-// data-dry-value with a pending-blob preview) — they only differ in which
+// data-dry-value with a pending-blob preview) - they only differ in which
 // native attribute (`src` vs `href`) carries the pristine SSR value. See
 // readAssetAttr/paintAssetSpot.
 function isAssetSpot(el: HTMLElement): boolean {
@@ -63,21 +63,21 @@ function isAssetSpot(el: HTMLElement): boolean {
 }
 
 function isArraySpot(el: HTMLElement): boolean {
-  return el.getAttribute('data-dry-kind') === 'array';
+  return el.getAttribute("data-dry-kind") === "array";
 }
 
-// A container element whose own value is a fields.object — either an
+// A container element whose own value is a fields.object - either an
 // array-of-object item's *wrapper* (set server-side by dry.item('cards.0'))
 // or a standalone object field at any depth (dry.item('brand'),
 // dry.item('sections.0.nested'), …). Purely a structural marker: it's never
 // itself contentEditable, and its own descendant spots (leaf or a further-
-// nested container) are handled individually by the generic branches below —
+// nested container) are handled individually by the generic branches below -
 // see isContainerSpot/readContainerValue/paintContainerValue.
 function isObjectSpot(el: HTMLElement): boolean {
-  return el.getAttribute('data-dry-kind') === 'object';
+  return el.getAttribute("data-dry-kind") === "object";
 }
 
-// Either kind of structural container marker (array or object) — never
+// Either kind of structural container marker (array or object) - never
 // contentEditable itself; its value is read/painted as one recursive unit via
 // readContainerValue/paintContainerValue rather than the flat text/asset
 // branches below.
@@ -89,24 +89,24 @@ function isContainerSpot(el: HTMLElement): boolean {
 // never makes it editable or paints it on a keystroke: a real ProseMirror
 // view is mounted directly onto the element for the duration of edit mode
 // (see Toolbar.tsx's InlineContentEditors) and owns it while mounted. What's
-// left here is only what happens *outside* that window — snapshotting the
+// left here is only what happens *outside* that window - snapshotting the
 // baseline, and painting a value that arrives from source/another tab/a
-// reset — and for those the value is simply the element's own innerHTML.
+// reset - and for those the value is simply the element's own innerHTML.
 export function isContentSpot(el: HTMLElement): boolean {
-  return el.getAttribute('data-dry-kind') === 'content';
+  return el.getAttribute("data-dry-kind") === "content";
 }
 
 // --- Array binding (template-clone) --------------------------------------
 //
 // A fields.array container (e.g. <ul {...dry.item('array')}>) renders its
 // items as ordinary child elements the page author wrote themselves (e.g.
-// <li {...dry.item('array.0')}>) — there's no framework-owned render function
+// <li {...dry.item('array.0')}>) - there's no framework-owned render function
 // to re-invoke when the array's length changes. Instead, the first existing
 // item element is captured as a per-container "template" the first time it's
 // seen; growing the array clones it, shrinking removes the trailing excess.
 // Only direct children of the container count as items (matches the
 // dry.item('array.N') convention). An item may itself be a further-nested
-// container (object, or another array) — see readContainerValue/
+// container (object, or another array) - see readContainerValue/
 // paintContainerValue below, plan/de-quy-object.md.
 const arrayTemplates = new Map<string, HTMLElement>();
 
@@ -116,61 +116,67 @@ const arrayTemplates = new Map<string, HTMLElement>();
 // legacy self-marked pattern, e.g. arrayImg's <Image {...dry.item('arrayImg.0')}/>)
 // or on a descendant inside author-supplied wrapper markup the item root
 // itself doesn't carry data-dry for (e.g. <li><div {...dry.item('array.0')}>
-// ...</div></li> — the <li> is just the clone-template unit).
+// ...</div></li> - the <li> is just the clone-template unit).
 function collectDrySpots(root: HTMLElement, prefix: string): HTMLElement[] {
   const spots: HTMLElement[] = [];
-  if (root.getAttribute('data-dry')?.startsWith(prefix)) spots.push(root);
-  root.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
-    if (el.getAttribute('data-dry')?.startsWith(prefix)) spots.push(el);
+  if (root.getAttribute("data-dry")?.startsWith(prefix)) spots.push(root);
+  root.querySelectorAll<HTMLElement>("[data-dry]").forEach((el) => {
+    if (el.getAttribute("data-dry")?.startsWith(prefix)) spots.push(el);
   });
   return spots;
 }
 
 // Cheaper existence check than collectDrySpots(...).length > 0 for callers
-// that only need a boolean — `[data-dry^="prefix"]` lets the engine stop at
+// that only need a boolean - `[data-dry^="prefix"]` lets the engine stop at
 // the first match instead of collecting every match just to measure it.
 function hasDrySpot(root: HTMLElement, prefix: string): boolean {
-  if (root.getAttribute('data-dry')?.startsWith(prefix)) return true;
+  if (root.getAttribute("data-dry")?.startsWith(prefix)) return true;
   return root.querySelector(`[data-dry^="${CSS.escape(prefix)}"]`) !== null;
 }
 
-function getArrayItemChildren(container: HTMLElement, key: string): HTMLElement[] {
+function getArrayItemChildren(
+  container: HTMLElement,
+  key: string,
+): HTMLElement[] {
   const prefix = `${key}.`;
-  return Array.from(container.children).filter(
-    (child): child is HTMLElement => hasDrySpot(child as HTMLElement, prefix)
+  return Array.from(container.children).filter((child): child is HTMLElement =>
+    hasDrySpot(child as HTMLElement, prefix),
   );
 }
 
-// Direct sub-field/item spots of a container at `key` — every descendant
+// Direct sub-field/item spots of a container at `key` - every descendant
 // whose key extends `prefix` (= `${key}.`) by exactly one segment (no
 // further dot), found via the prefix-scan above (collectDrySpots) so authors
 // can still wrap arbitrary non-dry markup between a container and its marked
-// children. A descendant two-or-more segments deeper — a grandchild reached
-// through some *other*, itself-nested container — is excluded here; that
+// children. A descendant two-or-more segments deeper - a grandchild reached
+// through some *other*, itself-nested container - is excluded here; that
 // nested container's own recursive read/paint call handles it, not this one.
 function directChildSpots(root: HTMLElement, prefix: string): HTMLElement[] {
   return collectDrySpots(root, prefix).filter(
-    el => !el.getAttribute('data-dry')!.slice(prefix.length).includes('.')
+    (el) => !el.getAttribute("data-dry")!.slice(prefix.length).includes("."),
   );
 }
 
 // The element carrying EXACTLY `key` as its own data-dry (not merely
-// prefixed by it) — `root` itself first, else the closest descendant.
+// prefixed by it) - `root` itself first, else the closest descendant.
 // Distinguishes "this item/container has its own explicit dry.item() mark"
 // (self-marked leaf, or self-marked array/object container) from the
 // unmarked-wrapper fallback used by readItemOrLeaf/paintItemOrLeaf below.
 function exactDrySpot(root: HTMLElement, key: string): HTMLElement | undefined {
-  if (root.getAttribute('data-dry') === key) return root;
-  return root.querySelector<HTMLElement>(`[data-dry="${CSS.escape(key)}"]`) ?? undefined;
+  if (root.getAttribute("data-dry") === key) return root;
+  return (
+    root.querySelector<HTMLElement>(`[data-dry="${CSS.escape(key)}"]`) ??
+    undefined
+  );
 }
 
-// The native attribute an asset spot's kind carries its value in — `src` for
+// The native attribute an asset spot's kind carries its value in - `src` for
 // an image, `href` for a file (typically an <a> download link). Dispatches
 // on data-dry-kind, same as every other decision in this file, rather than
 // the element's tag name, so it stays correct even if a future spot renders
 // its kind on an unexpected element.
-function nativeAssetAttr(el: HTMLElement): 'src' | 'href' {
-  return isImageSpot(el) ? 'src' : 'href';
+function nativeAssetAttr(el: HTMLElement): "src" | "href" {
+  return isImageSpot(el) ? "src" : "href";
 }
 
 // The native attribute carrying an asset spot's pristine SSR value. Only
@@ -184,42 +190,45 @@ function readAssetAttr(el: HTMLElement): string | null {
 function readSpotValue(el: HTMLElement): string {
   // A content spot's value is the HTML it renders, not its flattened text.
   if (isContentSpot(el)) return el.innerHTML;
-  if (!isAssetSpot(el)) return el.textContent ?? '';
+  if (!isAssetSpot(el)) return el.textContent ?? "";
   // `data-dry-value` (set by paintAssetSpot/applyEdit) is the real path;
   // `src`/`href` alone can be a transient blob: preview URL once a pending
-  // edit has been applied — reading that back as "the value" would leak the
+  // edit has been applied - reading that back as "the value" would leak the
   // local object URL into a save. Only an item never touched by JS (straight
   // from SSR) lacks the attribute, and its native attribute is real then.
-  return el.getAttribute('data-dry-value') ?? readAssetAttr(el) ?? '';
+  return el.getAttribute("data-dry-value") ?? readAssetAttr(el) ?? "";
 }
 
-// Reads one object container's direct sub-fields into a plain object —
+// Reads one object container's direct sub-fields into a plain object -
 // `root` is the container's own element (or, for the unmarked-wrapper
-// fallback, the item element that has no mark of its own — see
+// fallback, the item element that has no mark of its own - see
 // readItemOrLeaf). Image/file sub-fields read null when empty, matching
 // fields.image/fields.file's null value so the shape lines up with the
 // admin form/reader; a sub-field that's itself a container recurses via
 // readContainerValue instead of reading a flat leaf value.
-function readObjectFields(root: HTMLElement, key: string): Record<string, unknown> {
+function readObjectFields(
+  root: HTMLElement,
+  key: string,
+): Record<string, unknown> {
   const prefix = `${key}.`;
   const obj: Record<string, unknown> = {};
-  directChildSpots(root, prefix).forEach(el => {
-    const sub = el.getAttribute('data-dry')!.slice(prefix.length);
+  directChildSpots(root, prefix).forEach((el) => {
+    const sub = el.getAttribute("data-dry")!.slice(prefix.length);
     const subKey = `${key}.${sub}`;
-    const subKind = el.getAttribute('data-dry-kind');
-    if (subKind === 'array' || subKind === 'object') {
+    const subKind = el.getAttribute("data-dry-kind");
+    if (subKind === "array" || subKind === "object") {
       obj[sub] = readContainerValue(el, subKey);
     } else if (isAssetSpot(el)) {
       const v = readSpotValue(el);
-      obj[sub] = v === '' ? null : v;
+      obj[sub] = v === "" ? null : v;
     } else {
-      obj[sub] = el.textContent ?? '';
+      obj[sub] = el.textContent ?? "";
     }
   });
   return obj;
 }
 
-// Reads one array item's value — dispatches on the item's own explicit mark
+// Reads one array item's value - dispatches on the item's own explicit mark
 // if it has one (self-marked leaf, or self-marked array/object container),
 // else falls back to the legacy unmarked-wrapper pattern (no mark of its
 // own; treated as an object whose direct children are its sub-fields, each
@@ -227,8 +236,9 @@ function readObjectFields(root: HTMLElement, key: string): Record<string, unknow
 function readItemOrLeaf(itemEl: HTMLElement, key: string): unknown {
   const own = exactDrySpot(itemEl, key);
   if (own) {
-    const kind = own.getAttribute('data-dry-kind');
-    if (kind === 'array' || kind === 'object') return readContainerValue(own, key);
+    const kind = own.getAttribute("data-dry-kind");
+    if (kind === "array" || kind === "object")
+      return readContainerValue(own, key);
     return readSpotValue(own);
   }
   return readObjectFields(itemEl, key);
@@ -239,48 +249,54 @@ function readItemOrLeaf(itemEl: HTMLElement, key: string): unknown {
 // container. `el` must be the container's own marked element (its
 // data-dry-kind decides which shape to read).
 function readContainerValue(el: HTMLElement, key: string): unknown {
-  if (el.getAttribute('data-dry-kind') === 'array') {
-    return getArrayItemChildren(el, key).map((item, i) => readItemOrLeaf(item, `${key}.${i}`));
+  if (el.getAttribute("data-dry-kind") === "array") {
+    return getArrayItemChildren(el, key).map((item, i) =>
+      readItemOrLeaf(item, `${key}.${i}`),
+    );
   }
   return readObjectFields(el, key);
 }
 
 // Whether an array's items are themselves containers (object or nested
-// array) rather than flat leaves — sampled from the captured template (or
+// array) rather than flat leaves - sampled from the captured template (or
 // the first live item) the same way the array's shared shape is sampled
 // elsewhere, reduced to a boolean. Used only to decide whether a
-// source-refresh repaint is safe (see paintFetchedValue) — item-level
+// source-refresh repaint is safe (see paintFetchedValue) - item-level
 // read/paint itself dispatches per item via readItemOrLeaf/paintItemOrLeaf
 // and doesn't need this.
 function arrayHasContainerItems(container: HTMLElement, key: string): boolean {
-  const sample = arrayTemplates.get(key) ?? getArrayItemChildren(container, key)[0];
+  const sample =
+    arrayTemplates.get(key) ?? getArrayItemChildren(container, key)[0];
   if (!sample) return false;
   const itemKey = `${key}.0`;
   const own = exactDrySpot(sample, itemKey);
   if (own) {
-    const kind = own.getAttribute('data-dry-kind');
-    return kind === 'array' || kind === 'object';
+    const kind = own.getAttribute("data-dry-kind");
+    return kind === "array" || kind === "object";
   }
-  // Unmarked wrapper — the legacy pattern always implies an object item.
+  // Unmarked wrapper - the legacy pattern always implies an object item.
   return directChildSpots(sample, `${itemKey}.`).length > 0;
 }
 
 // Captures a clonable template from the first existing item, if one exists
-// and none has been captured yet — a container that had no items when first
+// and none has been captured yet - a container that had no items when first
 // seen has nothing to clone a shape from, so it never gets a template (the
 // toolbar's gear button stays disabled whenever an array has zero items on
 // the page, see Toolbar.tsx, which is what keeps this reachable state rare).
-function captureArrayTemplate(container: HTMLElement, key: string): HTMLElement[] {
+function captureArrayTemplate(
+  container: HTMLElement,
+  key: string,
+): HTMLElement[] {
   const items = getArrayItemChildren(container, key);
   if (items.length > 0 && !arrayTemplates.has(key)) {
     const template = items[0].cloneNode(true) as HTMLElement;
-    template.removeAttribute('contenteditable');
+    template.removeAttribute("contenteditable");
     // For an object-item template, its text sub-field spots may already carry
-    // contenteditable — strip them so a freshly cloned item starts clean
+    // contenteditable - strip them so a freshly cloned item starts clean
     // (renderArray re-adds it per sub-field when in edit mode).
     template
-      .querySelectorAll('[contenteditable]')
-      .forEach(el => el.removeAttribute('contenteditable'));
+      .querySelectorAll("[contenteditable]")
+      .forEach((el) => el.removeAttribute("contenteditable"));
     arrayTemplates.set(key, template);
   }
   return items;
@@ -290,40 +306,50 @@ function captureArrayTemplate(container: HTMLElement, key: string): HTMLElement[
 // Firefox fallback), matching how a plain text spot is enabled.
 function makeEditableIfEditing(el: HTMLElement): void {
   if (!editing) return;
-  el.contentEditable = 'plaintext-only';
-  if (el.contentEditable !== 'plaintext-only') el.contentEditable = 'true';
+  el.contentEditable = "plaintext-only";
+  if (el.contentEditable !== "plaintext-only") el.contentEditable = "true";
 }
 
 // Paints one object container's direct sub-fields from `obj`, mirroring
-// readObjectFields — a sub-field that's itself a container recurses via
+// readObjectFields - a sub-field that's itself a container recurses via
 // paintContainerValue instead of a flat leaf paint. `root` is the
 // container's own element (or, for the unmarked-wrapper fallback, the item
-// element that has no mark of its own — see paintItemOrLeaf). Never touches
-// re-indexing; callers that need it (array items — see paintArrayItem) do
+// element that has no mark of its own - see paintItemOrLeaf). Never touches
+// re-indexing; callers that need it (array items - see paintArrayItem) do
 // that separately first.
 async function paintObjectFields(
   root: HTMLElement,
   key: string,
   obj: Record<string, unknown>,
-  resolveBlobs = false
+  resolveBlobs = false,
 ): Promise<void> {
   const prefix = `${key}.`;
   const paints: Promise<void>[] = [];
-  directChildSpots(root, prefix).forEach(el => {
-    const sub = el.getAttribute('data-dry')!.slice(prefix.length);
+  directChildSpots(root, prefix).forEach((el) => {
+    const sub = el.getAttribute("data-dry")!.slice(prefix.length);
     const subKey = `${key}.${sub}`;
     const value = obj?.[sub];
-    const subKind = el.getAttribute('data-dry-kind');
-    if (subKind === 'array' || subKind === 'object') {
+    const subKind = el.getAttribute("data-dry-kind");
+    if (subKind === "array" || subKind === "object") {
       paints.push(
-        paintContainerValue(el, subKey, value ?? (subKind === 'array' ? [] : {}), resolveBlobs)
+        paintContainerValue(
+          el,
+          subKey,
+          value ?? (subKind === "array" ? [] : {}),
+          resolveBlobs,
+        ),
       );
     } else if (isAssetSpot(el)) {
       paints.push(
-        paintAssetValue(el, subKey, typeof value === 'string' ? value : '', resolveBlobs)
+        paintAssetValue(
+          el,
+          subKey,
+          typeof value === "string" ? value : "",
+          resolveBlobs,
+        ),
       );
     } else {
-      el.textContent = value == null ? '' : String(value);
+      el.textContent = value == null ? "" : String(value);
       makeEditableIfEditing(el);
     }
   });
@@ -338,51 +364,66 @@ async function paintItemOrLeaf(
   itemEl: HTMLElement,
   key: string,
   value: unknown,
-  resolveBlobs = false
+  resolveBlobs = false,
 ): Promise<void> {
   const own = exactDrySpot(itemEl, key);
   if (own) {
-    const kind = own.getAttribute('data-dry-kind');
-    if (kind === 'array' || kind === 'object') {
+    const kind = own.getAttribute("data-dry-kind");
+    if (kind === "array" || kind === "object") {
       await paintContainerValue(own, key, value, resolveBlobs);
       return;
     }
     if (isAssetSpot(own)) {
-      await paintAssetValue(own, key, typeof value === 'string' ? value : '', resolveBlobs);
+      await paintAssetValue(
+        own,
+        key,
+        typeof value === "string" ? value : "",
+        resolveBlobs,
+      );
     } else {
-      own.textContent = value == null ? '' : String(value);
+      own.textContent = value == null ? "" : String(value);
       makeEditableIfEditing(own);
     }
     return;
   }
-  await paintObjectFields(itemEl, key, (value ?? {}) as Record<string, unknown>, resolveBlobs);
+  await paintObjectFields(
+    itemEl,
+    key,
+    (value ?? {}) as Record<string, unknown>,
+    resolveBlobs,
+  );
 }
 
-// Paints a container's (array or object) value onto its own marked element —
+// Paints a container's (array or object) value onto its own marked element -
 // the recursive counterpart to readContainerValue. `el`'s own data-dry-kind
 // decides which shape to paint.
 async function paintContainerValue(
   el: HTMLElement,
   key: string,
   value: unknown,
-  resolveBlobs = false
+  resolveBlobs = false,
 ): Promise<void> {
-  if (el.getAttribute('data-dry-kind') === 'array') {
+  if (el.getAttribute("data-dry-kind") === "array") {
     await renderArray(el, key, Array.isArray(value) ? value : [], resolveBlobs);
     return;
   }
-  await paintObjectFields(el, key, (value ?? {}) as Record<string, unknown>, resolveBlobs);
+  await paintObjectFields(
+    el,
+    key,
+    (value ?? {}) as Record<string, unknown>,
+    resolveBlobs,
+  );
 }
 
 // Re-indexes every descendant spot under `item` (including `item`'s own, if
-// it carries one) from whatever index it currently embeds to `i` — needed
+// it carries one) from whatever index it currently embeds to `i` - needed
 // whenever a grown/shrunk/reordered array moves an item to a new position,
 // regardless of whether the item is a leaf, an object, or itself a further-
 // nested array: any of those can carry descendant spots whose keys embed the
 // old index, and the rewrite is the same string-splice either way (replace
-// the segment right after `key.` with `i`, keep everything past it — if
-// any — verbatim). Then paints `value` onto the item at its new key via
-// paintItemOrLeaf. `item` must be the specific item root element — querying
+// the segment right after `key.` with `i`, keep everything past it - if
+// any - verbatim). Then paints `value` onto the item at its new key via
+// paintItemOrLeaf. `item` must be the specific item root element - querying
 // from the whole array container would match every item's descendants (they
 // all share the same `key.` prefix), reindexing every other item too.
 async function paintArrayItem(
@@ -390,51 +431,53 @@ async function paintArrayItem(
   key: string,
   i: number,
   value: unknown,
-  resolveBlobs = false
+  resolveBlobs = false,
 ): Promise<void> {
   const itemPrefix = `${key}.`;
   const reindex = (el: HTMLElement) => {
-    const k = el.getAttribute('data-dry');
+    const k = el.getAttribute("data-dry");
     if (!k || !k.startsWith(itemPrefix)) return;
     const afterKey = k.slice(itemPrefix.length); // "<oldIdx>" or "<oldIdx>.<rest…>"
-    const dot = afterKey.indexOf('.');
-    const rest = dot === -1 ? '' : afterKey.slice(dot); // "" or ".<rest…>"
-    el.setAttribute('data-dry', `${key}.${i}${rest}`);
+    const dot = afterKey.indexOf(".");
+    const rest = dot === -1 ? "" : afterKey.slice(dot); // "" or ".<rest…>"
+    el.setAttribute("data-dry", `${key}.${i}${rest}`);
   };
   reindex(item);
-  item.querySelectorAll<HTMLElement>('[data-dry]').forEach(reindex);
+  item.querySelectorAll<HTMLElement>("[data-dry]").forEach(reindex);
   await paintItemOrLeaf(item, `${key}.${i}`, value, resolveBlobs);
 }
 
 // Revokes any object URLs held by an item's own or nested image/file spots
-// before that item is removed (shrink), so previews don't leak — matches
+// before that item is removed (shrink), so previews don't leak - matches
 // image/file spots at any depth under `item`, including `item` itself if
 // it's directly an asset spot (a leaf array item).
 function revokeItemAssets(item: HTMLElement): void {
   if (isAssetSpot(item)) {
-    const k = item.getAttribute('data-dry');
+    const k = item.getAttribute("data-dry");
     if (k) revokeAssetObjectUrl(k);
   }
   item
-    .querySelectorAll<HTMLElement>('[data-dry-kind="image"], [data-dry-kind="file"]')
-    .forEach(el => {
-      const k = el.getAttribute('data-dry');
+    .querySelectorAll<HTMLElement>(
+      '[data-dry-kind="image"], [data-dry-kind="file"]',
+    )
+    .forEach((el) => {
+      const k = el.getAttribute("data-dry");
       if (k) revokeAssetObjectUrl(k);
     });
 }
 
-// Reconciles a container's item elements to match `values`, by index —
+// Reconciles a container's item elements to match `values`, by index -
 // clones the captured template to grow, removes trailing elements to shrink,
 // and repaints surviving elements' value + data-dry index in place via
 // paintArrayItem (which dispatches per item: leaf, container, or unmarked
-// object wrapper — see readItemOrLeaf/arrayHasContainerItems for the same
+// object wrapper - see readItemOrLeaf/arrayHasContainerItems for the same
 // per-item dispatch on the read side). Live and framework-agnostic: no VDOM
 // diffing, just direct DOM surgery on whatever markup the page author wrote.
 async function renderArray(
   container: HTMLElement,
   key: string,
   values: unknown[],
-  resolveBlobs = false
+  resolveBlobs = false,
 ): Promise<void> {
   const items = captureArrayTemplate(container, key);
   const template = arrayTemplates.get(key);
@@ -458,50 +501,58 @@ async function renderArray(
 
 // Reads a fields.array or fields.object field's current live value straight
 // off the DOM (already up to date with any pending item/container edits
-// already painted) — used to seed the container editor dialog and to check
+// already painted) - used to seed the container editor dialog and to check
 // whether the toolbar's gear button should be enabled (see Toolbar.tsx).
 export function getContainerValueFromDom(key: string): unknown {
-  const el = document.querySelector<HTMLElement>(`[data-dry="${CSS.escape(key)}"]`);
+  const el = document.querySelector<HTMLElement>(
+    `[data-dry="${CSS.escape(key)}"]`,
+  );
   if (!el) return undefined;
   return readContainerValue(el, key);
 }
 
 function handleInput(e: Event) {
-  const el = (e.target as HTMLElement)?.closest<HTMLElement>('[data-dry]');
+  const el = (e.target as HTMLElement)?.closest<HTMLElement>("[data-dry]");
   if (!el || isAssetSpot(el) || isObjectSpot(el)) return;
   // A content spot's own ProseMirror view publishes its edits itself, as
   // serialized HTML (InlineContentEditors.tsx). This listener is on the
   // document in the capture phase, so typing inside that view reaches it
-  // too — without this guard it would race the view and publish the
+  // too - without this guard it would race the view and publish the
   // element's flattened `textContent`, wiping every tag in the field.
   if (isContentSpot(el)) return;
-  const key = el.getAttribute('data-dry');
+  const key = el.getAttribute("data-dry");
   if (!key) return;
-  publishEdit(key, el.textContent ?? '').then(() => onChangeCallback?.());
+  publishEdit(key, el.textContent ?? "").then(() => onChangeCallback?.());
 }
 
-// Registered by the toolbar once its admin-provider boundary is ready —
+// Registered by the toolbar once its admin-provider boundary is ready -
 // clicking an image/file spot in edit mode opens the same file-manager
 // picker the admin's fields.image/fields.file input uses, rather than making
 // the spot contenteditable. Keyed by data-dry-kind so a future asset kind
 // only needs a new map entry, not a parallel var/setter/branch.
-const assetSpotClickCallbacks: Partial<Record<'image' | 'file', (key: string) => void>> = {};
+const assetSpotClickCallbacks: Partial<
+  Record<"image" | "file", (key: string) => void>
+> = {};
 
-export function setImageSpotClickHandler(cb: ((key: string) => void) | undefined) {
+export function setImageSpotClickHandler(
+  cb: ((key: string) => void) | undefined,
+) {
   assetSpotClickCallbacks.image = cb;
 }
 
-export function setFileSpotClickHandler(cb: ((key: string) => void) | undefined) {
+export function setFileSpotClickHandler(
+  cb: ((key: string) => void) | undefined,
+) {
   assetSpotClickCallbacks.file = cb;
 }
 
 function handleAssetSpotClick(e: MouseEvent) {
-  const el = (e.target as HTMLElement)?.closest<HTMLElement>('[data-dry]');
+  const el = (e.target as HTMLElement)?.closest<HTMLElement>("[data-dry]");
   if (!el) return;
-  const key = el.getAttribute('data-dry');
+  const key = el.getAttribute("data-dry");
   if (!key) return;
-  const kind = el.getAttribute('data-dry-kind');
-  if (kind !== 'image' && kind !== 'file') return;
+  const kind = el.getAttribute("data-dry-kind");
+  if (kind !== "image" && kind !== "file") return;
   e.preventDefault();
   assetSpotClickCallbacks[kind]?.(key);
 }
@@ -513,28 +564,28 @@ export function isEditing() {
 export function enableEditing(onChange?: () => void) {
   editing = true;
   onChangeCallback = onChange;
-  document.body.classList.add('editing');
+  document.body.classList.add("editing");
   // Defer enabling the outline's hover transition until the class-add above
-  // has actually painted — otherwise the browser treats this call itself as
+  // has actually painted - otherwise the browser treats this call itself as
   // the first style change and animates from the outline-less pre-editing
   // paint into blue (see editor.css's .dry-anim-ready comment).
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      document.body.classList.add('dry-anim-ready');
+      document.body.classList.add("dry-anim-ready");
     });
   });
-  document.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
-    const key = el.getAttribute('data-dry');
+  document.querySelectorAll<HTMLElement>("[data-dry]").forEach((el) => {
+    const key = el.getAttribute("data-dry");
     if (isAssetSpot(el)) {
       // No pending edit was painted here yet, so the current value (prefers
-      // SSR's data-dry-value — see dry.ts's assetValue — over the native
+      // SSR's data-dry-value - see dry.ts's assetValue - over the native
       // src/href, which may just be author-supplied placeholder markup for
-      // the empty case) is the on-disk value — safe to snapshot as the diff
+      // the empty case) is the on-disk value - safe to snapshot as the diff
       // baseline.
       const value = readSpotValue(el);
       if (key) rememberOriginal(key, value);
       // An empty asset spot is `hidden` server-side (see dry.ts/paintAssetSpot)
-      // so regular visitors never see a dead link/broken image — but that
+      // so regular visitors never see a dead link/broken image - but that
       // would also make it unclickable here, leaving no way to set a first
       // value via VEI. Reveal it for the duration of edit mode instead;
       // disableEditing re-hides it below if it's still empty on exit.
@@ -542,7 +593,7 @@ export function enableEditing(onChange?: () => void) {
       return;
     }
     if (isContainerSpot(el)) {
-      // Not contentEditable — edited via the toolbar's gear-button dialog
+      // Not contentEditable - edited via the toolbar's gear-button dialog
       // (whole-container replace, array or object) or by typing directly
       // into a descendant leaf spot (a plain text/asset spot handled by the
       // branches above/below as the loop reaches it).
@@ -556,25 +607,25 @@ export function enableEditing(onChange?: () => void) {
       // Not contentEditable either: a ProseMirror view takes this element
       // over for the duration of edit mode and brings its own editing
       // affordances (see InlineContentEditors.tsx). Snapshotting the
-      // baseline is all that's needed here — and it must happen before that
+      // baseline is all that's needed here - and it must happen before that
       // view mounts, since mounting re-renders the element from the parsed
       // doc.
       if (key) rememberOriginal(key, el.innerHTML);
       return;
     }
-    if (key) rememberOriginal(key, el.textContent ?? '');
-    el.contentEditable = 'plaintext-only';
+    if (key) rememberOriginal(key, el.textContent ?? "");
+    el.contentEditable = "plaintext-only";
     // Firefox versions without plaintext-only support silently ignore it.
-    if (el.contentEditable !== 'plaintext-only') el.contentEditable = 'true';
+    if (el.contentEditable !== "plaintext-only") el.contentEditable = "true";
   });
-  document.addEventListener('input', handleInput, true);
-  document.addEventListener('click', handleAssetSpotClick, true);
+  document.addEventListener("input", handleInput, true);
+  document.addEventListener("click", handleAssetSpotClick, true);
 }
 
 export function disableEditing() {
   editing = false;
-  document.body.classList.remove('editing', 'dry-anim-ready');
-  document.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
+  document.body.classList.remove("editing", "dry-anim-ready");
+  document.querySelectorAll<HTMLElement>("[data-dry]").forEach((el) => {
     if (isAssetSpot(el)) {
       // Re-hide any spot enableEditing revealed for editing that's still
       // empty, so a regular (non-editing) view doesn't show it.
@@ -582,37 +633,37 @@ export function disableEditing() {
       return;
     }
     if (isContainerSpot(el) || isContentSpot(el)) return;
-    el.removeAttribute('contenteditable');
+    el.removeAttribute("contenteditable");
   });
-  document.removeEventListener('input', handleInput, true);
-  document.removeEventListener('click', handleAssetSpotClick, true);
+  document.removeEventListener("input", handleInput, true);
+  document.removeEventListener("click", handleAssetSpotClick, true);
 }
 
 // GitHub-mode production HTML never carries plaintext data-dry/-kind/-value
-// (see dry.ts) — only an opaque `data-dry-id`, to keep full field paths/kinds
+// (see dry.ts) - only an opaque `data-dry-id`, to keep full field paths/kinds
 // out of view-source for anonymous visitors. Must run before anything else
 // touches `[data-dry]` (discardEditsIfBuildIsNewer/applyPendingEdits below
 // resolve pending IndexedDB edits by querying `[data-dry="<key>"]`, and would
 // find nothing if the real attributes aren't back on the elements yet).
-// Fetches the reverse map from the `github/dry-map` API route — which only
-// returns it once it verifies the caller's GitHub token server-side — and
+// Fetches the reverse map from the `github/dry-map` API route - which only
+// returns it once it verifies the caller's GitHub token server-side - and
 // patches the real attributes onto each `[data-dry-id]` element in place.
 // index.ts's injected script only checks whether the access-token cookie is
-// *present* (cheap, no network) before loading this far — a stale/expired/
+// *present* (cheap, no network) before loading this far - a stale/expired/
 // revoked token still passes that check, so a 401 here isn't necessarily a
 // spoofed cookie; it's often just a token that needs refreshing. One retry
 // via the longer-lived refresh-token cookie (same recovery `getAuth` does)
 // before giving up. Returns false only once that's exhausted and the caller
-// still isn't a verified editor — callers use this to decide whether to
+// still isn't a verified editor - callers use this to decide whether to
 // mount the editor UI at all rather than showing a half-working one where
 // nothing is actually bound. Local mode ships the real attributes directly
-// (see dry.ts), so this is a no-op there (and reports true — nothing to
+// (see dry.ts), so this is a no-op there (and reports true - nothing to
 // verify).
 export async function hydrateDryAttributesFromMap(
-  config: Config<any, any>
+  config: Config<any, any>,
 ): Promise<boolean> {
-  if (config.storage.kind !== 'github') return true;
-  const elements = document.querySelectorAll<HTMLElement>('[data-dry-id]');
+  if (config.storage.kind !== "github") return true;
+  const elements = document.querySelectorAll<HTMLElement>("[data-dry-id]");
   if (elements.length === 0) return true;
   let map: Record<string, DryMapEntry>;
   try {
@@ -627,14 +678,14 @@ export async function hydrateDryAttributesFromMap(
     return true;
   }
   for (const el of elements) {
-    const id = el.getAttribute('data-dry-id');
-    el.removeAttribute('data-dry-id');
+    const id = el.getAttribute("data-dry-id");
+    el.removeAttribute("data-dry-id");
     const entry = id ? map[id] : undefined;
     if (!entry) continue;
-    el.setAttribute('data-dry', entry['data-dry']);
-    el.setAttribute('data-dry-kind', entry['data-dry-kind']);
-    if (entry['data-dry-value'] !== undefined) {
-      el.setAttribute('data-dry-value', entry['data-dry-value']);
+    el.setAttribute("data-dry", entry["data-dry"]);
+    el.setAttribute("data-dry-kind", entry["data-dry-kind"]);
+    if (entry["data-dry-value"] !== undefined) {
+      el.setAttribute("data-dry-value", entry["data-dry-value"]);
     }
   }
   return true;
@@ -642,21 +693,21 @@ export async function hydrateDryAttributesFromMap(
 
 // Cloudflare Pages builds fresh on every deploy, so buildVersion (a build-time
 // timestamp) increases with each deploy. Only github-hosted content can drift
-// out from under a browser's IndexedDB this way — a Cloudflare build finishing
-// after this tab loaded means the DOM it applies edits onto is stale — so
+// out from under a browser's IndexedDB this way - a Cloudflare build finishing
+// after this tab loaded means the DOM it applies edits onto is stale - so
 // local mode (always serving whatever's on disk right now) skips this check.
 //
 // The stored high-water mark only ever moves forward. A lower buildVersion
-// than what's stored isn't a rollback signal worth acting on — it's what a
-// CDN edge node serving a not-yet-updated cache during rollout looks like —
+// than what's stored isn't a rollback signal worth acting on - it's what a
+// CDN edge node serving a not-yet-updated cache during rollout looks like -
 // so it's ignored entirely: no clear, and the stored mark isn't dragged back
 // down (which would otherwise make a later, merely-stale-again reload look
 // like a "new" deploy and wrongly clear edits made in between).
 export async function discardEditsIfBuildIsNewer(
   config: Config<any, any>,
-  buildVersion: number | undefined
+  buildVersion: number | undefined,
 ): Promise<void> {
-  if (config.storage.kind !== 'github' || buildVersion == null) return;
+  if (config.storage.kind !== "github" || buildVersion == null) return;
   const lastSeen = await getMeta<number>(BUILD_VERSION_KEY);
   if (lastSeen == null) {
     await setMeta(BUILD_VERSION_KEY, buildVersion);
@@ -665,7 +716,7 @@ export async function discardEditsIfBuildIsNewer(
   if (buildVersion > lastSeen) {
     await publishClear();
     // The static build just caught up, so its HTML is now at least as fresh
-    // as anything cached below — keeping a stale entry around would risk it
+    // as anything cached below - keeping a stale entry around would risk it
     // later painting over even-fresher static HTML from a *subsequent*
     // deploy this tab never re-fetched for. Same reasoning covers the pending
     // image blobs: any image the build just shipped is now servable from its
@@ -684,18 +735,18 @@ export async function discardEditsIfBuildIsNewer(
 // leave ProseMirror's document out of sync with what's on screen, and the
 // next keystroke would paint the stale doc straight back over the new value.
 // So a paint aimed at a live spot is handed to its owner instead, which
-// re-seeds the editor from the HTML — the same value, applied through the
+// re-seeds the editor from the HTML - the same value, applied through the
 // layer that actually owns it. Spots with no live view (edit mode off, or a
 // plain page load) fall through to a direct innerHTML paint.
 const contentSpotPainters = new Map<string, (html: string) => void>();
 
 export function setContentSpotPainter(
   key: string,
-  paint: (html: string) => void
+  paint: (html: string) => void,
 ): () => void {
   contentSpotPainters.set(key, paint);
   return () => {
-    // Guard against a remount having already claimed the slot — deleting
+    // Guard against a remount having already claimed the slot - deleting
     // then would strand the new owner.
     if (contentSpotPainters.get(key) === paint) contentSpotPainters.delete(key);
   };
@@ -711,7 +762,7 @@ function paintContentSpot(el: HTMLElement, key: string, html: string): void {
 }
 
 // Live object URLs currently painted onto an image/file spot, keyed by field
-// key — tracked so a later paint (or a reset/discard) can revoke the
+// key - tracked so a later paint (or a reset/discard) can revoke the
 // previous one instead of leaking it.
 const assetObjectUrls = new Map<string, string>();
 
@@ -724,40 +775,45 @@ function revokeAssetObjectUrl(key: string): void {
 }
 
 // Paints an image/file spot's `src`/`href` and records the real value (never
-// a blob: preview URL) in `data-dry-value` — the native attribute alone isn't
+// a blob: preview URL) in `data-dry-value` - the native attribute alone isn't
 // a reliable read-back source once a pending-blob preview has been painted
 // over it, but array items need to read *some* attribute off the DOM to
 // reconstruct their container's current value (see readArrayValues), so this
 // is the one place that intentionally survives a blob-URL repaint.
 //
-// `key` revokes this spot's previous object URL (if any) before painting —
+// `key` revokes this spot's previous object URL (if any) before painting -
 // callers no longer do this themselves, so a blob preview (`blob`, a locally
-// cached pending upload's bytes — see putPendingBlob/getPendingBlob) never
+// cached pending upload's bytes - see putPendingBlob/getPendingBlob) never
 // needs the caller to also manage `assetObjectUrls`.
-function paintAssetSpot(el: HTMLElement, key: string, value: string, blob?: Uint8Array): void {
+function paintAssetSpot(
+  el: HTMLElement,
+  key: string,
+  value: string,
+  blob?: Uint8Array,
+): void {
   revokeAssetObjectUrl(key);
-  el.removeAttribute('srcset');
+  el.removeAttribute("srcset");
   // Stays visible while editing even when empty, so it's still clickable to
   // set a first value (e.g. right after a Reset/discard lands back on empty
-  // while edit mode is still on) — enableEditing/disableEditing handle the
+  // while edit mode is still on) - enableEditing/disableEditing handle the
   // same visibility for spots this function never repaints (the initial SSR
   // state on mode entry/exit).
   el.hidden = !value && !editing;
   const attr = nativeAssetAttr(el);
   if (!value) {
-    // Clear the native attribute too, not just data-dry-value — readSpotValue
+    // Clear the native attribute too, not just data-dry-value - readSpotValue
     // falls back to readAssetAttr() (the native src/href) whenever
     // data-dry-value is absent, so a stale href/src left in place here would
     // make a cleared nested container's file/image sub-field reappear as
     // "already selected" the next time the container dialog re-reads the DOM
     // (getContainerValueFromDom → readObjectFields → readSpotValue).
     el.removeAttribute(attr);
-    el.removeAttribute('data-dry-value');
+    el.removeAttribute("data-dry-value");
     return;
   }
   // `data-dry-value` always records `value` itself (the real path), even
   // when `src`/`href` is about to be overwritten with a local blob: preview.
-  el.setAttribute('data-dry-value', value);
+  el.setAttribute("data-dry-value", value);
   if (blob) {
     const url = URL.createObjectURL(new Blob([blob as any]));
     assetObjectUrls.set(key, url);
@@ -769,10 +825,10 @@ function paintAssetSpot(el: HTMLElement, key: string, value: string, blob?: Uint
 
 // Resolves `value`'s pending-blob preview (a freshly picked/uploaded file's
 // bytes, cached locally since it isn't guaranteed servable at its real path
-// yet — github mode needs a deploy to catch up) when `resolveBlobs` is true,
+// yet - github mode needs a deploy to catch up) when `resolveBlobs` is true,
 // then paints it the same way applyEdit's single-field path already does.
 // `resolveBlobs` is false for callers whose values are always real,
-// already-servable paths (paintFetchedValue, revertFieldToOriginal) — no
+// already-servable paths (paintFetchedValue, revertFieldToOriginal) - no
 // blob lookup needed there, and skipping it keeps this a plain synchronous
 // paint for them (no `await` is ever reached, so nothing needs to change at
 // those call sites beyond passing `key`).
@@ -780,26 +836,26 @@ async function paintAssetValue(
   el: HTMLElement,
   key: string,
   value: string,
-  resolveBlobs: boolean
+  resolveBlobs: boolean,
 ): Promise<void> {
   const blob = resolveBlobs && value ? await getPendingBlob(value) : undefined;
   paintAssetSpot(el, key, value, blob);
 }
 
 // Whether a container has any direct array-item or object-sub-field that's
-// itself a container (rather than every direct child being a flat leaf) —
+// itself a container (rather than every direct child being a flat leaf) -
 // the array case delegates to arrayHasContainerItems; the object case checks
 // each direct sub-field spot's own kind the same way. Used only by
 // paintFetchedValue's conservative skip below.
 function containerHasNestedContainers(el: HTMLElement, key: string): boolean {
   if (isArraySpot(el)) return arrayHasContainerItems(el, key);
-  return directChildSpots(el, `${key}.`).some(sub => {
-    const k = sub.getAttribute('data-dry-kind');
-    return k === 'array' || k === 'object';
+  return directChildSpots(el, `${key}.`).some((sub) => {
+    const k = sub.getAttribute("data-dry-kind");
+    return k === "array" || k === "object";
   });
 }
 
-// Paints a value fetched straight from source (never a pending edit — see
+// Paints a value fetched straight from source (never a pending edit - see
 // refreshFromLatestSource/applyCachedSource) onto one element and resets its
 // diff baseline to match. Source values are always real, already-servable
 // paths (never pending-blob previews), so no blob lookup is needed here.
@@ -811,10 +867,10 @@ function containerHasNestedContainers(el: HTMLElement, key: string): boolean {
 // Reset would revert it to a stale pre-fetch value instead of this fresh
 // one). So each direct entry either keeps showing (and keeps the baseline
 // of) its own pending edit untouched, or adopts the fetched value and has
-// its baseline refreshed to match — mirroring save.ts's mergeFieldEdits
+// its baseline refreshed to match - mirroring save.ts's mergeFieldEdits
 // precedence. A container-of-containers (array-of-object,
 // object-with-nested-array, …) skips this entirely and leaves the current
-// DOM alone — the per-key merge below only looks one level deep, so it can't
+// DOM alone - the per-key merge below only looks one level deep, so it can't
 // safely tell which deeper leaf has a pending edit without repainting first
 // (known limitation, inherited from the original array-of-object case; see
 // plan/de-quy-object.md).
@@ -822,7 +878,7 @@ function paintFetchedValue(
   el: HTMLElement,
   key: string,
   value: string,
-  pendingEdits: Map<string, string>
+  pendingEdits: Map<string, string>,
 ): void {
   resetOriginalValue(key, value);
   if (isAssetSpot(el)) {
@@ -834,7 +890,9 @@ function paintFetchedValue(
     return;
   }
   if (isContainerSpot(el)) {
-    const parsed = isArraySpot(el) ? parseArrayValue(value) : parseObjectValue(value);
+    const parsed = isArraySpot(el)
+      ? parseArrayValue(value)
+      : parseObjectValue(value);
     if (parsed === undefined) return;
     if (containerHasNestedContainers(el, key)) return;
     if (isArraySpot(el)) {
@@ -848,7 +906,9 @@ function paintFetchedValue(
       renderArray(el, key, merged);
     } else {
       const merged: Record<string, unknown> = {};
-      for (const [sub, v] of Object.entries(parsed as Record<string, unknown>)) {
+      for (const [sub, v] of Object.entries(
+        parsed as Record<string, unknown>,
+      )) {
         const subKey = `${key}.${sub}`;
         const pending = pendingEdits.get(subKey);
         if (pending !== undefined) {
@@ -865,7 +925,7 @@ function paintFetchedValue(
   el.textContent = value;
 }
 
-// `value` on the edit-sync bus is always a string — a fields.array/
+// `value` on the edit-sync bus is always a string - a fields.array/
 // fields.object value is carried as its JSON-encoded form (see save.ts's
 // getLatestFieldValues and the container dialog's publishEdit in
 // Toolbar.tsx). Malformed/foreign JSON is swallowed rather than thrown,
@@ -882,7 +942,7 @@ function parseArrayValue(value: string): unknown[] | undefined {
 function parseObjectValue(value: string): Record<string, unknown> | undefined {
   try {
     const parsed = JSON.parse(value);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)
       : undefined;
   } catch {
@@ -892,28 +952,28 @@ function parseObjectValue(value: string): Record<string, unknown> | undefined {
 
 // Re-reads every on-page singleton straight from its real source (local API,
 // or the GitHub Contents API at the default branch) and repaints any field
-// that has no pending edit — called when entering edit mode so a visitor
+// that has no pending edit - called when entering edit mode so a visitor
 // starts from what's actually on disk/GitHub, not from HTML that may be
 // stale (a github-mode page can be served from a Cloudflare CDN edge that
 // hasn't caught up with the latest deploy yet). Fields with a pending edit
 // are left alone: unsaved typed content always wins over a fresh fetch.
-// Best-effort — a fetch failure (e.g. no GitHub auth cookie) just leaves the
+// Best-effort - a fetch failure (e.g. no GitHub auth cookie) just leaves the
 // server-rendered text in place rather than blocking edit mode.
 export async function refreshFromLatestSource(
-  config: Config<any, any>
+  config: Config<any, any>,
 ): Promise<void> {
   const singletonNames = new Set<string>();
-  document.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
-    const [type, name] = el.getAttribute('data-dry')?.split('::') ?? [];
-    if (type === 'singleton' && name) singletonNames.add(name);
+  document.querySelectorAll<HTMLElement>("[data-dry]").forEach((el) => {
+    const [type, name] = el.getAttribute("data-dry")?.split("::") ?? [];
+    if (type === "singleton" && name) singletonNames.add(name);
   });
 
   const pendingEdits = new Map(
-    (await getAllEdits()).map(edit => [edit.key, edit.value])
+    (await getAllEdits()).map((edit) => [edit.key, edit.value]),
   );
 
   await Promise.all(
-    Array.from(singletonNames, async name => {
+    Array.from(singletonNames, async (name) => {
       let latest: Record<string, string>;
       try {
         latest = await getLatestFieldValues(config, name);
@@ -922,26 +982,26 @@ export async function refreshFromLatestSource(
       }
       // Persist what we just fetched so a reload during the window between
       // "commit landed on GitHub" and "the next static build/deploy actually
-      // ships it" still shows this instead of stale pre-deploy HTML — see
+      // ships it" still shows this instead of stale pre-deploy HTML - see
       // applyCachedSource below.
       await setSourceCache(name, latest);
       document
         .querySelectorAll<HTMLElement>(
-          `[data-dry^="singleton::${CSS.escape(name)}::"]`
+          `[data-dry^="singleton::${CSS.escape(name)}::"]`,
         )
-        .forEach(el => {
-          const key = el.getAttribute('data-dry')!;
+        .forEach((el) => {
+          const key = el.getAttribute("data-dry")!;
           if (pendingEdits.has(key)) return;
-          const field = key.split('::')[2];
+          const field = key.split("::")[2];
           const value = latest[field];
           if (value === undefined) return;
           paintFetchedValue(el, key, value, pendingEdits);
         });
-    })
+    }),
   );
 }
 
-// Restores one field's on-page element(s) to their captured baseline — shared
+// Restores one field's on-page element(s) to their captured baseline - shared
 // by resetPendingEdits (all fields) and the review dialog's per-field discard.
 // Baseline values (see rememberOriginal) are always real on-disk/GitHub
 // values, never pending-blob previews, so this never needs a blob lookup.
@@ -950,7 +1010,7 @@ export function revertFieldToOriginal(key: string): void {
   if (original === undefined) return;
   document
     .querySelectorAll<HTMLElement>(`[data-dry="${CSS.escape(key)}"]`)
-    .forEach(el => {
+    .forEach((el) => {
       if (isAssetSpot(el)) {
         paintAssetSpot(el, key, original);
         return;
@@ -960,7 +1020,9 @@ export function revertFieldToOriginal(key: string): void {
         return;
       }
       if (isContainerSpot(el)) {
-        const parsed = isArraySpot(el) ? parseArrayValue(original) : parseObjectValue(original);
+        const parsed = isArraySpot(el)
+          ? parseArrayValue(original)
+          : parseObjectValue(original);
         if (parsed !== undefined) paintContainerValue(el, key, parsed);
         return;
       }
@@ -970,11 +1032,11 @@ export function revertFieldToOriginal(key: string): void {
 
 // Discards every pending edit: restores each on-page field to its captured
 // baseline (kept accurate by refreshFromLatestSource/applyPendingEdits) and
-// clears the IndexedDB edit log — no network fetch needed.
+// clears the IndexedDB edit log - no network fetch needed.
 export async function resetPendingEdits(): Promise<void> {
   const keys = new Set<string>();
-  document.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
-    const key = el.getAttribute('data-dry');
+  document.querySelectorAll<HTMLElement>("[data-dry]").forEach((el) => {
+    const key = el.getAttribute("data-dry");
     if (key) keys.add(key);
   });
   keys.forEach(revertFieldToOriginal);
@@ -982,7 +1044,7 @@ export async function resetPendingEdits(): Promise<void> {
   await clearPendingBlobs();
 }
 
-// Paints one pending edit onto every DOM element carrying its key — a field
+// Paints one pending edit onto every DOM element carrying its key - a field
 // can be rendered more than once on a page (e.g. a site title in both the
 // header and footer), so every matching element must get it, not just the
 // first in document order. Shared by the bulk on-load apply below and the
@@ -997,17 +1059,17 @@ export async function resetPendingEdits(): Promise<void> {
 // way a same-key edit arriving from another tab gets painted below.
 export async function applyEdit(key: string, value: string): Promise<void> {
   const els = document.querySelectorAll<HTMLElement>(
-    `[data-dry="${CSS.escape(key)}"]`
+    `[data-dry="${CSS.escape(key)}"]`,
   );
   let blob: Uint8Array | undefined;
   if (Array.from(els).some(isAssetSpot) && value) {
     blob = await getPendingBlob(value);
   }
   const pending: Promise<void>[] = [];
-  els.forEach(el => {
+  els.forEach((el) => {
     if (isAssetSpot(el)) {
       // Capture the on-disk value before overwriting it with the pending
-      // edit — prefers data-dry-value over the native src/href, same reason
+      // edit - prefers data-dry-value over the native src/href, same reason
       // as enableEditing's baseline capture above.
       rememberOriginal(key, readSpotValue(el));
       paintAssetSpot(el, key, value, blob);
@@ -1022,61 +1084,64 @@ export async function applyEdit(key: string, value: string): Promise<void> {
     if (isContainerSpot(el)) {
       // Capture the on-disk value before overwriting it with the pending edit.
       rememberOriginal(key, JSON.stringify(readContainerValue(el, key)));
-      const parsed = isArraySpot(el) ? parseArrayValue(value) : parseObjectValue(value);
-      // resolveBlobs: true — a nested array/object item's freshly picked
+      const parsed = isArraySpot(el)
+        ? parseArrayValue(value)
+        : parseObjectValue(value);
+      // resolveBlobs: true - a nested array/object item's freshly picked
       // file may not be servable at its real path yet either (same reason as
       // the asset branch above), so it previews from its own pending blob too.
-      if (parsed !== undefined) pending.push(paintContainerValue(el, key, parsed, true));
+      if (parsed !== undefined)
+        pending.push(paintContainerValue(el, key, parsed, true));
       return;
     }
-    rememberOriginal(key, el.textContent ?? '');
+    rememberOriginal(key, el.textContent ?? "");
     el.textContent = value;
   });
   await Promise.all(pending);
 }
 
 // Paints the last known fetched-from-source value (see refreshFromLatestSource)
-// for singleton fields that don't have a pending edit — bridges a github-mode
+// for singleton fields that don't have a pending edit - bridges a github-mode
 // save's commit-to-deploy gap without a network fetch: a reload right after
 // saving would otherwise show the stale pre-deploy static HTML with nothing
 // to paint over it, since a successful save clears the pending-edit entry.
 async function applyCachedSource(
-  pendingEdits: Map<string, string>
+  pendingEdits: Map<string, string>,
 ): Promise<void> {
   const singletonNames = new Set<string>();
-  document.querySelectorAll<HTMLElement>('[data-dry]').forEach(el => {
-    const [type, name] = el.getAttribute('data-dry')?.split('::') ?? [];
-    if (type === 'singleton' && name) singletonNames.add(name);
+  document.querySelectorAll<HTMLElement>("[data-dry]").forEach((el) => {
+    const [type, name] = el.getAttribute("data-dry")?.split("::") ?? [];
+    if (type === "singleton" && name) singletonNames.add(name);
   });
 
   await Promise.all(
-    Array.from(singletonNames, async name => {
+    Array.from(singletonNames, async (name) => {
       const cached = await getSourceCache(name);
       if (!cached) return;
       document
         .querySelectorAll<HTMLElement>(
-          `[data-dry^="singleton::${CSS.escape(name)}::"]`
+          `[data-dry^="singleton::${CSS.escape(name)}::"]`,
         )
-        .forEach(el => {
-          const key = el.getAttribute('data-dry')!;
+        .forEach((el) => {
+          const key = el.getAttribute("data-dry")!;
           if (pendingEdits.has(key)) return;
-          const field = key.split('::')[2];
+          const field = key.split("::")[2];
           const value = cached[field];
           if (value === undefined) return;
           paintFetchedValue(el, key, value, pendingEdits);
         });
-    })
+    }),
   );
 }
 
-// Applies edits saved in IndexedDB on top of the server-rendered DOM — runs
+// Applies edits saved in IndexedDB on top of the server-rendered DOM - runs
 // on every page load (even before Edit mode is turned on) so an unsaved edit
 // survives a reload, per plan.md's "chưa lưu thì reload phải lấy IndexDB".
 export async function applyPendingEdits(): Promise<number> {
   const edits = await getAllEdits();
-  const pendingEdits = new Map(edits.map(edit => [edit.key, edit.value]));
+  const pendingEdits = new Map(edits.map((edit) => [edit.key, edit.value]));
   // Cached source first (sets the baseline for fields with no pending edit),
-  // then pending edits on top — applyEdit's rememberOriginal only captures a
+  // then pending edits on top - applyEdit's rememberOriginal only captures a
   // baseline if one isn't already set, so ordering here matters.
   await applyCachedSource(pendingEdits);
   for (const edit of edits) await applyEdit(edit.key, edit.value);
@@ -1084,19 +1149,19 @@ export async function applyPendingEdits(): Promise<number> {
 }
 
 // Keeps this page's DOM live-synced with edits published from other tabs
-// (admin or another visual-editor tab) — not just on load, per plan.md's
+// (admin or another visual-editor tab) - not just on load, per plan.md's
 // cross-tab requirement. Returns an unsubscribe function; the editor mounts
 // once per page load and is never torn down, so callers are free to ignore it.
 export function subscribeToRemoteEdits(
   config: Config<any, any>,
-  onChange?: () => void
+  onChange?: () => void,
 ): () => void {
   return subscribeEdits((msg: EditBusMessage) => {
-    if (msg.type === 'set') {
+    if (msg.type === "set") {
       applyEdit(msg.key, msg.value).then(() => onChange?.());
       return;
     }
-    // 'delete' / 'clear' — a save (this key's edit is now committed) or a
+    // 'delete' / 'clear' - a save (this key's edit is now committed) or a
     // reset (it's discarded) happened somewhere. Either way this tab's own
     // `originalValues` snapshot is unreliable as "the current truth": for a
     // save it's the *pre-edit* value, not what's now on disk/GitHub. Re-fetch

@@ -1,12 +1,12 @@
-import { ReactNode, useContext } from 'react';
+import { ReactNode, useContext } from "react";
 
-import { alertCircleIcon } from '@keystar/ui/icon/icons/alertCircleIcon';
+import { alertCircleIcon } from "@keystar/ui/icon/icons/alertCircleIcon";
 
-import { Config } from '../../config';
+import { Config } from "../../config";
 
-import { isGitHubConfig, isLocalConfig } from '../utils';
+import { isGitHubConfig, isLocalConfig } from "../utils";
 
-import { AppStateContext, ConfigContext } from './context';
+import { AppStateContext, ConfigContext } from "./context";
 import {
   GitHubAppShellProvider,
   AppShellErrorContext,
@@ -14,14 +14,14 @@ import {
   useBranches,
   useCurrentBranch,
   GitHubAppShellDataContext,
-} from './data';
-import { SidebarProvider } from './sidebar';
-import { MainPanelLayout } from './panels';
-import { EmptyState } from './empty-state';
-import { FileManagerHost } from '../file-manager/FileManagerHost';
-import { useBrandGuard } from '../brand';
-import { AiStatusProvider } from '../ai/useAiStatus';
-import { AiConfigNotice } from '../ai/AiConfigNotice';
+} from "./data";
+import { SidebarProvider } from "./sidebar";
+import { MainPanelLayout } from "./panels";
+import { EmptyState } from "./empty-state";
+import { FileManagerHost } from "../file-manager/FileManagerHost";
+import { useBrandGuard } from "../brand";
+import { AiStatusProvider } from "../ai/useAiStatus";
+import { AiConfigNotice } from "../ai/AiConfigNotice";
 
 function BranchNotFound(props: { config: Config; children: ReactNode }) {
   const branches = useBranches();
@@ -29,7 +29,7 @@ function BranchNotFound(props: { config: Config; children: ReactNode }) {
   const appShellDataContext = useContext(GitHubAppShellDataContext);
 
   // self-heals a brand branch that vanished outside the app (deleted on
-  // GitHub, or a fresh page load that never went through RedirectToBranch) —
+  // GitHub, or a fresh page load that never went through RedirectToBranch) -
   // see plan/brand.md §5/§16. No-ops for local mode and once in sync.
   useBrandGuard(props.config);
 
@@ -39,7 +39,7 @@ function BranchNotFound(props: { config: Config; children: ReactNode }) {
     !branches.has(currentBranch)
   ) {
     // only reachable in github mode (GitHubAppShellDataContext is never
-    // provided in local mode) — useBrandGuard is already recreating the
+    // provided in local mode) - useBrandGuard is already recreating the
     // brand and will redirect shortly, so show a neutral loading state
     // rather than a dead-end error.
     return null;
@@ -55,10 +55,10 @@ export const AppShell = (props: {
 }) => {
   const content = (
     <AppShellErrorContext.Consumer>
-      {error =>
+      {(error) =>
         error &&
         !error?.graphQLErrors.some(
-          err => (err?.originalError as any)?.type === 'NOT_FOUND'
+          (err) => (err?.originalError as any)?.type === "NOT_FOUND",
         ) ? (
           <EmptyState
             icon={alertCircleIcon}

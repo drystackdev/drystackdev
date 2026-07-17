@@ -1,7 +1,7 @@
 // This module is selected via the `#api-handler` export condition whenever
 // Vite resolves with the worker/workerd conditions (i.e. the Cloudflare
 // adapter) instead of `node`. But that condition is applied at *bundle* time,
-// while the actual runtime can still be real Node.js — most importantly during
+// while the actual runtime can still be real Node.js - most importantly during
 // `astro dev`, whose on-demand routes execute in the Node dev process even
 // though the Cloudflare adapter tags the module graph as worker. So, exactly
 // like `packages/astro/src/reader.ts`, we detect a real Node runtime at
@@ -10,11 +10,11 @@
 // can't work anyway) falls through to the 500 stub. `./api-node` is imported
 // dynamically so its node:fs/node:path/node:crypto imports are never evaluated
 // in the Worker bundle.
-import type * as ApiNode from './api-node';
-import { exchangeGitHubAppManifestCode } from './github-app-manifest';
-import { redirect } from './internal-utils';
-import { webcrypto } from '#webcrypto';
-import { bytesToHex } from '../hex';
+import type * as ApiNode from "./api-node";
+import { exchangeGitHubAppManifestCode } from "./github-app-manifest";
+import { redirect } from "./internal-utils";
+import { webcrypto } from "#webcrypto";
+import { bytesToHex } from "../hex";
 
 // `process` may be entirely absent in some runtimes; guard defensively (same
 // shape as reader.ts's `hasBuildTimeFilesystem`).
@@ -41,7 +41,7 @@ function hasNodeRuntime(): boolean {
 function canPersistGitHubAppSecretsToDisk(): boolean {
   try {
     const p = (globalThis as any).process;
-    return !!p?.versions?.node && p?.env?.NODE_ENV === 'development';
+    return !!p?.versions?.node && p?.env?.NODE_ENV === "development";
   } catch {
     return false;
   }
@@ -49,13 +49,13 @@ function canPersistGitHubAppSecretsToDisk(): boolean {
 
 export const localModeApiHandler: typeof ApiNode.localModeApiHandler = (
   config,
-  localBaseDirectory
+  localBaseDirectory,
 ) => {
   let realHandler: ReturnType<typeof ApiNode.localModeApiHandler> | undefined;
   return async (req, params) => {
     if (hasNodeRuntime()) {
       if (!realHandler) {
-        const mod = await import('./api-node');
+        const mod = await import("./api-node");
         realHandler = mod.localModeApiHandler(config, localBaseDirectory);
       }
       return realHandler(req, params);
@@ -70,11 +70,11 @@ export const localModeApiHandler: typeof ApiNode.localModeApiHandler = (
 export const handleGitHubAppCreation: typeof ApiNode.handleGitHubAppCreation =
   async (req, slugEnvVarName, uiBasePath) => {
     if (canPersistGitHubAppSecretsToDisk()) {
-      const mod = await import('./api-node');
+      const mod = await import("./api-node");
       return mod.handleGitHubAppCreation(req, slugEnvVarName, uiBasePath);
     }
     // No writable filesystem here (a real Worker, Miniflare, or any
-    // deployed target) — exchange the code with GitHub, but instead of
+    // deployed target) - exchange the code with GitHub, but instead of
     // persisting the result, hand the generated secrets back to the client
     // once via the redirect's URL fragment, so the site owner can copy them
     // into their host's own secret manager. The fragment is never sent to
@@ -90,6 +90,6 @@ export const handleGitHubAppCreation: typeof ApiNode.handleGitHubAppCreation =
       DRYSTACK_SECRET: secret,
     }).toString();
     return redirect(
-      `${uiBasePath}/created-github-app?slug=${encodeURIComponent(slug)}#${fragment}`
+      `${uiBasePath}/created-github-app?slug=${encodeURIComponent(slug)}#${fragment}`,
     );
   };
