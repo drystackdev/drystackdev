@@ -25,6 +25,7 @@ export function url<IsRequired extends boolean | undefined>({
   return basicFormFieldWithSimpleReaderParse({
     label,
     columnKind: 'url',
+    aiMeta: { description, isRequired: !!validation?.isRequired },
     Input(props) {
       return (
         <UrlFieldInput

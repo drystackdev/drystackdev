@@ -40,6 +40,18 @@
       "drystack-src": "./src/api/generic.ts",
       "default": "./dist/api/generic.js"
     },
+    "./api/ai": {
+      "drystack-src": "./src/api/ai/index.ts",
+      "default": "./dist/api/ai/index.js"
+    },
+    "./api/ai/schema": {
+      "drystack-src": "./src/api/ai/schema-to-yaml.ts",
+      "default": "./dist/api/ai/schema-to-yaml.js"
+    },
+    "./api/ai/prompt": {
+      "drystack-src": "./src/api/ai/prompt.ts",
+      "default": "./dist/api/ai/prompt.js"
+    },
     "./api/encryption": {
       "drystack-src": "./src/api/encryption.tsx",
       "default": "./dist/api/encryption.js"

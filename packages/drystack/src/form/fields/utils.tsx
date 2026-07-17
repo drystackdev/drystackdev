@@ -1,5 +1,6 @@
 import { ReactElement } from 'react';
 import {
+  AiFieldMeta,
   BasicFormField,
   ColumnKind,
   FormFieldInputProps,
@@ -35,10 +36,12 @@ export function basicFormFieldWithSimpleReaderParse<
   validate(value: ParsedValue): ValidatedValue;
   label: string;
   columnKind?: ColumnKind;
+  aiMeta?: AiFieldMeta;
 }): BasicFormField<ParsedValue, ValidatedValue, ValidatedValue> {
   return {
     kind: 'form',
     columnKind: config.columnKind,
+    aiMeta: config.aiMeta,
     Input: config.Input,
     defaultValue: config.defaultValue,
     parse: config.parse,

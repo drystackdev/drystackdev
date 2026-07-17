@@ -23,6 +23,7 @@ export function multiselect<
     basicFormFieldWithSimpleReaderParse({
       label,
       columnKind: 'multiselect',
+      aiMeta: { description },
       Input(props) {
         return (
           <MultiselectFieldInput

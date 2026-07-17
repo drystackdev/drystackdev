@@ -7,6 +7,7 @@ import {
   redirect,
 } from './internal-utils';
 import { handleGitHubAppCreation, localModeApiHandler } from '#api-handler';
+import { makeAiRouteHandler } from './ai';
 import { webcrypto } from '#webcrypto';
 import { bytesToHex } from '../hex';
 import { decryptValue, encryptValue } from './encryption';
@@ -35,6 +36,14 @@ export type APIRouteConfig = {
   secret?: string;
   localBaseDirectory?: string;
   config: Config<any, any>;
+  /** @default process.env.DRY_AI_PROVIDER */
+  aiProvider?: string;
+  /** @default process.env.DRY_AI_KEY */
+  aiKey?: string;
+  /** @default process.env.DRY_AI_MODEL */
+  aiModel?: string;
+  /** @default process.env.DRY_AI_BASE_URL */
+  aiBaseUrl?: string;
   /**
    * The path segment the drystack UI and API routes are mounted at, without slashes.
    * e.g. 'admin' mounts the UI at /admin and the API at /api/admin.
@@ -87,6 +96,12 @@ export function makeGenericAPIRouteHandler(
     config: _config.config,
     basePath: _config.basePath,
     assetsFetcher: _config.assetsFetcher,
+    aiProvider:
+      _config.aiProvider ?? tryOrUndefined(() => process.env.DRY_AI_PROVIDER),
+    aiKey: _config.aiKey ?? tryOrUndefined(() => process.env.DRY_AI_KEY),
+    aiModel: _config.aiModel ?? tryOrUndefined(() => process.env.DRY_AI_MODEL),
+    aiBaseUrl:
+      _config.aiBaseUrl ?? tryOrUndefined(() => process.env.DRY_AI_BASE_URL),
   };
 
   const rawBasePath = (_config2.basePath ?? 'drystack').replace(
@@ -113,18 +128,49 @@ export function makeGenericAPIRouteHandler(
       .filter(Boolean);
   };
 
+  const aiHandler = makeAiRouteHandler({
+    config: _config2.config,
+    env: {
+      DRY_AI_PROVIDER: _config2.aiProvider,
+      DRY_AI_KEY: _config2.aiKey,
+      DRY_AI_MODEL: _config2.aiModel,
+      DRY_AI_BASE_URL: _config2.aiBaseUrl,
+    },
+  });
+
+  // `ai/*` has to be dispatched ahead of every branch below, because each of
+  // them is terminal: local mode hands the request to `localModeApiHandler`,
+  // which 404s anything that isn't tree/blob/update, and the
+  // no-GitHub-credentials branch 404s anything that isn't a `github/*` route.
+  // Either would swallow `ai/*` before it could ever be reached.
+  //
+  // AI generation neither reads nor writes the repo, so it's storage-agnostic
+  // and has to work identically in local and github mode. It also has to work
+  // with no GitHub App configured at all, which is why this sits above the
+  // clientId/secret check too.
+  const withAi = (
+    inner: (req: DrystackRequest) => Promise<DrystackResponse> | DrystackResponse
+  ) => {
+    if (!aiHandler) return inner;
+    return async (req: DrystackRequest): Promise<DrystackResponse> => {
+      const params = getParams(req);
+      if (params[0] === 'ai') return aiHandler(req, params);
+      return inner(req);
+    };
+  };
+
   if (_config2.config.storage.kind === 'local') {
     const handler = localModeApiHandler(
       _config2.config,
       _config.localBaseDirectory
     );
-    return (req: DrystackRequest) => {
+    return withAi((req: DrystackRequest) => {
       const params = getParams(req);
       return handler(req, params);
-    };
+    });
   }
   if (!_config2.clientId || !_config2.clientSecret || !_config2.secret) {
-    return async function drystackAPIRoute(
+    return withAi(async function drystackAPIRoute(
       req: DrystackRequest
     ): Promise<DrystackResponse> {
       const params = getParams(req);
@@ -140,7 +186,7 @@ export function makeGenericAPIRouteHandler(
         return redirect(`${uiBasePath}/setup`);
       }
       return { status: 404, body: 'Not Found' };
-    };
+    });
   }
   const config: InnerAPIRouteConfig = {
     clientId: _config2.clientId,
@@ -152,7 +198,7 @@ export function makeGenericAPIRouteHandler(
     assetsFetcher: _config2.assetsFetcher,
   };
 
-  return async function drystackAPIRoute(
+  return withAi(async function drystackAPIRoute(
     req: DrystackRequest
   ): Promise<DrystackResponse> {
     const params = getParams(req);
@@ -202,7 +248,7 @@ export function makeGenericAPIRouteHandler(
       };
     }
     return { status: 404, body: 'Not Found' };
-  };
+  });
 }
 
 const tokenDataResultType = s.type({

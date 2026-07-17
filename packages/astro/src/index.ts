@@ -12,6 +12,7 @@ import {
   cpSync,
 } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { pipeline } from 'node:stream/promises';
 import { join, relative } from 'node:path';
 import { load } from 'js-yaml';
 import {
@@ -121,7 +122,15 @@ async function handleLocalApiRequest(
   const responseBody = response.body;
   if (responseBody == null) res.end();
   else if (typeof responseBody === 'string') res.end(responseBody);
-  else res.end(Buffer.from(responseBody as Uint8Array));
+  // A streaming body (the AI generate route) has to be piped through chunk by
+  // chunk. `res.end(stream)` would buffer the whole thing and flush it in one
+  // go, which looks exactly like a provider that isn't streaming — so getting
+  // this wrong is easy to misdiagnose. Only reached in dev; production goes
+  // through `new Response(body)` in api.tsx, which streams natively.
+  else if (responseBody instanceof ReadableStream) {
+    const { Readable } = await import('node:stream');
+    await pipeline(Readable.fromWeb(responseBody as any), res);
+  } else res.end(Buffer.from(responseBody as Uint8Array));
 }
 
 // Top-level project directories that never hold drystack-managed content

@@ -65,6 +65,15 @@ export default config({
         kind: "github",
         repo: "drystackdev/drystackdev",
       },
+  ai: {
+    lang: "vi-VN",
+    for: {
+      blog: "bài viết chi tiết về SEO, giọng chuyên gia, có ví dụ thực tế cho doanh nghiệp Việt Nam",
+      seoKnowledge:
+        "bài viết kiến thức SEO mang tính hướng dẫn, giải thích khái niệm rõ ràng cho người mới",
+      services: "trang giới thiệu một dịch vụ SEO của agency",
+    },
+  },
   collections: {
     blog: postCollection("Bài viết", "/blog/{slug}"),
     seoKnowledge: postCollection("Kiến thức SEO", "/blog-kien-thuc/{slug}"),

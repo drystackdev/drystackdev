@@ -47,6 +47,26 @@ export type ColumnKind =
   | 'multiselect'
   | 'files';
 
+// what the AI codec (api/ai/schema-to-yaml.ts) needs to describe a field to
+// the model. fields keep their options in closures — `label` aside, none of
+// it is readable off the field object — so anything the codec has to see must
+// be surfaced here explicitly. same reasoning as `columnKind` above: the
+// consumer can't introspect what it can't see.
+//
+// only fields the AI is allowed to fill set this; image/file/relationship
+// deliberately leave it unset (the model can't produce asset bytes).
+export type AiFieldMeta = {
+  // free-form guidance from the site's own schema — the strongest steer
+  // available without touching config, e.g. a `description` teaching the
+  // bracket convention for emphasised headings.
+  description?: string;
+  multiline?: boolean;
+  isRequired?: boolean;
+  // HTML tags `fields.content` permits, derived from its editor options, so
+  // the model is never told it can emit a tag the editor would drop on parse.
+  htmlTags?: readonly string[];
+};
+
 export type BasicFormField<
   ParsedValue extends {} | null,
   ValidatedValue extends ParsedValue = ParsedValue,
@@ -55,6 +75,7 @@ export type BasicFormField<
   kind: 'form';
   formKind?: undefined;
   columnKind?: ColumnKind;
+  aiMeta?: AiFieldMeta;
   Input(props: FormFieldInputProps<ParsedValue>): ReactElement | null;
   defaultValue(): ParsedValue;
   parse(value: FormFieldStoredValue): ParsedValue;
@@ -83,6 +104,7 @@ export type SlugFormField<
 > = {
   kind: 'form';
   formKind: 'slug';
+  aiMeta?: AiFieldMeta;
   Input(props: FormFieldInputProps<ParsedValue>): ReactElement | null;
   defaultValue(): ParsedValue;
   parse(
@@ -161,6 +183,8 @@ export type AssetsFormField<
 > = {
   kind: 'form';
   formKind: 'assets';
+  aiMeta?: AiFieldMeta;
+  label?: string;
   directories?: string[];
   // set by `fields.content` (the HTML rich-text editor) so `entryLayout:
   // 'content'` can auto-detect it as the main content pane. other assets

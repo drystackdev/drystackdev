@@ -15,6 +15,7 @@ export function checkbox({
   return basicFormFieldWithSimpleReaderParse({
     label,
     columnKind: 'checkbox',
+    aiMeta: { description },
     Input(props) {
       return (
         <CheckboxFieldInput

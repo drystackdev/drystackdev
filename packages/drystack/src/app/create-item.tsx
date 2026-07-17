@@ -46,6 +46,9 @@ import {
 } from './utils';
 import { useCollection, usePreviewProps } from './preview-props';
 import { useDuplicateSlug } from './duplicate-slug';
+import { AiLockProvider } from './ai/lock-context';
+import { MagicWriteButton, useAiEntryDescription } from './ai/MagicWriteButton';
+import { useMagicWrite } from './ai/useMagicWrite';
 import { setValueToPreviewProps } from '../form/get-value';
 import { copyEntryToClipboard, getPastedEntry } from './entry-clipboard';
 import { clipboardCopyIcon } from '@keystar/ui/icon/icons/clipboardCopyIcon';
@@ -210,6 +213,18 @@ function CreateItemLocal(props: {
 
   const previewProps = usePreviewProps(schema, setState, state);
 
+  const magicWriteEntry = useMemo(
+    () => ({ kind: 'collection' as const, key: props.collection }),
+    [props.collection]
+  );
+  const magicWrite = useMagicWrite({
+    entry: magicWriteEntry,
+    schema: collectionConfig.schema,
+    // A React setState already takes an updater function, which is exactly the
+    // shape the hook writes through.
+    onStateChange: setState,
+  });
+
   useShowRestoredDraftMessage(props.draft, state, undefined);
 
   const slug = getSlugFromState(collectionConfig, state);
@@ -287,6 +302,7 @@ function CreateItemLocal(props: {
       state={state}
       slug={slug}
       previewProps={previewProps}
+      magicWrite={magicWrite}
       onReset={() => {
         setState(initialState);
       }}
@@ -308,6 +324,7 @@ function CreateItemInner(props: {
     undefined
   >;
   onReset: () => void;
+  magicWrite: ReturnType<typeof useMagicWrite>;
 }) {
   const { onReset } = props;
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
@@ -315,6 +332,7 @@ function CreateItemInner(props: {
   const config = useConfig();
 
   const { collectionConfig, schema } = useCollection(props.collection);
+  const aiEntryDescription = useAiEntryDescription(config, props.collection);
 
   const [forceValidation, setForceValidation] = useState(false);
   const formatInfo = getCollectionFormat(config, props.collection);
@@ -391,7 +409,19 @@ function CreateItemInner(props: {
   const isBelowDesktop = useMediaQuery(breakpointQueries.below.desktop);
 
   return (
-    <>
+    <AiLockProvider
+      lockedKeys={props.magicWrite.streamingKeys}
+      fieldMagicWrite={
+        aiEntryDescription
+          ? {
+              entryLabel: collectionConfig.label,
+              schema: collectionConfig.schema,
+              state: props.state,
+              magicWrite: props.magicWrite,
+            }
+          : null
+      }
+    >
       <PageRoot containerWidth={containerWidthForEntryLayout(collectionConfig)}>
         <PageHeader>
           <HeaderBreadcrumbs items={breadcrumbItems} />
@@ -431,6 +461,14 @@ function CreateItemInner(props: {
               </Item>
             )}
           </ActionGroup>
+          {aiEntryDescription && (
+            <MagicWriteButton
+              entryLabel={collectionConfig.label}
+              schema={collectionConfig.schema}
+              state={props.state}
+              magicWrite={props.magicWrite}
+            />
+          )}
           <Button
             isPending={isLoading}
             prominence="high"
@@ -457,6 +495,9 @@ function CreateItemInner(props: {
         >
           {createResult.kind === 'error' && (
             <Notice tone="critical">{createResult.error.message}</Notice>
+          )}
+          {props.magicWrite.error && (
+            <Notice tone="critical">{props.magicWrite.error}</Notice>
           )}
           <EntryDirectoryProvider value={props.entryDirectory}>
             <FormForEntry
@@ -527,7 +568,7 @@ function CreateItemInner(props: {
           />
         )}
       </DialogContainer>
-    </>
+    </AiLockProvider>
   );
 }
 

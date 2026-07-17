@@ -42,6 +42,35 @@ export type Singleton<Schema extends Record<string, ComponentSchema>> = {
 type CommonConfig<Collections, Singletons> = {
   locale?: Locale;
   ui?: UserInterface<Collections, Singletons>;
+  ai?: AiConfig<Collections, Singletons>;
+};
+
+// AI ("Magic write")
+// ----------------------------------------------------------------------------
+
+// Opt-in, admin-only content generation. Omitting `ai` disables the feature
+// outright — no button, no banner, no request. The API key never lives here:
+// it's read server-side from DRY_AI_KEY (see api/ai/env.ts), so nothing in
+// this config object is secret and it can ship to the browser as-is.
+export type AiConfig<Collections, Singletons> = {
+  /**
+   * Output language, as a BCP 47 tag (e.g. 'vi-VN'). Falls back to the
+   * top-level `locale` when omitted.
+   */
+  lang?: string;
+  /**
+   * Which collections/singletons get a "Magic write" button, mapped to a
+   * description of what the entry *is* — this string goes straight into the
+   * prompt, so write it for the model ("bài viết chi tiết về SEO, giọng
+   * chuyên gia"), not as a UI label. A key that isn't listed here has no
+   * button, and the generate route rejects it.
+   *
+   * Keyed off the site's own collections/singletons so a typo is a type
+   * error at the config, not a silently missing button.
+   */
+  for?: Partial<
+    Record<(keyof Collections & string) | (keyof Singletons & string), string>
+  >;
 };
 
 type CommonRemoteStorageConfig = {

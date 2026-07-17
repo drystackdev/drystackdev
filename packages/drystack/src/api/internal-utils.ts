@@ -6,7 +6,11 @@ export type DrystackRequest = {
 };
 
 export type DrystackResponse = ResponseInit & {
-  body: Uint8Array | string | null;
+  // A ReadableStream body is passed straight to `new Response(...)` by the
+  // adapters, so it streams to the client rather than being buffered. Note
+  // the Astro dev middleware has to pipe it explicitly (see
+  // handleLocalApiRequest in @drystack/astro) — `res.end(stream)` would not.
+  body: Uint8Array | string | ReadableStream<Uint8Array> | null;
 };
 
 export function redirect(

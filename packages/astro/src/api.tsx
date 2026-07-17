@@ -45,6 +45,33 @@ export function makeHandler(_config: APIRouteConfig) {
           tryOrUndefined(() => {
             return import.meta.env.DRYSTACK_SECRET;
           }),
+        // Read at request time, never at build time — on Cloudflare, Pages
+        // "Secrets" are invisible to `astro build`, so anything that reached
+        // for DRY_AI_KEY during the build would silently see nothing.
+        aiProvider:
+          _config.aiProvider ??
+          envVarsForCf?.DRY_AI_PROVIDER ??
+          tryOrUndefined(() => {
+            return import.meta.env.DRY_AI_PROVIDER;
+          }),
+        aiKey:
+          _config.aiKey ??
+          envVarsForCf?.DRY_AI_KEY ??
+          tryOrUndefined(() => {
+            return import.meta.env.DRY_AI_KEY;
+          }),
+        aiModel:
+          _config.aiModel ??
+          envVarsForCf?.DRY_AI_MODEL ??
+          tryOrUndefined(() => {
+            return import.meta.env.DRY_AI_MODEL;
+          }),
+        aiBaseUrl:
+          _config.aiBaseUrl ??
+          envVarsForCf?.DRY_AI_BASE_URL ??
+          tryOrUndefined(() => {
+            return import.meta.env.DRY_AI_BASE_URL;
+          }),
         // The `github/dry-map` route self-fetches its own deployed static
         // assets through this — Cloudflare's `ASSETS` binding (declared in
         // wrangler.jsonc) is a `Fetcher`, so `.fetch(url)` works the same as

@@ -26,6 +26,7 @@ export function select<const Option extends { label: string; value: string }>({
     basicFormFieldWithSimpleReaderParse({
       label,
       columnKind: 'select',
+      aiMeta: { description },
       Input(props) {
         return (
           <SelectFieldInput

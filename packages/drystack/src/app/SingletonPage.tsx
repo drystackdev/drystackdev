@@ -34,6 +34,10 @@ import {
 import { CreateBranchDuringUpdateDialog } from './ItemPage';
 import { PageBody, PageHeader, PageRoot } from './shell/page';
 import { useBaseCommit, useCurrentBranch, useRepoInfo } from './shell/data';
+import { useConfig } from './shell/context';
+import { AiLockProvider } from './ai/lock-context';
+import { MagicWriteButton, useAiEntryDescription } from './ai/MagicWriteButton';
+import { useMagicWrite } from './ai/useMagicWrite';
 import { useHasChanged } from './useHasChanged';
 import {
   ChangePreviewDialog,
@@ -104,6 +108,7 @@ function SingletonPageInner(
     previewProps: GenericPreviewProps<ComponentSchema, undefined>;
     changes: FieldChange[];
     onRevertField: (key: string) => void;
+    magicWrite: ReturnType<typeof useMagicWrite>;
   }
 ) {
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -113,6 +118,7 @@ function SingletonPageInner(
   const [forceValidation, setForceValidation] = useState(false);
 
   const { schema, singletonConfig } = useSingleton(props.singleton);
+  const aiEntryDescription = useAiEntryDescription(useConfig(), props.singleton);
 
   const router = useRouter();
 
@@ -236,6 +242,19 @@ function SingletonPageInner(
   };
 
   return (
+    <AiLockProvider
+      lockedKeys={props.magicWrite.streamingKeys}
+      fieldMagicWrite={
+        aiEntryDescription
+          ? {
+              entryLabel: singletonConfig.label,
+              schema: singletonConfig.schema,
+              state: props.state,
+              magicWrite: props.magicWrite,
+            }
+          : null
+      }
+    >
     <PageRoot containerWidth={containerWidthForEntryLayout(singletonConfig)}>
       <PageHeader>
         <Flex flex alignItems="center" gap="regular">
@@ -297,6 +316,14 @@ function SingletonPageInner(
             </Item>
           )}
         </ActionGroup>
+        {aiEntryDescription && (
+          <MagicWriteButton
+            entryLabel={singletonConfig.label}
+            schema={singletonConfig.schema}
+            state={props.state}
+            magicWrite={props.magicWrite}
+          />
+        )}
         <Button
           form={formID}
           isPending={props.updateResult.kind === 'loading'}
@@ -322,6 +349,9 @@ function SingletonPageInner(
       >
         {props.updateResult.kind === 'error' && (
           <Notice tone="critical">{props.updateResult.error.message}</Notice>
+        )}
+        {props.magicWrite.error && (
+          <Notice tone="critical">{props.magicWrite.error}</Notice>
         )}
         <EntryDirectoryProvider value={singletonPath}>
           <FormForEntry
@@ -382,6 +412,7 @@ function SingletonPageInner(
         </DialogContainer>
       </Flex>
     </PageRoot>
+    </AiLockProvider>
   );
 }
 
@@ -650,6 +681,16 @@ function LocalSingletonPage(
     },
     []
   );
+
+  const magicWriteEntry = useMemo(
+    () => ({ kind: 'singleton' as const, key: props.singleton }),
+    [props.singleton]
+  );
+  const magicWrite = useMagicWrite({
+    entry: magicWriteEntry,
+    schema: singletonConfig.schema,
+    onStateChange: onPreviewPropsChange,
+  });
 
   // --- Cross-tab / visual-editor sync (fields.text + fields.image) ---
   //
@@ -1079,6 +1120,7 @@ function LocalSingletonPage(
       previewProps={previewProps}
       changes={changes}
       onRevertField={onRevertField}
+      magicWrite={magicWrite}
     />
   );
 }

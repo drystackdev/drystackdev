@@ -25,6 +25,7 @@ export function integer<IsRequired extends boolean | undefined>({
   return basicFormFieldWithSimpleReaderParse({
     label,
     columnKind: 'number',
+    aiMeta: { description, isRequired: !!validation?.isRequired },
     Input(props) {
       return (
         <IntegerFieldInput

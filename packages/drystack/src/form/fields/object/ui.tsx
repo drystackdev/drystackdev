@@ -12,6 +12,8 @@ import {
 } from '../../form-from-preview';
 import { AddToPathProvider } from '../text/path-slug-context';
 import { FIELD_GRID_COLUMNS, FieldContextProvider } from '../context';
+import { AiLockOverlay } from '../../../app/ai/AiLockOverlay';
+import { FieldMagicWriteButton } from '../../../app/ai/FieldMagicWriteButton';
 
 // this is just to get the react compiler to run on this, because of a todo
 const belowTablet = containerQueries.below.tablet;
@@ -41,6 +43,14 @@ function ObjectFieldInputEntry({
         data-field={fieldKey}
         className={css({
           gridColumn: `span ${span}`,
+          // Anchors the per-field Magic write button; it's positioned rather
+          // than laid out so adding it can't reflow any field.
+          position: 'relative',
+
+          '&:hover [data-drystack-field-ai], &:focus-within [data-drystack-field-ai]':
+            {
+              opacity: 1,
+            },
 
           [belowTablet]: {
             gridColumn: `span ${FIELD_GRID_COLUMNS}`,
@@ -48,12 +58,29 @@ function ObjectFieldInputEntry({
         })}
       >
         <AddToPathProvider part={fieldKey}>
-          <InnerFormValueContentFromPreviewProps
-            forceValidation={forceValidation}
-            autoFocus={fieldKey === firstFocusable}
-            omitFieldAtPath={omitFieldAtPath}
-            {...field}
-          />
+          <div
+            data-drystack-field-ai=""
+            className={css({
+              position: 'absolute',
+              insetInlineEnd: 0,
+              insetBlockStart: 0,
+              zIndex: 1,
+              opacity: 0,
+              transition: 'opacity 130ms',
+              // Keyboard users still reach it: focus-within above reveals it.
+              '&:focus-within': { opacity: 1 },
+            })}
+          >
+            <FieldMagicWriteButton />
+          </div>
+          <AiLockOverlay>
+            <InnerFormValueContentFromPreviewProps
+              forceValidation={forceValidation}
+              autoFocus={fieldKey === firstFocusable}
+              omitFieldAtPath={omitFieldAtPath}
+              {...field}
+            />
+          </AiLockOverlay>
         </AddToPathProvider>
       </div>
     </FieldContextProvider>

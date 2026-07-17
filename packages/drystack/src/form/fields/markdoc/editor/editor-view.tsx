@@ -16,6 +16,7 @@ import React, {
 import { useEventCallback } from './utils';
 import { EditorView } from 'prosemirror-view';
 import { useConfig } from '../../../../app/shell/context';
+import { useIsAiLocked } from '../../../../app/ai/lock-context';
 
 const EditorStateContext = React.createContext<EditorState | null>(null);
 
@@ -80,12 +81,19 @@ export function useLayoutEffectWithEditorUpdated(effect: () => void) {
 export function useEditorView(
   state: EditorState,
   _onEditorStateChange: (state: EditorState) => void,
-  externalMount?: HTMLElement | null
+  externalMount?: HTMLElement | null,
+  isEditable = true
 ) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const config = useConfig();
   const onEditorStateChange = useEventCallback(_onEditorStateChange);
+  // ProseMirror re-reads `editable()` on every state update, so holding the
+  // flag in a ref lets it flip without rebuilding the view. Rebuilding would
+  // drop the caret and the undo history, and would re-run the mount effect
+  // below — the same effect whose cleanup once wiped content on toggle.
+  const isEditableRef = useRef(isEditable);
+  isEditableRef.current = isEditable;
   useLayoutEffect(() => {
     const mount = externalMount ?? mountRef.current;
     if (mount == null) {
@@ -96,6 +104,7 @@ export function useEditorView(
       {
         state: state,
         ...{ config },
+        editable: () => isEditableRef.current,
         dispatchTransaction(tr) {
           const newEditorState = view.state.apply(tr);
           view.updateState(newEditorState);
@@ -110,6 +119,11 @@ export function useEditorView(
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mountRef, onEditorStateChange, config, externalMount]);
+  // `editable()` is only consulted when the view updates, so a flip that
+  // isn't accompanied by a state change needs a nudge to take effect.
+  useLayoutEffect(() => {
+    viewRef.current?.updateState(viewRef.current.state);
+  }, [isEditable]);
   useLayoutEffect(() => {
     viewRef.current?.updateState(state);
   }, [state]);
@@ -159,7 +173,15 @@ export const ProseMirrorEditor = forwardRef(function ProseMirrorEditorView(
   },
   ref: Ref<{ view: EditorView | null }>
 ) {
-  const { view, mount } = useEditorView(props.value, props.onChange, props.mount);
+  // Read here rather than passed in: an overlay can stop the mouse, but only
+  // ProseMirror itself can stop the keyboard once the caret is inside.
+  const isAiLocked = useIsAiLocked();
+  const { view, mount } = useEditorView(
+    props.value,
+    props.onChange,
+    props.mount,
+    !isAiLocked
+  );
 
   useImperativeHandle(
     ref,

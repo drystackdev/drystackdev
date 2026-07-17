@@ -1,0 +1,263 @@
+// Describes a drystack schema to the model, and maps what comes back onto
+// form values. Shared by the API route (which builds the prompt and validates
+// the request) and the admin UI (which lists fields in the dialog and applies
+// the stream) — keeping one module means the prompt can never describe a
+// field the apply step doesn't understand.
+
+import type { ComponentSchema } from '../../form/api';
+import { isContentEditorField } from '../../form/fields/content/is-content-field';
+
+// The kinds the AI is allowed to fill. Anything not on this list is invisible
+// to the feature: it appears in neither dialog column and is never described
+// to the model.
+export type AiFieldKind =
+  | 'text'
+  | 'slug'
+  | 'content'
+  | 'select'
+  | 'multiselect'
+  | 'checkbox'
+  | 'date'
+  | 'integer'
+  | 'url'
+  | 'array'
+  | 'object';
+
+export type AiFieldSpec = {
+  /** key within its parent object; the path is built by the caller */
+  key: string;
+  kind: AiFieldKind;
+  label: string;
+  description?: string;
+  multiline?: boolean;
+  isRequired?: boolean;
+  /** select/multiselect: the only values the model may choose from */
+  options?: readonly string[];
+  /** content: the tags the editor will keep */
+  htmlTags?: readonly string[];
+  /** array: the shape of one element */
+  element?: AiFieldSpec;
+  /** object: its child fields */
+  children?: AiFieldSpec[];
+};
+
+// Asset and reference fields: the model can't invent file bytes, and it can't
+// know which entries exist to point at. Excluded from both dialog columns —
+// not merely from generation — since showing a checkbox that can't do
+// anything is worse than showing nothing.
+const UNSUPPORTED_COLUMN_KINDS = new Set([
+  'image',
+  'file',
+  'files',
+  'relationship',
+  'multiRelationship',
+]);
+
+type AnyField = ComponentSchema & {
+  label?: string;
+  columnKind?: string;
+  aiMeta?: {
+    description?: string;
+    multiline?: boolean;
+    isRequired?: boolean;
+    htmlTags?: readonly string[];
+  };
+  options?: readonly { label: string; value: string }[];
+  timestamp?: 'created' | 'updated';
+};
+
+/**
+ * Builds a spec for one field, or `undefined` when the AI can't handle it.
+ * Recurses through object/array so nesting (array > object > array) is
+ * described in full.
+ */
+export function describeField(
+  key: string,
+  schema: ComponentSchema
+): AiFieldSpec | undefined {
+  const field = schema as AnyField;
+
+  if (field.kind === 'object') {
+    const children = describeFields(field.fields);
+    if (!children.length) return undefined;
+    return {
+      key,
+      kind: 'object',
+      label: (field as any).label ?? key,
+      description: (field as any).description,
+      children,
+    };
+  }
+
+  if (field.kind === 'array') {
+    const element = describeField(key, field.element as ComponentSchema);
+    if (!element) return undefined;
+    return {
+      key,
+      kind: 'array',
+      label: (field as any).label ?? key,
+      description: (field as any).description,
+      element,
+    };
+  }
+
+  if (field.kind !== 'form') return undefined;
+
+  // Stamped by the save pipeline (stampTimestamps in app/updating.tsx), never
+  // by a person — so never by the AI either.
+  if (field.timestamp) return undefined;
+
+  const meta = field.aiMeta;
+
+  if (isContentEditorField(schema)) {
+    return {
+      key,
+      kind: 'content',
+      label: field.label ?? key,
+      description: meta?.description,
+      htmlTags: meta?.htmlTags,
+    };
+  }
+
+  // Every remaining assets/asset field is an image/file picker.
+  if (field.formKind === 'assets' || field.formKind === 'asset') {
+    return undefined;
+  }
+
+  if (field.formKind === 'slug') {
+    // `fields.text` and `fields.slug` share formKind: 'slug'; only the latter
+    // holds a {name, slug} pair, and only it exposes the `slugify` generator.
+    //
+    // Their default values would tell them apart too, but calling
+    // `defaultValue()` is not an option here: this module runs server-side,
+    // where `#field-ui/*` resolves to the react-server build and the slug
+    // field's generator throws on call. Probing the shape would silently
+    // misclassify every slug field as plain text.
+    return {
+      key,
+      kind: typeof (field as any).slugify === 'function' ? 'slug' : 'text',
+      label: field.label ?? key,
+      description: meta?.description,
+      multiline: meta?.multiline,
+      isRequired: meta?.isRequired,
+    };
+  }
+
+  if (field.formKind !== undefined) return undefined;
+
+  if (field.columnKind && UNSUPPORTED_COLUMN_KINDS.has(field.columnKind)) {
+    return undefined;
+  }
+
+  const base = {
+    key,
+    label: field.label ?? key,
+    description: meta?.description,
+    isRequired: meta?.isRequired,
+  };
+
+  switch (field.columnKind) {
+    case 'select':
+      return {
+        ...base,
+        kind: 'select',
+        options: field.options?.map(o => o.value) ?? [],
+      };
+    case 'multiselect':
+      return {
+        ...base,
+        kind: 'multiselect',
+        options: field.options?.map(o => o.value) ?? [],
+      };
+    case 'checkbox':
+      return { ...base, kind: 'checkbox' };
+    case 'date':
+      return { ...base, kind: 'date' };
+    case 'number':
+      return { ...base, kind: 'integer' };
+    case 'url':
+      return { ...base, kind: 'url' };
+    default:
+      // A basic field with no columnKind hint. Without one there's nothing
+      // that says what its value means, so it stays out rather than being
+      // guessed at.
+      return undefined;
+  }
+}
+
+export function describeFields(
+  schema: Record<string, ComponentSchema>
+): AiFieldSpec[] {
+  const specs: AiFieldSpec[] = [];
+  for (const [key, field] of Object.entries(schema)) {
+    const spec = describeField(key, field);
+    if (spec) specs.push(spec);
+  }
+  return specs;
+}
+
+// Prompt rendering
+// ----------------------------------------------------------------------------
+
+const KIND_LABELS: Record<AiFieldKind, string> = {
+  text: 'văn bản ngắn',
+  slug: 'văn bản ngắn (tiêu đề)',
+  content: 'HTML',
+  select: 'chọn một',
+  multiselect: 'chọn nhiều',
+  checkbox: 'true/false',
+  date: 'ngày, định dạng YYYY-MM-DD',
+  integer: 'số nguyên',
+  url: 'đường dẫn URL',
+  array: 'danh sách',
+  object: 'nhóm',
+};
+
+function annotation(spec: AiFieldSpec): string {
+  const parts: string[] = [];
+  if (spec.kind === 'text' && spec.multiline) parts.push('văn bản nhiều dòng');
+  else if (spec.kind === 'content') {
+    parts.push(`HTML, chỉ dùng các thẻ: ${(spec.htmlTags ?? []).join(', ')}`);
+  } else parts.push(KIND_LABELS[spec.kind]);
+
+  if (spec.options?.length) parts.push(`giá trị hợp lệ: ${spec.options.join(' | ')}`);
+  if (spec.isRequired) parts.push('bắt buộc');
+  return parts.join(', ');
+}
+
+/**
+ * Renders the skeleton the model fills in. The *order* of these lines is load
+ * bearing: the streaming parser on the client decides a field is finished
+ * only when it sees the next one start, so the prompt tells the model to keep
+ * this exact order (see buildSystemPrompt).
+ */
+export function renderSkeleton(specs: AiFieldSpec[], indent = ''): string {
+  const lines: string[] = [];
+  for (const spec of specs) {
+    const desc = spec.description ? ` — ${spec.description}` : '';
+
+    if (spec.kind === 'object') {
+      lines.push(`${indent}${spec.key} (nhóm, gồm): ${spec.label}${desc}`);
+      lines.push(renderSkeleton(spec.children ?? [], `${indent}  `));
+      continue;
+    }
+
+    if (spec.kind === 'array') {
+      const element = spec.element!;
+      if (element.kind === 'object') {
+        lines.push(
+          `${indent}${spec.key} (danh sách các mục, mỗi mục gồm): ${spec.label}${desc}`
+        );
+        lines.push(renderSkeleton(element.children ?? [], `${indent}  `));
+      } else {
+        lines.push(
+          `${indent}${spec.key} (danh sách ${annotation(element)}): ${spec.label}${desc}`
+        );
+      }
+      continue;
+    }
+
+    lines.push(`${indent}${spec.key} (${annotation(spec)}): ${spec.label}${desc}`);
+  }
+  return lines.filter(Boolean).join('\n');
+}

@@ -63,6 +63,12 @@ import { getDataFileExtension, getPathPrefix } from './path-utils';
 import { useRouter } from './router';
 import { HeaderBreadcrumbs } from './shell/HeaderBreadcrumbs';
 import { useConfig } from './shell/context';
+import { AiLockProvider } from './ai/lock-context';
+import {
+  MagicWriteButton,
+  useAiEntryDescription,
+} from './ai/MagicWriteButton';
+import { useMagicWrite } from './ai/useMagicWrite';
 import { useBaseCommit, useCurrentBranch, useRepoInfo } from './shell/data';
 import { PageBody, PageHeader, PageRoot } from './shell/page';
 import { useSlugFieldInfo } from './slugs';
@@ -151,6 +157,7 @@ function ItemPageInner(
     state: Record<string, unknown>;
     changes: FieldChange[];
     onRevertField: (key: string) => void;
+    magicWrite: ReturnType<typeof useMagicWrite>;
   }
 ) {
   const {
@@ -161,6 +168,7 @@ function ItemPageInner(
     onUpdate: parentOnUpdate,
   } = props;
   const { collectionConfig, schema } = useCollection(collection);
+  const aiEntryDescription = useAiEntryDescription(config, collection);
 
   const router = useRouter();
   const baseCommit = useBaseCommit();
@@ -313,7 +321,19 @@ function ItemPageInner(
   }, [updateResult.kind, onUpdate]);
 
   return (
-    <>
+    <AiLockProvider
+      lockedKeys={props.magicWrite.streamingKeys}
+      fieldMagicWrite={
+        aiEntryDescription
+          ? {
+              entryLabel: collectionConfig.label,
+              schema: schema.fields,
+              state: props.state,
+              magicWrite: props.magicWrite,
+            }
+          : null
+      }
+    >
       <ItemPageShell
         headerActions={
           <HeaderActions
@@ -332,6 +352,10 @@ function ItemPageInner(
             onReset={props.onReset}
             viewHref={viewHref}
             previewHref={previewHref}
+            magicWrite={props.magicWrite}
+            schema={schema.fields}
+            state={props.state}
+            entryLabel={collectionConfig.label}
           />
         }
         {...props}
@@ -341,6 +365,9 @@ function ItemPageInner(
         )}
         {deleteResult.kind === 'error' && (
           <Notice tone="critical">{deleteResult.error.message}</Notice>
+        )}
+        {props.magicWrite.error && (
+          <Notice tone="critical">{props.magicWrite.error}</Notice>
         )}
         <Box
           id={formID}
@@ -492,7 +519,7 @@ function ItemPageInner(
           )}
         </DialogContainer>
       </ItemPageShell>
-    </>
+    </AiLockProvider>
   );
 }
 
@@ -512,6 +539,10 @@ function LocalItemPage(
     draft,
   } = props;
   const { collectionConfig, schema } = useCollection(collection);
+  const magicWriteEntry = useMemo(
+    () => ({ kind: 'collection' as const, key: collection }),
+    [collection]
+  );
 
   const [{ state, localTreeKey: localTreeKeyInState }, setState] = useState({
     state: draft?.state ?? initialState,
@@ -599,6 +630,12 @@ function LocalItemPage(
   ]);
   const update = useEventCallback(_update);
 
+  const magicWrite = useMagicWrite({
+    entry: magicWriteEntry,
+    schema: schema.fields,
+    onStateChange: onPreviewPropsChange,
+  });
+
   const onReset = () => {
     setState({ state: initialState, localTreeKey });
   };
@@ -623,6 +660,7 @@ function LocalItemPage(
       hasChanged={hasChanged}
       changes={changes}
       onRevertField={onRevertField}
+      magicWrite={magicWrite}
     />
   );
 }
@@ -643,6 +681,10 @@ function HeaderActions(props: {
   onPaste: () => void;
   previewHref?: string;
   viewHref?: string;
+  magicWrite: ReturnType<typeof useMagicWrite>;
+  schema: Record<string, ComponentSchema>;
+  state: Record<string, unknown>;
+  entryLabel: string;
 }) {
   let {
     formID,
@@ -663,6 +705,7 @@ function HeaderActions(props: {
   } = props;
   const isBelowDesktop = useMediaQuery(breakpointQueries.below.desktop);
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
+  const aiEntryDescription = useAiEntryDescription(useConfig(), collection);
   const [deleteAlertIsOpen, setDeleteAlertOpen] = useState(false);
   const [duplicateAlertIsOpen, setDuplicateAlertOpen] = useState(false);
   const otherSlugs = useSlugsInCollection(collection).filter(
@@ -824,6 +867,14 @@ function HeaderActions(props: {
           </Item>
         )}
       </ActionGroup>
+      {aiEntryDescription && (
+        <MagicWriteButton
+          entryLabel={props.entryLabel}
+          schema={props.schema}
+          state={props.state}
+          magicWrite={props.magicWrite}
+        />
+      )}
       <Button
         form={formID}
         isPending={isLoading}

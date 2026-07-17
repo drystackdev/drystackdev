@@ -59,6 +59,7 @@ export function text({
     kind: 'form',
     formKind: 'slug',
     label,
+    aiMeta: { description, multiline, isRequired: min > 0 },
     Input(props) {
       return (
         <TextFieldInput

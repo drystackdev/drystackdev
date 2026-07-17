@@ -25,6 +25,7 @@ export function date<IsRequired extends boolean | undefined>({
   return basicFormFieldWithSimpleReaderParse({
     label,
     columnKind: 'date',
+    aiMeta: { description, isRequired: !!validation?.isRequired },
     Input(props) {
       return (
         <DateFieldInput

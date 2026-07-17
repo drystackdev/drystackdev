@@ -20,6 +20,8 @@ import { MainPanelLayout } from './panels';
 import { EmptyState } from './empty-state';
 import { FileManagerHost } from '../file-manager/FileManagerHost';
 import { useBrandGuard } from '../brand';
+import { AiStatusProvider } from '../ai/useAiStatus';
+import { AiConfigNotice } from '../ai/AiConfigNotice';
 
 function BranchNotFound(props: { config: Config; children: ReactNode }) {
   const branches = useBranches();
@@ -73,12 +75,17 @@ export const AppShell = (props: {
   const inner = (
     <ConfigContext.Provider value={props.config}>
       <AppStateContext.Provider value={{ basePath: props.basePath }}>
-        <SidebarProvider>
-          <MainPanelLayout>
-            <BranchNotFound config={props.config}>{content}</BranchNotFound>
-          </MainPanelLayout>
-          <FileManagerHost />
-        </SidebarProvider>
+        <AiStatusProvider>
+          <SidebarProvider>
+            <MainPanelLayout>
+              <BranchNotFound config={props.config}>
+                <AiConfigNotice />
+                {content}
+              </BranchNotFound>
+            </MainPanelLayout>
+            <FileManagerHost />
+          </SidebarProvider>
+        </AiStatusProvider>
       </AppStateContext.Provider>
     </ConfigContext.Provider>
   );
