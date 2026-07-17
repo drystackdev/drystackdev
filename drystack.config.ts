@@ -36,7 +36,12 @@ function postCollection(label: string, previewUrl: string) {
         label: "Từ khóa SEO",
         description: "Cách nhau bởi dấu phẩy, VD: từ khoá 1, từ khoá 2",
       }),
-      cover: fields.image({ label: "Ảnh bìa" }),
+      cover: fields.image({
+        label: "Ảnh bìa",
+        validation: {
+          isRequired: true,
+        },
+      }),
       date: fields.date({
         label: "Ngày đăng",
         defaultValue: { kind: "today" },
@@ -69,7 +74,7 @@ export default config({
       seoKnowledge:
         "bài viết kiến thức SEO mang tính hướng dẫn, giải thích khái niệm rõ ràng cho người mới",
       services: "trang giới thiệu một dịch vụ SEO của agency",
-      demo: "Kiến thức ngẫu nhiên liên quan đến công nghệ!"
+      demo: "Kiến thức ngẫu nhiên liên quan đến công nghệ!",
     },
   },
   collections: {
@@ -461,7 +466,7 @@ export default config({
       label: "Demo Vistual Editing Inline",
       schema: {
         text: fields.text({ label: "[field.Text]" }),
-        content: fields.content({label: "[field.Content]"}),
+        content: fields.content({ label: "[field.Content]" }),
         image: fields.image({ label: "[field.Image]" }),
         file: fields.file({ label: "[field.File]" }),
         array: fields.array(fields.text({ label: "[field.Array[]]" }), {
