@@ -180,13 +180,16 @@ function LinkButton(props: { link: MarkType }) {
   );
 }
 
-export const Toolbar = memo(function Toolbar({
-  hideDividers,
-  ...props
-}: HTMLAttributes<HTMLDivElement> & { hideDividers?: boolean }) {
+export const Toolbar = memo(function Toolbar(
+  props: HTMLAttributes<HTMLDivElement>,
+) {
   const schema = useEditorSchema();
   const { nodes, marks, config } = schema;
-  const Separator = hideDividers ? Noop : EditorToolbarSeparator;
+  // An inline-only field (config.inlineOnly, e.g. a bold-only heading) never
+  // shows more than one button group - lists/blocks/alignment all disappear
+  // from the schema - so the separators around them would otherwise stack up
+  // next to each other with nothing between them.
+  const Separator = config.inlineOnly ? Noop : EditorToolbarSeparator;
   return (
     <ToolbarWrapper {...props}>
       <ToolbarScrollArea>

@@ -13,6 +13,7 @@ import {
 import { Toolbar } from './Toolbar';
 import { prosemirrorStyles } from './utils';
 import { EditorPopoverDecoration } from './popovers';
+import { getEditorSchema } from './schema';
 import { ProseMirrorEditable, ProseMirrorEditor } from './editor-view';
 import { AutocompleteDecoration } from './autocomplete/decoration';
 import { NodeViews } from './react-node-views';
@@ -59,6 +60,11 @@ const contentStyles = css({
   },
 });
 
+// An inline-only field (config.inlineOnly, e.g. a bold-only heading) is a
+// single short line, not a document body - reserving the same empty space as
+// a full content field would leave a big blank box under it.
+const inlineContentStyles = css(contentStyles, { minHeight: 0 });
+
 export const Editor = forwardRef(function Editor(
   {
     value: _value,
@@ -81,9 +87,10 @@ export const Editor = forwardRef(function Editor(
   }
   let entryLayoutPane = useEntryLayoutSplitPaneContext();
   const containerSize = useContentPanelSize();
+  const inlineOnly = getEditorSchema(_value.schema).config.inlineOnly;
   const styleProps = useProseStyleProps({
     size: entryLayoutPane === 'main' ? 'medium' : 'regular',
-    UNSAFE_className: contentStyles,
+    UNSAFE_className: inlineOnly ? inlineContentStyles : contentStyles,
     ...toDataAttributes({ layout: entryLayoutPane, container: containerSize }),
   });
   let value, onChange;
