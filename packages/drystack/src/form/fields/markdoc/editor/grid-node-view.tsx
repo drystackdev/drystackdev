@@ -319,6 +319,10 @@ const gridClass = css({
   // `gap` and `grid-template-columns` are applied inline from the node attrs;
   // no border/padding on the container itself
   alignItems: "stretch",
+  // the container grip pins itself to this corner (see
+  // container-drag-handle.ts); every cell is already a containing block of its
+  // own (see cellClass), so this only ever catches the grip itself
+  position: "relative",
 });
 
 // the single in-flow grid item that `place-content` positions when a cell is

@@ -12,6 +12,7 @@ import { autocompleteDecoration } from "./autocomplete/decoration";
 import { blockHandle } from "./block-handle";
 import { codeBlockSyntaxHighlighting } from "./code-block-highlighting";
 import { keymapForSchema } from "./commands/keymap";
+import { containerDragHandle } from "./container-drag-handle";
 import { dropCursor } from "./dropcursor";
 import { gapCursor } from "./gapcursor";
 import { imageDropPlugin } from "./images";
@@ -91,6 +92,10 @@ export function createEditorState(
         class: `${THEME_DEFAULT} ${SCHEME_AUTO}`,
       }),
       blockHandle(),
+      // the other half of the drag story: `blockHandle` picks up the block a
+      // press lands on, which inside a table/grid is always a block *within* a
+      // cell - this grips the container itself
+      containerDragHandle(),
       inputRules({
         rules: inputRulesForSchema(schema),
         enterRules: enterInputRulesForSchema(schema),

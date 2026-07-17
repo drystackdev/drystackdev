@@ -5,6 +5,7 @@ import {
   Plugin,
   PluginKey,
 } from "prosemirror-state";
+import { NodeType } from "prosemirror-model";
 import { EditorView } from "prosemirror-view";
 import { css, tokenSchema } from "@keystar/ui/style";
 
@@ -35,6 +36,39 @@ const armedClass = css({
 });
 
 const LIST_TYPES = new Set(["ordered_list", "unordered_list", "list_item"]);
+
+function isTableCell(type: NodeType) {
+  const role = type.spec.tableRole;
+  return role === "cell" || role === "header_cell";
+}
+
+// Hand a drag payload to prosemirror-view, which is what makes its own `drop`
+// handling perform the move (and the `dropCursor()` plugin show where it will
+// land). `node` lets that handler delete the source precisely (node.replace)
+// and remap it across doc changes; it's absent from the public type. Shared
+// with the container grip (container-drag-handle.ts), which picks up a whole
+// table/grid the same way this picks up a block.
+export function setDragPayload(
+  view: EditorView,
+  event: DragEvent,
+  selection: Selection,
+  dragImage: Node | null,
+) {
+  const dataTransfer = event.dataTransfer;
+  if (!dataTransfer) return;
+  dataTransfer.clearData();
+  // browsers only start a drag when *some* data is set
+  dataTransfer.setData("text/plain", " ");
+  dataTransfer.effectAllowed = "copyMove";
+  if (dragImage instanceof HTMLElement) {
+    dataTransfer.setDragImage(dragImage, 0, 0);
+  }
+  view.dragging = {
+    slice: selection.content(),
+    move: true,
+    node: selection,
+  } as any;
+}
 
 // A span of one or more sibling blocks at the same depth: `[from, to)`
 // bounds the run of nodes to pick up (a single block, a run of list items,
@@ -97,7 +131,7 @@ class BlockHandleView {
     const eventTarget = event.target as HTMLElement;
     if (
       eventTarget.closest(
-        "input, textarea, select, button, a[href], [data-resize-grip]",
+        "input, textarea, select, button, a[href], [data-resize-grip], [data-drag-grip]",
       )
     )
       return;
@@ -197,15 +231,18 @@ class BlockHandleView {
 
   // Find the span that should be armed for a pointer position: normally just
   // the single top-level block under the pointer (direct child of `doc`), or
-  // the specific `list_item` when inside a top-level list. A `grid_cell`
-  // shares `doc`'s `block+` content model, so the same logic re-applies
-  // relative to the nearest enclosing cell - blocks nested inside a grid can
-  // be picked up and dragged out individually too. Any other nested
-  // container (table cell, blockquote) still resolves to its own top-level
-  // ancestor block, unchanged. If the press lands inside an existing
-  // selection spanning more than one sibling at that level, the whole
-  // spanned range is returned instead - selecting across (even partially
-  // into) 2-3 blocks and dragging moves all of them together.
+  // the specific `list_item` when inside a top-level list. A `grid_cell` and a
+  // table cell (`table_cell`/`table_header`) both share `doc`'s `block+`
+  // content model, so the same logic re-applies relative to the nearest
+  // enclosing cell - a block nested in a grid or a table is picked up on its
+  // own (and can be dragged out), rather than the press resolving all the way
+  // out to the whole grid/table that happens to contain it. Moving a
+  // container as a whole is the container grip's job instead (see
+  // container-drag-handle.ts). Any other nested container (blockquote) still
+  // resolves to its own top-level ancestor block, unchanged. If the press
+  // lands inside an existing selection spanning more than one sibling at that
+  // level, the whole spanned range is returned instead - selecting across
+  // (even partially into) 2-3 blocks and dragging moves all of them together.
   private resolveTarget(clientX: number, clientY: number): HandleTarget | null {
     const view = this.view;
     if (!view.editable) return null;
@@ -225,11 +262,14 @@ class BlockHandleView {
     if ($pos.depth === 0) return null;
 
     // root container depth for the "top-level block" notion: 0 for `doc`, or
-    // the depth of the nearest enclosing `grid_cell` ancestor
+    // the depth of the nearest enclosing cell (grid or table)
     let rootDepth = 0;
+    let rootIsGridCell = false;
     for (let depth = $pos.depth; depth >= 1; depth--) {
-      if ($pos.node(depth).type.name === "grid_cell") {
+      const type = $pos.node(depth).type;
+      if (type.name === "grid_cell" || isTableCell(type)) {
         rootDepth = depth;
+        rootIsGridCell = type.name === "grid_cell";
         break;
       }
     }
@@ -261,9 +301,12 @@ class BlockHandleView {
     // via the drag gesture itself. Flag it here (only when the whole cell's
     // content is the thing being dragged out) so `appendTransaction` can
     // clean up that filler - or drop the now-sole-empty cell entirely -
-    // once the move lands.
+    // once the move lands. A table cell is isolating too and gets the same
+    // filler, but there it's the right outcome and the only one the schema
+    // allows: a row's cells are its columns, so an emptied one has to stay
+    // and hold the shape of the table.
     const emptiedGridCellPos =
-      rootDepth > 0 &&
+      rootIsGridCell &&
       from === $pos.start(rootDepth) &&
       to === $pos.end(rootDepth)
         ? $pos.before(rootDepth)
@@ -319,19 +362,7 @@ class BlockHandleView {
           view.state.doc.resolve(from),
           view.state.doc.resolve(to),
         );
-    const slice = selection.content();
-    event.dataTransfer.clearData();
-    // browsers only start a drag when *some* data is set
-    event.dataTransfer.setData("text/plain", " ");
-    event.dataTransfer.effectAllowed = "copyMove";
-    const dom = view.nodeDOM(from);
-    if (dom instanceof HTMLElement) {
-      event.dataTransfer.setDragImage(dom, 0, 0);
-    }
-
-    // `node` lets prosemirror-view delete precisely (node.replace) and remap
-    // the source across doc changes; it's absent from the public type
-    view.dragging = { slice, move: true, node: selection } as any;
+    setDragPayload(view, event, selection, view.nodeDOM(from));
     this.dragState.isListItem = isListItem;
     this.dragState.emptiedGridCellPos = emptiedGridCellPos;
     this.dragState.fromHandle = true;

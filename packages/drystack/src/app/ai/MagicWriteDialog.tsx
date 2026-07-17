@@ -1,7 +1,12 @@
 import { Fragment, type ReactNode, useMemo, useState } from "react";
 
 import { useLocalizedStringFormatter } from "@react-aria/i18n";
-import { ActionButton, Button, ButtonGroup } from "@keystar/ui/button";
+import {
+  ActionButton,
+  Button,
+  ButtonGroup,
+  actionButtonClassList,
+} from "@keystar/ui/button";
 import { Checkbox } from "@keystar/ui/checkbox";
 import { Dialog } from "@keystar/ui/dialog";
 import { Icon } from "@keystar/ui/icon";
@@ -278,13 +283,25 @@ function FieldTableDisclosure(props: { children: ReactNode }) {
 // Field table
 // ----------------------------------------------------------------------------
 
+// The table is a panel of settings the disclosure turns on and off, sitting
+// above the dialog's real subject. The outline is what gives it edges, so it
+// reads as one thing rather than as loose rows crowding the description box.
+const fieldTableFrame = css({
+  border: `${tokenSchema.size.border.regular} solid ${tokenSchema.color.border.neutral}`,
+  borderRadius: tokenSchema.size.radius.medium,
+  padding: tokenSchema.size.space.medium,
+});
+
 // A grid rather than a <table>: the cells are form controls, and the row's
-// only job is to line them up under their headers. No borders - the columns
-// read as columns from alignment alone, and rules between them would turn a
-// short list of fields into a spreadsheet.
+// only job is to line them up under their headers. No borders between columns -
+// they read as columns from alignment alone, and rules between them would turn
+// a short list of fields into a spreadsheet.
 const fieldTable = css({
   display: "grid",
-  gridTemplateColumns: "1fr auto auto auto auto",
+  // `minmax(0, 1fr)` rather than `1fr`: the name column takes what's left, and
+  // has to be allowed to shrink under its own content so a long label
+  // truncates into its tooltip instead of pushing the controls off.
+  gridTemplateColumns: "minmax(0, 1fr) auto auto auto auto",
   alignItems: "center",
   columnGap: tokenSchema.size.space.regular,
   rowGap: tokenSchema.size.space.small,
@@ -292,12 +309,45 @@ const fieldTable = css({
 
 const headerCell = css({
   paddingBottom: tokenSchema.size.space.small,
+});
+
+// One rule under the whole header row, not one per cell: the column gaps would
+// otherwise break the line into five dashes.
+const headerRule = css({
+  gridColumn: "1 / -1",
   borderBottom: `${tokenSchema.size.border.regular} solid ${tokenSchema.color.border.muted}`,
+  marginBottom: tokenSchema.size.space.small,
 });
 
 // Checkbox columns are narrow and their headers are abbreviations; centring
 // the control under the label is what makes the column scannable.
 const centreCell = css({ display: "flex", justifyContent: "center" });
+
+// The name's inset, shared by the header above it so the column has one left
+// edge and not two.
+const NAME_INSET = tokenSchema.size.space.small;
+
+const nameHeaderCell = css({ paddingInline: NAME_INSET });
+
+const nameCell = css({ display: "flex", minWidth: 0 });
+
+// The label is a button because a tooltip trigger has to be focusable - the
+// description is only reachable by hover otherwise. These take back the parts
+// of a button it isn't: it reads left-to-right like the label it is, and it
+// shrinks, which buttons don't, so an over-long name truncates into the
+// tooltip rather than widening the column.
+const nameButton = css({
+  flexShrink: 1,
+  justifyContent: "start",
+  minWidth: 0,
+  paddingInline: NAME_INSET,
+  [actionButtonClassList.selector("text", "descendant")]: { marginInline: 0 },
+});
+
+// A picker defaults to the width of a form field standing on its own, which
+// here was wider than the three checkbox columns put together and left nothing
+// for the names. Its widest option is one short phrase, so it doesn't need it.
+const SIZE_PICKER_WIDTH = "scale.1600";
 
 function FieldTable(props: {
   specs: AiFieldSpec[];
@@ -331,110 +381,121 @@ function FieldTable(props: {
   };
 
   return (
-    <div className={fieldTable} role="group">
-      <div className={headerCell}>
-        <Text size="small" color="neutralSecondary">
-          {stringFormatter.format("aiColName")}
-        </Text>
-      </div>
-      <HeaderCell
-        label={stringFormatter.format("aiColSize")}
-        help={stringFormatter.format("aiContentSize")}
-      />
-      <HeaderCell
-        label={stringFormatter.format("aiColContinue")}
-        help={stringFormatter.format("aiColContinueHelp")}
-      />
-      <HeaderCell
-        label={stringFormatter.format("aiColInput")}
-        help={stringFormatter.format("aiUseAsContextHelp")}
-      />
-      <HeaderCell
-        label={stringFormatter.format("aiColOutput")}
-        help={stringFormatter.format("aiFillInHelp")}
-      />
+    <div className={fieldTableFrame}>
+      <div className={fieldTable} role="group">
+        <div className={[headerCell, nameHeaderCell].join(" ")}>
+          <Text size="small" color="neutralSecondary">
+            {stringFormatter.format("aiColName")}
+          </Text>
+        </div>
+        <HeaderCell
+          label={stringFormatter.format("aiColSize")}
+          help={stringFormatter.format("aiContentSize")}
+        />
+        <HeaderCell
+          label={stringFormatter.format("aiColContinue")}
+          help={stringFormatter.format("aiColContinueHelp")}
+        />
+        <HeaderCell
+          label={stringFormatter.format("aiColInput")}
+          help={stringFormatter.format("aiUseAsContextHelp")}
+        />
+        <HeaderCell
+          label={stringFormatter.format("aiColOutput")}
+          help={stringFormatter.format("aiFillInHelp")}
+        />
+        <div className={headerRule} />
 
-      {specs.map((spec) => {
-        const column = selection[spec.key] ?? "none";
-        const fieldSchema = schema[spec.key];
-        const value = state[spec.key];
-        const sizeEnabled = canPickSize(spec, column);
-        const continueEnabled = canContinue(spec, fieldSchema, value, column);
+        {specs.map((spec) => {
+          const column = selection[spec.key] ?? "none";
+          const fieldSchema = schema[spec.key];
+          const value = state[spec.key];
+          const sizeEnabled = canPickSize(spec, column);
+          const continueEnabled = canContinue(spec, fieldSchema, value, column);
 
-        return (
-          <Fragment key={spec.key}>
-            <Flex direction="column" gap="xsmall">
-              <Text>{spec.label}</Text>
-              {spec.description && (
-                <Text size="small" color="neutralSecondary">
-                  {spec.description}
-                </Text>
-              )}
-              {spec.kind === "content" && (
-                <Text size="small" color="neutralTertiary">
-                  {stringFormatter.format("aiContentTokenHint")}
-                </Text>
-              )}
-            </Flex>
+          return (
+            <Fragment key={spec.key}>
+              <div className={nameCell}>
+                <TooltipTrigger>
+                  <ActionButton prominence="low" UNSAFE_className={nameButton}>
+                    <Text>{spec.label}</Text>
+                  </ActionButton>
+                  <Tooltip>
+                    <Flex direction="column" gap="small">
+                      {/* Falls back to the label rather than going blank: the
+                          column truncates, and a name too long to fit is
+                          exactly when someone reaches for the tooltip. */}
+                      <Text>{spec.description || spec.label}</Text>
+                      {spec.kind === "content" && (
+                        <Text>
+                          {stringFormatter.format("aiContentTokenHint")}
+                        </Text>
+                      )}
+                    </Flex>
+                  </Tooltip>
+                </TooltipTrigger>
+              </div>
 
-            <div className={centreCell}>
-              {spec.kind === "content" ? (
-                <Picker
-                  aria-label={`${spec.label} - ${stringFormatter.format("aiContentSize")}`}
-                  isDisabled={!sizeEnabled}
-                  selectedKey={sizes[spec.key] ?? "medium"}
-                  onSelectionChange={(key) =>
-                    props.onSizesChange((prev) => ({
-                      ...prev,
-                      [spec.key]: key as AiSize,
-                    }))
-                  }
-                  items={(Object.keys(SIZE_SPECS) as AiSize[]).map((key) => ({
-                    key,
-                    name: stringFormatter.format(SIZE_LABEL_KEYS[key]),
-                  }))}
-                >
-                  {(item) => <Item key={item.key}>{item.name}</Item>}
-                </Picker>
-              ) : null}
-            </div>
+              <div className={centreCell}>
+                {spec.kind === "content" ? (
+                  <Picker
+                    aria-label={`${spec.label} - ${stringFormatter.format("aiContentSize")}`}
+                    isDisabled={!sizeEnabled}
+                    width={SIZE_PICKER_WIDTH}
+                    selectedKey={sizes[spec.key] ?? "medium"}
+                    onSelectionChange={(key) =>
+                      props.onSizesChange((prev) => ({
+                        ...prev,
+                        [spec.key]: key as AiSize,
+                      }))
+                    }
+                    items={(Object.keys(SIZE_SPECS) as AiSize[]).map((key) => ({
+                      key,
+                      name: stringFormatter.format(SIZE_LABEL_KEYS[key]),
+                    }))}
+                  >
+                    {(item) => <Item key={item.key}>{item.name}</Item>}
+                  </Picker>
+                ) : null}
+              </div>
 
-            <div className={centreCell}>
-              {isContinuableKind(spec) ? (
+              <div className={centreCell}>
+                {isContinuableKind(spec) ? (
+                  <Checkbox
+                    aria-label={`${spec.label} - ${stringFormatter.format("aiColContinue")}`}
+                    isDisabled={!continueEnabled}
+                    // A disabled box must not read as ticked: `fill` can be
+                    // unticked after `continue` was, and a tick that no longer
+                    // does anything is a lie about what will be sent.
+                    isSelected={continueEnabled && continueKeys.has(spec.key)}
+                    onChange={(checked) =>
+                      props.onContinueChange(
+                        toggle(continueKeys, spec.key, checked),
+                      )
+                    }
+                  />
+                ) : null}
+              </div>
+
+              <div className={centreCell}>
                 <Checkbox
-                  aria-label={`${spec.label} - ${stringFormatter.format("aiColContinue")}`}
-                  isDisabled={!continueEnabled}
-                  // A disabled box must not read as ticked: `fill` can be
-                  // unticked after `continue` was, and a tick that no longer
-                  // does anything is a lie about what will be sent.
-                  isSelected={continueEnabled && continueKeys.has(spec.key)}
-                  onChange={(checked) =>
-                    props.onContinueChange(
-                      toggle(continueKeys, spec.key, checked),
-                    )
-                  }
+                  aria-label={`${spec.label} - ${stringFormatter.format("aiUseAsContext")}`}
+                  isSelected={column === "context"}
+                  onChange={(checked) => setColumn(spec.key, "context", checked)}
                 />
-              ) : null}
-            </div>
+              </div>
 
-            <div className={centreCell}>
-              <Checkbox
-                aria-label={`${spec.label} - ${stringFormatter.format("aiUseAsContext")}`}
-                isSelected={column === "context"}
-                onChange={(checked) => setColumn(spec.key, "context", checked)}
-              />
-            </div>
-
-            <div className={centreCell}>
-              <Checkbox
-                aria-label={`${spec.label} - ${stringFormatter.format("aiFillIn")}`}
-                isSelected={column === "fill"}
-                onChange={(checked) => setColumn(spec.key, "fill", checked)}
-              />
-            </div>
-          </Fragment>
-        );
-      })}
+              <div className={centreCell}>
+                <Checkbox
+                  aria-label={`${spec.label} - ${stringFormatter.format("aiFillIn")}`}
+                  isSelected={column === "fill"}
+                  onChange={(checked) => setColumn(spec.key, "fill", checked)}
+                />
+              </div>
+            </Fragment>
+          );
+        })}
+      </div>
     </div>
   );
 }
