@@ -13,7 +13,12 @@ async function deriveKey(secret: string, salt: Uint8Array) {
     'deriveKey',
   ]);
   return webcrypto.subtle.deriveKey(
-    { name: 'HKDF', salt, hash: 'SHA-256', info: new Uint8Array(0) },
+    {
+      name: 'HKDF',
+      salt: salt as Uint8Array<ArrayBuffer>,
+      hash: 'SHA-256',
+      info: new Uint8Array(0),
+    },
     key,
     { name: 'AES-GCM', length: 256 },
     false,

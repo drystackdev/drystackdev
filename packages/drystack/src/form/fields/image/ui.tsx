@@ -52,7 +52,9 @@ export function useObjectURL(
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
     if (data) {
-      const url = URL.createObjectURL(new Blob([data], { type: contentType }));
+      const url = URL.createObjectURL(
+        new Blob([data as Uint8Array<ArrayBuffer>], { type: contentType }),
+      );
       setUrl(url);
       return () => URL.revokeObjectURL(url);
     } else {

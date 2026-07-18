@@ -31,7 +31,7 @@ function ObjectFieldInputEntry({
   forceValidation: boolean;
   firstFocusable: string | undefined;
   field: GenericPreviewProps<ComponentSchema, unknown>;
-  omitFieldAtPath?: string[];
+  omitFieldAtPath?: readonly string[];
 }) {
   // An empty path means *this* field is the omitted one - it's rendered
   // somewhere else (the content pane; see app/entry-form.tsx). Its Input

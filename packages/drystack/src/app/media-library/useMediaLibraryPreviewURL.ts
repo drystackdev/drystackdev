@@ -44,7 +44,9 @@ export function useMediaLibraryPreviewURL(
     // Freshly uploaded/picked bytes have no stable sha to key the shared cache
     // on - keep the direct create/revoke path (these are few in number).
     if (sessionContent) {
-      const createdUrl = URL.createObjectURL(new Blob([sessionContent]));
+      const createdUrl = URL.createObjectURL(
+        new Blob([sessionContent as Uint8Array<ArrayBuffer>]),
+      );
       setObjectUrl(createdUrl);
       return () => URL.revokeObjectURL(createdUrl);
     }

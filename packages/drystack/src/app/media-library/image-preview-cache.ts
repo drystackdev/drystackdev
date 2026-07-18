@@ -55,7 +55,7 @@ export function acquireObjectURL(key: string, bytes: Uint8Array): string {
     unqueueIdle(key);
     return existing.url;
   }
-  const url = URL.createObjectURL(new Blob([bytes]));
+  const url = URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>]));
   urlCache.set(key, { url, refs: 1 });
   return url;
 }
@@ -134,7 +134,7 @@ async function generateThumbnail(
   }
   let bitmap: ImageBitmap;
   try {
-    bitmap = await createImageBitmap(new Blob([sourceBytes]));
+    bitmap = await createImageBitmap(new Blob([sourceBytes as Uint8Array<ArrayBuffer>]));
   } catch {
     return null;
   }

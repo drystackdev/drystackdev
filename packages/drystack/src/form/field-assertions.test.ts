@@ -153,5 +153,5 @@ test('exceeds the call stack size for an infinitely recursive field where all fi
   };
   expect(() => {
     assertValidComponentSchema(blah());
-  }).toThrowErrorMatchingInlineSnapshot(`"Maximum call stack size exceeded"`);
+  }).toThrowErrorMatchingInlineSnapshot(`"Maximum call stack size exceeded."`);
 });

@@ -138,7 +138,7 @@ export function makeHandler(_config: APIRouteConfig) {
       }
     }
 
-    return new Response(body, {
+    return new Response(body as BodyInit | null, {
       status,
       headers: [...headersInADifferentStructure.entries()].flatMap(
         ([key, val]) => val.map((x): [string, string] => [key, x]),

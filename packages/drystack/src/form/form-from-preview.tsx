@@ -18,7 +18,7 @@ function ChildFieldInput() {
 export type ExtraFieldInputProps = {
   autoFocus: boolean;
   forceValidation: boolean;
-  omitFieldAtPath?: string[];
+  omitFieldAtPath?: readonly string[];
 };
 
 function getInputComponent(schema: ComponentSchema): any {
@@ -43,7 +43,7 @@ export const InnerFormValueContentFromPreviewProps: MemoExoticComponent<
       autoFocus?: boolean;
       forceValidation?: boolean;
       // array fields are not supported because the use case for this (omitting content fields) is not used
-      omitFieldAtPath?: string[];
+      omitFieldAtPath?: readonly string[];
     }
   ) => ReactNode
 > = memo(function InnerFormValueContentFromPreview(props) {

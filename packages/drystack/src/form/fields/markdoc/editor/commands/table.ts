@@ -95,11 +95,19 @@ export const mergeCellsKeepFirst: Command = (state, dispatch) => {
       }
     }
     if (mergedPos == null || !mergedCell) return true;
+    // `addColSpan` types its `attrs` param as prosemirror-tables' own
+    // (unexported) CellAttrs shape, not prosemirror-model's generic `Attrs` -
+    // this cell node's attrs always match it at runtime (it's a table cell).
+    const cellAttrs = mergedCell.attrs as {
+      colspan: number;
+      rowspan: number;
+      colwidth: number[] | null;
+    };
     tr.setNodeMarkup(mergedPos + rect.tableStart, null, {
       ...addColSpan(
-        mergedCell.attrs,
-        mergedCell.attrs.colspan,
-        rect.right - rect.left - mergedCell.attrs.colspan,
+        cellAttrs,
+        cellAttrs.colspan,
+        rect.right - rect.left - cellAttrs.colspan,
       ),
       rowspan: rect.bottom - rect.top,
     });

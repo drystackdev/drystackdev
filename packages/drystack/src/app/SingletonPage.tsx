@@ -678,7 +678,9 @@ function LocalSingletonPage(
         slug: undefined,
         state,
       });
-      const files = new Map(serialized.map((x) => [x.path, x.contents]));
+      const files = new Map<string, Uint8Array<ArrayBuffer>>(
+        serialized.map((x) => [x.path, x.contents as Uint8Array<ArrayBuffer>]),
+      );
       const data: s.Infer<typeof storedValSchema> = {
         beforeTreeKey: localTreeKey,
         files,

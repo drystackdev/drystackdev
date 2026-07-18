@@ -230,7 +230,7 @@ export function FormForEntry({
                   <Box padding={RESPONSIVE_PADDING}>
                     <InnerFormValueContentFromPreviewProps
                       forceValidation={forceValidation}
-                      omitFieldAtPath={contentPanePath as ReadonlyPropPath}
+                      omitFieldAtPath={contentPanePath}
                       {...props}
                     />
                   </Box>

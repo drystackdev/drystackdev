@@ -108,6 +108,7 @@ const expectedOutput = [
     mode: '100644',
     type: 'blob',
     sha: '2e65efe2a145dda7ee51d1741299f848e5bf752e',
+    size: 1,
   },
 ];
 const textEncoder = new TextEncoder();
