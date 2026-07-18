@@ -84,22 +84,22 @@ function postCollection(
 }
 
 export default config({
-  // storage: import.meta.env.DEV
-  //   ? {
-  //       kind: "local",
-  //     }
-  //   : {
-  //       kind: "github",
-  //       repo: "drystackdev/drystackdev",
-  //     },
-  storage: {
-    kind: "local",
-    demo: true,
-    ai: {
-      url: "https://ai-demo.drystack.dev",
-      model: "gemini-2.5-pro",
-    }
-  },
+  storage: import.meta.env.DEV
+    ? {
+        kind: "local",
+      }
+    : {
+        kind: "github",
+        repo: "drystackdev/drystackdev",
+      },
+  // storage: {
+  //   kind: "local",
+  //   demo: true,
+  //   ai: {
+  //     url: "https://ai-demo.drystack.dev",
+  //     model: "gemini-2.5-pro",
+  //   }
+  // },
   ai: {
     lang: "vi-VN",
     for: {
