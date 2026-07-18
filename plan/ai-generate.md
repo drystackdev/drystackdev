@@ -1,3 +1,0 @@
-- DRY_AI_MODEL= đổi thành DRY_AI_MODELS= có thể diền nhiều model cách dấu bằng dấu, 
-- khi các dialog bật lên để nhập prompt thì cho phép chọn 1 cái trong đó, mặc định sẽ chọn cái đầu tiên
-- khi chọn xong sẽ lưu vào IndexDB hoặc localstorage để vẫn nhớ cho lần sau

@@ -1,2 +1,1 @@
-- field.slug
-- json mapping
+- file cloud R2
