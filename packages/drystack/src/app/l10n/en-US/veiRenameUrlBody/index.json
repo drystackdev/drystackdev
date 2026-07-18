@@ -1,0 +1,6 @@
+{
+  "key": "veiRenameUrlBody",
+  "value": "This page is currently at {fromUrl}. Renaming will move the URL to {toUrl} - without a redirect, the old URL will return 404.",
+  "notes": "",
+  "type": "global"
+}

@@ -1,0 +1,6 @@
+{
+  "key": "veiConfirmSaveMainBody",
+  "value": "Bạn đang chỉnh sửa trực tiếp trên nhánh main. Thao tác này sẽ lưu và deploy thẳng lên production, không qua bước gộp nhánh. Bạn có chắc chắn?",
+  "notes": "",
+  "type": "global"
+}

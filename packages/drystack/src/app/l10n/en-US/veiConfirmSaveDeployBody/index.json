@@ -1,0 +1,6 @@
+{
+  "key": "veiConfirmSaveDeployBody",
+  "value": "This will save your changes, merge them into main, and deploy to production. Are you sure?",
+  "notes": "",
+  "type": "global"
+}

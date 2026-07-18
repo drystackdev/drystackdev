@@ -1,0 +1,6 @@
+{
+  "key": "veiConfirmSaveDeployBody",
+  "value": "Thao tác này sẽ lưu thay đổi, gộp vào nhánh chính (main) và deploy lên production. Bạn có chắc chắn?",
+  "notes": "",
+  "type": "global"
+}

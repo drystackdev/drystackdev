@@ -1,0 +1,6 @@
+{
+  "key": "veiConfirmSaveMainBody",
+  "value": "You're editing directly on the main branch. This will save and deploy straight to production, with no merge step. Are you sure?",
+  "notes": "",
+  "type": "global"
+}

@@ -804,7 +804,12 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
           parsed.type === "singleton"
             ? { type: "singleton", name: parsed.name }
             : { type: "collection", name: parsed.name, slug: parsed.slug };
-        const pick = await pickAsset(config, ref, accept);
+        const pick = await pickAsset(
+          config,
+          ref,
+          accept,
+          stringFormatter.format("veiThisPage"),
+        );
         if (!pick) return;
         await publishEdit(key, pick.path);
         await applyEdit(key, pick.path);
@@ -1062,7 +1067,11 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
           {/* Toggle button - always visible, leads the pill. */}
           <Button
             prominence="high"
-            aria-label={editing ? "Exit edit mode" : "Edit page"}
+            aria-label={
+              editing
+                ? stringFormatter.format("veiExitEditMode")
+                : stringFormatter.format("veiEditPage")
+            }
             onPress={toggleEdit}
             UNSAFE_className="dry-fab"
           >
@@ -1088,7 +1097,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
                 onMouseLeave={scheduleCloseRefMenu}
               >
                 <ActionButton
-                  aria-label="Open in drystack admin"
+                  aria-label={stringFormatter.format("veiOpenAdmin")}
                   onPress={openAdminHome}
                   UNSAFE_className="dry-iconbtn"
                 >
@@ -1099,7 +1108,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
               <TooltipTrigger>
                 <div className="dry-review">
                   <ActionButton
-                    aria-label="Review changes"
+                    aria-label={stringFormatter.format("reviewChanges")}
                     onPress={() => setReviewOpen(true)}
                     isDisabled={nothingToSave}
                     UNSAFE_className="dry-iconbtn"
@@ -1112,12 +1121,12 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
                     </span>
                   )}
                 </div>
-                <Tooltip>Review changes</Tooltip>
+                <Tooltip>{stringFormatter.format("reviewChanges")}</Tooltip>
               </TooltipTrigger>
 
               <TooltipTrigger>
                 <Button
-                  aria-label="Save changes"
+                  aria-label={stringFormatter.format("veiSaveChanges")}
                   prominence="high"
                   onPress={onSave}
                   isDisabled={(nothingToSave && !pendingRename) || saving || !!renameWaiting}
@@ -1125,7 +1134,11 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
                 >
                   <Icon src={saveIcon} />
                 </Button>
-                <Tooltip>{saving ? "Saving…" : "Save changes"}</Tooltip>
+                <Tooltip>
+                  {saving
+                    ? stringFormatter.format("veiSaving")
+                    : stringFormatter.format("veiSaveChanges")}
+                </Tooltip>
               </TooltipTrigger>
             </div>
           </div>
@@ -1170,7 +1183,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
         <div className="dry-rename-banner">
           {renameWaiting.status === "failed" ? (
             <>
-              <span>Build trên Cloudflare thất bại cho URL mới.</span>
+              <span>{stringFormatter.format("veiBuildFailedNewUrl")}</span>
               <button
                 type="button"
                 className="dry-rename-banner-action"
@@ -1180,13 +1193,13 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
                   )
                 }
               >
-                Thử lại
+                {stringFormatter.format("retry")}
               </button>
             </>
           ) : renameWaiting.status === "checking" ? (
-            <span>Build xong - đang kiểm tra URL mới đã lên chưa…</span>
+            <span>{stringFormatter.format("veiBuildDoneChecking")}</span>
           ) : (
-            <span>Đã lưu - đang chờ Cloudflare build xong…</span>
+            <span>{stringFormatter.format("veiSavedWaitingBuild")}</span>
           )}
         </div>
       )}
@@ -1202,17 +1215,17 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       >
         {renameWaiting?.status === "ready" && renameWaiting.targetUrl && (
           <AlertDialog
-            title="Đã build xong"
+            title={stringFormatter.format("veiBuildDoneTitle")}
             tone="neutral"
-            cancelLabel="Để sau"
-            primaryActionLabel="Chuyển sang URL mới"
+            cancelLabel={stringFormatter.format("veiLater")}
+            primaryActionLabel={stringFormatter.format("veiSwitchToNewUrl")}
             autoFocusButton="primary"
             onCancel={() => setRenameWaiting(null)}
             onPrimaryAction={() => {
               location.href = renameWaiting.targetUrl!;
             }}
           >
-            <Text>URL mới đã sẵn sàng. Chuyển sang trang mới ngay?</Text>
+            <Text>{stringFormatter.format("veiNewUrlReadyBody")}</Text>
           </AlertDialog>
         )}
       </DialogContainer>
@@ -1232,11 +1245,11 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
           const toUrl = previewUrl?.replace("{slug}", pendingRename.newSlug);
           return (
             <AlertDialog
-              title="Đổi URL bài viết"
+              title={stringFormatter.format("veiRenameUrlTitle")}
               tone="neutral"
-              cancelLabel="Huỷ"
-              secondaryActionLabel="Đổi tên không redirect"
-              primaryActionLabel="Tạo 301 redirect"
+              cancelLabel={stringFormatter.format("cancel")}
+              secondaryActionLabel={stringFormatter.format("veiRenameNoRedirect")}
+              primaryActionLabel={stringFormatter.format("veiCreateRedirect301")}
               autoFocusButton="primary"
               onCancel={() => setRenameDialogOpen(false)}
               onSecondaryAction={() => {
@@ -1252,8 +1265,8 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
             >
               <Text>
                 {fromUrl && toUrl
-                  ? `Trang này đang ở ${fromUrl}. Đổi tên sẽ chuyển URL sang ${toUrl} - nếu không tạo redirect, URL cũ sẽ trả về 404.`
-                  : "Đổi slug sẽ di chuyển toàn bộ nội dung sang thư mục mới."}
+                  ? stringFormatter.format("veiRenameUrlBody", { fromUrl, toUrl })
+                  : stringFormatter.format("veiRenameUrlBodyFallback")}
               </Text>
             </AlertDialog>
           );
@@ -1269,11 +1282,17 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
         {confirmSaveOpen && (
           <AlertDialog
             title={
-              isOnDefaultBranch ? "Lưu trực tiếp vào main?" : "Lưu và deploy?"
+              isOnDefaultBranch
+                ? stringFormatter.format("veiSaveToMainTitle")
+                : stringFormatter.format("veiSaveDeployTitle")
             }
             tone="neutral"
             cancelLabel={stringFormatter.format("cancel")}
-            primaryActionLabel={isOnDefaultBranch ? "Lưu vào main" : "Lưu & Deploy"}
+            primaryActionLabel={
+              isOnDefaultBranch
+                ? stringFormatter.format("veiSaveToMain")
+                : stringFormatter.format("veiSaveAndDeploy")
+            }
             autoFocusButton="cancel"
             onCancel={() => setConfirmSaveOpen(false)}
             onPrimaryAction={() => {
@@ -1283,8 +1302,8 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
           >
             <Text>
               {isOnDefaultBranch
-                ? "Bạn đang chỉnh sửa trực tiếp trên nhánh main. Thao tác này sẽ lưu và deploy thẳng lên production, không qua bước gộp nhánh. Bạn có chắc chắn?"
-                : "Thao tác này sẽ lưu thay đổi, gộp vào nhánh chính (main) và deploy lên production. Bạn có chắc chắn?"}
+                ? stringFormatter.format("veiConfirmSaveMainBody")
+                : stringFormatter.format("veiConfirmSaveDeployBody")}
             </Text>
           </AlertDialog>
         )}
@@ -1329,7 +1348,9 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
               ? getContainerValueFromDom(arrayGearSpot.key)
               : null;
           const gearLabel =
-            arrayGearSpot.kind === "array" ? "Edit list" : "Edit fields";
+            arrayGearSpot.kind === "array"
+              ? stringFormatter.format("veiEditList")
+              : stringFormatter.format("veiEditFields");
           return createPortal(
             <button
               type="button"
@@ -1371,8 +1392,8 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
           <button
             type="button"
             className="dry-array-gear dry-slug-gear"
-            aria-label="Change URL"
-            data-dry-tooltip="Đổi URL"
+            aria-label={stringFormatter.format("veiChangeUrl")}
+            data-dry-tooltip={stringFormatter.format("veiChangeUrl")}
             style={{
               top: slugGearSpot.rect.top + 6,
               right: window.innerWidth - slugGearSpot.rect.right + 6,
@@ -1494,6 +1515,7 @@ async function pickAsset(
   config: Config<any, any>,
   ref: EntryRef,
   accept: "image" | "any",
+  label: string,
 ): Promise<MediaLibraryPick | undefined> {
   let picked: MediaLibraryPick | undefined;
   try {
@@ -1501,7 +1523,7 @@ async function pickAsset(
       accept,
       local: {
         directory: `${resolveEntryRef(config, ref).dir}/assets`,
-        label: "Trang này",
+        label,
       },
     });
   } catch (err) {
@@ -1676,7 +1698,7 @@ function SlugFieldDialog({
 
   return (
     <Dialog size="small">
-      <Heading>Đổi tiêu đề / URL</Heading>
+      <Heading>{stringFormatter.format("veiSlugDialogTitle")}</Heading>
       <Content>
         <VStack
           id={formId}
@@ -1710,7 +1732,7 @@ function SlugFieldDialog({
           type="submit"
           isDisabled={checking}
         >
-          Xong
+          {stringFormatter.format("done")}
         </Button>
       </ButtonGroup>
     </Dialog>
@@ -1836,7 +1858,7 @@ function ContainerFieldDialog({
       <ButtonGroup>
         <Button onPress={onClose}>{stringFormatter.format("cancel")}</Button>
         <Button form={formId} prominence="high" type="submit">
-          Xong
+          {stringFormatter.format("done")}
         </Button>
       </ButtonGroup>
     </Dialog>
