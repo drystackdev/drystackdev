@@ -289,6 +289,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     deploy,
     isBusy: deployBusy,
     label: deployLabel,
+    isOnDefaultBranch,
   } = useVeiDeploy(config);
 
   // Hover dropdown state - the menu itself is portaled to <body>.
@@ -601,27 +602,36 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   };
 
   // The actual save - commits (brand, in github mode) then, when something
-  // landed there, merges that brand into the default branch (deploy.ts's
-  // runDeploy via the deploy() hook, which owns its own conflict/nothing/
-  // committed/error toasts) before re-syncing the DOM. That ordering matters:
-  // refreshFromLatestSource reads off the *default* branch, which only has
-  // the new content once the merge lands - running it right after the brand
-  // commit would flash stale pre-merge content.
+  // landed there AND that brand isn't already the default branch, merges it
+  // in (deploy.ts's runDeploy via the deploy() hook, which owns its own
+  // conflict/nothing/committed/error toasts) before re-syncing the DOM. That
+  // ordering matters: refreshFromLatestSource reads off the *default*
+  // branch, which only has the new content once the merge lands - running it
+  // right after the brand commit would flash stale pre-merge content. When
+  // already on the default branch, saveEdits() already committed straight to
+  // it (see save.ts's ensureBrand), so there's nothing left to merge.
   const runSave = async () => {
     setSaving(true);
     try {
       const commitOid = await saveEdits(config);
       let deployed = false;
-      if (isGithub && commitOid) {
+      if (isGithub && commitOid && !isOnDefaultBranch) {
         await deploy();
         deployed = true;
       }
       await refreshFromLatestSource(config);
       await refreshCount();
       // github's own deploy() toast is the final word on success/failure -
-      // only show the generic one when there was nothing to merge (local
-      // mode, or a github save with nothing pending).
-      if (!deployed) toastQueue.positive("Changes saved", { timeout: 4000 });
+      // only show a toast here when there was nothing to merge (local mode,
+      // a github save with nothing pending, or a direct save to main).
+      if (!deployed) {
+        toastQueue.positive(
+          isGithub && commitOid && isOnDefaultBranch
+            ? "Đã lưu trực tiếp vào main"
+            : "Changes saved",
+          { timeout: 4000 },
+        );
+      }
     } catch (err) {
       toastQueue.critical(err instanceof Error ? err.message : String(err));
     } finally {
@@ -837,16 +847,19 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       )}
 
       {/* Confirms before Save's now-heavier effect: it doesn't just write a
-          file, it merges the brand branch into main and that's what kicks
-          off a production deploy. Local mode has no merge/deploy step (see
-          onSave above) so never opens this. */}
+          file, it either merges a brand branch into main (kicking off a
+          production deploy) or, when already on main, commits and deploys
+          straight to production with no merge step. Local mode has no
+          merge/deploy step (see onSave above) so never opens this. */}
       <DialogContainer onDismiss={() => setConfirmSaveOpen(false)}>
         {confirmSaveOpen && (
           <AlertDialog
-            title="Lưu và deploy?"
+            title={
+              isOnDefaultBranch ? "Lưu trực tiếp vào main?" : "Lưu và deploy?"
+            }
             tone="neutral"
             cancelLabel={stringFormatter.format("cancel")}
-            primaryActionLabel="Lưu & Deploy"
+            primaryActionLabel={isOnDefaultBranch ? "Lưu vào main" : "Lưu & Deploy"}
             autoFocusButton="cancel"
             onCancel={() => setConfirmSaveOpen(false)}
             onPrimaryAction={() => {
@@ -855,8 +868,9 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
             }}
           >
             <Text>
-              Thao tác này sẽ lưu thay đổi, gộp vào nhánh chính (main) và deploy
-              lên production. Bạn có chắc chắn?
+              {isOnDefaultBranch
+                ? "Bạn đang chỉnh sửa trực tiếp trên nhánh main. Thao tác này sẽ lưu và deploy thẳng lên production, không qua bước gộp nhánh. Bạn có chắc chắn?"
+                : "Thao tác này sẽ lưu thay đổi, gộp vào nhánh chính (main) và deploy lên production. Bạn có chắc chắn?"}
             </Text>
           </AlertDialog>
         )}

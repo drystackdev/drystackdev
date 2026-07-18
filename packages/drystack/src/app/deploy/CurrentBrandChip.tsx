@@ -8,6 +8,7 @@ import { AlertDialog, DialogContainer } from "@keystar/ui/dialog";
 import { Icon } from "@keystar/ui/icon";
 import { chevronDownIcon } from "@keystar/ui/icon/icons/chevronDownIcon";
 import { gitBranchIcon } from "@keystar/ui/icon/icons/gitBranchIcon";
+import { starIcon } from "@keystar/ui/icon/icons/starIcon";
 import { trashIcon } from "@keystar/ui/icon/icons/trashIcon";
 import { HStack, VStack } from "@keystar/ui/layout";
 import { Popover } from "@keystar/ui/overlays";
@@ -47,12 +48,17 @@ export function CurrentBrandChip() {
 
   const label = brand ? brandRefDisplayLabel(brand.ref, branchPrefix) : "";
 
-  // Only brands belong in this list: the default branch is never a brand
-  // (plan/brand.md §1/§5), and a repo's other branches aren't ours to offer.
-  // The current brand is always included even if it somehow lacks the prefix -
-  // hiding the branch you're on would be worse than showing an odd name.
+  // The default branch is now an opt-in row too (starred, pinned to the top) -
+  // brands stay filtered to the prefix pattern below it. The current brand is
+  // always included even if it somehow lacks the prefix - hiding the branch
+  // you're on would be worse than showing an odd name.
   const brandBranches = useMemo(() => {
-    return Array.from(branches.entries())
+    const rows: {
+      name: string;
+      isDefault: boolean;
+      owner: string | null;
+      isCurrent: boolean;
+    }[] = Array.from(branches.entries())
       .filter(
         ([name]) =>
           name !== repoInfo?.defaultBranch &&
@@ -61,25 +67,55 @@ export function CurrentBrandChip() {
       // refs are timestamped, so a plain string sort is chronological -
       // reversed to put the newest brand at the top.
       .sort(([a], [b]) => b.localeCompare(a))
-      .map(([name, info]) => ({
-        name,
-        // A brand that's been created but not committed to still points at the
-        // default branch's tip, so its "author" is whoever last landed there.
-        // Treating that as ownership would paint someone else's dot on a brand
-        // that is in fact unclaimed, so only trust the author once the brand
-        // has moved off the branch it was cut from.
-        owner:
-          info.commitSha === branches.get(repoInfo?.defaultBranch ?? "")?.commitSha
-            ? null
-            : info.authorLogin,
-        isCurrent: name === brand?.ref,
-      }));
+      .map((entry) => {
+        const [name, info] = entry;
+        return {
+          name,
+          isDefault: false,
+          // A brand that's been created but not committed to still points at
+          // the default branch's tip, so its "author" is whoever last landed
+          // there. Treating that as ownership would paint someone else's dot
+          // on a brand that is in fact unclaimed, so only trust the author
+          // once the brand has moved off the branch it was cut from.
+          owner:
+            info.commitSha ===
+            branches.get(repoInfo?.defaultBranch ?? "")?.commitSha
+              ? null
+              : info.authorLogin,
+          isCurrent: name === brand?.ref,
+        };
+      });
+
+    const defaultBranch = repoInfo?.defaultBranch;
+    if (defaultBranch && branches.has(defaultBranch)) {
+      rows.unshift({
+        name: defaultBranch,
+        isDefault: true,
+        owner: null,
+        isCurrent: brand?.ref === defaultBranch,
+      });
+    }
+    return rows;
   }, [branches, repoInfo?.defaultBranch, brand?.ref, branchPrefix]);
+
+  const [pendingMainSwitch, setPendingMainSwitch] = useState(false);
 
   const switchTo = (branchName: string) => {
     state.close();
     if (branchName === brand?.ref) return;
+    if (branchName === repoInfo?.defaultBranch) {
+      setPendingMainSwitch(true);
+      return;
+    }
     router.push(`${router.basePath}/branch/${encodeURIComponent(branchName)}`);
+  };
+
+  const confirmSwitchToMain = () => {
+    setPendingMainSwitch(false);
+    if (!repoInfo) return;
+    router.push(
+      `${router.basePath}/branch/${encodeURIComponent(repoInfo.defaultBranch)}`,
+    );
   };
 
   const confirmDelete = async (branchName: string) => {
@@ -154,19 +190,30 @@ export function CurrentBrandChip() {
                   },
                 })}
               >
-                <div
-                  aria-hidden
-                  className={css({
-                    width: tokenSchema.size.space.small,
-                    height: tokenSchema.size.space.small,
-                    borderRadius: "50%",
-                    flexShrink: 0,
-                    backgroundColor:
-                      branch.owner && branch.owner === viewer?.login
-                        ? tokenSchema.color.foreground.accent
-                        : tokenSchema.color.foreground.neutralTertiary,
-                  })}
-                />
+                {branch.isDefault ? (
+                  <Icon
+                    aria-hidden
+                    src={starIcon}
+                    UNSAFE_className={css({
+                      color: "#eab308",
+                      flexShrink: 0,
+                    })}
+                  />
+                ) : (
+                  <div
+                    aria-hidden
+                    className={css({
+                      width: tokenSchema.size.space.small,
+                      height: tokenSchema.size.space.small,
+                      borderRadius: "50%",
+                      flexShrink: 0,
+                      backgroundColor:
+                        branch.owner && branch.owner === viewer?.login
+                          ? tokenSchema.color.foreground.accent
+                          : tokenSchema.color.foreground.neutralTertiary,
+                    })}
+                  />
+                )}
                 {/* `trim` off: capsize's leading-trim margins are meant for a
                     lone run of text, and pull two stacked Texts over each other. */}
                 <VStack flex minWidth={0}>
@@ -178,15 +225,17 @@ export function CurrentBrandChip() {
                     {brandRefDisplayLabel(branch.name, branchPrefix)}
                   </Text>
                   <Text trim={false} truncate size="small" color="neutralTertiary">
-                    {branch.owner
-                      ? branch.owner === viewer?.login
-                        ? "Của bạn"
-                        : branch.owner
-                      : "Chưa có thay đổi"}
+                    {branch.isDefault
+                      ? "Nhánh chính"
+                      : branch.owner
+                        ? branch.owner === viewer?.login
+                          ? "Của bạn"
+                          : branch.owner
+                        : "Chưa có thay đổi"}
                   </Text>
                 </VStack>
               </button>
-              {!branch.isCurrent && (
+              {!branch.isCurrent && !branch.isDefault && (
                 <TooltipTrigger>
                   <ActionButton
                     prominence="low"
@@ -217,6 +266,25 @@ export function CurrentBrandChip() {
               Mọi thay đổi chưa deploy trên{" "}
               <strong>{brandRefDisplayLabel(pendingDelete, branchPrefix)}</strong>{" "}
               sẽ mất vĩnh viễn.
+            </Text>
+          </AlertDialog>
+        )}
+      </DialogContainer>
+
+      <DialogContainer onDismiss={() => setPendingMainSwitch(false)}>
+        {pendingMainSwitch && (
+          <AlertDialog
+            title="Chuyển sang nhánh main?"
+            tone="neutral"
+            cancelLabel="Hủy"
+            primaryActionLabel="Chuyển sang main"
+            autoFocusButton="cancel"
+            onPrimaryAction={confirmSwitchToMain}
+          >
+            <Text>
+              Mọi thay đổi trên main sẽ lưu và deploy trực tiếp lên
+              production, không qua bước gộp nhánh (brand) như thông thường.
+              Bạn có chắc chắn?
             </Text>
           </AlertDialog>
         )}

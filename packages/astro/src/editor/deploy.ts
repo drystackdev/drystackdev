@@ -1,9 +1,11 @@
 // VEI-native Deploy - the visual editor's port of the admin's useDeploy
 // (packages/drystack/src/app/deploy/useDeploy.ts). Merges the current brand
 // branch into the repo's default branch with the same client-side 3-way merge,
-// commits once, then rotates to a fresh brand. That's it - whether Cloudflare
-// actually builds it is shown separately by the toolbar's own status icon
-// (Toolbar.tsx, via useLatestBuildStatus), not tracked here.
+// then commits once and returns. That's it - brands are opt-in
+// (NewBranchButton in the admin app), so this no longer rotates to a fresh
+// brand afterward, and whether Cloudflare actually builds it is shown
+// separately by the toolbar's own status icon (Toolbar.tsx, via
+// useLatestBuildStatus), not tracked here.
 //
 // The editor is a standalone React tree with no admin context, so this talks to
 // GitHub directly using the raw helpers already in save.ts (token/parse/gql/
@@ -28,7 +30,6 @@ import {
   base64Encode,
   decodeBase64ToBytes,
   GithubGraphQLError,
-  createBrandRaw,
 } from "./save";
 
 const GH_API = "https://api.github.com";
@@ -110,12 +111,12 @@ async function readTextIfPresent(
   );
 }
 
-// One query for everything a merge needs: viewer identity (for the next
-// brand's label/ref), the repo id (createRef), and fresh default-branch + brand
-// refs (commit + tree oids, plus the brand ref's node id for deleteRef).
+// One query for everything a merge needs: viewer login (sanity check that the
+// session resolved), and fresh default-branch + brand refs (commit + tree
+// oids, plus the brand ref's node id for deleteRef).
 const RefsQuery = `
   query VeiDeployRefs($owner: String!, $name: String!, $brandRef: String!) {
-    viewer { login name }
+    viewer { login }
     repository(owner: $owner, name: $name) {
       id
       defaultBranchRef {
@@ -137,7 +138,7 @@ const RefsQuery = `
 const HasChangesQuery = `
   query VeiDeployHasChanges($owner: String!, $name: String!, $brandRef: String!) {
     repository(owner: $owner, name: $name) {
-      defaultBranchRef { target { oid } }
+      defaultBranchRef { name target { oid } }
       brand: ref(qualifiedName: $brandRef) { target { oid } }
     }
   }
@@ -146,9 +147,9 @@ const HasChangesQuery = `
 async function checkHasChanges(
   config: Config<any, any>,
   brand: BrandRecord,
-): Promise<boolean> {
+): Promise<{ hasChanges: boolean; defaultBranchName: string | null }> {
   const token = await getGithubTokenWithRefresh(config);
-  if (!token) return true; // can't tell - don't block the button on it
+  if (!token) return { hasChanges: true, defaultBranchName: null }; // can't tell - don't block the button on it
   const storage = config.storage as {
     repo: string | { owner: string; name: string };
   };
@@ -159,12 +160,14 @@ async function checkHasChanges(
       name,
       brandRef: `refs/heads/${brand.ref}`,
     });
+    const defaultBranchName: string | null =
+      data?.repository?.defaultBranchRef?.name ?? null;
     const mainOid = data?.repository?.defaultBranchRef?.target?.oid;
     const brandOid = data?.repository?.brand?.target?.oid;
-    if (!mainOid || !brandOid) return true;
-    return mainOid !== brandOid;
+    if (!mainOid || !brandOid) return { hasChanges: true, defaultBranchName };
+    return { hasChanges: mainOid !== brandOid, defaultBranchName };
   } catch {
-    return true; // fail open - a broken check shouldn't block a real deploy
+    return { hasChanges: true, defaultBranchName: null }; // fail open - a broken check shouldn't block a real deploy
   }
 }
 
@@ -183,18 +186,13 @@ const DeleteRefMutation = `
 `;
 
 export type DeployOutcome =
-  | {
-      status: "committed";
-      commitOid: string;
-      branch: string;
-      newBrand: BrandRecord | null;
-    }
+  | { status: "committed"; commitOid: string; branch: string }
   | { status: "conflict" }
   | { status: "nothing" };
 
-// Runs one deploy end-to-end (merge → commit → brand rotation), retrying from
-// scratch only when the default branch moves under us (STALE_DATA). Throws on
-// hard failures; returns a discriminated outcome the hook turns into UI.
+// Runs one deploy end-to-end (merge → commit), retrying from scratch only
+// when the default branch moves under us (STALE_DATA). Throws on hard
+// failures; returns a discriminated outcome the hook turns into UI.
 async function runDeploy(
   config: Config<any, any>,
   setLabel: (label: string) => void,
@@ -203,7 +201,6 @@ async function runDeploy(
   if (!token) throw new Error("Chưa đăng nhập GitHub.");
   const storage = config.storage as {
     repo: string | { owner: string; name: string };
-    branchPrefix?: string;
   };
   const brand = await readBrandRecord(config as any);
   if (!brand)
@@ -219,7 +216,6 @@ async function runDeploy(
     });
     const repo = data?.repository;
     const login: string | undefined = data?.viewer?.login;
-    const viewerName: string = data?.viewer?.name ?? login ?? "editor";
     const mainRef = repo?.defaultBranchRef;
     const brandRefNode = repo?.brand;
     if (!repo?.id || !mainRef?.target?.oid || !mainRef?.target?.tree?.oid) {
@@ -242,6 +238,14 @@ async function runDeploy(
     const brandRefId: string = brandRefNode.id;
     const brandCommit: string = brandRefNode.target.oid;
     const brandTree: string = brandRefNode.target.tree.oid;
+
+    // Already on the default branch (brands are opt-in now) - nothing to
+    // merge, and skipping this here (rather than relying on the tree diff
+    // below to come out empty) is what keeps DeleteRefMutation from ever
+    // running against the default branch itself.
+    if (brand!.ref === defaultBranchName) {
+      return { status: "nothing" };
+    }
 
     // Ask git where the brand actually diverged, every time - a base guessed
     // from "main's HEAD today" makes the merge below roll main back to the
@@ -337,31 +341,21 @@ async function runDeploy(
       throw new Error("Deploy thất bại - không nhận được commit mới.");
     }
 
-    // Rotate the brand like the admin does: drop the merged branch, create a
-    // fresh one off the new default-branch HEAD. Best-effort - the deploy commit
-    // has already landed, so a rotation hiccup just leaves the admin's brand
-    // guard to recreate one on its next visit rather than failing the deploy.
-    let newBrand: BrandRecord | null = null;
+    // Clean up the merged brand branch. Best-effort - the deploy commit has
+    // already landed, so a cleanup hiccup just leaves a stale branch/record
+    // behind rather than failing the deploy. Brands are opt-in
+    // (NewBranchButton in the admin app) now, so nothing replaces it.
     try {
       await githubGraphQL(token!, DeleteRefMutation, { refId: brandRefId });
       await removeBrandRecord(config as any);
-      newBrand = await createBrandRaw(config, {
-        token: token!,
-        repositoryId: repo.id,
-        login,
-        viewerName,
-        branchPrefix: storage.branchPrefix,
-        fromOid: newCommitOid,
-      });
     } catch {
-      newBrand = null;
+      // ignore - see comment above
     }
 
     return {
       status: "committed",
       commitOid: newCommitOid,
       branch: defaultBranchName,
-      newBrand,
     };
   }
 
@@ -387,6 +381,9 @@ export function useVeiDeploy(config: Config<any, any>) {
   // Fails open (true) while unknown so the button isn't disabled on a flash
   // of missing data - checkHasChanges re-settles it moments later.
   const [hasChanges, setHasChanges] = useState(true);
+  const [defaultBranchName, setDefaultBranchName] = useState<string | null>(
+    null,
+  );
 
   const refreshBrand = useCallback(async () => {
     if (!isGithub) {
@@ -406,17 +403,25 @@ export function useVeiDeploy(config: Config<any, any>) {
 
   // Re-runs whenever `brand` changes - on mount, after refreshBrand() picks
   // up a different record (e.g. the deploy pill reopening), and after a
-  // deploy rotates to a fresh brand (which trivially has nothing to merge).
+  // successful deploy clears the brand (which trivially has nothing to merge).
   useEffect(() => {
     if (!isGithub || !brand) return;
     let cancelled = false;
     checkHasChanges(config, brand).then((result) => {
-      if (!cancelled) setHasChanges(result);
+      if (cancelled) return;
+      setHasChanges(result.hasChanges);
+      setDefaultBranchName(result.defaultBranchName);
     });
     return () => {
       cancelled = true;
     };
   }, [config, isGithub, brand]);
+
+  // No brand yet (never saved/adopted one) is also "on the default branch" -
+  // ensureBrand (save.ts) now defaults straight to it too, so the two must
+  // agree or Save's confirm dialog would describe the wrong thing.
+  const isOnDefaultBranch =
+    !brand || (!!defaultBranchName && brand.ref === defaultBranchName);
 
   const deploy = useCallback(async () => {
     if (!isGithub || state.kind !== "idle") return;
@@ -451,9 +456,10 @@ export function useVeiDeploy(config: Config<any, any>) {
       return;
     }
 
-    // Committed - reflect the rotated brand and go straight back to idle; the
-    // toolbar's status icon takes over showing what Cloudflare does with it.
-    setBrand(outcome.newBrand);
+    // Committed - the merged brand is gone (brands are opt-in now, nothing
+    // replaces it) and go straight back to idle; the toolbar's status icon
+    // takes over showing what Cloudflare does with it.
+    setBrand(null);
     setState({ kind: "idle" });
     toastQueue.positive(
       "Đã gộp vào main - theo dõi build ở biểu tượng Cloudflare",
@@ -466,5 +472,14 @@ export function useVeiDeploy(config: Config<any, any>) {
   const isBusy = state.kind !== "idle";
   const label = state.kind === "idle" ? "Deploy" : state.label;
 
-  return { brand, state, deploy, refreshBrand, isBusy, label, hasChanges };
+  return {
+    brand,
+    state,
+    deploy,
+    refreshBrand,
+    isBusy,
+    label,
+    hasChanges,
+    isOnDefaultBranch,
+  };
 }

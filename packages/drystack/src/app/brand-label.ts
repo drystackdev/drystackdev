@@ -27,7 +27,9 @@ export function formatBrandLabel(
   return `${YYYY}-${MM}-${DD} - ${HH}:${mm}:${ss} - ${name} - ${role}`;
 }
 
-const DEFAULT_BRANCH_PREFIX = "drystack/";
+// Exported so callers that need to show/strip the effective prefix (e.g. the
+// "New branch" dialog's fixed prefix label) don't have to re-guess the default.
+export const DEFAULT_BRANCH_PREFIX = "drystack/";
 
 // `branchPrefix` is the config's storage.branchPrefix (undefined ⇒ default);
 // callers pass it directly so this stays free of any config-type import.

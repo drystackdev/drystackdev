@@ -34,7 +34,6 @@ import {
   writeBrandRecord,
   type BrandRecord,
 } from "@drystack/core/brand-store";
-import { formatBrandLabel, formatBrandRef } from "@drystack/core/brand-label";
 
 const textEncoder = new TextEncoder();
 
@@ -179,63 +178,23 @@ async function getBranchRef(
   return { branchName: ref.name as string, oid: ref.target.oid as string };
 }
 
-const createBrandRefMutation = `
-  mutation CreateBrandRef($input: CreateRefInput!) {
-    createRef(input: $input) { ref { id } }
-  }
-`;
-
-// Raw-GraphQL brand creation, shared by ensureBrand (below) and deploy.ts's
-// post-merge brand rotation - the VEI has no urql client, so unlike the
-// admin's createBrand (brand.tsx) this talks to GitHub directly.
-export async function createBrandRaw(
-  config: Config<any, any>,
-  args: {
-    token: string;
-    repositoryId: string;
-    login: string;
-    viewerName: string;
-    branchPrefix?: string;
-    fromOid: string;
-  },
-): Promise<BrandRecord | null> {
-  const now = new Date();
-  const ref = formatBrandRef(args.branchPrefix, now);
-  const label = formatBrandLabel(now, args.viewerName, "Editor");
-  const created = await githubGraphQL(args.token, createBrandRefMutation, {
-    input: {
-      name: `refs/heads/${ref}`,
-      oid: args.fromOid,
-      repositoryId: args.repositoryId,
-    },
-  });
-  if (!created?.createRef?.ref?.id) return null;
-  const record: BrandRecord = {
-    ref,
-    label,
-    login: args.login,
-    createdAt: now.getTime(),
-  };
-  await writeBrandRecord(config as any, record);
-  return record;
-}
-
 const repoAndViewerQuery = `
   query VeiEnsureBrand($owner: String!, $name: String!) {
     viewer { login name }
     repository(owner: $owner, name: $name) {
       id
-      defaultBranchRef { target { oid } }
+      defaultBranchRef { name target { oid } }
     }
   }
 `;
 
-// The brand branch Save commits to. Reuses the locally-remembered brand if
-// GitHub still has it (mirrors useBrandGuard's adopt-or-recreate logic in
-// brand.tsx), otherwise creates a fresh one off the current default-branch
-// HEAD - unlike the admin app, nothing guarantees a brand already exists
-// before the VEI's Save runs (a user editing straight from the live site may
-// never have opened /drystack), so Save must be able to create its own.
+// The branch Save commits to. Reuses the locally-remembered brand if GitHub
+// still has it (mirrors useBrandGuard's adopt logic in brand.tsx), otherwise
+// defaults straight to the repo's default branch - brands are opt-in
+// (NewBranchButton in the admin app) now, so Save never creates one on its
+// own. A user editing straight from the live site who never opened /drystack
+// simply saves to the default branch, same as anyone else who hasn't picked
+// a brand.
 export async function ensureBrand(
   config: Config<any, any>,
   token: string,
@@ -255,23 +214,20 @@ export async function ensureBrand(
   const data = await githubGraphQL(token, repoAndViewerQuery, { owner, name });
   const repo = data?.repository;
   const login: string | undefined = data?.viewer?.login;
-  const viewerName: string = data?.viewer?.name ?? login ?? "editor";
-  if (!repo?.id || !repo?.defaultBranchRef?.target?.oid || !login) {
+  const defaultBranchName: string | undefined = repo?.defaultBranchRef?.name;
+  if (!repo?.id || !defaultBranchName || !login) {
     throw new Error(
-      "Could not resolve the repository or GitHub viewer to create a brand branch.",
+      "Could not resolve the repository or GitHub viewer.",
     );
   }
-  const storage = config.storage as { branchPrefix?: string };
-  const created = await createBrandRaw(config, {
-    token,
-    repositoryId: repo.id,
+  const record: BrandRecord = {
+    ref: defaultBranchName,
+    label: defaultBranchName,
     login,
-    viewerName,
-    branchPrefix: storage.branchPrefix,
-    fromOid: repo.defaultBranchRef.target.oid,
-  });
-  if (!created) throw new Error("Could not create a brand branch.");
-  return created;
+    createdAt: Date.now(),
+  };
+  await writeBrandRecord(config as any, record);
+  return record;
 }
 
 const createCommitMutation = `
@@ -951,10 +907,10 @@ export async function getPendingDiffs(
 // Returns the new commit's oid, or undefined when there was nothing to
 // commit. In local mode the write lands on the served file immediately, so
 // the caller can re-fetch via getLatestFieldValues right after. In github
-// mode this only commits to the caller's brand branch - the default branch
-// (what getLatestFieldValues/getCurrentBranchName read) doesn't see the
-// change until that brand is merged in (see deploy.ts's runDeploy, invoked
-// by the caller right after a successful save).
+// mode this commits to whatever ensureBrand resolves to - a personal brand
+// (invisible to the default branch until deploy.ts's runDeploy merges it in,
+// invoked by the caller right after a successful save) or, now that brands
+// are opt-in, the default branch itself, which sees the change immediately.
 export async function saveEdits(
   config: Config<any, any>,
 ): Promise<string | undefined> {

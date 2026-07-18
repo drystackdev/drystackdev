@@ -1,7 +1,9 @@
 // Orchestrates Deploy: merges the current brand into the default branch
-// (client-side 3-way merge, §6 of plan/brand.md), commits once, rotates to a
-// fresh brand, then hands the resulting commit off to DeployButton for build
-// tracking. No GitHub merge API involved - see plan/brand.md §2 for why.
+// (client-side 3-way merge, §6 of plan/brand.md), commits once, then returns
+// to the default branch and hands the resulting commit off to DeployButton
+// for build tracking. No GitHub merge API involved - see plan/brand.md §2 for
+// why. Brands are opt-in (NewBranchButton) - this no longer rotates to a
+// fresh brand after merging.
 import { useCallback, useRef, useState } from "react";
 import { useMutation } from "urql";
 import { gql } from "@ts-gql/tag/no-transform";
@@ -10,16 +12,8 @@ import { GitHubConfig } from "../../config";
 import { base64Encode } from "#base64";
 import { getAuth } from "../auth";
 import { useRouter } from "../router";
-import {
-  createBrand,
-  removeBrandRecord,
-  useCurrentBrand,
-  useSetBrandRecord,
-} from "../brand";
-import {
-  useCreateBranchMutation,
-  useDeleteBranchMutation,
-} from "../branch-selection";
+import { removeBrandRecord, useCurrentBrand, useSetBrandRecord } from "../brand";
+import { useDeleteBranchMutation } from "../branch-selection";
 import { createCommitMutation } from "../shell/useCommitFileChanges";
 import {
   Ref_base,
@@ -122,7 +116,6 @@ export function useDeploy() {
   const brand = useCurrentBrand();
   const viewer = useViewer();
   const setRecord = useSetBrandRecord();
-  const [, createBranch] = useCreateBranchMutation();
   const [, deleteBranch] = useDeleteBranchMutation();
   const [, commit] = useMutation(createCommitMutation);
 
@@ -176,6 +169,16 @@ export function useDeploy() {
       // shouldn't normally happen (DeployButton only renders once brand is
       // resolved), but guards against deploying the wrong thing
       setState({ kind: "idle", error: "Brand chưa sẵn sàng, thử lại sau." });
+      return;
+    }
+    if (brand.ref === repoInfo.defaultBranch) {
+      // DeployButton disables itself while on the default branch - this is
+      // defense-in-depth against the two independent ref fetches below ever
+      // racing into a real merge+delete against main itself.
+      setState({
+        kind: "idle",
+        error: "Đang ở nhánh main - không có gì để deploy.",
+      });
       return;
     }
 
@@ -401,17 +404,11 @@ export function useDeploy() {
 
       await deleteBranch({ refId: brandRef.id });
       await removeBrandRecord(githubConfig);
-      const newRecord = await createBrand(githubConfig, {
-        createBranch,
-        repositoryId: repoInfo!.id,
-        login: viewer!.login,
-        name: viewer!.name ?? viewer!.login,
-        defaultBranchCommitOid: newCommitOid,
-      });
-      if (newRecord) {
-        setRecord(newRecord);
-        push(`${basePath}/branch/${encodeURIComponent(newRecord.ref)}`);
-      }
+      // Brands are opt-in (NewBranchButton) - land back on the default
+      // branch instead of auto-rotating to a fresh brand. useBrandGuard
+      // adopts it on the next render.
+      setRecord(null);
+      push(`${basePath}/branch/${encodeURIComponent(repoInfo!.defaultBranch)}`);
 
       setState({
         kind: "merged",
@@ -444,7 +441,6 @@ export function useDeploy() {
     currentBranch,
     basePath,
     commit,
-    createBranch,
     deleteBranch,
     setRecord,
     push,

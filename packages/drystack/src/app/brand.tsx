@@ -1,7 +1,9 @@
-// "Brand" = a personal git branch an editor works on in GitHub mode. Entering
-// /drystack auto-creates (or reuses) one per repo, all saves commit to it, and
-// Deploy (deploy.ts) merges it into the default branch then rotates to a
-// fresh brand. See plan/brand.md for the full design.
+// "Brand" = an optional personal git branch an editor can spin up to stage
+// changes before merging (NewBranchButton). Brands are opt-in - nothing here
+// auto-creates one anymore. Entering /drystack (or losing track of a brand)
+// lands you on the repo's default branch instead, and Deploy (deploy.ts)
+// merges a brand into the default branch and returns you there rather than
+// rotating to a fresh brand. See plan/brand.md for the full design.
 import {
   ReactNode,
   createContext,
@@ -82,15 +84,14 @@ export function useSetBrandRecord(): (record: BrandRecord | null) => void {
 // Reads raw refs off GitHubAppShellDataContext (BranchesContext/RepoInfoContext
 // don't exist yet at this point - those need a currentBranch, which is what
 // we're resolving). Reuses the locally-remembered brand if GitHub still has
-// it, otherwise creates a fresh one off the default branch HEAD, then
-// navigates to it exactly once.
+// it, otherwise lands on the default branch - brands are opt-in
+// (NewBranchButton) now, nothing here creates one automatically.
 
 export function useEnsureBrandAtRoot(config: GitHubConfig): void {
   const { push, basePath } = useRouter();
   const viewer = useViewer();
   const shellData = useContext(GitHubAppShellDataContext);
   const setRecord = useSetBrandRecord();
-  const [, createBranch] = useCreateBranchMutation();
   const startedRef = useRef(false);
 
   useEffect(() => {
@@ -98,10 +99,6 @@ export function useEnsureBrandAtRoot(config: GitHubConfig): void {
     const repo = shellData?.data?.repository;
     const defaultBranchName = repo?.defaultBranchRef?.name;
     if (!repo?.id || !defaultBranchName || !viewer) return;
-    const defaultRef = repo.refs?.nodes?.find(
-      (x) => x?.name === defaultBranchName,
-    );
-    if (!defaultRef || defaultRef.target?.__typename !== "Commit") return;
 
     startedRef.current = true;
     (async () => {
@@ -112,23 +109,11 @@ export function useEnsureBrandAtRoot(config: GitHubConfig): void {
         return;
       }
 
-      const record = await createBrand(config, {
-        createBranch,
-        repositoryId: repo.id,
-        login: viewer.login,
-        name: viewer.name ?? viewer.login,
-        defaultBranchCommitOid: defaultRef.target!.oid,
-      });
-      if (!record) {
-        // mutation failed (e.g. transient network error) - allow a retry on
-        // the next data update instead of getting stuck forever.
-        startedRef.current = false;
-        return;
-      }
-      setRecord(record);
-      push(`${basePath}/branch/${encodeURIComponent(record.ref)}`);
+      // No valid personal brand - land on the default branch instead of
+      // auto-creating one. useBrandGuard adopts it once AppShell mounts.
+      push(`${basePath}/branch/${encodeURIComponent(defaultBranchName)}`);
     })();
-  }, [shellData, viewer, config, push, basePath, createBranch, setRecord]);
+  }, [shellData, viewer, config, push, basePath, setRecord]);
 }
 
 // Entry point B - already on /branch/<ref>
@@ -146,7 +131,6 @@ export function useBrandGuard(config: Config): void {
   const repoInfo = useRepoInfo();
   const record = useCurrentBrand();
   const setRecord = useSetBrandRecord();
-  const [, createBranch] = useCreateBranchMutation();
   const startedRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -163,9 +147,12 @@ export function useBrandGuard(config: Config): void {
     if (startedRef.current === currentBranch) return;
 
     const branchInfo = branches.get(currentBranch);
-    if (branchInfo && currentBranch !== repoInfo.defaultBranch) {
-      // the URL's branch is a real ref - adopt it into context, reusing the
-      // stored record if it matches, otherwise reconstructing one from the ref
+    if (branchInfo) {
+      // the URL's branch is a real ref - personal brand or the default branch,
+      // both adoptable now that brands are opt-in (CurrentBrandChip gates
+      // switching to the default branch behind its own confirm dialog; this
+      // guard just adopts whatever a valid URL already points at). Reuses the
+      // stored record if it matches, otherwise reconstructs one from the ref
       // itself. Nothing here is a guess any more: a record is just a name +
       // who/when, and deploy asks GitHub for the merge base (deploy/merge-base.ts).
       startedRef.current = currentBranch;
@@ -187,78 +174,30 @@ export function useBrandGuard(config: Config): void {
       return;
     }
 
-    // the URL's branch doesn't exist, or is the default branch itself - a
-    // brand is always a personal branch, so `main` (or whatever the default
-    // branch is called) must never be adopted as one (plan/brand.md §1/§5).
-    // If context already holds a different, still-valid brand (e.g. the user
-    // hit "back" after Deploy rotated us to a new one, or opened `/branch/main`
-    // in a tab that already has a brand), just redirect there instead of
-    // creating a needless extra branch - only fall through to creating a
-    // fresh one if we truly have nothing valid to fall back on.
-    if (
-      record &&
-      record.ref !== repoInfo.defaultBranch &&
-      branches.has(record.ref)
-    ) {
+    // the URL's branch doesn't exist (e.g. a deleted brand, a stale link). If
+    // context already holds a different, still-valid ref, redirect there;
+    // otherwise land on the default branch - brands are opt-in
+    // (NewBranchButton) now, nothing here creates one automatically. Once the
+    // URL points at the default branch, the next run of this effect adopts it
+    // through the branch above.
+    if (record && branches.has(record.ref)) {
       startedRef.current = currentBranch;
       push(`${basePath}/branch/${encodeURIComponent(record.ref)}`);
       return;
     }
 
-    const defaultBranchInfo = branches.get(repoInfo.defaultBranch);
-    if (!defaultBranchInfo) return; // default branch itself not loaded yet
+    if (!branches.has(repoInfo.defaultBranch)) return; // default branch itself not loaded yet
     startedRef.current = currentBranch;
-    (async () => {
-      // in-memory context can be empty on a fresh tab (e.g. landing straight
-      // on `/branch/main`) even though IndexedDB already has a valid brand
-      // for this repo - reuse it instead of creating a redundant one.
-      const existing = await readBrandRecord(githubConfig);
-      if (
-        existing &&
-        existing.ref !== repoInfo.defaultBranch &&
-        branches.has(existing.ref)
-      ) {
-        setRecord(existing);
-        push(`${basePath}/branch/${encodeURIComponent(existing.ref)}`);
-        return;
-      }
-
-      // recreate a fresh brand off the current default branch HEAD and redirect to it.
-      const newRecord = await createBrand(githubConfig, {
-        createBranch,
-        repositoryId: repoInfo.id,
-        login: viewer.login,
-        name: viewer.name ?? viewer.login,
-        defaultBranchCommitOid: defaultBranchInfo.commitSha,
-      });
-      if (!newRecord) {
-        startedRef.current = null;
-        return;
-      }
-      setRecord(newRecord);
-      // land on the new brand's root rather than trying to preserve the rest
-      // of the path - a deep link into the deleted brand's uncommitted state
-      // (e.g. an item that only existed there) may not exist on the fresh copy.
-      push(`${basePath}/branch/${encodeURIComponent(newRecord.ref)}`);
-    })();
-  }, [
-    repoInfo,
-    viewer,
-    currentBranch,
-    branches,
-    record?.ref,
-    config,
-    push,
-    basePath,
-    createBranch,
-    setRecord,
-  ]);
+    push(`${basePath}/branch/${encodeURIComponent(repoInfo.defaultBranch)}`);
+  }, [repoInfo, viewer, currentBranch, branches, record?.ref, config, push, basePath, setRecord]);
 }
 
 // Shared brand creation
 // -----------------------------------------------------------------------------
-// Exported so deploy.ts can create the next brand right after a successful
-// merge, using the same logic as the two guards above.
+// The only caller is NewBranchButton.tsx (brands are opt-in now). `ref`
+// defaults to a fresh timestamped name but can be overridden - the "New
+// branch" dialog pre-fills that default and lets the user edit it before
+// creating.
 
 export async function createBrand(
   config: GitHubConfig,
@@ -268,10 +207,11 @@ export async function createBrand(
     login: string;
     name: string;
     defaultBranchCommitOid: string;
+    ref?: string;
   },
 ): Promise<BrandRecord | null> {
   const now = new Date();
-  const ref = formatBrandRef(getBranchPrefix(config), now);
+  const ref = args.ref ?? formatBrandRef(getBranchPrefix(config), now);
   const label = formatBrandLabel(now, args.name, "Editor");
   const result = await args.createBranch({
     input: {

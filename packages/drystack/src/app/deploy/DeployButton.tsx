@@ -13,7 +13,7 @@ import { toastQueue } from "@keystar/ui/toast";
 import { Text } from "@keystar/ui/typography";
 
 import { useCurrentBrand } from "../brand";
-import { useChanged } from "../shell/data";
+import { useChanged, useRepoInfo } from "../shell/data";
 import { truncateToastMessage } from "../toast-message";
 import { ConflictDialog } from "./ConflictDialog";
 import { toneColor, useCloudflareStatusView } from "./CloudflareStatus";
@@ -60,6 +60,7 @@ function useHasChangesToMerge(changed: ReturnType<typeof useChanged>): boolean {
 // second deploy on top of one whose build hasn't finished yet.
 export function DeployButton() {
   const brand = useCurrentBrand();
+  const repoInfo = useRepoInfo();
   const hasChanges = useHasChangesToMerge(useChanged());
   const {
     state,
@@ -117,12 +118,17 @@ export function DeployButton() {
 
   const isBusy = state.kind === "loading" || state.kind === "conflicts";
   const isBuilding = cf.hasEvent && cf.spinning;
+  // On the default branch there's nothing to merge - Deploy stays disabled
+  // and this just mirrors Cloudflare's own status instead of offering an
+  // action.
+  const isOnDefaultBranch =
+    !!brand && !!repoInfo && brand.ref === repoInfo.defaultBranch;
   const label =
     state.kind === "loading"
       ? state.label
       : state.kind === "conflicts"
         ? "Waiting for conflict resolution…"
-        : isBuilding
+        : isBuilding || isOnDefaultBranch
           ? cf.fullLabel
           : "Deploy";
 
@@ -139,7 +145,7 @@ export function DeployButton() {
   return (
     <>
       <ActionButton
-        isDisabled={isBusy || !brand || !hasChanges || isBuilding}
+        isDisabled={isBusy || !brand || !hasChanges || isBuilding || isOnDefaultBranch}
         width="100%"
         onPress={() => deploy()}
       >
