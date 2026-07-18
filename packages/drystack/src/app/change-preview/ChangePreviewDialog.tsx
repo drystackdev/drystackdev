@@ -123,15 +123,21 @@ export function summarizeContentChange(
 // passes null). `onDelete`, when provided, adds a discard action per row -
 // both VEI and the admin wire this up: VEI reverts the live DOM spot to its
 // original value, the admin reverts just that one top-level field in form
-// state (independent of the whole-entry "Reset" action elsewhere).
+// state (independent of the whole-entry "Reset" action elsewhere). `onResetAll`,
+// when provided, adds a whole-entry discard button next to Close - only VEI
+// passes it (its old standalone "Reset changes" toolbar button moved in here);
+// the admin already has its own separate Reset menu item elsewhere and never
+// sets this, so its dialog is unaffected.
 export function ChangePreviewDialog({
   changes,
   onDelete,
+  onResetAll,
   renderImage,
   title,
 }: {
   changes: FieldChange[] | null;
   onDelete?: (key: string) => void;
+  onResetAll?: () => void;
   renderImage?: (path: string) => ReactNode;
   title?: string;
 }) {
@@ -190,6 +196,18 @@ export function ChangePreviewDialog({
         )}
       </Content>
       <ButtonGroup>
+        {onResetAll && (
+          <Button
+            tone="critical"
+            isDisabled={!changes || changes.length === 0}
+            onPress={() => {
+              onResetAll();
+              dismiss();
+            }}
+          >
+            {stringFormatter.format("resetAllChanges")}
+          </Button>
+        )}
         <Button onPress={dismiss}>{stringFormatter.format("close")}</Button>
       </ButtonGroup>
     </Dialog>

@@ -35,7 +35,6 @@ import { xIcon } from "@keystar/ui/icon/icons/xIcon";
 import { saveIcon } from "@keystar/ui/icon/icons/saveIcon";
 import { eyeIcon } from "@keystar/ui/icon/icons/eyeIcon";
 import { externalLinkIcon } from "@keystar/ui/icon/icons/externalLinkIcon";
-import { rotateCcwIcon } from "@keystar/ui/icon/icons/rotateCcwIcon";
 import { listIcon } from "@keystar/ui/icon/icons/listIcon";
 import { bracesIcon } from "@keystar/ui/icon/icons/bracesIcon";
 import { VStack } from "@keystar/ui/layout";
@@ -789,18 +788,6 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
               </TooltipTrigger>
 
               <TooltipTrigger>
-                <ActionButton
-                  aria-label="Reset changes"
-                  onPress={onReset}
-                  isDisabled={nothingToSave || saving}
-                  UNSAFE_className="dry-iconbtn"
-                >
-                  <Icon src={rotateCcwIcon} />
-                </ActionButton>
-                <Tooltip>Reset changes</Tooltip>
-              </TooltipTrigger>
-
-              <TooltipTrigger>
                 <Button
                   aria-label="Save changes"
                   prominence="high"
@@ -954,7 +941,11 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
 
       <DialogContainer onDismiss={() => setReviewOpen(false)}>
         {reviewOpen && (
-          <VeiReviewDialog config={config} onChange={refreshCount} />
+          <VeiReviewDialog
+            config={config}
+            onChange={refreshCount}
+            onResetAll={onReset}
+          />
         )}
       </DialogContainer>
 
@@ -1188,9 +1179,11 @@ function ContainerFieldDialog({
 function VeiReviewDialog({
   config,
   onChange,
+  onResetAll,
 }: {
   config: Config<any, any>;
   onChange: () => void;
+  onResetAll: () => void;
 }) {
   const [changes, setChanges] = useState<FieldChange[] | null>(null);
 
@@ -1219,6 +1212,7 @@ function VeiReviewDialog({
     <ChangePreviewDialog
       changes={changes}
       onDelete={handleDelete}
+      onResetAll={onResetAll}
       renderImage={(path: string) => <VeiImageThumb path={path} />}
     />
   );
