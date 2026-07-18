@@ -5,16 +5,17 @@
 // instead, on a separate origin, with no session in front of it.
 //
 // Deliberately not a copy of packages/drystack/src/api/ai/index.ts: that
-// route serves an authenticated admin (any collection, any provider, model
-// listing, dead-model retry). This one serves the public internet, so it's
-// pared down to exactly what config.tsx promises callers: `POST /generate`
-// and `POST /rewrite`, streamed, rate-limited per IP. It reuses the prompt-
-// building and schema-describing logic from @drystack/core (the parts that
-// decide *what* to ask the model) and talks to Anthropic directly for the
-// streaming call itself (the *how*) - the multi-provider adapter/model-
-// registry machinery in @drystack/core's ai/ folder exists for the admin's
-// "pick any configured provider" needs, which a single-provider public demo
-// proxy doesn't have.
+// route serves an authenticated admin (model listing, dead-model retry,
+// per-request provider override). This one serves the public internet, so
+// it's pared down to exactly what config.tsx promises callers: `POST
+// /generate` and `POST /rewrite`, streamed, rate-limited per IP, one
+// provider fixed by env for the whole deployment (DRY_AI_PROVIDER). It
+// reuses @drystack/core's env resolution (`api/ai/env`) and provider
+// adapters (`api/ai/providers/*`) - both are already fetch/streams-only with
+// no Node builtins, so they run on Workers unchanged - rather than the
+// model-registry machinery, which exists for the admin's "pick any
+// configured provider at request time" need that a single fixed-provider
+// public proxy doesn't have.
 import {
   describeField,
   describeFields,
@@ -30,16 +31,26 @@ import {
   rewriteMaxTokens,
   type AiSizeMap,
 } from "@drystack/core/api/ai/prompt";
+import { isAiConfigError, resolveAiEnv, type AiEnv } from "@drystack/core/api/ai/env";
+import { anthropicProvider } from "@drystack/core/api/ai/providers/anthropic";
+import { googleProvider } from "@drystack/core/api/ai/providers/google";
+import { AiProviderError, type AiProvider } from "@drystack/core/api/ai/providers/types";
 import type { ComponentSchema } from "@drystack/core";
 
 import config from "../../drystack.config";
 
-export interface Env {
-  DRY_AI_KEY: string;
-  DRY_AI_MODEL?: string;
+export interface Env extends AiEnv {
   ALLOWED_ORIGINS?: string;
   AI_PROXY_RL: { limit(opts: { key: string }): Promise<{ success: boolean }> };
 }
+
+// Only the two providers @drystack.dev actually runs behind this proxy today
+// - openai/openai-compatible are valid `DRY_AI_PROVIDER` values elsewhere in
+// the codebase but have no adapter wired here yet.
+const PROVIDERS: Partial<Record<string, AiProvider>> = {
+  anthropic: anthropicProvider,
+  google: googleProvider,
+};
 
 // Same ceiling as the admin route (see index.ts) - a runaway field shouldn't
 // blow the request budget on its own.
@@ -66,8 +77,17 @@ export default {
       return json({ error: "Quá nhiều yêu cầu, thử lại sau." }, 429, origin);
     }
 
-    if (!env.DRY_AI_KEY) {
-      return json({ error: "DRY_AI_KEY chưa được cấu hình." }, 503, origin);
+    const runtime = resolveAiEnv(env);
+    if (isAiConfigError(runtime)) {
+      return json({ error: runtime.message }, 503, origin);
+    }
+    const provider = PROVIDERS[runtime.provider];
+    if (!provider) {
+      return json(
+        { error: `Provider "${runtime.provider}" chưa được hỗ trợ trên proxy này.` },
+        503,
+        origin,
+      );
     }
 
     let body: any;
@@ -81,20 +101,20 @@ export default {
     if ("error" in pre) return json({ error: pre.error }, pre.status, origin);
 
     const model =
-      typeof body.model === "string" && body.model.trim()
-        ? body.model.trim()
-        : env.DRY_AI_MODEL;
+      (typeof body.model === "string" && body.model.trim()) ||
+      runtime.preferredModel ||
+      runtime.defaultModel;
     if (!model) {
-      return json({ error: "Thiếu `model` và không có DRY_AI_MODEL mặc định." }, 503, origin);
+      return json({ error: "Không xác định được model để gọi." }, 503, origin);
     }
 
     try {
       if (url.pathname === "/generate") {
-        return await handleGenerate(body, pre, model, env.DRY_AI_KEY, origin);
+        return await handleGenerate(body, pre, model, provider, runtime.apiKey, origin);
       }
-      return await handleRewrite(body, pre, model, env.DRY_AI_KEY, origin);
+      return await handleRewrite(body, pre, model, provider, runtime.apiKey, origin);
     } catch (err) {
-      const status = err instanceof AnthropicError ? err.status : 502;
+      const status = err instanceof AiProviderError ? err.status : 502;
       return json(
         { error: err instanceof Error ? err.message : "Lỗi không xác định." },
         status === 401 || status === 403 ? 502 : status,
@@ -114,7 +134,8 @@ type Preflight = {
  * Everything both routes need before they can differ: that the entry exists
  * and is opted into `config.ai.for`. Mirrors index.ts's `preflight`, minus
  * the session/provider checks that don't apply here (no session in front of
- * this route at all; the provider is always Anthropic).
+ * this route at all; the provider is fixed for the whole deployment by
+ * `DRY_AI_PROVIDER`, not chosen per request).
  */
 function preflight(body: any): Preflight | { error: string; status: number } {
   const { entry } = body ?? {};
@@ -152,6 +173,7 @@ async function handleGenerate(
   body: any,
   pre: Preflight,
   model: string,
+  provider: AiProvider,
   apiKey: string,
   origin: string | null,
 ): Promise<Response> {
@@ -186,13 +208,14 @@ async function handleGenerate(
   });
   const maxTokens = generateMaxTokens({ sizes, seedChars });
 
-  return stream(system, user, maxTokens, model, apiKey, origin);
+  return stream(provider, apiKey, system, user, maxTokens, model, origin);
 }
 
 async function handleRewrite(
   body: any,
   pre: Preflight,
   model: string,
+  provider: AiProvider,
   apiKey: string,
   origin: string | null,
 ): Promise<Response> {
@@ -225,7 +248,7 @@ async function handleRewrite(
   });
   const maxTokens = rewriteMaxTokens(passage.length);
 
-  return stream(system, user, maxTokens, model, apiKey, origin);
+  return stream(provider, apiKey, system, user, maxTokens, model, origin);
 }
 
 function resolveSizes(raw: unknown, targets: AiFieldSpec[]): AiSizeMap | undefined {
@@ -268,49 +291,42 @@ function sanitiseContext(context: unknown): Record<string, string> {
   return out;
 }
 
-// --- Anthropic streaming call --------------------------------------------
+// --- provider streaming call ----------------------------------------------
 
-const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
-const ANTHROPIC_API_VERSION = "2023-06-01";
-
-class AnthropicError extends Error {
-  constructor(
-    message: string,
-    public status: number,
-  ) {
-    super(message);
-  }
-}
-
+/**
+ * Runs the configured provider's own `stream()` (already unwrapped from its
+ * SSE envelope into plain text deltas by @drystack/core's adapter - see
+ * providers/types.ts's `textStreamFromSse`) and re-encodes it as the
+ * `text/plain` byte stream the client reads chunk by chunk.
+ */
 async function stream(
+  provider: AiProvider,
+  apiKey: string,
   system: string,
   user: string,
   maxTokens: number,
   model: string,
-  apiKey: string,
   origin: string | null,
 ): Promise<Response> {
-  const res = await fetch(ANTHROPIC_API_URL, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": ANTHROPIC_API_VERSION,
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: maxTokens,
-      stream: true,
-      system,
-      messages: [{ role: "user", content: user }],
-    }),
+  const textStream = await provider.stream({
+    apiKey,
+    model,
+    system,
+    user,
+    maxTokens,
+    signal: new AbortController().signal,
   });
 
-  if (!res.ok || !res.body) {
-    throw new AnthropicError(await describeError(res), res.status);
-  }
+  const encoder = new TextEncoder();
+  const body = textStream.pipeThrough(
+    new TransformStream<string, Uint8Array>({
+      transform(chunk, controller) {
+        controller.enqueue(encoder.encode(chunk));
+      },
+    }),
+  );
 
-  return new Response(res.body.pipeThrough(sseToTextDeltas()), {
+  return new Response(body, {
     status: 200,
     headers: {
       ...corsHeaders(origin),
@@ -319,54 +335,6 @@ async function stream(
       "x-accel-buffering": "no",
     },
   });
-}
-
-/** Anthropic's SSE envelope -> the plain text deltas the client parses. */
-function sseToTextDeltas(): TransformStream<Uint8Array, Uint8Array> {
-  const decoder = new TextDecoder();
-  const encoder = new TextEncoder();
-  let buffer = "";
-  return new TransformStream({
-    transform(chunk, controller) {
-      buffer += decoder.decode(chunk, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const data = line.slice("data: ".length);
-        let event: any;
-        try {
-          event = JSON.parse(data);
-        } catch {
-          continue;
-        }
-        if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
-          controller.enqueue(encoder.encode(event.delta.text as string));
-        }
-        // A mid-stream failure arrives as an `error` event on a 200 envelope -
-        // nothing more can be done for this request but stop, the client
-        // already has whatever text streamed before it.
-        if (event.type === "error") controller.terminate();
-      }
-    },
-  });
-}
-
-async function describeError(res: Response): Promise<string> {
-  let detail = "";
-  try {
-    const text = await res.text();
-    try {
-      const parsed = JSON.parse(text);
-      detail = parsed.error?.message ?? parsed.message ?? text;
-    } catch {
-      detail = text;
-    }
-  } catch {
-    // Body already consumed or unreadable - the status alone still tells the
-    // caller enough to act on.
-  }
-  return `Anthropic trả lỗi ${res.status}${detail ? `: ${detail.slice(0, 500)}` : ""}`;
 }
 
 // --- CORS -------------------------------------------------------------

@@ -7,7 +7,7 @@
     {
       "name": "AI_PROXY_RL",
       "namespace_id": "1",
-      "simple": { "limit": 20, "period": 60 }
+      "simple": { "limit": 5, "period": 60 }
     }
   ],
   "vars": {

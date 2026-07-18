@@ -52,6 +52,22 @@
       "drystack-src": "./src/api/ai/prompt.ts",
       "default": "./dist/api/ai/prompt.js"
     },
+    "./api/ai/env": {
+      "drystack-src": "./src/api/ai/env.ts",
+      "default": "./dist/api/ai/env.js"
+    },
+    "./api/ai/providers/types": {
+      "drystack-src": "./src/api/ai/providers/types.ts",
+      "default": "./dist/api/ai/providers/types.js"
+    },
+    "./api/ai/providers/anthropic": {
+      "drystack-src": "./src/api/ai/providers/anthropic.ts",
+      "default": "./dist/api/ai/providers/anthropic.js"
+    },
+    "./api/ai/providers/google": {
+      "drystack-src": "./src/api/ai/providers/google.ts",
+      "default": "./dist/api/ai/providers/google.js"
+    },
     "./api/encryption": {
       "drystack-src": "./src/api/encryption.tsx",
       "default": "./dist/api/encryption.js"
