@@ -13,6 +13,19 @@ export { valueToUpdater } from "../form/get-value";
 // to a singleton's own directory - without it those inputs fall back to
 // library-only picking (see entry-form.tsx / form/fields/image/ui.tsx).
 export { EntryDirectoryProvider } from "./entry-form";
+// A fields.slug schema's own `.Input` (SlugFieldInput) only turns on its real
+// uniqueness/collision-bump logic when it can see `PathContext === [the
+// collection's configured slugField]` and a `SlugFieldContext` carrying real
+// sibling slugs (see form/fields/text/path-slug-context.tsx and
+// form/fields/slug/ui.tsx) - FormValueContentFromPreviewProps always resets
+// PathContext to `[]` for its own root, which is wrong for rendering a slug
+// field standalone (outside a whole entry form), so the visual editor needs
+// these two providers directly to wrap just that one field itself.
+export {
+  PathContextProvider,
+  SlugFieldProvider,
+  type SlugFieldInfo,
+} from "../form/fields/text/path-slug-context";
 // The fields.content editor, mounted onto an element the live page already
 // rendered so the site's own CSS keeps applying while editing - used by the
 // visual editor's inline content spots (editor/InlineContentEditors.tsx).

@@ -19,10 +19,24 @@ if (!post) {
 }
 
 const related = posts.filter((p) => p.slug !== post.slug).slice(0, 3);
+
+// seoKnowledge isn't wired to VEI yet (MVP1 scope: only the `blog`
+// collection - see plan). BlogPostDetail now expects a bindable dry entry,
+// so hand it a plain (non-editable) stand-in with the same fields: bind()/
+// view() no-op to `{}`, the same fallback dry.ts's own makeSpot already
+// returns for a spot it can't resolve, so no `data-dry` attribute is
+// emitted and nothing here is falsely presented as editable.
+const entry = {
+	...post,
+	body: post.contentHtml,
+	publish: true,
+	bind: (() => ({})) as any,
+	view: (() => ({})) as any,
+};
 ---
 
 <BlogPostDetail
-	post={post}
+	entry={entry}
 	related={related}
 	basePath="/blog-kien-thuc"
 	eyebrowLabel="Kiến thức SEO"

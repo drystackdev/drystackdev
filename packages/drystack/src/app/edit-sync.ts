@@ -9,6 +9,9 @@
 // next poll/reload.
 import type { ArrayField, ComponentSchema, ObjectField } from "..";
 import { isContentEditorField } from "../form/fields/content/is-content-field";
+import type { EntryRef } from "./path-utils";
+
+export type { EntryRef } from "./path-utils";
 
 const DB_NAME = "drystack-edits";
 const STORE_NAME = "edits";
@@ -20,8 +23,8 @@ export type PendingEdit = { key: string; value: string; updatedAt: number };
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 4);
-    req.onupgradeneeded = () => {
+    const req = indexedDB.open(DB_NAME, 5);
+    req.onupgradeneeded = (event) => {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE_NAME))
         db.createObjectStore(STORE_NAME);
@@ -31,6 +34,15 @@ function openDb(): Promise<IDBDatabase> {
         db.createObjectStore(SOURCE_STORE_NAME);
       if (!db.objectStoreNames.contains(BLOB_STORE_NAME))
         db.createObjectStore(BLOB_STORE_NAME);
+      // v4 -> v5: source-cache keys switch from a bare singleton name to
+      // entryRefKey(ref) ("singleton::<name>" / "collection::<name>::<slug>")
+      // to make room for collection entries - an old entry keyed by the bare
+      // name is unreachable under the new shape, so clear just this store.
+      // `edits` is deliberately left untouched: its key shape doesn't change,
+      // and clearing it would silently drop the user's in-flight edits.
+      if (event.oldVersion > 0 && event.oldVersion < 5) {
+        req.transaction?.objectStore(SOURCE_STORE_NAME).clear();
+      }
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -125,25 +137,25 @@ export async function setMeta(key: string, value: unknown): Promise<void> {
 // confirms the static build has actually caught up (discardEditsIfBuildIsNewer),
 // so a stale cache entry can never paint over fresher static HTML.
 export async function getSourceCache(
-  singletonName: string,
+  ref: EntryRef,
 ): Promise<Record<string, string> | undefined> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(SOURCE_STORE_NAME, "readonly");
-    const req = tx.objectStore(SOURCE_STORE_NAME).get(singletonName);
+    const req = tx.objectStore(SOURCE_STORE_NAME).get(entryRefKey(ref));
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
 }
 
 export async function setSourceCache(
-  singletonName: string,
+  ref: EntryRef,
   values: Record<string, string>,
 ): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(SOURCE_STORE_NAME, "readwrite");
-    tx.objectStore(SOURCE_STORE_NAME).put(values, singletonName);
+    tx.objectStore(SOURCE_STORE_NAME).put(values, entryRefKey(ref));
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
@@ -250,26 +262,52 @@ export async function clearPendingBlobs(): Promise<void> {
 
 // --- Edit key helpers -------------------------------------------------
 //
-// A key identifies one editable field: `${type}::${name}::${field}`, e.g.
-// `singleton::home::heading`. Matches the `data-dry` attribute the visual
-// editor already renders (packages/astro/src/dry.ts), so both surfaces
-// address the same field the same way.
+// A key identifies one editable field: entryRefKey(ref) + "::" + field, e.g.
+// `singleton::home::heading` or `collection::blog::bai-viet::excerpt`.
+// Matches the `data-dry` attribute the visual editor already renders
+// (packages/astro/src/dry.ts), so both surfaces address the same field the
+// same way. entryRefKey is a true prefix of editKey, so a DOM selector like
+// `[data-dry^="${entryRefKey(ref)}::"]` matches every field of one entry.
 
-export function editKey(
-  type: "singleton",
-  name: string,
-  field: string,
-): string {
-  return `${type}::${name}::${field}`;
+export function entryRefKey(ref: EntryRef): string {
+  return ref.type === "singleton"
+    ? `singleton::${ref.name}`
+    : `collection::${ref.name}::${ref.slug}`;
 }
 
-export function parseEditKey(key: string): {
-  type: string;
-  name: string;
-  field: string;
-} {
-  const [type, name, field] = key.split("::");
-  return { type, name, field };
+export function editKey(ref: EntryRef, field: string): string {
+  return `${entryRefKey(ref)}::${field}`;
+}
+
+// Parses from both ends rather than a fixed-index split: `field` is a dotted
+// path and never contains "::", but a collection `slug` could in principle,
+// so `type`/`name` come from the front and `field` from the back, with
+// everything in between re-joined as the slug. Returns undefined for a
+// malformed/unrecognized key instead of a partially-populated object, so a
+// discriminated-union consumer is forced to handle both entry types (and the
+// invalid case) rather than silently misreading a stray key - see the
+// upstream literal `type: "singleton"` this replaces, which let every
+// consumer assume a 3-segment key.
+export function parseEditKey(
+  key: string,
+): (EntryRef & { field: string }) | undefined {
+  const parts = key.split("::");
+  if (parts.length < 3) return undefined;
+  const type = parts[0];
+  const name = parts[1];
+  const field = parts[parts.length - 1];
+  if (!name || !field) return undefined;
+  if (type === "singleton") {
+    if (parts.length !== 3) return undefined;
+    return { type: "singleton", name, field };
+  }
+  if (type === "collection") {
+    if (parts.length < 4) return undefined;
+    const slug = parts.slice(2, -1).join("::");
+    if (!slug) return undefined;
+    return { type: "collection", name, slug, field };
+  }
+  return undefined;
 }
 
 export type SyncableFieldKind =

@@ -1,12 +1,14 @@
 ---
 import BlogListing from "../../components/BlogListing.astro";
-import { getBlogPosts } from "../../data/blog";
 import { dry } from "../../lib/dry";
 
-const [posts, page] = await Promise.all([
-  getBlogPosts(),
+// Unresolved (no resolveLinkedFiles) - a listing card only needs
+// title/excerpt/cover, so this skips reading every post's body.html.
+const [entries, page] = await Promise.all([
+  dry.collection("blog").all(),
   dry.singleton("blogListing"),
 ]);
+const posts = Object.values(entries).filter((p) => p.publish);
 ---
 
 <BlogListing

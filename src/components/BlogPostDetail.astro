@@ -8,16 +8,26 @@ import JsonLd from "./JsonLd.astro";
 import { getHomepage } from "../data/site";
 import { htmlToPlainText } from "../lib/heading";
 import type { BlogPost } from "../data/blog";
+import { dry } from "../lib/dry";
+
+// Derived from the live `dry` instance (not a hand-written interface) so this
+// type always matches whatever createDry(config) actually resolves for the
+// blog collection - see dry.collection("blog").entry(slug) in
+// src/pages/blog/[slug].astro, which is what produces this prop.
+type BlogCollectionHandle = ReturnType<typeof dry.collection<"blog">>;
+type BlogEntry = NonNullable<
+	Awaited<ReturnType<BlogCollectionHandle["entry"]>>
+>;
 
 interface Props {
-	post: BlogPost;
+	entry: BlogEntry;
 	related: BlogPost[];
 	basePath: string;
 	eyebrowLabel: string;
 	backLabel: string;
 }
 
-const { post, related, basePath, eyebrowLabel, backLabel } = Astro.props;
+const { entry, related, basePath, eyebrowLabel, backLabel } = Astro.props;
 
 const { brand } = await getHomepage() as any;
 const siteName = htmlToPlainText(brand.name);
@@ -26,16 +36,16 @@ function formatDate(d: string) {
 	return new Date(d).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-const postUrl = new URL(`${basePath}/${post.slug}`, Astro.site).toString();
+const postUrl = new URL(`${basePath}/${entry.slug}`, Astro.site).toString();
 
 const articleSchema = {
 	"@context": "https://schema.org",
 	"@type": "BlogPosting",
-	headline: post.title,
-	description: post.excerpt,
-	image: new URL(post.cover, Astro.site).toString(),
-	datePublished: post.date,
-	dateModified: post.updatedAt,
+	headline: entry.title,
+	description: entry.excerpt,
+	image: new URL(entry.cover || "", Astro.site).toString(),
+	datePublished: entry.date,
+	dateModified: entry.updatedAt,
 	mainEntityOfPage: { "@type": "WebPage", "@id": postUrl },
 	author: { "@type": "Organization", name: siteName },
 	publisher: { "@type": "Organization", name: siteName },
@@ -47,15 +57,15 @@ const breadcrumbSchema = {
 	itemListElement: [
 		{ "@type": "ListItem", position: 1, name: "Trang chủ", item: new URL("/", Astro.site).toString() },
 		{ "@type": "ListItem", position: 2, name: eyebrowLabel, item: new URL(basePath, Astro.site).toString() },
-		{ "@type": "ListItem", position: 3, name: post.title, item: postUrl },
+		{ "@type": "ListItem", position: 3, name: entry.title, item: postUrl },
 	],
 };
 ---
 
-<Main title={`${post.title} | ${siteName}`} description={post.excerpt} keywords={post.keywords} image={post.cover} type="article">
+<Main title={`${entry.title} | ${siteName}`} description={entry.excerpt} keywords={entry.keywords} image={entry.cover || undefined} type="article">
 	<Fragment slot="head">
-		<meta property="article:published_time" content={new Date(post.date).toISOString()} />
-		<meta property="article:modified_time" content={new Date(post.updatedAt).toISOString()} />
+		<meta property="article:published_time" content={new Date(entry.date).toISOString()} />
+		<meta property="article:modified_time" content={new Date(entry.updatedAt).toISOString()} />
 	</Fragment>
 	<JsonLd schema={[articleSchema, breadcrumbSchema]} />
 	<Header />
@@ -67,11 +77,11 @@ const breadcrumbSchema = {
 		<div class="container post-hero__inner">
 			<a href={basePath} class="back-link reveal"><Icon name="arrow-left" size={16} /> {backLabel}</a>
 			<p class="eyebrow reveal">{eyebrowLabel}</p>
-			<h1 class="section-title reveal">{post.title}</h1>
+			<h1 class="section-title reveal" {...entry.bind("title")}>{entry.title}</h1>
 			<div class="post-hero__meta reveal">
-				<span><Icon name="calendar" size={14} /> {formatDate(post.date)}</span>
-				{formatDate(post.updatedAt) !== formatDate(post.date) && (
-					<span>Cập nhật: {formatDate(post.updatedAt)}</span>
+				<span><Icon name="calendar" size={14} /> {formatDate(entry.date)}</span>
+				{formatDate(entry.updatedAt) !== formatDate(entry.date) && (
+					<span>Cập nhật: {formatDate(entry.updatedAt)}</span>
 				)}
 			</div>
 		</div>
@@ -79,13 +89,13 @@ const breadcrumbSchema = {
 
 	<div class="container" >
 		<div class="post-cover reveal">
-			<Image src={post.cover} alt={post.title} width={1200} height={675} />
+			<Image src={entry.cover || ""} alt={entry.title} width={1200} height={675} {...entry.bind("cover")} />
 		</div>
 	</div>
 
 	<section class="post-body section--light">
 		<div class="container post-layout">
-			<div class="post-body__inner reveal" id="post-content" set:html={post.contentHtml} />
+			<div class="post-body__inner reveal" id="post-content" set:html={entry.body} {...entry.bind("body")} />
 			<aside class="post-toc reveal reveal-right" id="post-toc-wrap" aria-label="Mục lục bài viết">
 				<p class="post-toc__title">Tóm tắt</p>
 				<nav class="post-toc__nav" id="post-toc-nav"></nav>

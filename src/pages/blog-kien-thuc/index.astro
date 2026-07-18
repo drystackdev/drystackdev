@@ -3,10 +3,17 @@ import BlogListing from "../../components/BlogListing.astro";
 import { getSeoKnowledgePosts } from "../../data/blog";
 import { dry } from "../../lib/dry";
 
-const [posts, page] = await Promise.all([
+const [seoPosts, page] = await Promise.all([
   getSeoKnowledgePosts(),
   dry.singleton("seoKnowledgeListing"),
 ]);
+
+// seoKnowledge isn't wired to VEI yet (MVP1 scope: only the `blog`
+// collection - see plan). BlogListing's cards now call .view() on each
+// post, so hand it plain (non-editable) stand-ins: same fields, view()
+// no-op to `{}`, the same fallback dry.ts's own makeSpot already returns
+// for a spot it can't resolve, so no `data-dry` attribute is emitted.
+const posts = seoPosts.map((p) => ({ ...p, view: (() => ({})) as any }));
 ---
 
 <BlogListing

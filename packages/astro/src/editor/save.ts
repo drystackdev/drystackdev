@@ -4,23 +4,33 @@ import type {
   ComponentSchema,
   ObjectField,
 } from "@drystack/core";
+import { REDIRECTS_SINGLETON_KEY } from "@drystack/core";
 import {
-  getSingletonPath,
-  getSingletonFormat,
-  getEntryDataFilepath,
+  entryRefExists,
+  getCollectionFormat,
+  getCollectionItemSlugSuffix,
+  getCollectionPath,
+  getDataFileExtension,
+  getSlugGlobForCollection,
+  resolveEntryRef,
+  type EntryRef,
 } from "@drystack/core/path-utils";
 import { loadDataFile } from "@drystack/core/required-files";
 import { dump } from "@drystack/core/yaml";
 import {
   contentAssetsDir,
   contentEntryDir,
+  entryRefKey,
   getSyncableFieldKind,
   isAssetKind,
+  parseEditKey,
   resolveSchemaAtFieldPath,
   spliceValueEdit,
 } from "@drystack/core/edit-sync";
 import { clientSideValidateProp } from "@drystack/core/field-editor";
 import { getAuth } from "@drystack/core/auth";
+import { appendRedirect, parseRedirectEntries } from "@drystack/core/redirects";
+import { delDraft } from "@drystack/core/persistence";
 // @ts-expect-error - provided by the drystack Astro integration's Vite plugin
 import apiPath from "virtual:drystack-path";
 import {
@@ -285,7 +295,7 @@ async function readCurrentFile(
   );
 }
 
-// Every file under a singleton's own `assets/` directory, keyed the way a
+// Every file under an entry's own `assets/` directory, keyed the way a
 // fields.content field's `other` map expects: a path relative to that
 // directory (mirrors the admin's own getFilesForAssetsOrContentField in
 // app/useItemData.ts).
@@ -303,18 +313,19 @@ async function readCurrentFile(
 // `assets/`, never a subdirectory of it.
 export async function listAssetFiles(
   config: Config<any, any>,
-  singletonName: string,
+  ref: EntryRef,
   githubBranchName?: string,
   // The content field's own dotted path (e.g. "brand.name") - a nested
   // content field's embedded images live under their own subdirectory
-  // (contentAssetsDir) rather than the singleton's shared `assets/`, so two
+  // (contentAssetsDir) rather than the entry's shared `assets/`, so two
   // content fields never collide on a same-named image. Omitted (or a
-  // top-level field with no dots) keeps the flat singleton-wide directory.
+  // top-level field with no dots) keeps the flat entry-wide directory.
   dottedField?: string,
 ): Promise<Map<string, Uint8Array>> {
+  const entryDir = resolveEntryRef(config, ref).dir;
   const dir = dottedField
-    ? contentAssetsDir(getSingletonPath(config, singletonName), dottedField)
-    : `${getSingletonPath(config, singletonName)}/assets`;
+    ? contentAssetsDir(entryDir, dottedField)
+    : `${entryDir}/assets`;
   const out = new Map<string, Uint8Array>();
   if (config.storage.kind === "local") {
     const treeRes = await fetch(`/api/${apiPath}/tree`, {
@@ -377,6 +388,191 @@ export async function listAssetFiles(
   );
 }
 
+// Recursively lists every file under `dir` - unlike listAssetFiles (flat,
+// scoped to one assets/ directory), this walks arbitrary nesting because a
+// rename (see buildFileChanges' `rename` handling below) has to move the
+// WHOLE entry - its data file, a content field's sibling .html, top-level
+// assets/, and any nested content field's own <field>/assets/ - not just one
+// known asset kind.
+async function listDirectoryFiles(
+  config: Config<any, any>,
+  dir: string,
+  githubBranchName?: string,
+): Promise<{ path: string; sha: string }[]> {
+  if (config.storage.kind === "local") {
+    const treeRes = await fetch(`/api/${apiPath}/tree`, {
+      headers: { "no-cors": "1" },
+    });
+    if (!treeRes.ok) throw new Error("Could not read the current file tree");
+    const entries: { path: string; sha: string; type?: string }[] =
+      await treeRes.json();
+    const prefix = `${dir}/`;
+    return entries.filter((e) => e.type !== "tree" && e.path.startsWith(prefix));
+  }
+  if (config.storage.kind === "github") {
+    const token = await getGithubTokenWithRefresh(config);
+    if (!token) throw new Error("Not signed in to GitHub");
+    const { owner, name } = parseRepo((config.storage as any).repo);
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+    };
+    const walk = async (
+      path: string,
+    ): Promise<{ path: string; sha: string }[]> => {
+      const res = await fetch(
+        `https://api.github.com/repos/${owner}/${name}/contents/${path}?ref=${githubBranchName}`,
+        { headers },
+      );
+      if (res.status === 404) return [];
+      if (!res.ok) throw new Error("Could not list files from GitHub");
+      const listing = await res.json();
+      if (!Array.isArray(listing)) return [];
+      const out: { path: string; sha: string }[] = [];
+      for (const e of listing) {
+        if (e.type === "file") out.push({ path: e.path, sha: e.sha });
+        else if (e.type === "dir") out.push(...(await walk(e.path)));
+      }
+      return out;
+    };
+    return walk(dir);
+  }
+  throw new Error(
+    `dry(): MVP 1 does not support storage.kind "${(config.storage as any).kind}"`,
+  );
+}
+
+async function fetchBlobBytesByPath(
+  config: Config<any, any>,
+  path: string,
+  sha: string,
+  githubBranchName?: string,
+): Promise<Uint8Array> {
+  if (config.storage.kind === "local") {
+    const res = await fetch(`/api/${apiPath}/blob/${sha}/${path}`, {
+      headers: { "no-cors": "1" },
+    });
+    if (!res.ok) throw new Error("Could not read file contents");
+    return new Uint8Array(await res.arrayBuffer());
+  }
+  const token = await getGithubTokenWithRefresh(config);
+  if (!token) throw new Error("Not signed in to GitHub");
+  const { owner, name } = parseRepo((config.storage as any).repo);
+  const res = await fetch(
+    `https://api.github.com/repos/${owner}/${name}/git/blobs/${sha}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github.raw",
+      },
+    },
+  );
+  if (!res.ok) throw new Error("Could not read file contents from GitHub");
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+// Every slug currently on disk/GitHub for a collection - powers the visual
+// editor's own rename-slug popover uniqueness check (Toolbar.tsx). The admin
+// gets this for free from its in-memory tree cache (useSlugsInCollection);
+// the visual editor has no such cache (it's a standalone tree on the live
+// site), so this re-derives it straight from the same primitives every other
+// read in this file already uses - no dedicated backend route needed for
+// local mode (the generic /tree endpoint already lists everything), and
+// github mode reuses the Contents-API-on-a-directory pattern listAssetFiles
+// already establishes.
+//
+// Local mode matches on the full recursive path, so it's exact even for a
+// `**` (nested-slug) collection. Github mode only lists one directory level
+// deep (cheaper - avoids recursing into every entry's assets/), so a `**`
+// collection would undercount there; no collection in this codebase uses
+// `**` yet (see the plan's "Ngoài scope MVP1" note), so this is an accepted
+// gap rather than a silent correctness bug in the common case.
+export async function listCollectionSlugs(
+  config: Config<any, any>,
+  collectionName: string,
+  githubBranchName?: string,
+): Promise<string[]> {
+  const collectionPath = getCollectionPath(config, collectionName);
+  const format = getCollectionFormat(config, collectionName);
+  const extension = getDataFileExtension(format);
+  const suffix = getCollectionItemSlugSuffix(config, collectionName);
+  const glob = getSlugGlobForCollection(config, collectionName);
+  const tail = `${suffix}${format.dataLocation === "index" ? "/index" : ""}${extension}`;
+  const prefix = `${collectionPath}/`;
+
+  const extractSlug = (path: string): string | undefined => {
+    if (!path.startsWith(prefix) || !path.endsWith(tail)) return undefined;
+    const slug = path.slice(prefix.length, path.length - tail.length);
+    if (!slug) return undefined;
+    if (glob === "*" && slug.includes("/")) return undefined;
+    return slug;
+  };
+
+  if (config.storage.kind === "local") {
+    const treeRes = await fetch(`/api/${apiPath}/tree`, {
+      headers: { "no-cors": "1" },
+    });
+    if (!treeRes.ok) throw new Error("Could not read the current file tree");
+    const entries: { path: string; type?: string }[] = await treeRes.json();
+    const slugs = new Set<string>();
+    for (const e of entries) {
+      if (e.type === "tree") continue;
+      const slug = extractSlug(e.path);
+      if (slug) slugs.add(slug);
+    }
+    return [...slugs];
+  }
+  if (config.storage.kind === "github") {
+    const token = await getGithubTokenWithRefresh(config);
+    if (!token) throw new Error("Not signed in to GitHub");
+    const { owner, name } = parseRepo((config.storage as any).repo);
+    const res = await fetch(
+      `https://api.github.com/repos/${owner}/${name}/contents/${collectionPath}?ref=${githubBranchName}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+        },
+      },
+    );
+    if (res.status === 404) return [];
+    if (!res.ok) throw new Error("Could not list the collection from GitHub");
+    const listing = await res.json();
+    if (!Array.isArray(listing)) return [];
+    const slugs = new Set<string>();
+    for (const e of listing as { name: string; type: string }[]) {
+      const slug = extractSlug(`${collectionPath}/${e.name}`);
+      if (slug) slugs.add(slug);
+    }
+    return [...slugs];
+  }
+  throw new Error(
+    `dry(): MVP 1 does not support storage.kind "${(config.storage as any).kind}"`,
+  );
+}
+
+// Reads redirects/index.yaml (the library-owned __redirects singleton - see
+// config.tsx), appends the given redirect via the same pure table logic the
+// admin's own rename path uses (@drystack/core/redirects), and returns the
+// file to commit alongside a rename. Absent entirely on a repo that's never
+// had a redirect yet - readCurrentFile returning null is treated as an empty
+// table, not an error.
+async function buildRedirectAddition(
+  config: Config<any, any>,
+  redirect: { from: string; to: string },
+  githubBranchName?: string,
+): Promise<FileToWrite> {
+  const ref: EntryRef = { type: "singleton", name: REDIRECTS_SINGLETON_KEY };
+  const { dataFilepath, format } = resolveEntryRef(config, ref);
+  const raw = await readCurrentFile(config, dataFilepath, githubBranchName);
+  const data = raw ? (loadDataFile(raw, format).loaded ?? {}) : {};
+  const next = appendRedirect(parseRedirectEntries(data), redirect);
+  return {
+    path: dataFilepath,
+    contents: textEncoder.encode(dump({ entries: next })),
+  };
+}
+
 // Every pending edit must satisfy its own field's schema.validate before it's
 // allowed to reach disk/GitHub - the visual editor writes raw DOM text/paths
 // straight into YAML, so without this a required/min-length/pattern field
@@ -395,16 +591,58 @@ export async function listAssetFiles(
 // returns a bool and only console.warns the specific failure, so the
 // message pushed here is a generic fallback rather than the precise reason.
 function validateField(
-  name: string,
+  config: Config<any, any>,
+  ref: EntryRef,
   baseField: string,
   schema: Record<string, ComponentSchema>,
   value: unknown,
   messages: string[],
 ): void {
+  const label = `${entryRefKey(ref)}.${baseField}`;
   const baseSchema = schema[baseField];
   if (baseSchema?.kind === "array" || baseSchema?.kind === "object") {
     if (!clientSideValidateProp(baseSchema, value, undefined)) {
-      messages.push(`${name}.${baseField} is invalid`);
+      messages.push(`${label} is invalid`);
+    }
+    return;
+  }
+  // fields.slug's own validate() expects `{ name, slug }`, not a bare string -
+  // dry.ts's makeSpot only ever lets a collection's *declared* slugField
+  // surface as a bindable text spot, and that spot's edits write just the
+  // bare `name` half back to disk (see dry.ts's slugField guard and
+  // collectFileDiffs above). Reconstruct the pair here so validation still
+  // runs the real name-length/pattern rule set instead of crashing on
+  // `value.name === undefined` (validateText indexes `.length` unguarded).
+  // MVP1 never renames, so the current slug is always valid - pass an empty
+  // exclusion set rather than fetching every sibling slug just to confirm
+  // that.
+  if (
+    ref.type === "collection" &&
+    baseField === config.collections?.[ref.name]?.slugField &&
+    typeof (baseSchema as { slugify?: unknown } | undefined)?.slugify ===
+      "function"
+  ) {
+    try {
+      (
+        baseSchema as unknown as {
+          validate(
+            value: { name: string; slug: string },
+            args?: {
+              slugField?: { slugs: Set<string>; glob: ReturnType<typeof getSlugGlobForCollection> };
+            },
+          ): unknown;
+        }
+      ).validate(
+        { name: typeof value === "string" ? value : "", slug: ref.slug },
+        {
+          slugField: {
+            slugs: new Set(),
+            glob: getSlugGlobForCollection(config, ref.name),
+          },
+        },
+      );
+    } catch (err) {
+      messages.push(err instanceof Error ? err.message : `${label} is invalid`);
     }
     return;
   }
@@ -415,9 +653,7 @@ function validateField(
         | undefined
     )?.validate?.(value, undefined);
   } catch (err) {
-    messages.push(
-      err instanceof Error ? err.message : `${name}.${baseField} is invalid`,
-    );
+    messages.push(err instanceof Error ? err.message : `${label} is invalid`);
   }
 }
 
@@ -574,7 +810,7 @@ type ContentFieldSchema = {
 // field then, and `data[dottedField]` is written directly.
 async function collectContentFieldDiffs(
   config: Config<any, any>,
-  singletonName: string,
+  ref: EntryRef,
   dottedField: string,
   html: string,
   fieldSchema: ContentFieldSchema,
@@ -582,7 +818,7 @@ async function collectContentFieldDiffs(
   containerSchema: ComponentSchema | undefined,
   githubBranchName?: string,
 ): Promise<FileDiff[]> {
-  const dir = getSingletonPath(config, singletonName);
+  const dir = resolveEntryRef(config, ref).dir;
   const entryDir = contentEntryDir(dir, dottedField);
   const assetsDir = contentAssetsDir(dir, dottedField);
   // Both the saved-on-disk bytes AND any freshly-embedded image that only
@@ -592,7 +828,7 @@ async function collectContentFieldDiffs(
   // and serialize() then silently repoints it to /media-library/ and drops
   // its bytes instead of writing them beside the entry (see listAssetFiles).
   const [saved, pending] = await Promise.all([
-    listAssetFiles(config, singletonName, githubBranchName, dottedField),
+    listAssetFiles(config, ref, githubBranchName, dottedField),
     getPendingBlobsUnder(assetsDir).catch(() => new Map<string, Uint8Array>()),
   ]);
   // Pending wins: it's the newer copy of any name present in both.
@@ -662,7 +898,7 @@ async function collectContentFieldDiffs(
   return diffs;
 }
 
-// Reads each singleton file the pending edits touch and returns its current
+// Reads each entry's file the pending edits touch and returns its current
 // (before) text alongside the text it would become once edits are applied.
 // Powers both saving (encode `after`) and the review diff dialog.
 async function collectFileDiffs(
@@ -670,42 +906,44 @@ async function collectFileDiffs(
   githubBranchName?: string,
 ): Promise<FileDiff[]> {
   const edits = await getAllEdits();
-  // name -> baseField -> (field -> raw bus value) - field may be nested
-  // (e.g. "array.3") but always shares a singleton with its base field.
-  const bySingleton = new Map<string, Map<string, Map<string, string>>>();
+  // entryRefKey -> { ref, byBaseField: baseField -> (field -> raw bus value) }
+  // - field may be nested (e.g. "array.3") but always shares an entry with
+  // its base field.
+  const byEntry = new Map<
+    string,
+    { ref: EntryRef; byBaseField: Map<string, Map<string, string>> }
+  >();
   for (const edit of edits) {
-    const [type, name, field] = edit.key.split("::");
-    if (type !== "singleton" || !name || !field) continue;
-    if (!config.singletons?.[name]) continue;
-    const baseField = field.split(".")[0];
-    if (!bySingleton.has(name)) bySingleton.set(name, new Map());
-    const byBaseField = bySingleton.get(name)!;
-    if (!byBaseField.has(baseField)) byBaseField.set(baseField, new Map());
-    byBaseField.get(baseField)!.set(field, edit.value);
+    const parsed = parseEditKey(edit.key);
+    if (!parsed) continue;
+    if (!entryRefExists(config, parsed)) continue;
+    const ref: EntryRef =
+      parsed.type === "singleton"
+        ? { type: "singleton", name: parsed.name }
+        : { type: "collection", name: parsed.name, slug: parsed.slug };
+    const key = entryRefKey(ref);
+    const baseField = parsed.field.split(".")[0];
+    if (!byEntry.has(key)) byEntry.set(key, { ref, byBaseField: new Map() });
+    const bucket = byEntry.get(key)!;
+    if (!bucket.byBaseField.has(baseField))
+      bucket.byBaseField.set(baseField, new Map());
+    bucket.byBaseField.get(baseField)!.set(parsed.field, edit.value);
   }
 
   const messages: string[] = [];
   const diffs: FileDiff[] = [];
-  for (const [name, byBaseField] of bySingleton) {
-    const format = getSingletonFormat(config, name);
+  for (const { ref, byBaseField } of byEntry.values()) {
+    const { format, dataFilepath, schema } = resolveEntryRef(config, ref);
     if (format.contentField) {
       throw new Error(
-        `dry(): singleton "${name}" has a contentField - not supported in MVP 1.`,
+        `dry(): ${entryRefKey(ref)} has a contentField - not supported in MVP 1.`,
       );
     }
-    const filepath = getEntryDataFilepath(
-      getSingletonPath(config, name),
-      format,
-    );
-    const raw = await readCurrentFile(config, filepath, githubBranchName);
+    const raw = await readCurrentFile(config, dataFilepath, githubBranchName);
     const before = raw ? textDecoder.decode(raw) : "";
     const data = (
       raw ? (loadDataFile(raw, format).loaded ?? {}) : {}
     ) as Record<string, unknown>;
-    const schema = config.singletons![name].schema as Record<
-      string,
-      ComponentSchema
-    >;
     // Collected separately from the entry's own data file: a content edit
     // also writes its .html body (and any embedded image) alongside it.
     const extraDiffs: FileDiff[] = [];
@@ -720,7 +958,7 @@ async function collectFileDiffs(
         extraDiffs.push(
           ...(await collectContentFieldDiffs(
             config,
-            name,
+            ref,
             baseField,
             html,
             schema[baseField] as unknown as ContentFieldSchema,
@@ -768,7 +1006,7 @@ async function collectFileDiffs(
         data[baseField] = merged;
       }
       const validatedValue = isAsset && merged === "" ? null : merged;
-      validateField(name, baseField, schema, validatedValue, messages);
+      validateField(config, ref, baseField, schema, validatedValue, messages);
 
       for (const [dottedField, html] of contentSubEdits) {
         const leafSchema = resolveSchemaAtFieldPath(schema, dottedField);
@@ -776,7 +1014,7 @@ async function collectFileDiffs(
         extraDiffs.push(
           ...(await collectContentFieldDiffs(
             config,
-            name,
+            ref,
             dottedField,
             html,
             leafSchema as unknown as ContentFieldSchema,
@@ -787,7 +1025,7 @@ async function collectFileDiffs(
         );
       }
     }
-    diffs.push({ path: filepath, before, after: dump(data) });
+    diffs.push({ path: dataFilepath, before, after: dump(data) });
     diffs.push(...extraDiffs);
   }
   if (messages.length > 0) {
@@ -796,15 +1034,98 @@ async function collectFileDiffs(
   return diffs;
 }
 
+// A pending slug change (Phase 9) - the entry moves from `ref.slug` to
+// `newSlug` on disk/GitHub, optionally leaving a 301 behind. `redirect` is
+// only ever set when the collection declares `previewUrl` (see Toolbar.tsx -
+// without a public URL there's nothing to redirect *from*) and the user chose
+// "Create 301 redirect" over "Rename without redirect" in the confirm dialog.
+export type RenameRequest = {
+  ref: Extract<EntryRef, { type: "collection" }>;
+  newSlug: string;
+  redirect?: { from: string; to: string };
+};
+
 async function buildFileChanges(
   config: Config<any, any>,
   githubBranchName?: string,
-): Promise<FileToWrite[]> {
+  rename?: RenameRequest,
+): Promise<{ additions: FileToWrite[]; deletions: { path: string }[] }> {
   const diffs = await collectFileDiffs(config, githubBranchName);
-  return diffs.map((d) => ({
+  let additions: FileToWrite[] = diffs.map((d) => ({
     path: d.path,
     contents: d.contents ?? textEncoder.encode(d.after),
   }));
+  let deletions: { path: string }[] = [];
+
+  if (rename) {
+    const oldDir = resolveEntryRef(config, rename.ref).dir;
+    const newRef: EntryRef = {
+      type: "collection",
+      name: rename.ref.name,
+      slug: rename.newSlug,
+    };
+    const newDir = resolveEntryRef(config, newRef).dir;
+    const oldPrefix = `${oldDir}/`;
+
+    // Base layer: a byte-for-byte copy of every file currently under the old
+    // entry directory (its data file, a content field's sibling .html,
+    // assets/, any nested content field's own assets/) - a rename moves the
+    // WHOLE entry, not just whatever this session happened to edit. Without
+    // this, a field untouched this session (e.g. the article body, or its
+    // embedded images) would simply vanish once the old directory below is
+    // deleted - it was never captured as a "diff" because nothing edited it.
+    const oldFiles = await listDirectoryFiles(config, oldDir, githubBranchName);
+    const byNewPath = new Map<string, Uint8Array>();
+    await Promise.all(
+      oldFiles.map(async (f) => {
+        const bytes = await fetchBlobBytesByPath(
+          config,
+          f.path,
+          f.sha,
+          githubBranchName,
+        );
+        byNewPath.set(newDir + f.path.slice(oldDir.length), bytes);
+      }),
+    );
+
+    // Overlay layer: this session's own pending-edit diffs for the renamed
+    // entry, re-pathed onto the new directory - these carry the freshly
+    // merged/validated values (including any edited content field's fresh
+    // HTML and newly embedded images), so they must win over the raw
+    // verbatim copy above at the same path. Diffs belonging to OTHER entries
+    // (a singleton, another collection item edited in the same session) are
+    // unrelated to this rename and pass straight through unchanged.
+    const remaining: FileToWrite[] = [];
+    for (const a of additions) {
+      if (a.path.startsWith(oldPrefix)) {
+        byNewPath.set(newDir + a.path.slice(oldDir.length), a.contents);
+      } else {
+        remaining.push(a);
+      }
+    }
+    additions = [
+      ...remaining,
+      ...[...byNewPath.entries()].map(([path, contents]) => ({
+        path,
+        contents,
+      })),
+    ];
+    deletions = oldFiles.map((f) => ({ path: f.path }));
+
+    if (rename.redirect) {
+      const redirectAddition = await buildRedirectAddition(
+        config,
+        rename.redirect,
+        githubBranchName,
+      );
+      additions = [
+        ...additions.filter((a) => a.path !== redirectAddition.path),
+        redirectAddition,
+      ];
+    }
+  }
+
+  return { additions, deletions };
 }
 
 // The branch segment the admin app's routes expect (e.g. "branch/main/") -
@@ -820,43 +1141,41 @@ export async function getCurrentBranchName(
   return branch.branchName;
 }
 
-// The singleton's current on-disk field values, read straight from the
-// source (local API, or GitHub Contents API at the default branch) rather
-// than trusting whatever HTML the page happened to render with - that HTML
-// can be stale in github mode if this visitor's Cloudflare CDN edge hasn't
-// caught up with the latest deploy yet. String-valued (fields.text) entries
-// pass through as-is; fields.array entries are JSON-encoded to fit this
+// The entry's current on-disk field values, read straight from the source
+// (local API, or GitHub Contents API at the given branch) rather than
+// trusting whatever HTML the page happened to render with - that HTML can be
+// stale in github mode if this visitor's Cloudflare CDN edge hasn't caught
+// up with the latest deploy yet. String-valued (fields.text) entries pass
+// through as-is; fields.array entries are JSON-encoded to fit this
 // function's Record<string, string> shape, matching the encoding used
 // everywhere else on the edit-sync bus (see bind.ts's parseArrayValue and the
 // array dialog's publishEdit in Toolbar.tsx) - MVP scope, see dry.ts.
+//
+// `branch` is resolved by the caller (getCurrentBranchName), not here - a
+// page with several bound entries (a whole collection listing) calls this
+// once per entry, and re-resolving the same branch inside each call would be
+// one wasted GraphQL round trip per entry for a value that's identical every
+// time. `onlyFields`, when given, skips both the JSON re-encode and the
+// content field's sibling .html fetch for every field the caller doesn't
+// actually have a spot for - a listing page binds title/excerpt/cover, not
+// body, and has no reason to fetch every entry's whole article body just to
+// refresh three text fields.
 export async function getLatestFieldValues(
   config: Config<any, any>,
-  singletonName: string,
+  ref: EntryRef,
+  branch: string | undefined,
+  onlyFields?: Set<string>,
 ): Promise<Record<string, string>> {
-  let branch: string | undefined;
-  if (config.storage.kind === "github") {
-    const token = await getGithubTokenWithRefresh(config);
-    if (!token) throw new Error("Not signed in to GitHub");
-    const { owner, name } = parseRepo((config.storage as any).repo);
-    branch = (await getDefaultBranch(token, owner, name)).branchName;
-  }
-  const format = getSingletonFormat(config, singletonName);
-  const filepath = getEntryDataFilepath(
-    getSingletonPath(config, singletonName),
-    format,
-  );
-  const raw = await readCurrentFile(config, filepath, branch);
+  const { dir, format, dataFilepath, schema } = resolveEntryRef(config, ref);
+  const raw = await readCurrentFile(config, dataFilepath, branch);
   if (!raw) return {};
   const data = (loadDataFile(raw, format).loaded ?? {}) as Record<
     string,
     unknown
   >;
-  const schema = config.singletons![singletonName].schema as Record<
-    string,
-    unknown
-  >;
   const result: Record<string, string> = {};
   for (const [field, value] of Object.entries(data)) {
+    if (onlyFields && !onlyFields.has(field)) continue;
     if (typeof value === "string") {
       result[field] = value;
       continue;
@@ -878,9 +1197,9 @@ export async function getLatestFieldValues(
   // holds its { wordCount, charCount } summary - so it needs its own read of
   // the sibling .html body. Driven off the schema rather than `data`'s keys:
   // a body can exist before the summary does.
-  const dir = getSingletonPath(config, singletonName);
   await Promise.all(
     Object.entries(schema).map(async ([field, fieldSchema]) => {
+      if (onlyFields && !onlyFields.has(field)) return;
       if (getSyncableFieldKind(fieldSchema as any) !== "content") return;
       const raw = await readCurrentFile(config, `${dir}/${field}.html`, branch);
       if (raw) result[field] = textDecoder.decode(raw);
@@ -913,7 +1232,9 @@ export async function getPendingDiffs(
 // are opt-in, the default branch itself, which sees the change immediately.
 export async function saveEdits(
   config: Config<any, any>,
+  opts?: { rename?: RenameRequest },
 ): Promise<string | undefined> {
+  const rename = opts?.rename;
   const isGithub = config.storage.kind === "github";
   let commitOid: string | undefined;
   if (isGithub) {
@@ -925,8 +1246,13 @@ export async function saveEdits(
     let branch = await getBranchRef(token, owner, name, brandQualifiedName);
     if (!branch)
       throw new Error(`Could not find brand branch "${brand.ref}" on GitHub.`);
-    let files = await buildFileChanges(config, branch.branchName);
-    if (files.length === 0) return undefined;
+    let files = await buildFileChanges(config, branch.branchName, rename);
+    // A rename with no other pending edits still has real work to do (move
+    // the directory) even though `additions` alone might look empty in a
+    // degenerate case - deletions is the true "nothing to commit" signal
+    // once a rename is involved.
+    if (files.additions.length === 0 && files.deletions.length === 0)
+      return undefined;
 
     const commit = () =>
       githubGraphQL(token, createCommitMutation, {
@@ -936,13 +1262,17 @@ export async function saveEdits(
             repositoryNameWithOwner: `${owner}/${name}`,
           },
           expectedHeadOid: branch!.oid,
-          message: { headline: "Update content via visual editor" },
+          message: {
+            headline: rename
+              ? `Rename ${rename.ref.name}/${rename.ref.slug} to ${rename.newSlug}`
+              : "Update content via visual editor",
+          },
           fileChanges: {
-            additions: files.map((f) => ({
+            additions: files.additions.map((f) => ({
               path: f.path,
               contents: base64Encode(f.contents),
             })),
-            deletions: [],
+            deletions: files.deletions,
           },
         },
       });
@@ -968,8 +1298,9 @@ export async function saveEdits(
         throw new Error(
           `Could not find brand branch "${brand.ref}" on GitHub.`,
         );
-      files = await buildFileChanges(config, branch.branchName);
-      if (files.length === 0) return undefined;
+      files = await buildFileChanges(config, branch.branchName, rename);
+      if (files.additions.length === 0 && files.deletions.length === 0)
+        return undefined;
       try {
         data = await commit();
       } catch {
@@ -980,17 +1311,17 @@ export async function saveEdits(
     }
     commitOid = data?.createCommitOnBranch?.ref?.target?.oid;
   } else if (config.storage.kind === "local") {
-    const files = await buildFileChanges(config);
-    if (files.length === 0) return;
+    const files = await buildFileChanges(config, undefined, rename);
+    if (files.additions.length === 0 && files.deletions.length === 0) return;
     const res = await fetch(`/api/${apiPath}/update`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "no-cors": "1" },
       body: JSON.stringify({
-        additions: files.map((f) => ({
+        additions: files.additions.map((f) => ({
           path: f.path,
           contents: base64Encode(f.contents),
         })),
-        deletions: [],
+        deletions: files.deletions,
       }),
     });
     if (!res.ok) throw new Error(await res.text());
@@ -1004,6 +1335,14 @@ export async function saveEdits(
   } else {
     throw new Error(
       `dry(): MVP 1 does not support storage.kind "${(config.storage as any).kind}"`,
+    );
+  }
+  if (rename) {
+    // The old slug's admin draft (if any - see packages/drystack/src/app/
+    // persistence.tsx) is now orphaned: its key is the old slug, which no
+    // longer resolves to anything. Best-effort - a missing draft is a no-op.
+    await delDraft(["collection", rename.ref.name, rename.ref.slug]).catch(
+      () => {},
     );
   }
   await publishClear();

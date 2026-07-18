@@ -15,9 +15,12 @@ import {
   clearSourceCache,
   getPendingBlob,
   clearPendingBlobs,
+  entryRefKey,
+  parseEditKey,
   type EditBusMessage,
+  type EntryRef,
 } from "./store";
-import { getLatestFieldValues } from "./save";
+import { getCurrentBranchName, getLatestFieldValues } from "./save";
 
 const BUILD_VERSION_KEY = "buildVersion";
 
@@ -1027,21 +1030,50 @@ function parseObjectValue(value: string): Record<string, unknown> | undefined {
 export async function refreshFromLatestSource(
   config: Config<any, any>,
 ): Promise<void> {
-  const singletonNames = new Set<string>();
+  const refs = new Map<string, EntryRef>();
+  const fieldsByEntry = new Map<string, Set<string>>();
   document.querySelectorAll<HTMLElement>("[data-dry]").forEach((el) => {
-    const [type, name] = el.getAttribute("data-dry")?.split("::") ?? [];
-    if (type === "singleton" && name) singletonNames.add(name);
+    const parsed = parseEditKey(el.getAttribute("data-dry") ?? "");
+    if (!parsed) return;
+    const ref: EntryRef =
+      parsed.type === "singleton"
+        ? { type: "singleton", name: parsed.name }
+        : { type: "collection", name: parsed.name, slug: parsed.slug };
+    const key = entryRefKey(ref);
+    refs.set(key, ref);
+    if (!fieldsByEntry.has(key)) fieldsByEntry.set(key, new Set());
+    fieldsByEntry.get(key)!.add(parsed.field);
   });
 
   const pendingEdits = new Map(
     (await getAllEdits()).map((edit) => [edit.key, edit.value]),
   );
 
+  // Resolved once for every bound entry on the page, not once per entry -
+  // getLatestFieldValues used to re-resolve the same github branch inside
+  // every call, which is one wasted GraphQL round trip per entry; a whole
+  // collection listing page would otherwise multiply that by its item count.
+  // A failure here (e.g. not signed in to GitHub) used to abort each
+  // singleton's refresh individually via its own try/catch - since every
+  // entry shares the same token/branch, one failure means all would have
+  // failed anyway, so skipping the whole refresh here is equivalent.
+  let branch: string | undefined;
+  try {
+    branch = await getCurrentBranchName(config);
+  } catch {
+    return;
+  }
+
   await Promise.all(
-    Array.from(singletonNames, async (name) => {
+    Array.from(refs.entries(), async ([key, ref]) => {
       let latest: Record<string, string>;
       try {
-        latest = await getLatestFieldValues(config, name);
+        latest = await getLatestFieldValues(
+          config,
+          ref,
+          branch,
+          fieldsByEntry.get(key),
+        );
       } catch {
         return;
       }
@@ -1049,18 +1081,17 @@ export async function refreshFromLatestSource(
       // "commit landed on GitHub" and "the next static build/deploy actually
       // ships it" still shows this instead of stale pre-deploy HTML - see
       // applyCachedSource below.
-      await setSourceCache(name, latest);
+      await setSourceCache(ref, latest);
       document
-        .querySelectorAll<HTMLElement>(
-          `[data-dry^="singleton::${CSS.escape(name)}::"]`,
-        )
+        .querySelectorAll<HTMLElement>(`[data-dry^="${CSS.escape(key)}::"]`)
         .forEach((el) => {
-          const key = el.getAttribute("data-dry")!;
-          if (pendingEdits.has(key)) return;
-          const field = key.split("::")[2];
+          const dataDry = el.getAttribute("data-dry")!;
+          if (pendingEdits.has(dataDry)) return;
+          const field = parseEditKey(dataDry)?.field;
+          if (!field) return;
           const value = latest[field];
           if (value === undefined) return;
-          paintFetchedValue(el, key, value, pendingEdits);
+          paintFetchedValue(el, dataDry, value, pendingEdits);
         });
     }),
   );
@@ -1173,27 +1204,31 @@ export async function applyEdit(key: string, value: string): Promise<void> {
 async function applyCachedSource(
   pendingEdits: Map<string, string>,
 ): Promise<void> {
-  const singletonNames = new Set<string>();
+  const refs = new Map<string, EntryRef>();
   document.querySelectorAll<HTMLElement>("[data-dry]").forEach((el) => {
-    const [type, name] = el.getAttribute("data-dry")?.split("::") ?? [];
-    if (type === "singleton" && name) singletonNames.add(name);
+    const parsed = parseEditKey(el.getAttribute("data-dry") ?? "");
+    if (!parsed) return;
+    const ref: EntryRef =
+      parsed.type === "singleton"
+        ? { type: "singleton", name: parsed.name }
+        : { type: "collection", name: parsed.name, slug: parsed.slug };
+    refs.set(entryRefKey(ref), ref);
   });
 
   await Promise.all(
-    Array.from(singletonNames, async (name) => {
-      const cached = await getSourceCache(name);
+    Array.from(refs.entries(), async ([key, ref]) => {
+      const cached = await getSourceCache(ref);
       if (!cached) return;
       document
-        .querySelectorAll<HTMLElement>(
-          `[data-dry^="singleton::${CSS.escape(name)}::"]`,
-        )
+        .querySelectorAll<HTMLElement>(`[data-dry^="${CSS.escape(key)}::"]`)
         .forEach((el) => {
-          const key = el.getAttribute("data-dry")!;
-          if (pendingEdits.has(key)) return;
-          const field = key.split("::")[2];
+          const dataDry = el.getAttribute("data-dry")!;
+          if (pendingEdits.has(dataDry)) return;
+          const field = parseEditKey(dataDry)?.field;
+          if (!field) return;
           const value = cached[field];
           if (value === undefined) return;
-          paintFetchedValue(el, key, value, pendingEdits);
+          paintFetchedValue(el, dataDry, value, pendingEdits);
         });
     }),
   );

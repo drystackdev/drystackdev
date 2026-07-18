@@ -147,6 +147,21 @@ body.editing [data-dry-kind="object"] {
   transform: translateY(0);
 }
 
+/* Slug-rename gear (Phase 9) - reuses .dry-array-gear's shape/position/hover/
+   tooltip wholesale (same class list in Toolbar.tsx), only the fill differs
+   so it doesn't read as "edit this list" like the array/object gear does.
+   Clicking it opens SlugFieldDialog, a real Keystar `<Dialog>` (via
+   DialogContainer) - that overlay path already re-wraps its portaled content
+   in a fresh KeystarProvider (see @keystar/ui/overlays' Overlay component),
+   so --kui-* tokens resolve correctly with no extra CSS needed here for the
+   dialog itself. */
+.dry-slug-gear {
+  background: #7c3aed;
+}
+.dry-slug-gear:hover {
+  background: #6d28d9;
+}
+
 /* The editor's mount node (ROOT_ID in index.tsx), a direct child of <body>.
    KeystarProvider wraps everything below it in a div with `isolation: isolate`,
    which opens a stacking context - so a z-index on .dry-bar only competes with
@@ -389,6 +404,42 @@ body > .kui-scheme--auto {
   align-items: center;
   gap: 3px;
   vertical-align: middle;
+}
+
+/* Rename reload-gate banner (Phase 9, github mode) - shown independent of
+   edit mode once a rename has committed and the visitor is waiting for
+   Cloudflare to build+serve the new URL (see Toolbar.tsx's renameWaiting).
+   Deliberately more visible/persistent than the passive .dry-active-spot
+   HUD, since it represents a real wait the visitor needs to notice. */
+.dry-rename-banner {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483001;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  background: #111827;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.4;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.dry-rename-banner-action {
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 4px;
+  padding: 3px 10px;
+  background: transparent;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+.dry-rename-banner-action:hover {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 /* Hover dropdown listing the singletons editable on the page. Rendered through

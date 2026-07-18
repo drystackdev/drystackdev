@@ -203,3 +203,62 @@ export function getPathPrefix(storage: Config['storage']) {
   }
   return fixPath(storage.pathPrefix) + '/';
 }
+
+// Identifies one editable entry - either the singleton's own single instance,
+// or one slug's worth of a collection. Shared vocabulary between the visual
+// editor (packages/astro/src/editor) and the edit-sync bus so both address a
+// singleton/collection-item the same way instead of each hand-rolling their
+// own singleton-only path (see edit-sync.ts's editKey/parseEditKey).
+export type EntryRef =
+  | { type: 'singleton'; name: string }
+  | { type: 'collection'; name: string; slug: string };
+
+export function entryRefExists(config: Config, ref: EntryRef): boolean {
+  return ref.type === 'singleton'
+    ? Boolean(config.singletons?.[ref.name])
+    : Boolean(config.collections?.[ref.name]);
+}
+
+// Resolves an EntryRef into everything a reader/writer needs to locate and
+// parse its on-disk file(s) - the single place that branches on
+// singleton-vs-collection for path/format/schema, so save.ts, Toolbar.tsx,
+// InlineContentEditors.tsx etc. never have to hand-roll that branch
+// themselves. Built entirely from the existing getSingletonPath/
+// getCollectionItemPath/getSingletonFormat/getCollectionFormat/
+// getEntryDataFilepath helpers above - no new path logic.
+export function resolveEntryRef(
+  config: Config,
+  ref: EntryRef
+): {
+  dir: string;
+  format: FormatInfo;
+  dataFilepath: string;
+  schema: Record<string, ComponentSchema>;
+  label: string;
+  slug: string | undefined;
+} {
+  if (ref.type === 'singleton') {
+    const dir = getSingletonPath(config, ref.name);
+    const format = getSingletonFormat(config, ref.name);
+    const singletonConfig = config.singletons![ref.name];
+    return {
+      dir,
+      format,
+      dataFilepath: getEntryDataFilepath(dir, format),
+      schema: singletonConfig.schema,
+      label: singletonConfig.label,
+      slug: undefined,
+    };
+  }
+  const dir = getCollectionItemPath(config, ref.name, ref.slug);
+  const format = getCollectionFormat(config, ref.name);
+  const collectionConfig = config.collections![ref.name];
+  return {
+    dir,
+    format,
+    dataFilepath: getEntryDataFilepath(dir, format),
+    schema: collectionConfig.schema,
+    label: collectionConfig.label,
+    slug: ref.slug,
+  };
+}

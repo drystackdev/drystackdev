@@ -59,7 +59,12 @@ import {
 import { ForkRepoDialog } from "./fork-repo";
 import l10nMessages from "./l10n";
 import { NotFoundBoundary, notFound } from "./not-found";
-import { getDataFileExtension, getPathPrefix } from "./path-utils";
+import {
+  getDataFileExtension,
+  getPathPrefix,
+  type EntryRef,
+} from "./path-utils";
+import { useEntryEditSync } from "./useEntryEditSync";
 import { useRouter } from "./router";
 import { HeaderBreadcrumbs } from "./shell/HeaderBreadcrumbs";
 import { useConfig } from "./shell/context";
@@ -545,11 +550,28 @@ function LocalItemPage(
     localTreeKey,
   });
 
+  // Per-field values a *remote* save/reset (another tab, or the visual
+  // editor) has already committed to disk - see useEntryEditSync. Merged
+  // into `initialState` for the hasChanged/"Unsaved" check so content saved
+  // from elsewhere doesn't keep showing as locally unsaved. Reset alongside
+  // `state` whenever the tree genuinely reloads (below): the fresh
+  // `initialState` prop already carries these values then. Mirrors
+  // SingletonPage.tsx's identical pattern.
+  const [committedOverrides, setCommittedOverrides] = useState<
+    Record<string, unknown>
+  >({});
+
   useShowRestoredDraftMessage(draft, state, localTreeKey);
 
   if (localTreeKeyInState !== localTreeKey) {
     setState({ state: initialState, localTreeKey });
+    setCommittedOverrides({});
   }
+
+  const effectiveInitialState = useMemo(
+    () => ({ ...initialState, ...committedOverrides }),
+    [initialState, committedOverrides],
+  );
 
   const onPreviewPropsChange = useCallback(
     (
@@ -566,20 +588,30 @@ function LocalItemPage(
   const previewProps = usePreviewProps(schema, onPreviewPropsChange, state);
 
   const hasChanged = useHasChanged({
-    initialState,
+    initialState: effectiveInitialState,
     schema,
     state,
     slugField: collectionConfig.slugField,
   });
 
   const changes = useMemo(
-    () => computeFieldChanges(schema, initialState, state),
-    [schema, initialState, state],
+    () => computeFieldChanges(schema, effectiveInitialState, state),
+    [schema, effectiveInitialState, state],
   );
 
   const slug = getSlugFromState(collectionConfig, state);
   const formatInfo = getCollectionFormat(config, collection);
   const futureBasePath = getCollectionItemPath(config, collection, slug);
+  // The entry's *current* on-disk directory (URL slug), not futureBasePath
+  // (live form-state slug, which only matters once a rename actually saves)
+  // - the bus is keyed by where the entry lives right now, so its identity
+  // can't shift mid-edit just because the user is typing a new title. See
+  // MVP1's "slug is a fixed key" scope: rename isn't wired up yet.
+  const entryDir = getCollectionItemPath(config, collection, props.itemSlug);
+  const itemRef: EntryRef = useMemo(
+    () => ({ type: "collection", name: collection, slug: props.itemSlug }),
+    [collection, props.itemSlug],
+  );
   const [updateResult, _update, resetUpdateItem] = useUpsertItem({
     state,
     initialFiles,
@@ -590,6 +622,32 @@ function LocalItemPage(
     currentLocalTreeKey: localTreeKey,
     slug: { field: collectionConfig.slugField, value: slug },
   });
+
+  // See useEntryEditSync's own doc comment for the full mechanics (mount
+  // catch-up, debounced publish, live subscribeEdits, and dropping
+  // now-committed keys after a save) - shared verbatim with
+  // LocalSingletonPage (SingletonPage.tsx), so a collection item now
+  // participates in the same cross-tab/visual-editor bus a singleton
+  // already did. Called here (after useUpsertItem) so `updateResult` is
+  // available for the last of those steps.
+  useEntryEditSync({
+    ref: itemRef,
+    schema: collectionConfig.schema,
+    entryDir,
+    state,
+    onPreviewPropsChange,
+    // The raw as-loaded value, not effectiveInitialState - matches
+    // LocalSingletonPage's identical call. This only feeds ownContentValues
+    // (mining embedded-image bytes from what was actually on disk at load),
+    // never the hasChanged/"Unsaved" baseline, so it must stay the fixed
+    // as-loaded snapshot rather than the moving committedOverrides-merged one.
+    initialState,
+    committedOverrides,
+    setCommittedOverrides,
+    updateResult,
+  });
+
+  const resetState = effectiveInitialState;
 
   useEffect(() => {
     const key = ["collection", collection, props.itemSlug] as const;
@@ -635,16 +693,16 @@ function LocalItemPage(
   });
 
   const onReset = () => {
-    setState({ state: initialState, localTreeKey });
+    setState({ state: resetState, localTreeKey });
   };
   const onRevertField = useCallback(
     (key: string) => {
       setState((s) => ({
         localTreeKey: s.localTreeKey,
-        state: { ...s.state, [key]: initialState[key] },
+        state: { ...s.state, [key]: resetState[key] },
       }));
     },
-    [initialState],
+    [resetState],
   );
   return (
     <ItemPageInner

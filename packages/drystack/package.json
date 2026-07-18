@@ -72,6 +72,10 @@
       "drystack-src": "./src/app/redirects.ts",
       "default": "./dist/app/redirects.js"
     },
+    "./persistence": {
+      "drystack-src": "./src/app/persistence.tsx",
+      "default": "./dist/app/persistence.js"
+    },
     "./edit-sync": {
       "drystack-src": "./src/app/edit-sync.ts",
       "default": "./dist/app/edit-sync.js"

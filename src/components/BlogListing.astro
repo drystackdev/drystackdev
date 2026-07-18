@@ -5,11 +5,20 @@ import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
 import Icon from "../components/Icon.astro";
 import JsonLd from "./JsonLd.astro";
-import type { BlogPost } from "../data/blog";
+import { dry } from "../lib/dry";
 import type { DryItem } from "@drystack/astro/dry";
 
+// Derived from the live `dry` instance so this always matches whatever
+// createDry(config) actually resolves for the blog collection - see
+// dry.collection("blog").all() in src/pages/blog/index.astro, which is what
+// produces this prop. Unresolved mode (the default, no resolveLinkedFiles) -
+// a listing card never needs `body`, so this intentionally does NOT pull
+// every post's body.html just to render title/excerpt/cover.
+type BlogCollectionHandle = ReturnType<typeof dry.collection<"blog">>;
+type BlogEntry = Awaited<ReturnType<BlogCollectionHandle["all"]>>[string];
+
 interface Props {
-  posts: BlogPost[];
+  posts: BlogEntry[];
   basePath: string;
   metaTitle: string;
   metaDescription: string;
@@ -111,10 +120,17 @@ const breadcrumbSchema = {
           sorted.map((p) => (
             <a href={`${basePath}/${p.slug}`} class="blog-card reveal">
               <div class="blog-card__cover">
-                <Image src={p.cover} alt={p.title} loading="lazy" width={800} height={450} />
+                <Image
+                  src={p.cover || ""}
+                  alt={p.title}
+                  loading="lazy"
+                  width={800}
+                  height={450}
+                  {...p.view("cover")}
+                />
               </div>
-              <h3>{p.title}</h3>
-              <p class="blog-card__excerpt">{p.excerpt}</p>
+              <h3 {...p.view("title")}>{p.title}</h3>
+              <p class="blog-card__excerpt" {...p.view("excerpt")}>{p.excerpt}</p>
               <div class="blog-card__meta">
                 <span>
                   <Icon name="calendar" size={14} /> {formatDate(p.date)}

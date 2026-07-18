@@ -1,28 +1,36 @@
 ---
 import BlogPostDetail from "../../components/BlogPostDetail.astro";
 import { getBlogPosts } from "../../data/blog";
+import { dry } from "../../lib/dry";
 
 export async function getStaticPaths() {
-	const posts = await getBlogPosts();
-	return posts.map((p) => ({
-		params: { slug: p.slug },
-	}));
+	// Unresolved (no resolveLinkedFiles) - only .publish/.slug are needed
+	// here, so this skips reading every post's body.html for nothing.
+	const posts = await dry.collection("blog").all();
+	return Object.values(posts)
+		.filter((p) => p.publish)
+		.map((p) => ({ params: { slug: p.slug } }));
 }
 
 // Fetched fresh by slug (rather than trusting the getStaticPaths props)
 // so edits show up immediately in `astro dev` without a server restart -
 // Astro only recomputes getStaticPaths props once per dev-server lifetime.
-const posts = await getBlogPosts();
-const post = posts.find((p) => p.slug === Astro.params.slug);
-if (!post) {
+// .entry(), not .all().find() - re-reading (and re-parsing body.html for)
+// every post just to find one slug would be O(n²) across a full build.
+const entry = await dry.collection("blog").entry(Astro.params.slug!);
+if (!entry || !entry.publish) {
 	return Astro.redirect("/blog");
 }
 
-const related = posts.filter((p) => p.slug !== post.slug).slice(0, 3);
+// `related` only needs lightweight metadata (title/excerpt/cover/slug), not
+// bind()/view() - getBlogPosts() already shapes that cheaply and is sorted
+// by date, which entry.bind()'s shape doesn't carry.
+const posts = await getBlogPosts();
+const related = posts.filter((p) => p.slug !== entry.slug).slice(0, 3);
 ---
 
 <BlogPostDetail
-	post={post}
+	entry={entry}
 	related={related}
 	basePath="/blog"
 	eyebrowLabel="Bài viết"

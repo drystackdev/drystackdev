@@ -15,7 +15,12 @@ import type {
   Config,
   ObjectField,
 } from "@drystack/core";
-import { getSingletonPath } from "@drystack/core/path-utils";
+import {
+  entryRefExists,
+  getSlugGlobForCollection,
+  resolveEntryRef,
+  type EntryRef,
+} from "@drystack/core/path-utils";
 import { getAuth } from "@drystack/core/auth";
 import {
   openMediaLibrary,
@@ -37,6 +42,7 @@ import { eyeIcon } from "@keystar/ui/icon/icons/eyeIcon";
 import { externalLinkIcon } from "@keystar/ui/icon/icons/externalLinkIcon";
 import { listIcon } from "@keystar/ui/icon/icons/listIcon";
 import { bracesIcon } from "@keystar/ui/icon/icons/bracesIcon";
+import { linkIcon } from "@keystar/ui/icon/icons/linkIcon";
 import { VStack } from "@keystar/ui/layout";
 import { Content } from "@keystar/ui/slots";
 import { toastQueue } from "@keystar/ui/toast";
@@ -54,6 +60,9 @@ import {
   FormValueContentFromPreviewProps,
   clientSideValidateProp,
   EntryDirectoryProvider,
+  PathContextProvider,
+  SlugFieldProvider,
+  type SlugFieldInfo,
 } from "@drystack/core/field-editor";
 import {
   enableEditing,
@@ -75,9 +84,23 @@ import {
   putPendingBlob,
   getPendingBlob,
 } from "./store";
-import { saveEdits, getCurrentBranchName, getGithubToken } from "./save";
-import { isAssetKind } from "@drystack/core/edit-sync";
+import {
+  saveEdits,
+  getCurrentBranchName,
+  getGithubToken,
+  listCollectionSlugs,
+  type RenameRequest,
+} from "./save";
+import {
+  clearSourceCache,
+  editKey,
+  entryRefKey,
+  isAssetKind,
+  parseEditKey,
+  resolveSchemaAtFieldPath,
+} from "@drystack/core/edit-sync";
 import { CloudflareStatusInline } from "@drystack/core/deploy-cloudflare-status";
+import { watchBuildStatus } from "@drystack/core/build-status";
 import { useVeiDeploy } from "./deploy";
 
 // Loaded lazily (only once the visual editor actually enters edit mode) -
@@ -102,7 +125,7 @@ const InlineContentEditors = lazy(() =>
   })),
 );
 
-type Spot = { key: string; name: string; field: string };
+type Spot = { key: string; ref: EntryRef; field: string };
 
 // The single source of truth for "what's actually pending" - reads
 // IndexedDB via getAllEdits() and drops any entry whose value happens to
@@ -114,12 +137,15 @@ type Spot = { key: string; name: string; field: string };
 // (rather than threaded through from config) since that's the same
 // attribute bind.ts already dispatches on to paint the value - one fewer
 // thing that could disagree. Defaults to 'text' if no matching element is on
-// this page (e.g. a pending edit for a singleton not rendered here).
+// this page (e.g. a pending edit for an entry not rendered here).
 //
-// `label` is resolved from the singleton's own schema (same `field.label ??
-// key` fallback as the admin's computeFieldChanges) rather than the raw
-// field key, so the review dialog reads identically in the admin and here -
-// see CLAUDE.md's UI-consistency expectations for this shared component.
+// `label` is resolved from the entry's own schema (same `field.label ?? key`
+// fallback as the admin's computeFieldChanges) via resolveSchemaAtFieldPath
+// (not a flat `schema[field]` lookup) so a nested field like "brand.name"
+// resolves a real label too, rather than always falling back to the raw
+// dotted key - matches the admin here so the review dialog reads
+// identically in both places, see CLAUDE.md's UI-consistency expectations
+// for this shared component.
 async function getPendingChanges(
   config: Config<any, any>,
 ): Promise<FieldChange[]> {
@@ -127,7 +153,7 @@ async function getPendingChanges(
   return (
     edits
       .map((e) => {
-        const [, name, field] = e.key.split("::");
+        const parsed = parseEditKey(e.key);
         const el = document.querySelector<HTMLElement>(
           `[data-dry="${CSS.escape(e.key)}"]`,
         );
@@ -135,12 +161,23 @@ async function getPendingChanges(
         const kind: "text" | "image" | "file" = isAssetKind(dryKind)
           ? dryKind
           : "text";
-        const fieldSchema = config.singletons?.[name]?.schema?.[field] as
-          | { label?: string }
-          | undefined;
+        let label = parsed?.field ?? e.key;
+        if (parsed) {
+          const ref: EntryRef =
+            parsed.type === "singleton"
+              ? { type: "singleton", name: parsed.name }
+              : { type: "collection", name: parsed.name, slug: parsed.slug };
+          if (entryRefExists(config, ref)) {
+            const fieldSchema = resolveSchemaAtFieldPath(
+              resolveEntryRef(config, ref).schema,
+              parsed.field,
+            ) as { label?: string } | undefined;
+            label = fieldSchema?.label ?? parsed.field;
+          }
+        }
         return {
           key: e.key,
-          label: fieldSchema?.label ?? field,
+          label,
           kind,
           isContent: dryKind === "content",
           before: getOriginalValue(e.key) ?? "",
@@ -197,17 +234,21 @@ function writeStoredEditing(value: boolean): void {
 // site title in both the header and footer), and consumers below need one
 // entry per key, not one per DOM node, since they re-query all matching
 // elements by key when they need to touch the DOM.
-function readSpots(): Spot[] {
+function readSpots(config: Config<any, any>): Spot[] {
   const seen = new Set<string>();
   const spots: Spot[] = [];
   document.querySelectorAll<HTMLElement>("[data-dry]").forEach((el) => {
     const key = el.getAttribute("data-dry");
     if (!key || seen.has(key)) return;
-    const [type, name, field] = key.split("::");
-    if (type === "singleton" && name && field) {
-      seen.add(key);
-      spots.push({ key, name, field });
-    }
+    const parsed = parseEditKey(key);
+    if (!parsed) return;
+    const ref: EntryRef =
+      parsed.type === "singleton"
+        ? { type: "singleton", name: parsed.name }
+        : { type: "collection", name: parsed.name, slug: parsed.slug };
+    if (!entryRefExists(config, ref)) return;
+    seen.add(key);
+    spots.push({ key, ref, field: parsed.field });
   });
   return spots;
 }
@@ -220,18 +261,30 @@ type ActiveSpot = { key: string; kind: string };
 // Splits an ActiveSpot into the indicator's two display parts: the
 // colour-coded kind badge ("Text"/"Image"/…, styled by
 // .dry-active-spot-kind--<kind> in editor.css) and the path label
-// ("Singleton: demo.array.0.name").
+// ("Singleton: demo.array.0.name", or "Bài viết: bai-viet.excerpt" for a
+// collection entry - its own config label, then slug.field).
 function formatActiveSpot(
   spot: ActiveSpot | null,
+  config: Config<any, any>,
 ): { kind: string; kindLabel: string; pathLabel: string } | null {
   if (!spot) return null;
-  const [type, name, field] = spot.key.split("::");
-  if (!type || !name || !field) return null;
+  const parsed = parseEditKey(spot.key);
+  if (!parsed) return null;
   const capitalize = (s: string) => `${s.charAt(0).toUpperCase()}${s.slice(1)}`;
+  if (parsed.type === "singleton") {
+    return {
+      kind: spot.kind,
+      kindLabel: capitalize(spot.kind),
+      pathLabel: `Singleton: ${parsed.name}.${parsed.field}`,
+    };
+  }
+  const collectionLabel =
+    (config.collections?.[parsed.name] as { label?: string } | undefined)
+      ?.label ?? parsed.name;
   return {
     kind: spot.kind,
     kindLabel: capitalize(spot.kind),
-    pathLabel: `${capitalize(type)}: ${name}.${field}`,
+    pathLabel: `${collectionLabel}: ${parsed.slug}.${parsed.field}`,
   };
 }
 
@@ -279,6 +332,55 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   // viewport-relative and goes stale the instant the page scrolls.
   const arrayGearElRef = useRef<HTMLElement | null>(null);
 
+  // Slug-rename gear button (Phase 9) - the same floating-icon-on-hover
+  // pattern as arrayGearSpot above, but only ever shown over a collection
+  // entry's own slugField spot (the field whose schema exposes `.slugify`,
+  // matching dry.ts's own guard for which text spot is bindable as a slug at
+  // all - see makeSpot there). A .view() readonly mirror never shows it,
+  // same reasoning as the array gear: there's nothing to open a dialog *for*
+  // on a mirror instance. Clicking it opens SlugFieldDialog - the inline
+  // contentEditable spot itself stays independently editable the whole time
+  // (hovering/clicking the gear never takes focus away from it).
+  const [slugGearSpot, setSlugGearSpot] = useState<{
+    key: string;
+    ref: Extract<EntryRef, { type: "collection" }>;
+    slugField: string;
+    rect: DOMRect;
+  } | null>(null);
+  const [slugDialogSpot, setSlugDialogSpot] = useState<{
+    ref: Extract<EntryRef, { type: "collection" }>;
+    slugField: string;
+  } | null>(null);
+  const slugGearCloseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const slugGearElRef = useRef<HTMLElement | null>(null);
+
+  // The one rename a VEI session can have in flight at a time - set by
+  // SlugFieldDialog's "Xong", consumed by the 3-way redirect dialog at Save
+  // time (see onSave/runSave below). Deliberately plain React state, not
+  // durable like a field edit on the bus - a rename is a structural move,
+  // not a value, and MVP1 accepts that reloading mid-decision loses it (same
+  // as the admin's own in-progress typed slug before Save).
+  const [pendingRename, setPendingRename] = useState<{
+    ref: Extract<EntryRef, { type: "collection" }>;
+    newSlug: string;
+  } | null>(null);
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [renameAddRedirect, setRenameAddRedirect] = useState(false);
+
+  // Set once Save actually committed a rename in github mode - the brand
+  // branch/main has moved, but nothing is publicly live until Cloudflare
+  // finishes a build against it, so edit mode is locked (see the render
+  // below) and this drives a banner instead. `targetUrl` is undefined when
+  // the collection has no `previewUrl` - there's nothing to probe or offer
+  // navigation to, so the banner shows a bare "waiting" state with no dialog.
+  const [renameWaiting, setRenameWaiting] = useState<{
+    newSlug: string;
+    targetUrl: string | undefined;
+    status: "watching" | "checking" | "ready" | "failed";
+  } | null>(null);
+
   // isGithub gates the brand/merge/deploy flow Save triggers automatically
   // (see onSave/runSave below) - local mode has no branch concept and keeps
   // its old instant, confirm-free save.
@@ -305,7 +407,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
 
   useEffect(() => {
     refreshCount();
-    setSpots(readSpots());
+    setSpots(readSpots(config));
     // Restore edit mode if it was on before the last reload (see
     // EDITING_STORAGE_KEY above).
     if (readStoredEditing()) startEditing();
@@ -377,6 +479,141 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     };
   }, [editing]);
 
+  // Hover detection for the slug-rename gear button - same delegated
+  // document-level pattern as the container gear above, but matched by
+  // *identity* (this spot's dotted field equals its collection's own
+  // configured slugField) rather than a data-dry-kind value, since a
+  // slugField spot is otherwise indistinguishable from any other text spot
+  // in the DOM (see dry.ts's makeSpot: it deliberately emits kind="text" for
+  // it, only the `name` half is ever bound).
+  useEffect(() => {
+    if (!editing) {
+      slugGearElRef.current = null;
+      setSlugGearSpot(null);
+      return;
+    }
+    const onOver = (e: MouseEvent) => {
+      const el = (e.target as HTMLElement)?.closest<HTMLElement>("[data-dry]");
+      if (!el || el.hasAttribute("data-dry-readonly")) return;
+      const key = el.getAttribute("data-dry");
+      if (!key) return;
+      const parsed = parseEditKey(key);
+      if (!parsed || parsed.type !== "collection") return;
+      const collectionConfig = config.collections?.[parsed.name] as
+        | { slugField?: string }
+        | undefined;
+      if (
+        !collectionConfig?.slugField ||
+        parsed.field !== collectionConfig.slugField
+      ) {
+        return;
+      }
+      clearTimeout(slugGearCloseTimer.current);
+      slugGearElRef.current = el;
+      setSlugGearSpot({
+        key,
+        ref: { type: "collection", name: parsed.name, slug: parsed.slug },
+        slugField: collectionConfig.slugField,
+        rect: el.getBoundingClientRect(),
+      });
+    };
+    const onOut = (e: MouseEvent) => {
+      const related = e.relatedTarget as HTMLElement | null;
+      if (related?.closest("[data-dry]") || related?.closest(".dry-slug-gear")) {
+        return;
+      }
+      slugGearCloseTimer.current = setTimeout(() => {
+        slugGearElRef.current = null;
+        setSlugGearSpot(null);
+      }, 140);
+    };
+    const onReposition = () => {
+      const el = slugGearElRef.current;
+      if (!el) return;
+      setSlugGearSpot((prev) =>
+        prev ? { ...prev, rect: el.getBoundingClientRect() } : prev,
+      );
+    };
+    document.addEventListener("mouseover", onOver, true);
+    document.addEventListener("mouseout", onOut, true);
+    document.addEventListener("scroll", onReposition, true);
+    window.addEventListener("resize", onReposition);
+    return () => {
+      document.removeEventListener("mouseover", onOver, true);
+      document.removeEventListener("mouseout", onOut, true);
+      document.removeEventListener("scroll", onReposition, true);
+      window.removeEventListener("resize", onReposition);
+      clearTimeout(slugGearCloseTimer.current);
+    };
+  }, [editing, config]);
+
+  // The rename reload gate (Phase 9) - once a rename has actually committed
+  // in github mode (renameWaiting set by runSave below), watches Cloudflare's
+  // build status and, once a build succeeds, HEAD-probes the new URL with
+  // backoff until this visitor's own CDN edge actually has it (a bare
+  // `succeeded` event only means Cloudflare finished building, not that
+  // every edge caught up - see the plan). `failed`/`canceled` surfaces an
+  // error with a retry affordance rather than hanging silently; the
+  // underlying watch is never torn down on failure, so a later successful
+  // build (e.g. an automatic Cloudflare retry) still resolves the wait
+  // without the user having to do anything.
+  //
+  // Cleanup (stopping the WS watch and aborting any in-flight HEAD probe) is
+  // the effect's own return - unmounting (navigating away mid-wait) or
+  // renameWaiting changing runs it automatically, which is what makes a
+  // stale "build ready, switch to the new URL?" dialog impossible to show
+  // for a page the user already left (see the plan's "Huỷ callback khi rời
+  // trang" requirement).
+  useEffect(() => {
+    if (!renameWaiting || renameWaiting.status === "ready") return;
+    if (!renameWaiting.targetUrl) return;
+    const targetUrl = renameWaiting.targetUrl;
+    const controller = new AbortController();
+    let probeTimer: ReturnType<typeof setTimeout> | undefined;
+    let attempt = 0;
+
+    const probe = async () => {
+      try {
+        const res = await fetch(targetUrl, {
+          method: "HEAD",
+          signal: controller.signal,
+        });
+        if (res.ok) {
+          setRenameWaiting((w) => (w ? { ...w, status: "ready" } : w));
+          return;
+        }
+      } catch {
+        // Aborted (cleanup) or a network hiccup - either way, fall through
+        // to the retry schedule below rather than treating it as terminal.
+      }
+      attempt++;
+      probeTimer = setTimeout(probe, Math.min(1000 * 2 ** attempt, 8000));
+    };
+
+    const stopWatch = watchBuildStatus((update) => {
+      if (update.kind !== "event") return;
+      if (update.event.phase === "succeeded") {
+        setRenameWaiting((w) =>
+          w && w.status !== "ready" ? { ...w, status: "checking" } : w,
+        );
+        probe();
+      } else if (
+        update.event.phase === "failed" ||
+        update.event.phase === "canceled"
+      ) {
+        setRenameWaiting((w) =>
+          w && w.status !== "ready" ? { ...w, status: "failed" } : w,
+        );
+      }
+    });
+
+    return () => {
+      stopWatch();
+      controller.abort();
+      if (probeTimer) clearTimeout(probeTimer);
+    };
+  }, [renameWaiting?.newSlug, renameWaiting?.targetUrl]);
+
   // Active-spot focus/hover tracking (see the state above) - delegated at
   // the document level (capture phase) the same way as the array gear hover
   // detection, since spots come and go with the array template-clone. Focus
@@ -433,7 +670,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   }, [editing]);
 
   // Focus always wins outright over hover - see the state comment above.
-  const activeSpot = formatActiveSpot(focusSpot ?? hoverSpot);
+  const activeSpot = formatActiveSpot(focusSpot ?? hoverSpot, config);
 
   // The admin provider boundary (VeiAdminProviders + FileManagerHost, lazy -
   // see the lazy() imports above) - mounted whenever edit mode is on, not
@@ -561,8 +798,13 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       const handler = async (key: string) => {
         if (!requireProviderReady()) return;
         if (!(await waitForMediaLibraryOpener())) return;
-        const [, singletonName] = key.split("::");
-        const pick = await pickAsset(config, singletonName, accept);
+        const parsed = parseEditKey(key);
+        if (!parsed) return;
+        const ref: EntryRef =
+          parsed.type === "singleton"
+            ? { type: "singleton", name: parsed.name }
+            : { type: "collection", name: parsed.name, slug: parsed.slug };
+        const pick = await pickAsset(config, ref, accept);
         if (!pick) return;
         await publishEdit(key, pick.path);
         await applyEdit(key, pick.path);
@@ -582,7 +824,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
 
   const startEditing = () => {
     enableEditing(refreshCount);
-    setSpots(readSpots());
+    setSpots(readSpots(config));
     // Don't block entering edit mode on the network - repaint with the
     // real current source once it resolves, fields with a pending edit
     // stay untouched.
@@ -612,9 +854,61 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   // already on the default branch, saveEdits() already committed straight to
   // it (see save.ts's ensureBrand), so there's nothing left to merge.
   const runSave = async () => {
+    // Snapshotted once up front - this function clears pendingRename
+    // partway through, and re-reading the state var after that point
+    // (rather than this const) would silently see `null`.
+    const rename = pendingRename;
     setSaving(true);
     try {
-      const commitOid = await saveEdits(config);
+      let renameRequest: RenameRequest | undefined;
+      let renamePreviewUrl: string | undefined;
+      if (rename) {
+        const collectionConfig = config.collections?.[rename.ref.name] as
+          | { previewUrl?: string }
+          | undefined;
+        renamePreviewUrl = collectionConfig?.previewUrl;
+        const redirect =
+          renameAddRedirect && renamePreviewUrl
+            ? {
+                from: renamePreviewUrl.replace("{slug}", rename.ref.slug),
+                to: renamePreviewUrl.replace("{slug}", rename.newSlug),
+              }
+            : undefined;
+        renameRequest = { ref: rename.ref, newSlug: rename.newSlug, redirect };
+      }
+
+      const commitOid = await saveEdits(config, { rename: renameRequest });
+
+      if (rename) {
+        setPendingRename(null);
+        setRenameAddRedirect(false);
+        const targetUrl = renamePreviewUrl?.replace("{slug}", rename.newSlug);
+        // The DOM under this page's [data-dry] attributes still reflects the
+        // OLD slug - refreshFromLatestSource would read those stale keys and
+        // cache the new values under a source-cache key that no longer
+        // matches anything (see the plan). Drop the whole cache instead;
+        // it's only ever a best-effort freshness bridge, safe to lose.
+        await clearSourceCache();
+        if (!isGithub) {
+          // Local writes are immediately real - no build to wait for.
+          toastQueue.positive("Đã đổi URL, đang chuyển trang…", {
+            timeout: 3000,
+          });
+          if (targetUrl) {
+            location.href = targetUrl;
+            return;
+          }
+        } else {
+          if (commitOid && !isOnDefaultBranch) await deploy();
+          // Nothing is publicly live yet even though the commit landed - see
+          // the renameWaiting effect above for the build-watch/HEAD-probe
+          // gate this hands off to.
+          setRenameWaiting({ newSlug: rename.newSlug, targetUrl, status: "watching" });
+        }
+        await refreshCount();
+        return;
+      }
+
       let deployed = false;
       if (isGithub && commitOid && !isOnDefaultBranch) {
         await deploy();
@@ -640,10 +934,24 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     }
   };
 
-  // Github mode now folds merge+deploy into Save, so it gates behind a
-  // confirmation first - local mode has no branch/merge step and stays
-  // instant, matching its previous behavior.
+  // A pending rename is resolved into a redirect choice *before* anything
+  // else - mirrors the admin's ItemPage (getSlugFromState !== itemSlug gates
+  // its own AlertDialog the same way, before any save happens). Only after
+  // that's answered does github mode's existing merge/deploy confirmation
+  // (unrelated to renaming) get its turn.
   const onSave = () => {
+    if (pendingRename) {
+      setRenameDialogOpen(true);
+      return;
+    }
+    if (isGithub) {
+      setConfirmSaveOpen(true);
+      return;
+    }
+    void runSave();
+  };
+
+  const proceedAfterRenameChoice = () => {
     if (isGithub) {
       setConfirmSaveOpen(true);
       return;
@@ -662,11 +970,12 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     window.open(adminBase, "_blank", "noopener,noreferrer");
   };
 
-  // Deep-link to a singleton's admin editor in a new tab. github mode needs an
-  // async branch lookup, so open the tab up front - preserving the click's user
-  // activation - and point it at the URL once resolved; a window.open() issued
-  // after the await would be killed by the popup blocker.
-  const goToAdmin = async (name: string) => {
+  // Deep-link to a singleton's or collection entry's admin editor in a new
+  // tab. github mode needs an async branch lookup, so open the tab up front -
+  // preserving the click's user activation - and point it at the URL once
+  // resolved; a window.open() issued after the await would be killed by the
+  // popup blocker.
+  const goToAdmin = async (ref: EntryRef) => {
     const tab = window.open("", "_blank");
     if (tab) tab.opener = null;
     try {
@@ -674,7 +983,12 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       const branchSegment = branch
         ? `branch/${encodeURIComponent(branch)}/`
         : "";
-      const url = `${adminBase}/${branchSegment}singleton/${encodeURIComponent(name)}`;
+      const url =
+        ref.type === "singleton"
+          ? `${adminBase}/${branchSegment}singleton/${encodeURIComponent(ref.name)}`
+          : `${adminBase}/${branchSegment}collection/${encodeURIComponent(
+              ref.name,
+            )}/item/${encodeURIComponent(ref.slug)}`;
       if (tab) tab.location.href = url;
       else window.open(url, "_blank", "noopener,noreferrer");
     } catch (err) {
@@ -683,10 +997,11 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     }
   };
 
-  // Highlight (and scroll to) every editable spot belonging to a singleton.
-  const flashSingleton = (name: string, on: boolean) => {
+  // Highlight (and scroll to) every editable spot belonging to one entry
+  // (singleton or collection item), keyed by entryRefKey.
+  const flashEntry = (refKey: string, on: boolean) => {
     const els = spots
-      .filter((s) => s.name === name)
+      .filter((s) => entryRefKey(s.ref) === refKey)
       .flatMap((s) =>
         Array.from(
           document.querySelectorAll<HTMLElement>(
@@ -700,15 +1015,26 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     }
   };
 
-  // One entry per singleton (deduped), labelled from config.
-  const singletonList = Array.from(
+  // One entry per singleton/collection-item (deduped by entryRefKey),
+  // labelled from config - a collection item combines the collection's own
+  // label with its slug ("Bài viết · bai-viet") since several items can
+  // share a collection.
+  const entryList = Array.from(
     new Map(
-      spots.map((s) => [
-        s.name,
-        (config.singletons?.[s.name] as { label?: string })?.label ?? s.name,
-      ]),
-    ),
-  ).map(([name, label]) => ({ name, label }));
+      spots.map((s) => {
+        const key = entryRefKey(s.ref);
+        const label =
+          s.ref.type === "singleton"
+            ? ((config.singletons?.[s.ref.name] as { label?: string } | undefined)
+                ?.label ?? s.ref.name)
+            : `${
+                (config.collections?.[s.ref.name] as { label?: string } | undefined)
+                  ?.label ?? s.ref.name
+              } · ${s.ref.slug}`;
+        return [key, { key, ref: s.ref, label }] as const;
+      }),
+    ).values(),
+  );
 
   const openRefMenu = () => {
     clearTimeout(closeTimer.current);
@@ -794,7 +1120,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
                   aria-label="Save changes"
                   prominence="high"
                   onPress={onSave}
-                  isDisabled={nothingToSave || saving}
+                  isDisabled={(nothingToSave && !pendingRename) || saving || !!renameWaiting}
                   UNSAFE_className="dry-iconbtn"
                 >
                   <Icon src={saveIcon} />
@@ -835,6 +1161,105 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
         </div>
       )}
 
+      {/* Rename reload-gate banner (Phase 9, github mode only) - shown for as
+          long as renameWaiting is set, independent of `editing` (edit mode
+          itself is now moot for the renamed entry - its old DOM is stale).
+          Three states: watching the build, checking the new URL is actually
+          live (HEAD probe), or the build itself failed. */}
+      {renameWaiting && (
+        <div className="dry-rename-banner">
+          {renameWaiting.status === "failed" ? (
+            <>
+              <span>Build trên Cloudflare thất bại cho URL mới.</span>
+              <button
+                type="button"
+                className="dry-rename-banner-action"
+                onClick={() =>
+                  setRenameWaiting((w) =>
+                    w ? { ...w, status: "watching" } : w,
+                  )
+                }
+              >
+                Thử lại
+              </button>
+            </>
+          ) : renameWaiting.status === "checking" ? (
+            <span>Build xong - đang kiểm tra URL mới đã lên chưa…</span>
+          ) : (
+            <span>Đã lưu - đang chờ Cloudflare build xong…</span>
+          )}
+        </div>
+      )}
+
+      {/* Once the new URL is confirmed live (HEAD probe succeeded), ask
+          before navigating away - the user may be mid-something else on this
+          page. Closing without navigating just leaves the banner/lock in
+          place; there's nothing stale left to protect against since the
+          bus/source-cache were already cleared right after the rename
+          commit (see runSave). */}
+      <DialogContainer
+        onDismiss={() => setRenameWaiting(null)}
+      >
+        {renameWaiting?.status === "ready" && renameWaiting.targetUrl && (
+          <AlertDialog
+            title="Đã build xong"
+            tone="neutral"
+            cancelLabel="Để sau"
+            primaryActionLabel="Chuyển sang URL mới"
+            autoFocusButton="primary"
+            onCancel={() => setRenameWaiting(null)}
+            onPrimaryAction={() => {
+              location.href = renameWaiting.targetUrl!;
+            }}
+          >
+            <Text>URL mới đã sẵn sàng. Chuyển sang trang mới ngay?</Text>
+          </AlertDialog>
+        )}
+      </DialogContainer>
+
+      {/* The 3-way rename choice (Phase 9) - mirrors the admin's ItemPage
+          AlertDialog. Only offered when the collection declares a
+          previewUrl (see Toolbar's collectionConfig lookups) - without one
+          there's no public URL to redirect *from*, so choosing either
+          primary/secondary action here just proceeds with no redirect. */}
+      <DialogContainer onDismiss={() => setRenameDialogOpen(false)}>
+        {renameDialogOpen && pendingRename && (() => {
+          const collectionConfig = config.collections?.[
+            pendingRename.ref.name
+          ] as { label?: string; previewUrl?: string } | undefined;
+          const previewUrl = collectionConfig?.previewUrl;
+          const fromUrl = previewUrl?.replace("{slug}", pendingRename.ref.slug);
+          const toUrl = previewUrl?.replace("{slug}", pendingRename.newSlug);
+          return (
+            <AlertDialog
+              title="Đổi URL bài viết"
+              tone="neutral"
+              cancelLabel="Huỷ"
+              secondaryActionLabel="Đổi tên không redirect"
+              primaryActionLabel="Tạo 301 redirect"
+              autoFocusButton="primary"
+              onCancel={() => setRenameDialogOpen(false)}
+              onSecondaryAction={() => {
+                setRenameAddRedirect(false);
+                setRenameDialogOpen(false);
+                proceedAfterRenameChoice();
+              }}
+              onPrimaryAction={() => {
+                setRenameAddRedirect(true);
+                setRenameDialogOpen(false);
+                proceedAfterRenameChoice();
+              }}
+            >
+              <Text>
+                {fromUrl && toUrl
+                  ? `Trang này đang ở ${fromUrl}. Đổi tên sẽ chuyển URL sang ${toUrl} - nếu không tạo redirect, URL cũ sẽ trả về 404.`
+                  : "Đổi slug sẽ di chuyển toàn bộ nội dung sang thư mục mới."}
+              </Text>
+            </AlertDialog>
+          );
+        })()}
+      </DialogContainer>
+
       {/* Confirms before Save's now-heavier effect: it doesn't just write a
           file, it either merges a brand branch into main (kicking off a
           production deploy) or, when already on main, commits and deploys
@@ -866,7 +1291,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       </DialogContainer>
 
       {refOpen &&
-        singletonList.length > 0 &&
+        entryList.length > 0 &&
         createPortal(
           <div
             className="dry-ref-menu"
@@ -875,17 +1300,17 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
             onMouseEnter={openRefMenu}
             onMouseLeave={scheduleCloseRefMenu}
           >
-            {singletonList.map((s) => (
+            {entryList.map((e) => (
               <button
                 type="button"
                 role="menuitem"
-                key={s.name}
+                key={e.key}
                 className="dry-ref-item"
-                onMouseEnter={() => flashSingleton(s.name, true)}
-                onMouseLeave={() => flashSingleton(s.name, false)}
-                onClick={() => goToAdmin(s.name)}
+                onMouseEnter={() => flashEntry(e.key, true)}
+                onMouseLeave={() => flashEntry(e.key, false)}
+                onClick={() => goToAdmin(e.ref)}
               >
-                <span className="dry-ref-name">{s.label}</span>
+                <span className="dry-ref-name">{e.label}</span>
               </button>
             ))}
           </div>,
@@ -941,6 +1366,69 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
           );
         })()}
 
+      {slugGearSpot &&
+        createPortal(
+          <button
+            type="button"
+            className="dry-array-gear dry-slug-gear"
+            aria-label="Change URL"
+            data-dry-tooltip="Đổi URL"
+            style={{
+              top: slugGearSpot.rect.top + 6,
+              right: window.innerWidth - slugGearSpot.rect.right + 6,
+            }}
+            onMouseEnter={() => clearTimeout(slugGearCloseTimer.current)}
+            onMouseLeave={() => {
+              slugGearCloseTimer.current = setTimeout(() => {
+                slugGearElRef.current = null;
+                setSlugGearSpot(null);
+              }, 140);
+            }}
+            onClick={() => {
+              setSlugDialogSpot({
+                ref: slugGearSpot.ref,
+                slugField: slugGearSpot.slugField,
+              });
+              slugGearElRef.current = null;
+              setSlugGearSpot(null);
+            }}
+          >
+            <Icon src={linkIcon} />
+          </button>,
+          document.body,
+        )}
+
+      {/* Real admin UI (Phase 9) - renders the collection's actual
+          fields.slug schema.Input (SlugFieldInput), wrapped in the same
+          PathContext/SlugFieldContext it expects, so Name+Slug editing here
+          is byte-for-byte the admin's own component (auto-follow, Regenerate
+          with real collision-bump against sibling slugs, validation
+          messages) - see SlugFieldDialog below. The inline contentEditable
+          title spot stays independently editable throughout; this dialog is
+          an additional surface, not a replacement for it. */}
+      <DialogContainer onDismiss={() => setSlugDialogSpot(null)}>
+        {slugDialogSpot && (
+          <SlugFieldDialog
+            config={config}
+            entryRef={slugDialogSpot.ref}
+            slugField={slugDialogSpot.slugField}
+            currentSlug={
+              pendingRename &&
+              entryRefKey(pendingRename.ref) === entryRefKey(slugDialogSpot.ref)
+                ? pendingRename.newSlug
+                : slugDialogSpot.ref.slug
+            }
+            onClose={() => setSlugDialogSpot(null)}
+            onConfirm={(newSlug) => {
+              setPendingRename(
+                newSlug === null ? null : { ref: slugDialogSpot.ref, newSlug },
+              );
+              refreshCount();
+            }}
+          />
+        )}
+      </DialogContainer>
+
       <DialogContainer onDismiss={() => setReviewOpen(false)}>
         {reviewOpen && (
           <VeiReviewDialog
@@ -983,7 +1471,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
                   onClose={() => setArrayDialogKey(null)}
                   onSaved={() => {
                     refreshCount();
-                    setSpots(readSpots());
+                    setSpots(readSpots(config));
                   }}
                 />
               )}
@@ -997,14 +1485,14 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
 
 // The one asset-picking primitive shared by the single-image and single-file
 // spot click handlers above - opens the same file-manager dialog the admin's
-// ImageFieldInput/FileFieldInput use (scoped to this singleton's assets
-// folder), caches the picked bytes locally so previews and saves can resolve
-// before the file is servable, and returns the pick. Callers differ only in
+// ImageFieldInput/FileFieldInput use (scoped to this entry's assets folder),
+// caches the picked bytes locally so previews and saves can resolve before
+// the file is servable, and returns the pick. Callers differ only in
 // `accept`; the container dialog's own image/file sub-fields go through
 // the real ImageFieldInput/FileFieldInput instead (see ContainerFieldDialog).
 async function pickAsset(
   config: Config<any, any>,
-  singletonName: string,
+  ref: EntryRef,
   accept: "image" | "any",
 ): Promise<MediaLibraryPick | undefined> {
   let picked: MediaLibraryPick | undefined;
@@ -1012,7 +1500,7 @@ async function pickAsset(
     picked = await openMediaLibrary({
       accept,
       local: {
-        directory: `${getSingletonPath(config, singletonName)}/assets`,
+        directory: `${resolveEntryRef(config, ref).dir}/assets`,
         label: "Trang này",
       },
     });
@@ -1025,26 +1513,26 @@ async function pickAsset(
   return picked;
 }
 
-// Resolves a dotted field path (e.g. "sections.0.items") against a
-// singleton's schema, walking one segment at a time the same way dry.ts's
-// resolveDrySpot does server-side - a numeric segment steps into an array's
-// `.element`, a name segment steps into an object's `.fields[name]`. A flat
-// `schema[field]` lookup (the old code here) only resolves a top-level field
-// name; any nested container path - an array item's own object wrapper
-// ("sections.0"), a sub-field array nested inside it ("sections.0.items"),
-// or even a one-level-deep nested array under a standalone object
-// ("info.links") - would resolve to `undefined` and silently render nothing
-// (see plan/de-quy-object.md, and Toolbar's onOver hover-detection, which
-// shows the gear button for any such spot regardless of whether this
-// resolves - the dialog looked like it "wouldn't open").
+// Resolves a dotted field path (e.g. "sections.0.items") against an entry's
+// schema, walking one segment at a time the same way dry.ts's resolveDrySpot
+// does server-side - a numeric segment steps into an array's `.element`, a
+// name segment steps into an object's `.fields[name]`. A flat `schema[field]`
+// lookup (the old code here) only resolves a top-level field name; any
+// nested container path - an array item's own object wrapper ("sections.0"),
+// a sub-field array nested inside it ("sections.0.items"), or even a
+// one-level-deep nested array under a standalone object ("info.links") -
+// would resolve to `undefined` and silently render nothing (see
+// plan/de-quy-object.md, and Toolbar's onOver hover-detection, which shows
+// the gear button for any such spot regardless of whether this resolves -
+// the dialog looked like it "wouldn't open").
 function resolveFieldSchema(
   config: Config<any, any>,
-  name: string,
+  ref: EntryRef,
   field: string,
 ): ArrayField<ComponentSchema> | ObjectField | undefined {
   const [baseField, ...rest] = field.split(".");
   let schema: ComponentSchema | undefined =
-    config.singletons?.[name]?.schema?.[baseField];
+    resolveEntryRef(config, ref).schema[baseField];
   for (const seg of rest) {
     if (!schema) return undefined;
     if (schema.kind === "array" && /^\d+$/.test(seg)) {
@@ -1058,6 +1546,175 @@ function resolveFieldSchema(
   return schema?.kind === "array" || schema?.kind === "object"
     ? schema
     : undefined;
+}
+
+// The slice of a fields.slug schema this dialog drives - see the field's own
+// definition (packages/drystack/src/form/fields/slug/index.tsx). `Input` is
+// the field's own SlugFieldInput (Name+Slug together, auto-follow, Regenerate
+// with collision-bump, inline validation - all its own logic, none of it
+// reimplemented here), and `validate` is the same function save.ts's
+// validateField calls at save time - reusing both directly is what makes
+// this dialog byte-for-byte the admin's own UI instead of a copy that could
+// drift from it.
+type SlugFieldSchema = {
+  Input: (props: {
+    value: { name: string; slug: string };
+    onChange: (value: { name: string; slug: string }) => void;
+    autoFocus?: boolean;
+    forceValidation?: boolean;
+  }) => React.ReactElement;
+  validate(
+    value: { name: string; slug: string },
+    args?: { slugField?: SlugFieldInfo },
+  ): unknown;
+};
+
+// Renders the collection's real fields.slug Input for one entry, opened from
+// the slug-rename gear button over its slugField spot (Phase 9). Reuses the
+// exact admin component via PathContextProvider/SlugFieldProvider (from
+// @drystack/core/field-editor) - SlugFieldInput only turns on its real
+// uniqueness/collision-bump logic when it can see PathContext === [the
+// collection's configured slugField] and a SlugFieldContext carrying real
+// sibling slugs (form/fields/slug/ui.tsx's own gate), which is why this
+// wraps those directly rather than going through
+// FormValueContentFromPreviewProps (that always resets PathContext to `[]`,
+// correct for a whole-form root but wrong for one standalone field).
+//
+// Editing Name here writes back to the *same* bus key the inline
+// contentEditable title spot uses (editKey(entryRef, slugField)) - so
+// confirming here repaints that live spot too - but only on "Xong", not on
+// every keystroke, so the underlying page's own inline editing (still
+// available the whole time, independent of this dialog) never gets fought
+// over by two live writers at once.
+function SlugFieldDialog({
+  config,
+  entryRef,
+  slugField,
+  currentSlug,
+  onClose,
+  onConfirm,
+}: {
+  config: Config<any, any>;
+  entryRef: Extract<EntryRef, { type: "collection" }>;
+  slugField: string;
+  currentSlug: string;
+  onClose: () => void;
+  onConfirm: (newSlug: string | null) => void;
+}) {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
+  const schema = resolveEntryRef(config, entryRef).schema[
+    slugField
+  ] as unknown as SlugFieldSchema | undefined;
+  const glob = getSlugGlobForCollection(config, entryRef.name);
+  const [siblingSlugs, setSiblingSlugs] = useState<Set<string> | null>(null);
+  const checking = siblingSlugs === null;
+
+  useEffect(() => {
+    let cancelled = false;
+    getCurrentBranchName(config)
+      .then((branch) => listCollectionSlugs(config, entryRef.name, branch))
+      .then((slugs) => {
+        if (cancelled) return;
+        const set = new Set(slugs);
+        set.delete(entryRef.slug);
+        setSiblingSlugs(set);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        toastQueue.critical(err instanceof Error ? err.message : String(err));
+        setSiblingSlugs(new Set());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [config, entryRef.name, entryRef.slug]);
+
+  const originalNameRef = useRef<string | null>(null);
+  if (originalNameRef.current === null) {
+    // The title spot is contentEditable and already reflects any pending
+    // edit (or a not-yet-published keystroke) - seed from the live DOM text
+    // rather than the on-disk value, so this dialog agrees with whatever the
+    // user's actually looking at.
+    originalNameRef.current =
+      document
+        .querySelector<HTMLElement>(
+          `[data-dry="${CSS.escape(editKey(entryRef, slugField))}"]`,
+        )
+        ?.textContent?.trim() ?? "";
+  }
+  const [value, setValue] = useState({
+    name: originalNameRef.current,
+    slug: currentSlug,
+  });
+  const [forceValidation, setForceValidation] = useState(false);
+  const formId = useId();
+
+  const slugFieldInfo: SlugFieldInfo = {
+    field: slugField,
+    slugs: siblingSlugs ?? new Set(),
+    glob,
+  };
+
+  const handleDone = async () => {
+    if (!schema) return;
+    try {
+      schema.validate(value, { slugField: slugFieldInfo });
+    } catch {
+      setForceValidation(true);
+      return;
+    }
+    const key = editKey(entryRef, slugField);
+    if (value.name !== originalNameRef.current) {
+      await publishEdit(key, value.name);
+      applyEdit(key, value.name);
+    }
+    onConfirm(value.slug === entryRef.slug ? null : value.slug);
+    onClose();
+  };
+
+  const Input = schema?.Input;
+
+  return (
+    <Dialog size="small">
+      <Heading>Đổi tiêu đề / URL</Heading>
+      <Content>
+        <VStack
+          id={formId}
+          elementType="form"
+          onSubmit={(event: FormEvent) => {
+            if (event.target !== event.currentTarget) return;
+            event.preventDefault();
+            void handleDone();
+          }}
+          gap="xxlarge"
+        >
+          {Input && (
+            <PathContextProvider value={[slugField]}>
+              <SlugFieldProvider value={slugFieldInfo}>
+                <Input
+                  value={value}
+                  onChange={setValue}
+                  autoFocus
+                  forceValidation={forceValidation}
+                />
+              </SlugFieldProvider>
+            </PathContextProvider>
+          )}
+        </VStack>
+      </Content>
+      <ButtonGroup>
+        <Button onPress={onClose}>{stringFormatter.format("cancel")}</Button>
+        <Button
+          form={formId}
+          prominence="high"
+          type="submit"
+          isDisabled={checking}
+        >
+          Xong
+        </Button>
+      </ButtonGroup>
+    </Dialog>
+  );
 }
 
 // Renders the container editor for one fields.array or fields.object field
@@ -1082,8 +1739,16 @@ function ContainerFieldDialog({
   onSaved: () => void;
 }) {
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
-  const [, name, field] = fieldKey.split("::");
-  const fieldSchema = resolveFieldSchema(config, name, field);
+  const parsedKey = parseEditKey(fieldKey);
+  const ref: EntryRef | undefined = parsedKey
+    ? parsedKey.type === "singleton"
+      ? { type: "singleton", name: parsedKey.name }
+      : { type: "collection", name: parsedKey.name, slug: parsedKey.slug }
+    : undefined;
+  const field = parsedKey?.field ?? "";
+  const fieldSchema = ref
+    ? resolveFieldSchema(config, ref, field)
+    : undefined;
   // unknown[] for array-of-*, Record<string, unknown> for a standalone
   // object - whichever shape `fieldSchema.kind` calls for.
   // getContainerValueFromDom mirrors that dispatch off the same live spot,
@@ -1111,7 +1776,7 @@ function ContainerFieldDialog({
     [fieldSchema],
   );
 
-  if (!fieldSchema || !getPreviewProps) return null;
+  if (!ref || !fieldSchema || !getPreviewProps) return null;
   // Same wide-type situation as setValue above - getPreviewProps expects the
   // schema-shaped value (array or object), which `value` always is at
   // runtime once seeded from getContainerValueFromDom/the schema-kind
@@ -1147,9 +1812,9 @@ function ContainerFieldDialog({
       <Heading>{fieldSchema.label}</Heading>
       <Content>
         {/* Scopes any image/file sub-field's "this entry's assets" tab to
-            this singleton's own directory, matching SingletonPage.tsx's own
+            this entry's own directory, matching SingletonPage.tsx's own
             EntryDirectoryProvider usage. */}
-        <EntryDirectoryProvider value={getSingletonPath(config, name)}>
+        <EntryDirectoryProvider value={resolveEntryRef(config, ref).dir}>
           <VStack
             id={formId}
             elementType="form"
