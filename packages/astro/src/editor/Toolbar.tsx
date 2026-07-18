@@ -80,6 +80,7 @@ import {
   getPendingBlob,
 } from "./store";
 import { saveEdits, getCurrentBranchName, getGithubToken } from "./save";
+import { isDemoConfig } from "@drystack/core/storage-mode";
 import {
   editKey,
   entryRefKey,
@@ -662,6 +663,16 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   // already on the default branch, saveEdits() already committed straight to
   // it (see save.ts's ensureBrand), so there's nothing left to merge.
   const runSave = async () => {
+    // saveEdits() itself also refuses in demo mode (the robust, can't-be-
+    // bypassed guard - see its own comment), but checking here too means a
+    // demo visitor gets an .info toast ("this is expected") instead of
+    // .critical (which reads as "something broke"), and skips the
+    // setSaving(true)/(false) spinner flash for a click that was never going
+    // to do anything.
+    if (isDemoConfig(config)) {
+      toastQueue.info("Demo mode: changes are not saved", { timeout: 4000 });
+      return;
+    }
     setSaving(true);
     try {
       const commitOid = await saveEdits(config);

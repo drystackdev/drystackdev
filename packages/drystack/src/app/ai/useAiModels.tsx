@@ -9,6 +9,7 @@ import {
 
 import { useConfig } from "../shell/context";
 import { useRouter } from "../router";
+import { isDemoConfig } from "../storage-mode";
 
 export type AiModel = { id: string; label?: string };
 
@@ -68,6 +69,12 @@ export function AiModelProvider(props: { children: ReactNode }) {
     // No `ai` block means the route 404s; the ref makes this idempotent, so
     // callers can fire it from an effect without tracking whether they're first.
     if (!hasAiConfig || loadedRef.current) return;
+    // A demo build has no `/api/<base>/ai/models` to call (fully static -
+    // see app/demo-source.ts), and a public demo has no business choosing
+    // which model spends the site owner's proxy quota anyway - `models`/
+    // `serverDefault` simply never populate, which is what already makes
+    // AiModelPicker render nothing (see its own guard).
+    if (isDemoConfig(config)) return;
     loadedRef.current = true;
     setLoading(true);
     fetch(`/api${basePath}/ai/models`)
@@ -85,7 +92,7 @@ export function AiModelProvider(props: { children: ReactNode }) {
         // the configured model, which is exactly the old behaviour.
         setLoading(false);
       });
-  }, [basePath, hasAiConfig]);
+  }, [basePath, config, hasAiConfig]);
 
   const setSelected = useCallback((id: string | undefined) => {
     setSelectedState(id);

@@ -1,6 +1,6 @@
 import { isDefined } from 'emery';
 
-import { Config, GitHubConfig, LocalConfig } from '../config';
+import { Config } from '../config';
 import { ComponentSchema } from '..';
 import {
   getCollectionFormat,
@@ -40,13 +40,7 @@ export function keyedEntries<T extends Record<string, any>>(
 
 export type MaybePromise<T> = T | Promise<T>;
 
-export function isGitHubConfig(config: Config): config is GitHubConfig {
-  return config.storage.kind === 'github';
-}
-
-export function isLocalConfig(config: Config): config is LocalConfig {
-  return config.storage.kind === 'local';
-}
+export * from './storage-mode';
 
 export function getRepoPath(config: { owner: string; name: string }) {
   return `${config.owner}/${config.name}`;

@@ -64,6 +64,18 @@
       "drystack-src": "./src/app/path-utils.ts",
       "default": "./dist/app/path-utils.js"
     },
+    "./storage-mode": {
+      "drystack-src": "./src/app/storage-mode.ts",
+      "default": "./dist/app/storage-mode.js"
+    },
+    "./demo-source": {
+      "drystack-src": "./src/app/demo-source.ts",
+      "default": "./dist/app/demo-source.js"
+    },
+    "./api/demo-build": {
+      "drystack-src": "./src/api/demo-build.ts",
+      "default": "./dist/api/demo-build.js"
+    },
     "./l10n": {
       "drystack-src": "./src/app/l10n/index.js",
       "default": "./dist/app/l10n/index.js"
@@ -192,6 +204,7 @@
     "emery": "^1.4.1",
     "escape-string-regexp": "^4.0.0",
     "fast-deep-equal": "^3.1.3",
+    "fflate": "^0.8.3",
     "graphql": "^16.6.0",
     "idb-keyval": "^6.2.1",
     "ignore": "^5.2.4",

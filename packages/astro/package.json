@@ -41,7 +41,8 @@
     },
     "./package.json": "./package.json",
     "./internal/drystack-api.js": "./internal/drystack-api.js",
-    "./internal/drystack-astro-page.astro": "./internal/drystack-astro-page.astro"
+    "./internal/drystack-astro-page.astro": "./internal/drystack-astro-page.astro",
+    "./internal/drystack-demo-zip.js": "./internal/drystack-demo-zip.js"
   },
   "keywords": [
     "astro-integration",
@@ -69,6 +70,7 @@
     "@keystar/ui": "^0.7.21",
     "@react-aria/i18n": "^3.12.8",
     "@types/react": "^19.0.8",
+    "fflate": "^0.8.3",
     "js-yaml": "^4.1.0",
     "set-cookie-parser": "^2.5.1"
   },

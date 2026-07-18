@@ -11,11 +11,13 @@ import type { AiSize } from "../../api/ai/prompt";
 import { describeFields } from "../../api/ai/schema-to-yaml";
 import l10nMessages from "../l10n";
 import { useRouter } from "../router";
+import { useConfig } from "../shell/context";
 import { aiValueToFormValue } from "./apply-value";
 import { localizeAiConfigError } from "./ai-config-error-message";
 import { AiStreamParser } from "./stream-parser";
 import { useAiModels } from "./useAiModels";
 import { truncateToastMessage } from "../toast-message";
+import { aiRouteUrl, aiRouteModel } from "./ai-fetch";
 
 // Re-parsing a whole ProseMirror document on every token would make long
 // articles crawl, so content fields repaint on a timer instead. Short enough
@@ -48,9 +50,12 @@ export function useMagicWrite(args: {
 }) {
   const { entry, schema, onStateChange } = args;
   const { basePath } = useRouter();
+  const config = useConfig();
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   // `undefined` means "whatever the server would pick" - the picker's own
-  // default, and what every request sent before there was a picker.
+  // default, and what every request sent before there was a picker. In demo
+  // mode this is always undefined (the picker never shows there) - see
+  // ai-fetch.ts's aiRouteModel, which is what actually decides what's sent.
   const model = useAiModels()?.selected;
 
   const [status, setStatus] = useState<MagicWriteStatus>("idle");
@@ -166,10 +171,14 @@ export function useMagicWrite(args: {
       });
 
       try {
-        const res = await fetch(`/api${basePath}/ai/generate`, {
+        const res = await fetch(aiRouteUrl(config, basePath, "generate"), {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ entry, ...request, model }),
+          body: JSON.stringify({
+            entry,
+            ...request,
+            model: aiRouteModel(config, model),
+          }),
           signal: controller.signal,
         });
 
@@ -211,7 +220,7 @@ export function useMagicWrite(args: {
         abortRef.current = null;
       }
     },
-    [basePath, entry, model, reportError, schema, onStateChange],
+    [basePath, config, entry, model, reportError, schema, onStateChange],
   );
 
   return {

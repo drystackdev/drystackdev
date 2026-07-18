@@ -9,6 +9,8 @@ import { useConfig } from "../shell/context";
 import { useCommitFileChanges } from "../shell/useCommitFileChanges";
 import { updateTreeWithChanges } from "../trees";
 import { trackFreshUpload } from "../media-library/upload-session";
+import { isDemoConfig } from "../storage-mode";
+import { blockWriteInDemo } from "../demo-guard";
 
 export type ConflictResolution = "skip" | "replace" | "rename";
 
@@ -53,6 +55,10 @@ export function useFileManagerUpload() {
 
   const commit = useCallback(
     async (files: PendingUpload[]) => {
+      if (isDemoConfig(config)) {
+        blockWriteInDemo();
+        return undefined;
+      }
       const uploaded: { path: string; content: Uint8Array }[] = [];
       // paths that didn't overwrite a pre-existing file - candidates for
       // save-time cleanup if the entry ends up not referencing them (see

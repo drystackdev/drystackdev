@@ -38,6 +38,8 @@ import { createUrqlClient } from "./provider";
 import { serializeProps } from "../form/serialize-props";
 import { scopeEntriesWithPathPrefix } from "./shell/path-prefix";
 import { useRouter } from "./router";
+import { isDemoConfig } from "./storage-mode";
+import { blockWriteInDemo } from "./demo-guard";
 import { base64Encode } from "#base64";
 import { useEntryUploadSession } from "./media-library/upload-session";
 
@@ -221,6 +223,10 @@ export function useUpsertItem(args: {
       branch?: string;
       redirect?: { from: string; to: string };
     }): Promise<boolean> => {
+      if (isDemoConfig(args.config)) {
+        blockWriteInDemo();
+        return false;
+      }
       try {
         const unscopedTree =
           unscopedTreeData.kind === "loaded"
@@ -500,6 +506,10 @@ export function useDeleteItem(args: {
   return [
     state,
     async (opts?: { redirect?: { from: string; to: string } }) => {
+      if (isDemoConfig(config)) {
+        blockWriteInDemo();
+        return false;
+      }
       try {
         const unscopedTree =
           unscopedTreeData.kind === "loaded"

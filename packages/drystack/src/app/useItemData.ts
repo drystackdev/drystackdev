@@ -20,6 +20,8 @@ import { LOADING, useData } from "./useData";
 import { FormatInfo, getEntryDataFilepath, MaybePromise } from "./utils";
 import { toFormattedFormDataError } from "../form/error-formatting";
 import { parseRepoConfig, serializeRepoConfig } from "./repo-config";
+import { isDemoConfig } from "./storage-mode";
+import { getDemoBlob } from "./demo-source";
 import {
   getBlobFromPersistedCache,
   setBlobToPersistedCache,
@@ -454,11 +456,24 @@ export function fetchBlob(
       }
     }
     return runBlobFetch(() =>
-      isLocal
-        ? fetch(`/api${basePath}/blob/${oid}/${filepath}`, {
-            headers: { "no-cors": "1" },
-          })
-        : fetchGitHubBlob(config, oid, basePath),
+      isDemoConfig(config)
+        ? // No `/api/*/blob` route in a demo build - it's fully static. See
+          // app/demo-source.ts. Wrapped in a real Response so it flows
+          // through the exact same .ok/.arrayBuffer() handling below as the
+          // other two storage kinds. Re-copied via the Uint8Array
+          // constructor first: `getDemoBlob`'s array can come back typed as
+          // Uint8Array<ArrayBufferLike> (e.g. a view over a fetched
+          // ArrayBuffer), which BodyInit's stricter Uint8Array<ArrayBuffer>
+          // doesn't accept directly - copying guarantees a plain ArrayBuffer
+          // backing it.
+          getDemoBlob(filepath).then(
+            (array) => new Response(new Uint8Array(array)),
+          )
+        : isLocal
+          ? fetch(`/api${basePath}/blob/${oid}/${filepath}`, {
+              headers: { "no-cors": "1" },
+            })
+          : fetchGitHubBlob(config, oid, basePath),
     )
       .then(async (x) => {
         if (!x.ok) {

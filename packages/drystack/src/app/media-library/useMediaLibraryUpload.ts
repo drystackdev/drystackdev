@@ -9,6 +9,8 @@ import { useConfig } from "../shell/context";
 import { useCommitFileChanges } from "../shell/useCommitFileChanges";
 import { TreeEntry, updateTreeWithChanges } from "../trees";
 import { trackFreshUpload } from "./upload-session";
+import { isDemoConfig } from "../storage-mode";
+import { blockWriteInDemoWithError } from "../demo-guard";
 
 function uniquePath(
   directory: string,
@@ -47,6 +49,7 @@ export function useMediaLibraryUpload() {
       filename: string,
       existingPaths: ReadonlySet<string>,
     ): Promise<string> => {
+      if (isDemoConfig(config)) blockWriteInDemoWithError();
       const path = uniquePath(directory, filename, existingPaths);
       if (config.storage.kind === "github") {
         const unscopedTree =

@@ -41,14 +41,26 @@ import {
   setTreeToPersistedCache,
 } from '../object-cache';
 import { EmptyRepo } from './empty-repo';
+import { isDemoConfig } from '../storage-mode';
+import { getDemoTreeEntries } from '../demo-source';
 
-export function fetchLocalTree(sha: string, basePath: string) {
+export function fetchLocalTree(
+  sha: string,
+  basePath: string,
+  config: LocalConfig
+) {
   if (treeCache.has(sha)) {
     return treeCache.get(sha)!;
   }
-  const promise = fetch(`/api${basePath}/tree`, { headers: { 'no-cors': '1' } })
-    .then(x => x.json())
-    .then(async (entries: TreeEntry[]) => hydrateTreeCacheWithEntries(entries));
+  // Demo mode has no `/api/*/tree` route to call - the whole build is static
+  // - so its "disk" is the prebuilt zip instead. See app/demo-source.ts.
+  const promise = (
+    isDemoConfig(config)
+      ? getDemoTreeEntries()
+      : fetch(`/api${basePath}/tree`, { headers: { 'no-cors': '1' } }).then(x =>
+          x.json()
+        )
+  ).then(async (entries: TreeEntry[]) => hydrateTreeCacheWithEntries(entries));
   treeCache.set(sha, promise);
   return promise;
 }
@@ -70,8 +82,8 @@ export function LocalAppShellProvider(props: {
 
   const tree = useData(
     useCallback(
-      () => fetchLocalTree(currentTreeSha, basePath),
-      [currentTreeSha, basePath]
+      () => fetchLocalTree(currentTreeSha, basePath, props.config),
+      [currentTreeSha, basePath, props.config]
     )
   );
 

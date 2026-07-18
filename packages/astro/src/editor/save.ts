@@ -24,6 +24,8 @@ import {
 } from "@drystack/core/edit-sync";
 import { clientSideValidateProp } from "@drystack/core/field-editor";
 import { getAuth } from "@drystack/core/auth";
+import { isDemoConfig } from "@drystack/core/storage-mode";
+import { getDemoBlob, getDemoTreeEntries } from "@drystack/core/demo-source";
 // @ts-expect-error - provided by the drystack Astro integration's Vite plugin
 import apiPath from "virtual:drystack-path";
 import {
@@ -246,6 +248,19 @@ async function readCurrentFile(
   filepath: string,
   githubBranchName?: string,
 ): Promise<Uint8Array | null> {
+  // Checked ahead of the plain "local" branch below: a demo build has no
+  // `/api/*/tree` or `/api/*/blob` routes to call (it's fully static - see
+  // app/demo-source.ts), but read-only features built on this function
+  // (getLatestFieldValues seeding a field's live value, getPendingDiffs
+  // previewing what a save *would* write) still need to work. Mirrors the
+  // local branch's own shape: a tree lookup decides existence, then a blob
+  // read gets the bytes.
+  if (isDemoConfig(config)) {
+    const entries = await getDemoTreeEntries();
+    const entry = entries.find((e) => e.path === filepath);
+    if (!entry) return null;
+    return await getDemoBlob(filepath);
+  }
   if (config.storage.kind === "local") {
     const treeRes = await fetch(`/api/${apiPath}/tree`, {
       headers: { "no-cors": "1" },
@@ -320,6 +335,22 @@ export async function listAssetFiles(
     ? contentAssetsDir(entryDir, dottedField)
     : `${entryDir}/assets`;
   const out = new Map<string, Uint8Array>();
+  // A demo build has no `/api/*/tree` route (fully static - see
+  // app/demo-source.ts), but InlineContentEditors.tsx calls this on every
+  // content-field mount (not just on save) to hydrate embedded-image bytes
+  // before parsing the field's HTML - it has to work for the editor to even
+  // display correctly, let alone save.
+  if (isDemoConfig(config)) {
+    const entries = await getDemoTreeEntries();
+    await Promise.all(
+      entries
+        .filter((e) => e.type === "blob" && e.path.startsWith(`${dir}/`))
+        .map(async (e) => {
+          out.set(e.path.slice(dir.length + 1), await getDemoBlob(e.path));
+        }),
+    );
+    return out;
+  }
   if (config.storage.kind === "local") {
     const treeRes = await fetch(`/api/${apiPath}/tree`, {
       headers: { "no-cors": "1" },
@@ -959,6 +990,16 @@ export async function getPendingDiffs(
 export async function saveEdits(
   config: Config<any, any>,
 ): Promise<string | undefined> {
+  // Single choke point: `saveEdits` is the only place that ever turns pending
+  // edits into a real write (github commit or local `/update` call), and
+  // Toolbar.tsx's runSave is its only caller today - guarding here instead of
+  // (or in addition to) the button click means every future caller inherits
+  // the same protection for free, and a demo build (which has no `/api/*`
+  // routes to call at all - see app/demo-source.ts) never even attempts the
+  // fetch that would otherwise 404.
+  if (isDemoConfig(config)) {
+    throw new Error("Demo mode: changes are not saved");
+  }
   const isGithub = config.storage.kind === "github";
   let commitOid: string | undefined;
   if (isGithub) {

@@ -17,11 +17,13 @@ import { getEditorSchema } from "../../form/fields/markdoc/editor/schema";
 import { useEntryDirectoryContext } from "../entry-form";
 import l10nMessages from "../l10n";
 import { useRouter } from "../router";
+import { useConfig } from "../shell/context";
 import { stripDisallowedTags } from "./apply-value";
 import { fieldToContextText } from "./field-value-text";
 import { stripCodeFence } from "./rewrite-html";
 import { useAiModels } from "./useAiModels";
 import { readErrorMessage } from "./useMagicWrite";
+import { aiRouteUrl, aiRouteModel } from "./ai-fetch";
 
 export type RewriteStatus = "idle" | "streaming" | "error";
 
@@ -35,6 +37,7 @@ export function useRewriteSelection(args: {
 }) {
   const { entry, fieldKey, schema, state } = args;
   const { basePath } = useRouter();
+  const config = useConfig();
   const entryDirectory = useEntryDirectoryContext();
   const viewRef = useEditorViewRef();
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
@@ -119,7 +122,7 @@ export function useRewriteSelection(args: {
       };
 
       try {
-        const res = await fetch(`/api${basePath}/ai/rewrite`, {
+        const res = await fetch(aiRouteUrl(config, basePath, "rewrite"), {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -128,7 +131,7 @@ export function useRewriteSelection(args: {
             selection: passage,
             description,
             context,
-            model,
+            model: aiRouteModel(config, model),
           }),
           signal: controller.signal,
         });
@@ -179,6 +182,7 @@ export function useRewriteSelection(args: {
     },
     [
       basePath,
+      config,
       entry,
       entryDirectory,
       fieldKey,

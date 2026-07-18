@@ -474,6 +474,20 @@ import "@drystack/core/ui";
           pattern: `/api/${path}/[...params]`,
           prerender: false,
         });
+        // Prerendered (unlike the two routes above): it needs no per-request
+        // handling, so Astro executes it once during `astro build` and writes
+        // the response straight to `dist/client/__data.zip` as a static file.
+        // Root-level and not under `/${path}` - it's meant to be fetchable as
+        // a plain public asset (see app/demo-source.ts), not an API route.
+        // Always injected regardless of storage mode; buildDemoZipResponse
+        // itself 404s when the config isn't a demo config.
+        injectRoute({
+          // @ts-ignore - kept for Astro 2/3 where the option was named `entryPoint`
+          entryPoint: "@drystack/astro/internal/drystack-demo-zip.js",
+          entrypoint: "@drystack/astro/internal/drystack-demo-zip.js",
+          pattern: `/__data.zip`,
+          prerender: true,
+        });
 
         // Under the Cloudflare adapter, `astro dev` executes on-demand routes
         // inside workerd. workerd's node:fs compat can *read* the host disk but

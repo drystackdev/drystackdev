@@ -13,6 +13,8 @@ import { fetchBlob } from "../useItemData";
 import { getTreeNodeAtPath, updateTreeWithChanges, TreeEntry } from "../trees";
 import { useCommitFileChanges } from "../shell/useCommitFileChanges";
 import { TRASH_DIRECTORY } from "./constants";
+import { isDemoConfig } from "../storage-mode";
+import { blockWriteInDemo } from "../demo-guard";
 
 export function trashedPathFor(path: string) {
   return `${TRASH_DIRECTORY}/${path}`;
@@ -129,6 +131,10 @@ export function useTrash() {
 
   const movePaths = useCallback(
     async (paths: readonly string[], transform: (path: string) => string) => {
+      if (isDemoConfig(config)) {
+        blockWriteInDemo();
+        return undefined;
+      }
       if (tree.kind !== "loaded" || paths.length === 0) return undefined;
       const files = await Promise.all(
         paths.map(async (path) => {
@@ -178,6 +184,10 @@ export function useTrash() {
 
   const permanentlyDelete = useCallback(
     (paths: readonly string[]) => {
+      if (isDemoConfig(config)) {
+        blockWriteInDemo();
+        return undefined;
+      }
       if (isGitHub) {
         return commitToGitHub("Delete files", [], expandToBlobPaths(paths));
       }
@@ -189,7 +199,7 @@ export function useTrash() {
         paths.map((path) => ({ path })),
       );
     },
-    [basePath, isGitHub, commitToGitHub, expandToBlobPaths],
+    [config, basePath, isGitHub, commitToGitHub, expandToBlobPaths],
   );
 
   return { trashPaths, restorePaths, permanentlyDelete };

@@ -133,7 +133,54 @@ export type GitHubConfig<
   singletons?: Singletons;
 } & CommonConfig<Collections, Singletons>;
 
-type LocalStorageConfig = { kind: "local" };
+type LocalStorageConfig = {
+  kind: "local";
+  /**
+   * Read-only public demo. Deliberately a flag *on* local storage rather than
+   * its own `storage.kind`: demo shares local's entire shape (one tree, no
+   * branches, no OAuth), so every existing `isLocalConfig`/`kind === 'local'`
+   * branch stays correct for it. Only the handful of places listed below rewire
+   * themselves, instead of ~86 call sites having to learn a third kind.
+   *
+   * What the flag changes:
+   * - reads come from a prebuilt `/__data.zip` instead of `/api/<base>/tree`
+   *   and `/api/<base>/blob/...` (see app/demo-source.ts)
+   * - every write path no-ops with a toast (see app/demo-guard.ts)
+   * - AI calls go to `storage.ai.url` on another origin instead of
+   *   `/api/<base>/ai/*`, since a demo build is fully static and has no
+   *   `/api` routes at all
+   */
+  demo?: boolean;
+  /**
+   * Only meaningful alongside `demo: true` - ignored otherwise. Points Magic
+   * write/rewrite at a small proxy the site owner runs on another origin,
+   * instead of this site's own (nonexistent, in a static demo build)
+   * `/api/<base>/ai/*` routes. Deliberately separate from the top-level `ai`
+   * config above: that one drives the real, authenticated github/local
+   * generation path (reading DRY_AI_KEY server-side) and is not consulted at
+   * all in demo mode - this is a different, unauthenticated endpoint with a
+   * different trust model (public internet, no admin login gating it), so
+   * giving it its own key keeps the two from being mixed up.
+   */
+  ai?: {
+    /**
+     * Absolute base URL of the proxy. Only `POST <url>/generate` and
+     * `POST <url>/rewrite` are ever called (status is synthesized
+     * client-side and the model picker is hidden in demo mode, so the
+     * proxy needs no counterpart for the other three admin AI routes). Must
+     * respond with a streamed body, not a buffered one - the client reads it
+     * chunk by chunk - and must rate-limit per IP: this endpoint has no
+     * login in front of it, so anyone can call it.
+     */
+    url: string;
+    /**
+     * Model name sent to the proxy with every request, and shown as-is in
+     * the synthesized AI status - purely what the client asks for and
+     * displays; the proxy itself decides what actually runs.
+     */
+    model?: string;
+  };
+};
 
 export type LocalConfig<
   Collections extends {
