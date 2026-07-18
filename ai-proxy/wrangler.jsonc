@@ -9,8 +9,5 @@
       "namespace_id": "1",
       "simple": { "limit": 5, "period": 60 }
     }
-  ],
-  "vars": {
-    "ALLOWED_ORIGINS": ""
-  }
+  ]
 }
