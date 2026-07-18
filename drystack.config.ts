@@ -19,7 +19,14 @@ const socialPlatformOptions = [
 const headingFieldDescription =
   "Bôi đậm phần chữ muốn nhấn mạnh (chọn chữ rồi bấm nút đậm hoặc Ctrl/Cmd+B).";
 
-function postCollection(label: string, previewUrl: string) {
+// `collectionKey` must be the same key this collection is registered under in
+// `collections` below - fields.multiRelationship({ collection }) resolves that
+// name at runtime, so a mismatch silently yields an empty picker.
+function postCollection(
+  label: string,
+  previewUrl: string,
+  collectionKey: string,
+) {
   return collection({
     label,
     slugField: "title",
@@ -51,6 +58,24 @@ function postCollection(label: string, previewUrl: string) {
         label: "Xuất bản",
         defaultValue: false,
       }),
+      relatedPosts: fields.multiRelationship({
+        label: "Bài viết liên quan",
+        collection: collectionKey,
+        description:
+          "Chọn tối đa 3 bài để hiện ở cuối trang. Bỏ trống sẽ tự lấy 3 bài mới nhất.",
+        validation: { length: { max: 3 } },
+      }),
+      relatedService: fields.relationship({
+        label: "Dịch vụ liên quan",
+        collection: "services",
+        description: "Hiện khối kêu gọi hành động dẫn tới trang dịch vụ.",
+      }),
+      sourceDoc: fields.pathReference({
+        label: "Tài liệu nguồn",
+        pattern: "**/*.md",
+        description:
+          "Tệp Markdown trong repo được dùng làm nguồn tham khảo cho bài viết.",
+      }),
       body: fields.content({ label: "Nội dung" }),
       createdAt: fields.timestamp({ mode: "created", label: "Tạo lúc" }),
       updatedAt: fields.timestamp({ mode: "updated", label: "Sửa lúc" }),
@@ -78,8 +103,12 @@ export default config({
     },
   },
   collections: {
-    blog: postCollection("Bài viết", "/blog/{slug}"),
-    seoKnowledge: postCollection("Kiến thức SEO", "/blog-kien-thuc/{slug}"),
+    blog: postCollection("Bài viết", "/blog/{slug}", "blog"),
+    seoKnowledge: postCollection(
+      "Kiến thức SEO",
+      "/blog-kien-thuc/{slug}",
+      "seoKnowledge",
+    ),
     services: collection({
       label: "Dịch vụ",
       slugField: "title",
