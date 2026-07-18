@@ -1,0 +1,17 @@
+---
+import { Drystack } from './drystack-page.js';
+
+// Used only for `storage.demo: true` builds (see @drystack/astro's
+// isDemoBuild) instead of the on-demand drystack-astro-page.astro - the page
+// is `client:only`, so there's nothing per-request to render server-side,
+// and a demo build has no writes/API calls left that need a Worker at
+// request time (see app/demo-source.ts + app/demo-guard.ts). Registered at a
+// non-catch-all pattern (`/${path}`, no `[...params]`) so Astro prerenders it
+// to a single static index.html; every deeper `/${path}/...` URL is served
+// the same file via the `_redirects` fallback the integration writes at
+// build:done (drystack-page.js's Drystack does its own client-side routing
+// off `window.location`, not Astro params).
+export const prerender = true;
+---
+
+<Drystack client:only="react" />

@@ -84,18 +84,18 @@ function postCollection(
 }
 
 export default config({
-  storage: import.meta.env.DEV
-    ? {
-        kind: "local",
-      }
-    : {
-        kind: "github",
-        repo: "drystackdev/drystackdev",
-      },
-  // storage: {
-  //   kind: "local",
-  //   demo: true,
-  // },
+  // storage: import.meta.env.DEV
+  //   ? {
+  //       kind: "local",
+  //     }
+  //   : {
+  //       kind: "github",
+  //       repo: "drystackdev/drystackdev",
+  //     },
+  storage: {
+    kind: "local",
+    demo: true,
+  },
   ai: {
     lang: "vi-VN",
     for: {

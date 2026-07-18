@@ -16,7 +16,7 @@ import {
   appendFileSync,
   cpSync,
 } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { pipeline } from "node:stream/promises";
 import { basename, dirname, join, relative, sep } from "node:path";
 import { load } from "js-yaml";
@@ -231,6 +231,66 @@ async function writeDryMapFile(clientDir: string) {
   writeFileSync(destPath, JSON.stringify(registry));
 }
 
+// Checked, in order, against the project root - mirrors the extensions
+// Astro/Vite would try when resolving the bare `./drystack.config` specifier
+// the rest of this integration uses (see the `resolveId` plugin above).
+const DRYSTACK_CONFIG_CANDIDATES = [
+  "drystack.config.ts",
+  "drystack.config.mts",
+  "drystack.config.js",
+  "drystack.config.mjs",
+  "drystack.config.cjs",
+];
+
+// `astro:config:setup` runs before Vite exists, so this can't go through the
+// virtual-module machinery every other config read in this file uses (see
+// handleLocalApiRequest / contentRefreshDevPlugin, both of which wait for a
+// running dev server). It's only needed to decide, at build time, whether
+// `/${path}` can be prerendered instead of served on-demand - so it imports
+// the config file directly. That only works when the process running `astro
+// build` can execute the file's extension itself (this repo runs everything
+// through Bun, which transpiles .ts on import; a plain Node run without a
+// loader would throw). Any failure here - file not found, import throws -
+// just falls back to the normal on-demand route, never breaks the build.
+async function isDemoBuild(root: URL): Promise<boolean> {
+  const rootPath = fileURLToPath(root);
+  for (const candidate of DRYSTACK_CONFIG_CANDIDATES) {
+    const full = join(rootPath, candidate);
+    if (!existsSync(full)) continue;
+    try {
+      const mod = await import(pathToFileURL(full).href);
+      const storage = mod.default?.storage;
+      return storage?.kind === "local" && storage?.demo === true;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+// The static demo shell (drystack-astro-page-static.astro) only ever
+// produces one file, `${path}/index.html` - the page does its own
+// client-side routing off `window.location`, not Astro params (see
+// ui.tsx's makePage) - so every deeper `/${path}/...` URL 404s unless
+// something maps it back to that same file. Appended (not written fresh)
+// for the same reason writeCmsRedirectsFile appends: a hand-authored
+// `public/_redirects` file, already copied into clientDir by the time
+// `astro:build:done` fires, keeps its rules first.
+//
+// Target is `/${path}/` (a directory, no filename) rather than the more
+// obvious `/${path}/index.html` - Cloudflare's redirect validator rejects
+// the latter outright ("Infinite loop detected"): its own implicit
+// html_handling normalizes a request for `/${path}/index.html` back down to
+// `/${path}/`, which matches this same wildcard rule again. Targeting the
+// directory is already the normalized form, so there's nothing left to loop
+// on, and Cloudflare's own asset serving resolves it to the index file.
+function writeDemoSpaFallback(clientDir: string, path: string) {
+  const destPath = join(clientDir, "_redirects");
+  const separator = existsSync(destPath) ? "\n" : "";
+  mkdirSync(clientDir, { recursive: true });
+  appendFileSync(destPath, `${separator}/${path}/* /${path}/ 200\n`);
+}
+
 // Data-file basename for an `index`-location entry (`index.yaml`,
 // `index.json`, `index.md`, `index.mdx`, `index.mdoc`). A collection's data
 // extension depends on its format, so match them all - a false positive only
@@ -390,6 +450,10 @@ export default function drystack(options?: {
   // `astro:build:done` to mirror drystack `assets/` dirs into the client output.
   let projectRoot: string | undefined;
   let clientOutDir: string | undefined;
+  // Set in astro:config:setup (the only hook `command` and `injectRoute` are
+  // both available in) and read back in astro:build:done to decide whether
+  // the SPA-fallback redirect is needed - see writeDemoSpaFallback.
+  let demoStaticBuild = false;
   return {
     name: "drystack",
     hooks: {
@@ -407,13 +471,15 @@ export default function drystack(options?: {
           copyDrystackAssets(projectRoot, clientOutDir);
           writeCmsRedirectsFile(projectRoot, clientOutDir);
           await writeDryMapFile(clientOutDir);
+          if (demoStaticBuild) writeDemoSpaFallback(clientOutDir, path);
         }
       },
-      "astro:config:setup": ({
+      "astro:config:setup": async ({
         injectRoute,
         injectScript,
         updateConfig,
         config,
+        command,
       }) => {
         updateConfig({
           server: config.server.host ? {} : { host: "127.0.0.1" },
@@ -460,20 +526,43 @@ import "@drystack/core/ui";
 `,
         );
 
-        injectRoute({
-          // @ts-ignore - kept for Astro 2/3 where the option was named `entryPoint`
-          entryPoint: "@drystack/astro/internal/drystack-astro-page.astro",
-          entrypoint: "@drystack/astro/internal/drystack-astro-page.astro",
-          pattern: `/${path}/[...params]`,
-          prerender: false,
-        });
-        injectRoute({
-          // @ts-ignore - kept for Astro 2/3 where the option was named `entryPoint`
-          entryPoint: "@drystack/astro/internal/drystack-api.js",
-          entrypoint: "@drystack/astro/internal/drystack-api.js",
-          pattern: `/api/${path}/[...params]`,
-          prerender: false,
-        });
+        // Only attempted for `astro build` (see isDemoBuild) - dev always
+        // keeps the on-demand route below, regardless of storage.demo, so
+        // dev behavior never changes.
+        demoStaticBuild =
+          command === "build" && (await isDemoBuild(config.root));
+
+        if (demoStaticBuild) {
+          injectRoute({
+            // @ts-ignore - kept for Astro 2/3 where the option was named `entryPoint`
+            entryPoint:
+              "@drystack/astro/internal/drystack-astro-page-static.astro",
+            entrypoint:
+              "@drystack/astro/internal/drystack-astro-page-static.astro",
+            pattern: `/${path}`,
+            prerender: true,
+          });
+        } else {
+          injectRoute({
+            // @ts-ignore - kept for Astro 2/3 where the option was named `entryPoint`
+            entryPoint: "@drystack/astro/internal/drystack-astro-page.astro",
+            entrypoint: "@drystack/astro/internal/drystack-astro-page.astro",
+            pattern: `/${path}/[...params]`,
+            prerender: false,
+          });
+          // Skipped for a static demo build: nothing calls it there (demo
+          // reads go through app/demo-source.ts's `__data.zip`, and every
+          // write is blocked client-side before it ever reaches the network -
+          // see app/demo-guard.ts), so a demo build has no on-demand route
+          // left and needs no Worker at request time.
+          injectRoute({
+            // @ts-ignore - kept for Astro 2/3 where the option was named `entryPoint`
+            entryPoint: "@drystack/astro/internal/drystack-api.js",
+            entrypoint: "@drystack/astro/internal/drystack-api.js",
+            pattern: `/api/${path}/[...params]`,
+            prerender: false,
+          });
+        }
         // Prerendered (unlike the two routes above): it needs no per-request
         // handling, so Astro executes it once during `astro build` and writes
         // the response straight to `dist/client/__data.zip` as a static file.
@@ -542,12 +631,20 @@ import "@drystack/core/ui";
         });
 
         // MVP 1 visual DOM editor - stage 1: tiny eligibility check present on
-        // every page (dev, or a logged-in-GitHub cookie in prod). Only when
-        // eligible does it dynamically import the real editor (stage 2), so
-        // anonymous visitors never download the editor chunk.
+        // every page (dev, a logged-in-GitHub cookie in prod, or a demo
+        // build). Only when eligible does it dynamically import the real
+        // editor (stage 2), so anonymous visitors on a normal (non-demo)
+        // production site never download the editor chunk.
+        //
+        // Demo builds are the one case where every visitor is meant to see
+        // the toolbar with no login at all - that's the point of the mode
+        // (see app/demo-guard.ts: writes still toast-block instead of
+        // persisting). `demoStaticBuild` is computed once above from the
+        // same isDemoBuild() check that decides the static /drystack route,
+        // so this stays in sync with that switch automatically.
         injectScript(
           "page",
-          `const eligible = import.meta.env.DEV || document.cookie.includes('drystack-gh-access-token=');
+          `const eligible = import.meta.env.DEV || document.cookie.includes('drystack-gh-access-token=') || ${JSON.stringify(demoStaticBuild)};
 if (eligible) {
   if (import.meta.env.DEV) {
     // The editor is mounted manually (not as an Astro/React island), so
