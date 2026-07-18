@@ -5,13 +5,12 @@ import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
 import Icon from "../components/Icon.astro";
 import JsonLd from "../components/JsonLd.astro";
-import { dry } from "@drystack/astro/dry";
-import config from "../../drystack.config";
+import { dry } from "../lib/dry";
 import heroImage from "../assets/hero.png";
 
 const [page, homepage] = await Promise.all([
-  dry(config).singleton.gioiThieu,
-  dry(config).singleton.homepage,
+  dry.singleton("gioiThieu"),
+  dry.singleton("homepage"),
 ]);
 const { metaTitle, metaDescription, ogImage, hero, intro, values, timeline } =
   page;
@@ -41,16 +40,16 @@ const breadcrumbSchema = {
       </div>
     </div>
     <div class="container about-hero__inner" data-stagger="120">
-      <p class="eyebrow reveal" {...page.item("hero.eyebrow")}>{hero.eyebrow}</p>
+      <p class="eyebrow reveal" {...page.bind("hero.eyebrow")}>{hero.eyebrow}</p>
       <h1
         class:list={["section-title reveal", "heading-rich"]}
         set:html={hero.heading}
-        {...page.item("hero.heading")}
+        {...page.bind("hero.heading")}
       />
       <p
         class="section-lede reveal"
         style="margin-top: 1rem; max-width: 60ch;"
-        {...page.item("hero.lede")}
+        {...page.bind("hero.lede")}
       >
         {hero.lede}
       </p>
@@ -84,37 +83,37 @@ const breadcrumbSchema = {
           <span
             class:list={["heading-rich", "portrait-badge"]}
             set:html={brand.name}
-            {...homepage.item("brand.name")}
+            {...homepage.bind("brand.name")}
           />
         </div>
       </div>
       <div class="about-intro__content reveal reveal-right">
-        <p class="eyebrow" {...page.item("intro.eyebrow")}>{intro.eyebrow}</p>
+        <p class="eyebrow" {...page.bind("intro.eyebrow")}>{intro.eyebrow}</p>
         <h2
           class:list={["section-title", "heading-rich"]}
           set:html={intro.heading}
-          {...page.item("intro.heading")}
+          {...page.bind("intro.heading")}
         />
         <p
           class="section-lede"
           style="margin-top: 1rem;"
-          {...page.item("intro.lede")}
+          {...page.bind("intro.lede")}
         >
           {intro.lede}
         </p>
-        <div class="about-intro__stats" {...page.item("intro.stats")}>
+        <div class="about-intro__stats" {...page.bind("intro.stats")}>
           {
             intro.stats.map((s, i) => (
               <div class="stat">
                 <span
                   class="stat__value gradient-text"
-                  {...page.item(`intro.stats.${i}.value`)}
+                  {...page.bind(`intro.stats.${i}.value`)}
                 >
                   {s.value}
                 </span>
                 <span
                   class="stat__label"
-                  {...page.item(`intro.stats.${i}.label`)}
+                  {...page.bind(`intro.stats.${i}.label`)}
                 >
                   {s.label}
                 </span>
@@ -128,22 +127,22 @@ const breadcrumbSchema = {
 
   <section class="about-values section--dark">
     <div class="container" data-stagger="120">
-      <p class="eyebrow reveal" {...page.item("values.eyebrow")}>{values.eyebrow}</p>
+      <p class="eyebrow reveal" {...page.bind("values.eyebrow")}>{values.eyebrow}</p>
       <h2
         class:list={["section-title reveal", "heading-rich"]}
         style="margin-block: 0.75rem 3rem;"
         set:html={values.heading}
-        {...page.item("values.heading")}
+        {...page.bind("values.heading")}
       />
-      <div class="about-values__grid" data-stagger {...page.item("values.items")}>
+      <div class="about-values__grid" data-stagger {...page.bind("values.items")}>
         {
           values.items.map((v, i) => (
             <div class="value-card reveal">
               <span class="value-card__icon">
                 <Icon name={v.icon as any} size={22} />
               </span>
-              <h3 {...page.item(`values.items.${i}.title`)}>{v.title}</h3>
-              <p {...page.item(`values.items.${i}.desc`)}>{v.desc}</p>
+              <h3 {...page.bind(`values.items.${i}.title`)}>{v.title}</h3>
+              <p {...page.bind(`values.items.${i}.desc`)}>{v.desc}</p>
             </div>
           ))
         }
@@ -153,14 +152,14 @@ const breadcrumbSchema = {
 
   <section class="about-timeline section--light">
     <div class="container" data-stagger="120">
-      <p class="eyebrow reveal" {...page.item("timeline.eyebrow")}>{timeline.eyebrow}</p>
+      <p class="eyebrow reveal" {...page.bind("timeline.eyebrow")}>{timeline.eyebrow}</p>
       <h2
         class:list={["section-title reveal", "heading-rich"]}
         style="margin-block: 0.75rem 3rem;"
         set:html={timeline.heading}
-        {...page.item("timeline.heading")}
+        {...page.bind("timeline.heading")}
       />
-      <div class="timeline" data-stagger {...page.item("timeline.items")}>
+      <div class="timeline" data-stagger {...page.bind("timeline.items")}>
         {
           timeline.items.map((t, i) => (
             <div
@@ -171,11 +170,11 @@ const breadcrumbSchema = {
             >
               <span
                 class="timeline-item__year"
-                {...page.item(`timeline.items.${i}.year`)}
+                {...page.bind(`timeline.items.${i}.year`)}
               >
                 {t.year}
               </span>
-              <p {...page.item(`timeline.items.${i}.desc`)}>{t.desc}</p>
+              <p {...page.bind(`timeline.items.${i}.desc`)}>{t.desc}</p>
             </div>
           ))
         }

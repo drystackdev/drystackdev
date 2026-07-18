@@ -628,7 +628,7 @@ type Prev = [never, 0, 1, 2, 3, 4, 5, 6, 7];
 // appears in (so array-of-text's paths are `${number}` alone, not
 // `${number}.${never}`). Path convention is dot-string (not the
 // array-shaped ReadonlyPropPath used elsewhere in this package) to match
-// dry.item()'s existing data-dry-key convention, its only consumer today.
+// dry.bind()'s existing data-dry-key convention, its only consumer today.
 export type DotPathForComponentSchema<
   Schema extends ComponentSchema,
   Depth extends number = 8,

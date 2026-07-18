@@ -1,16 +1,15 @@
 ---
 import Icon from "./Icon.astro";
 import { getServices } from "../data/services";
-import { dry } from "@drystack/astro/dry";
-import config from "../../drystack.config";
+import { dry } from "../lib/dry";
 
 const services = await getServices();
-const homepage = (await dry(config).singleton.homepage) as any;
+const homepage = (await dry.singleton("homepage")) as any;
 const { servicesSection } = homepage;
 ---
 
 <section class="services section--dark" id="services">
-  <span class="section-kicker-word kicker-right" {...homepage.item("servicesSection.eyebrow")}>{servicesSection.eyebrow}</span>
+  <span class="section-kicker-word kicker-right" {...homepage.bind("servicesSection.eyebrow")}>{servicesSection.eyebrow}</span>
 
   <div class="bg-layer">
     <div
@@ -22,13 +21,13 @@ const { servicesSection } = homepage;
   </div>
 
   <div class="container services__head">
-    <p class="eyebrow reveal" {...homepage.item("servicesSection.eyebrow")}>{servicesSection.eyebrow}</p>
+    <p class="eyebrow reveal" {...homepage.bind("servicesSection.eyebrow")}>{servicesSection.eyebrow}</p>
     <h2
       class:list={["section-title reveal", "heading-rich"]}
       set:html={servicesSection.heading}
-      {...homepage.item("servicesSection.heading")}
+      {...homepage.bind("servicesSection.heading")}
     />
-    <p class="section-lede reveal" style="margin: 1rem auto 0;" {...homepage.item("servicesSection.lede")}>
+    <p class="section-lede reveal" style="margin: 1rem auto 0;" {...homepage.bind("servicesSection.lede")}>
       {servicesSection.lede}
     </p>
   </div>

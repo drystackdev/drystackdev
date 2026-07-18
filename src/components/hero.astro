@@ -1,13 +1,12 @@
 ---
 import { Image } from "astro:assets";
 import Icon from "./Icon.astro";
-import { dry } from "@drystack/astro/dry";
-import config from "../../drystack.config";
+import { dry } from "../lib/dry";
 import heroImage from "../assets/hero.png";
 
 const [homepage, gioiThieu]: [any, any] = await Promise.all([
-  dry(config).singleton.homepage,
-  dry(config).singleton.gioiThieu,
+  dry.singleton("homepage"),
+  dry.singleton("gioiThieu"),
 ]);
 const { brand, hero } = homepage;
 const { intro } = gioiThieu;
@@ -72,20 +71,20 @@ const { intro } = gioiThieu;
   </div>
 
   <div class="hero__inner container-fluid">
-    <p style="z-index: 10;" class="eyebrow reveal" {...homepage.item("hero.eyebrow")}>
+    <p style="z-index: 10;" class="eyebrow reveal" {...homepage.bind("hero.eyebrow")}>
       {hero.eyebrow}
     </p>
 
     <h1
       class:list={["hero__title reveal", "heading-rich", "hero__title-outline"]}
       set:html={brand.name}
-      {...homepage.item("brand.name")}
+      {...homepage.bind("brand.name")}
     />
 
     <div class="hero__row">
       <div class="hero__tagline reveal reveal-right">
-        <h2 class="heading-rich" set:html={hero.tagline} {...homepage.item("hero.tagline")} />
-        <p {...homepage.item("hero.description")}>
+        <h2 class="heading-rich" set:html={hero.tagline} {...homepage.bind("hero.tagline")} />
+        <p {...homepage.bind("hero.description")}>
           {hero.description}
         </p>
       </div>
@@ -102,21 +101,21 @@ const { intro } = gioiThieu;
       </div>
 
       <div class="hero__info-card reveal reveal-left">
-        <p class="eyebrow" {...homepage.item("brand.personName")}>{brand.personName}</p>
-        <h3 {...homepage.item("brand.role")}>{brand.role}</h3>
-        <div class="hero__info-stats" {...gioiThieu.item("intro.stats")}>
+        <p class="eyebrow" {...homepage.bind("brand.personName")}>{brand.personName}</p>
+        <h3 {...homepage.bind("brand.role")}>{brand.role}</h3>
+        <div class="hero__info-stats" {...gioiThieu.bind("intro.stats")}>
           {
             (intro.stats as any[]).map((s, i) => (
               <div class="stat">
                 <span
                   class="stat__value gradient-text"
-                  {...gioiThieu.item(`intro.stats.${i}.value`)}
+                  {...gioiThieu.bind(`intro.stats.${i}.value`)}
                 >
                   {s.value}
                 </span>
                 <span
                   class="stat__label"
-                  {...gioiThieu.item(`intro.stats.${i}.label`)}
+                  {...gioiThieu.bind(`intro.stats.${i}.label`)}
                 >
                   {s.label}
                 </span>
@@ -125,7 +124,7 @@ const { intro } = gioiThieu;
           }
         </div>
         <div class="hairline"></div>
-        <p class="hero__info-status" {...homepage.item("brand.availabilityStatus")}>
+        <p class="hero__info-status" {...homepage.bind("brand.availabilityStatus")}>
           <Icon name="circle-dot" size={12} />
           {brand.availabilityStatus}
         </p>

@@ -1,20 +1,19 @@
 ---
 import Icon from "./Icon.astro";
-import { dry } from "@drystack/astro/dry";
-import config from "../../drystack.config";
+import { dry } from "../lib/dry";
 
-const homepage = (await dry(config).singleton.homepage) as any;
+const homepage = (await dry.singleton("homepage")) as any;
 const { contact, contactSection } = homepage;
 
 const info = [
-	{ label: "Email", value: contact.email, itemProps: homepage.item("contact.email") },
-	{ label: "Điện thoại", value: contact.phoneDisplay, itemProps: homepage.item("contact.phoneDisplay") },
-	{ label: "Khu vực", value: contact.region, itemProps: homepage.item("contact.region") },
+	{ label: "Email", value: contact.email, itemProps: homepage.bind("contact.email") },
+	{ label: "Điện thoại", value: contact.phoneDisplay, itemProps: homepage.bind("contact.phoneDisplay") },
+	{ label: "Khu vực", value: contact.region, itemProps: homepage.bind("contact.region") },
 ];
 ---
 
 <section class="contact section--light" id="contact">
-	<span class="section-kicker-word kicker-left" {...homepage.item("contactSection.eyebrow")}>{contactSection.eyebrow}</span>
+	<span class="section-kicker-word kicker-left" {...homepage.bind("contactSection.eyebrow")}>{contactSection.eyebrow}</span>
 
 	<div class="bg-layer">
 		<div class="orb orb--gold" style="width:340px;height:340px;bottom:-12%;left:-8%;opacity:0.16;" data-parallax="0.1"></div>
@@ -22,13 +21,13 @@ const info = [
 
 	<div class="container contact__inner">
 		<div class="contact__intro reveal reveal-left">
-			<p class="eyebrow" {...homepage.item("contactSection.eyebrow")}>{contactSection.eyebrow}</p>
+			<p class="eyebrow" {...homepage.bind("contactSection.eyebrow")}>{contactSection.eyebrow}</p>
 			<h2
 				class:list={["section-title", "heading-rich"]}
 				set:html={contactSection.heading}
-				{...homepage.item("contactSection.heading")}
+				{...homepage.bind("contactSection.heading")}
 			/>
-			<p class="section-lede" style="margin-top: 1rem;" {...homepage.item("contactSection.lede")}>
+			<p class="section-lede" style="margin-top: 1rem;" {...homepage.bind("contactSection.lede")}>
 				{contactSection.lede}
 			</p>
 

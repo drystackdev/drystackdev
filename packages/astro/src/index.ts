@@ -217,7 +217,7 @@ function writeCmsRedirectsFile(root: string, clientDir: string) {
 // static asset, gated behind GitHub auth by the `github/dry-map` route
 // (generic.ts) - not encrypted, since the registry only reveals field
 // paths/kinds, not any actual site secret. Empty registry (local mode, or no
-// dry.item() calls at all) means nothing to write.
+// .bind()/.view() calls at all) means nothing to write.
 async function writeDryMapFile(clientDir: string) {
   const registry = readDryMapRegistryFile();
   if (Object.keys(registry).length === 0) return;

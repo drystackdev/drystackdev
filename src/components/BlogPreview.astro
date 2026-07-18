@@ -2,14 +2,13 @@
 import { Image } from "astro:assets";
 import Icon from "./Icon.astro";
 import { getBlogPosts, getSeoKnowledgePosts } from "../data/blog";
-import { dry } from "@drystack/astro/dry";
-import config from "../../drystack.config";
+import { dry } from "../lib/dry";
 
 const [blogPosts, seoKnowledgePosts, blogPreview]: [any, any, any] =
   await Promise.all([
     getBlogPosts(),
     getSeoKnowledgePosts(),
-    dry(config).singleton.blogListing,
+    dry.singleton("blogListing"),
   ]);
 const allPosts = [
   ...blogPosts.map((p) => ({ ...p, basePath: "/blog" })),
@@ -29,7 +28,7 @@ function formatDate(d: string) {
 ---
 
 <section class="blog-preview section--dark" id="blog">
-  <span class="section-kicker-word kicker-right" {...blogPreview.item("eyebrow")}>{blogPreview.eyebrow}</span>
+  <span class="section-kicker-word kicker-right" {...blogPreview.bind("eyebrow")}>{blogPreview.eyebrow}</span>
 
   <div class="bg-layer">
     <div
@@ -41,13 +40,13 @@ function formatDate(d: string) {
   </div>
 
   <div class="container blog-preview__head">
-    <p class="eyebrow reveal" {...blogPreview.item("eyebrow")}>{blogPreview.eyebrow}</p>
+    <p class="eyebrow reveal" {...blogPreview.bind("eyebrow")}>{blogPreview.eyebrow}</p>
     <h2
       class:list={["section-title reveal", "heading-rich"]}
       set:html={blogPreview.heading}
-      {...blogPreview.item("heading")}
+      {...blogPreview.bind("heading")}
     />
-    <p class="section-lede reveal" style="margin: 1rem auto 0;" {...blogPreview.item("lede")}>
+    <p class="section-lede reveal" style="margin: 1rem auto 0;" {...blogPreview.bind("lede")}>
       {blogPreview.lede}
     </p>
   </div>

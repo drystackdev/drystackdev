@@ -1,17 +1,16 @@
 ---
 import Icon from "./Icon.astro";
-import { dry } from "@drystack/astro/dry";
-import config from "../../drystack.config";
+import { dry } from "../lib/dry";
 import { htmlToPlainText } from "../lib/heading";
 
-const homepage = await dry(config).singleton.homepage;
+const homepage = await dry.singleton("homepage");
 const { brand, headerNav } = homepage;
 
 const links = headerNav.map((n, i) => ({
   href: n.href,
   label: n.label,
   match: n.href === "/" ? "exact" : "prefix",
-  itemProps: homepage.item(`headerNav.${i}.label`),
+  itemProps: homepage.bind(`headerNav.${i}.label`),
 }));
 ---
 

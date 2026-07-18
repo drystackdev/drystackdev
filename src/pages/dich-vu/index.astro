@@ -5,12 +5,11 @@ import Footer from "../../components/Footer.astro";
 import Icon from "../../components/Icon.astro";
 import JsonLd from "../../components/JsonLd.astro";
 import { getServices } from "../../data/services";
-import { dry } from "@drystack/astro/dry";
-import config from "../../../drystack.config";
+import { dry } from "../../lib/dry";
 
 const [services, page] = await Promise.all([
   getServices(),
-  dry(config).singleton.dichVu,
+  dry.singleton("dichVu"),
 ]);
 
 const breadcrumbSchema = {
@@ -41,16 +40,16 @@ const breadcrumbSchema = {
       </div>
     </div>
     <div class="container page-hero__inner" data-stagger="120">
-      <p class="eyebrow reveal" {...page.item("eyebrow")}>{page.eyebrow}</p>
+      <p class="eyebrow reveal" {...page.bind("eyebrow")}>{page.eyebrow}</p>
       <h1
         class:list={["section-title reveal", "heading-rich"]}
         set:html={page.heading as string}
-        {...page.item("heading")}
+        {...page.bind("heading")}
       />
       <p
         class="section-lede reveal"
         style="margin: 1rem auto 0;"
-        {...page.item("lede")}
+        {...page.bind("lede")}
       >
         {page.lede}
       </p>

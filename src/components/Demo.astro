@@ -1,38 +1,53 @@
 ---
-import { dry as createDry } from "@drystack/astro/dry";
-import config from "../../drystack.config";
+import { dry } from "../lib/dry";
 import { Image } from "astro:assets";
 
-const dry = await createDry(config).singleton.demo;
+const demo = await dry.singleton("demo");
 ---
 
 <main>
-  <h1 {...dry.item("text")}>{dry.text}</h1>
-  <div {...dry.item("content")} set:html={dry.content} />
+  <h1 {...demo.bind("text")}>{demo.bind("text").value()}</h1>
+  <div {...demo.bind("content")} set:html={demo.content} />
+
   {
-    dry.image && (
+    /* [demo.view] - a .view() readonly mirror of the same "text"/"content"
+      fields bound above: same data-dry key, so it stays live-synced with
+      whatever's typed into the editable spots above, but never becomes
+      contentEditable/gets a ProseMirror mount itself (see dry.ts's .view(),
+      bind.ts's isReadonlySpot, InlineContentEditors.tsx's readContentSpots). */
+  }
+  <section style="border: 1px dashed currentColor; opacity: 0.75; padding: 1rem; border-radius: 0.5rem;">
+    <p style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7;">
+      Read-only mirror (dry.view)
+    </p>
+    <p {...demo.view("text")}>{demo.text}</p>
+    <div {...demo.view("content")} set:html={demo.content} />
+  </section>
+
+  {
+    demo.image && (
       <Image
         width={200}
         height={200}
         alt="hình ảnh demo"
-        src={dry.image}
-        {...dry.item("image")}
+        src={demo.image}
+        {...demo.bind("image")}
       />
     )
   }
 
-  <a href={dry.file ?? undefined} hidden={!dry.file} {...dry.item("file")}>
+  <a href={demo.file ?? undefined} hidden={!demo.file} {...demo.bind("file")}>
     Tải tệp demo
   </a>
 
   <ul
-    {...dry.item("array")}
+    {...demo.bind("array")}
     style="display: flex; flex-direction: column; gap: 1rem"
   >
     {
-      dry.array.map((i, idx) => (
+      demo.array.map((i, idx) => (
         <li>
-          <div {...dry.item(`array.${idx}`)} style="padding: 1rem;">
+          <div {...demo.bind(`array.${idx}`)} style="padding: 1rem;">
             {i}
           </div>
         </li>
@@ -40,33 +55,33 @@ const dry = await createDry(config).singleton.demo;
     }
   </ul>
 
-  <div class="imglist" {...dry.item("arrayImg")}>
+  <div class="imglist" {...demo.bind("arrayImg")}>
     {
-      dry.arrayImg.map((img, idx) => (
+      demo.arrayImg.map((img, idx) => (
         <Image
           width={200}
           height={200}
           alt="hình ảnh demo"
           src={img!}
-          {...dry.item(`arrayImg.${idx}`)}
+          {...demo.bind(`arrayImg.${idx}`)}
         />
       ))
     }
   </div>
 
-  <div class="imglist" {...dry.item("arrayObject")}>
+  <div class="imglist" {...demo.bind("arrayObject")}>
     {
-      dry.arrayObject.map((obj, idx) => (
+      demo.arrayObject.map((obj, idx) => (
         <div style="display:flex; flex-direction: column; gap: 1rem">
-          <h4 {...dry.item(`arrayObject.${idx}.name`)}>{obj.name}</h4>
+          <h4 {...demo.bind(`arrayObject.${idx}.name`)}>{obj.name}</h4>
           <Image
             width={200}
             height={200}
             alt="hình ảnh demo"
             src={obj.image!}
-            {...dry.item(`arrayObject.${idx}.image`)}
+            {...demo.bind(`arrayObject.${idx}.image`)}
           />
-          <a href={obj.file ?? "#"} {...dry.item(`arrayObject.${idx}.file`)}>
+          <a href={obj.file ?? "#"} {...demo.bind(`arrayObject.${idx}.file`)}>
             Tải tệp
           </a>
         </div>
@@ -77,33 +92,33 @@ const dry = await createDry(config).singleton.demo;
   {
     /* [field.Object] - standalone top-level fields.object, with a nested
       fields.array of text inside it (object > array). The container itself
-      carries its own dry.item("info") mark so it gets a gear-button dialog
+      carries its own demo.bind("info") mark so it gets a gear-button dialog
       (see Toolbar.tsx's ContainerFieldDialog), same as a top-level array. */
   }
   <div
-    {...dry.item("info")}
+    {...demo.bind("info")}
     style="display:flex; flex-direction: column; gap: 1rem;"
   >
-    <h4 {...dry.item("info.label")}>{dry.info.label}</h4>
+    <h4 {...demo.bind("info.label")}>{demo.info.label}</h4>
     {
-      dry.info.thumb && (
+      demo.info.thumb && (
         <Image
           width={200}
           height={200}
           alt="hình ảnh demo"
-          src={dry.info.thumb}
-          {...dry.item("info.thumb")}
+          src={demo.info.thumb}
+          {...demo.bind("info.thumb")}
         />
       )
     }
     <ul
-      {...dry.item("info.links")}
+      {...demo.bind("info.links")}
       style="display: flex; flex-direction: column; gap: 0.5rem;"
     >
       {
-        dry.info.links.map((link, idx) => (
+        demo.info.links.map((link, idx) => (
           <li>
-            <div {...dry.item(`info.links.${idx}`)}>{link}</div>
+            <div {...demo.bind(`info.links.${idx}`)}>{link}</div>
           </li>
         ))
       }
@@ -112,26 +127,26 @@ const dry = await createDry(config).singleton.demo;
 
   {
     /* [field.ArrayObjectArray] - array > object > array. Unlike arrayObject
-      above, each section wrapper *must* carry its own dry.item("sections.N")
+      above, each section wrapper *must* carry its own demo.bind("sections.N")
       mark (not left unmarked) because it contains a further-nested container
       (its own "items" array) - see bind.ts's readContainerValue/
       paintContainerValue and plan/de-quy-object.md's authoring convention. */
   }
   <div
-    {...dry.item("sections")}
+    {...demo.bind("sections")}
     style="display:flex; flex-direction: column; gap: 1.5rem;"
   >
     {
-      dry.sections.map((section, i) => (
+      demo.sections.map((section, i) => (
         <div style="display:flex; flex-direction: column; gap: 0.5rem; border: 1px solid #ccc; padding: 1rem;">
-          <h4 {...dry.item(`sections.${i}.title`)}>{section.title}</h4>
+          <h4 {...demo.bind(`sections.${i}.title`)}>{section.title}</h4>
           <ul
-            {...dry.item(`sections.${i}.items`)}
+            {...demo.bind(`sections.${i}.items`)}
             style="display:flex; flex-direction: column; gap: 0.5rem;"
           >
             {section.items.map((item, j) => (
               <li>
-                <div {...dry.item(`sections.${i}.items.${j}`)}>{item}</div>
+                <div {...demo.bind(`sections.${i}.items.${j}`)}>{item}</div>
               </li>
             ))}
           </ul>

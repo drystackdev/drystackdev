@@ -261,7 +261,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   // Container gear button - a floating icon portaled to <body>, shown while
   // hovering any fields.array OR fields.object container spot in edit mode
   // (identified by data-dry-kind="array"/"object", set server-side by
-  // dry.item(), at any nesting depth), positioned over that element via
+  // .bind()/.view(), at any nesting depth), positioned over that element via
   // getBoundingClientRect. Clicking it opens ContainerFieldDialog, which
   // renders the exact admin editor for that array/object (see
   // field-editor.tsx re-exports).
@@ -332,7 +332,9 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       const el = (e.target as HTMLElement)?.closest<HTMLElement>(
         '[data-dry-kind="array"], [data-dry-kind="object"]',
       );
-      if (!el) return;
+      // A .view() readonly container has no dialog to open (it's a mirror,
+      // not the editable instance) - never show the gear button for it.
+      if (!el || el.hasAttribute("data-dry-readonly")) return;
       const key = el.getAttribute("data-dry");
       const kind = el.getAttribute("data-dry-kind");
       if (!key || (kind !== "array" && kind !== "object")) return;

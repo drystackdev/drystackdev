@@ -1,18 +1,17 @@
 ---
 import Icon from "./Icon.astro";
-import { dry } from "@drystack/astro/dry";
-import config from "../../drystack.config";
+import { dry } from "../lib/dry";
 
 const [homepage, gioiThieu]: [any, any] = await Promise.all([
-  dry(config).singleton.homepage,
-  dry(config).singleton.gioiThieu,
+  dry.singleton("homepage"),
+  dry.singleton("gioiThieu"),
 ]);
 const { brand, about } = homepage;
 const { hero, intro } = gioiThieu;
 ---
 
 <section class="about section--light" id="about">
-  <span class="section-kicker-word kicker-left" {...homepage.item("about.eyebrow")}>{about.eyebrow}</span>
+  <span class="section-kicker-word kicker-left" {...homepage.bind("about.eyebrow")}>{about.eyebrow}</span>
 
   <div class="bg-layer">
     <div
@@ -27,13 +26,13 @@ const { hero, intro } = gioiThieu;
     <div class="about__card-wrap">
       <div class="about__card-glow"></div>
       <div class="about__card reveal reveal-left">
-        <p class="eyebrow" {...homepage.item("about.cardEyebrow")}>{about.cardEyebrow}</p>
-        <h3 class="heading-rich" set:html={brand.name} {...homepage.item("brand.name")} />
-        <p class="about__card-desc" {...gioiThieu.item("hero.lede")}>
+        <p class="eyebrow" {...homepage.bind("about.cardEyebrow")}>{about.cardEyebrow}</p>
+        <h3 class="heading-rich" set:html={brand.name} {...homepage.bind("brand.name")} />
+        <p class="about__card-desc" {...gioiThieu.bind("hero.lede")}>
           {hero.lede}
         </p>
         <div class="hairline"></div>
-        <p class="about__card-status" {...homepage.item("brand.availabilityStatus")}>
+        <p class="about__card-status" {...homepage.bind("brand.availabilityStatus")}>
           <Icon name="circle-dot" size={12} /> {brand.availabilityStatus}
         </p>
       </div>
@@ -43,23 +42,23 @@ const { hero, intro } = gioiThieu;
       class="about__content reveal reveal-right"
       style="--reveal-delay: 160ms;"
     >
-      <p class="eyebrow" {...homepage.item("about.eyebrow")}>{about.eyebrow}</p>
+      <p class="eyebrow" {...homepage.bind("about.eyebrow")}>{about.eyebrow}</p>
       <h2
         class:list={["section-title", "heading-rich"]}
         set:html={about.heading}
-        {...homepage.item("about.heading")}
+        {...homepage.bind("about.heading")}
       />
       <p
         class="section-lede"
         style="max-width:56ch; margin-block: 1.25rem 1.5rem;"
-        {...gioiThieu.item("intro.lede")}
+        {...gioiThieu.bind("intro.lede")}
       >
         {intro.lede}
       </p>
-      <ul class="about__points" {...homepage.item("about.points")}>
+      <ul class="about__points" {...homepage.bind("about.points")}>
         {
           about.points.map((p: string, i: number) => (
-            <li {...homepage.item(`about.points.${i}`)}>
+            <li {...homepage.bind(`about.points.${i}`)}>
               <span class="check">
                 <Icon name="check" size={13} />
               </span>

@@ -1,12 +1,11 @@
 ---
 import BlogListing from "../../components/BlogListing.astro";
 import { getSeoKnowledgePosts } from "../../data/blog";
-import { dry } from "@drystack/astro/dry";
-import config from "../../../drystack.config";
+import { dry } from "../../lib/dry";
 
 const [posts, page] = await Promise.all([
   getSeoKnowledgePosts(),
-  dry(config).singleton.seoKnowledgeListing,
+  dry.singleton("seoKnowledgeListing"),
 ]);
 ---
 
@@ -17,9 +16,9 @@ const [posts, page] = await Promise.all([
   metaDescription={page.metaDescription as string}
   ogImage={(page.ogImage as string) || undefined}
   eyebrow={page.eyebrow as string}
-  eyebrowItemProps={page.item("eyebrow")}
+  eyebrowItemProps={page.bind("eyebrow")}
   heading={page.heading as string}
-  headingItemProps={page.item("heading")}
+  headingItemProps={page.bind("heading")}
   lede={page.lede as string}
-  ledeItemProps={page.item("lede")}
+  ledeItemProps={page.bind("lede")}
 />

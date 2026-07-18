@@ -244,6 +244,10 @@ function readContentSpots(config: Config<any, any>): Spot[] {
   document
     .querySelectorAll<HTMLElement>('[data-dry-kind="content"]')
     .forEach((el) => {
+      // A .view() readonly mirror never gets a live ProseMirror view - it
+      // stays plain HTML, kept in sync via bind.ts's paintContentSpot direct-
+      // paint branch instead (see dry.ts's .view()).
+      if (el.hasAttribute("data-dry-readonly")) return;
       const key = el.getAttribute("data-dry");
       if (!key) return;
       const [type, singletonName, field] = key.split("::");

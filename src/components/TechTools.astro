@@ -1,10 +1,9 @@
 ---
 import { Image } from "astro:assets";
 import Icon from "./Icon.astro";
-import { dry } from "@drystack/astro/dry";
-import config from "../../drystack.config";
+import { dry } from "../lib/dry";
 
-const homepage = await dry(config).singleton.homepage;
+const homepage = await dry.singleton("homepage");
 const { techTools } = homepage;
 const tools = techTools.tools.map((t) => ({ ...t, size: 65 }));
 
@@ -28,25 +27,25 @@ const tilesOnSphere = tools.map((t, i) => {
 <section class="tech-tools section--light" id="tech">
   <span
     class="section-kicker-word kicker-left"
-    {...homepage.item("techTools.eyebrow")}>{techTools.eyebrow}</span
+    {...homepage.bind("techTools.eyebrow")}>{techTools.eyebrow}</span
   >
 
   <div class="container tech-tools__inner">
     <div class="tech__content reveal reveal-left">
-      <p class="eyebrow" {...homepage.item("techTools.eyebrow")}>
+      <p class="eyebrow" {...homepage.bind("techTools.eyebrow")}>
         {techTools.eyebrow}
       </p>
       <h2
         class:list={["tech__title", "heading-rich"]}
         set:html={techTools.heading}
-        {...homepage.item("techTools.heading")}
+        {...homepage.bind("techTools.heading")}
       />
-      <ul class="tech__points" {...homepage.item("techTools.points")}>
+      <ul class="tech__points" {...homepage.bind("techTools.points")}>
         {
           techTools.points.map((p, i) => (
             <li>
               <Icon name={p.icon as any} size={16} />{" "}
-              <span {...homepage.item(`techTools.points.${i}.text`)}>
+              <span {...homepage.bind(`techTools.points.${i}.text`)}>
                 {p.text}
               </span>
             </li>
@@ -59,7 +58,7 @@ const tilesOnSphere = tools.map((t, i) => {
     </div>
 
     <div class="tech__cloud reveal reveal-right" data-radius={sphereRadius}>
-      <div class="tech__sphere" {...homepage.item("techTools.tools")}>
+      <div class="tech__sphere" {...homepage.bind("techTools.tools")}>
         {
           tilesOnSphere.map((t, i) => (
             <span
@@ -74,7 +73,7 @@ const tilesOnSphere = tools.map((t, i) => {
                 alt=""
                 width={65}
                 height={65}
-                {...homepage.item(`techTools.tools.${i}.icon`)}
+                {...homepage.bind(`techTools.tools.${i}.icon`)}
               />
             </span>
           ))

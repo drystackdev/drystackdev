@@ -67,9 +67,9 @@ function isArraySpot(el: HTMLElement): boolean {
 }
 
 // A container element whose own value is a fields.object - either an
-// array-of-object item's *wrapper* (set server-side by dry.item('cards.0'))
-// or a standalone object field at any depth (dry.item('brand'),
-// dry.item('sections.0.nested'), …). Purely a structural marker: it's never
+// array-of-object item's *wrapper* (set server-side by dry.bind('cards.0'))
+// or a standalone object field at any depth (dry.bind('brand'),
+// dry.bind('sections.0.nested'), …). Purely a structural marker: it's never
 // itself contentEditable, and its own descendant spots (leaf or a further-
 // nested container) are handled individually by the generic branches below -
 // see isContainerSpot/readContainerValue/paintContainerValue.
@@ -96,26 +96,35 @@ export function isContentSpot(el: HTMLElement): boolean {
   return el.getAttribute("data-dry-kind") === "content";
 }
 
+// A .view() spot - carries the same data-dry key as any .bind() of the same
+// field (see dry.ts), so every read/paint path above already reaches it. It
+// must never become interactive though: no contentEditable, no asset-picker
+// reveal/click, no container dialog, no ProseMirror mount (InlineContentEditors.tsx
+// filters these out of its mount scan separately).
+function isReadonlySpot(el: HTMLElement): boolean {
+  return el.hasAttribute("data-dry-readonly");
+}
+
 // --- Array binding (template-clone) --------------------------------------
 //
-// A fields.array container (e.g. <ul {...dry.item('array')}>) renders its
+// A fields.array container (e.g. <ul {...dry.bind('array')}>) renders its
 // items as ordinary child elements the page author wrote themselves (e.g.
-// <li {...dry.item('array.0')}>) - there's no framework-owned render function
+// <li {...dry.bind('array.0')}>) - there's no framework-owned render function
 // to re-invoke when the array's length changes. Instead, the first existing
 // item element is captured as a per-container "template" the first time it's
 // seen; growing the array clones it, shrinking removes the trailing excess.
 // Only direct children of the container count as items (matches the
-// dry.item('array.N') convention). An item may itself be a further-nested
+// dry.bind('array.N') convention). An item may itself be a further-nested
 // container (object, or another array) - see readContainerValue/
 // paintContainerValue below, plan/de-quy-object.md.
 const arrayTemplates = new Map<string, HTMLElement>();
 
 // Elements at or under `root` (including `root` itself) whose data-dry
 // starts with `prefix`, self first. Lets every array-item helper below work
-// whether the item's dry.item() spot lives on the item root itself (the
-// legacy self-marked pattern, e.g. arrayImg's <Image {...dry.item('arrayImg.0')}/>)
+// whether the item's dry.bind() spot lives on the item root itself (the
+// legacy self-marked pattern, e.g. arrayImg's <Image {...dry.bind('arrayImg.0')}/>)
 // or on a descendant inside author-supplied wrapper markup the item root
-// itself doesn't carry data-dry for (e.g. <li><div {...dry.item('array.0')}>
+// itself doesn't carry data-dry for (e.g. <li><div {...dry.bind('array.0')}>
 // ...</div></li> - the <li> is just the clone-template unit).
 function collectDrySpots(root: HTMLElement, prefix: string): HTMLElement[] {
   const spots: HTMLElement[] = [];
@@ -159,7 +168,7 @@ function directChildSpots(root: HTMLElement, prefix: string): HTMLElement[] {
 
 // The element carrying EXACTLY `key` as its own data-dry (not merely
 // prefixed by it) - `root` itself first, else the closest descendant.
-// Distinguishes "this item/container has its own explicit dry.item() mark"
+// Distinguishes "this item/container has its own explicit dry.bind() mark"
 // (self-marked leaf, or self-marked array/object container) from the
 // unmarked-wrapper fallback used by readItemOrLeaf/paintItemOrLeaf below.
 function exactDrySpot(root: HTMLElement, key: string): HTMLElement | undefined {
@@ -523,7 +532,7 @@ export function getContainerValueFromDom(key: string): unknown {
 
 function handleInput(e: Event) {
   const el = (e.target as HTMLElement)?.closest<HTMLElement>("[data-dry]");
-  if (!el || isAssetSpot(el) || isObjectSpot(el)) return;
+  if (!el || isAssetSpot(el) || isObjectSpot(el) || isReadonlySpot(el)) return;
   // A content spot's own ProseMirror view publishes its edits itself, as
   // serialized HTML (InlineContentEditors.tsx). This listener is on the
   // document in the capture phase, so typing inside that view reaches it
@@ -558,7 +567,7 @@ export function setFileSpotClickHandler(
 
 function handleAssetSpotClick(e: MouseEvent) {
   const el = (e.target as HTMLElement)?.closest<HTMLElement>("[data-dry]");
-  if (!el) return;
+  if (!el || isReadonlySpot(el)) return;
   const key = el.getAttribute("data-dry");
   if (!key) return;
   const kind = el.getAttribute("data-dry-kind");
@@ -598,15 +607,22 @@ export function enableEditing(onChange?: () => void) {
       // so regular visitors never see a dead link/broken image - but that
       // would also make it unclickable here, leaving no way to set a first
       // value via VEI. Reveal it for the duration of edit mode instead;
-      // disableEditing re-hides it below if it's still empty on exit.
-      if (!value) el.hidden = false;
+      // disableEditing re-hides it below if it's still empty on exit. A
+      // readonly (.view()) spot has no click affordance to reveal it for
+      // (handleAssetSpotClick bails on it), so it stays exactly as a regular
+      // visitor would see it.
+      if (!value && !isReadonlySpot(el)) el.hidden = false;
       return;
     }
     if (isContainerSpot(el)) {
       // Not contentEditable - edited via the toolbar's gear-button dialog
       // (whole-container replace, array or object) or by typing directly
       // into a descendant leaf spot (a plain text/asset spot handled by the
-      // branches above/below as the loop reaches it).
+      // branches above/below as the loop reaches it). Baseline + array
+      // template capture still run for a readonly container - it still
+      // needs to grow/shrink live when the editable instance's array
+      // changes size (see renderArray) - only Toolbar.tsx's gear-button
+      // (the actual edit affordance) is skipped for it.
       if (key) {
         rememberOriginal(key, JSON.stringify(readContainerValue(el, key)));
         if (isArraySpot(el)) captureArrayTemplate(el, key);
@@ -616,14 +632,18 @@ export function enableEditing(onChange?: () => void) {
     if (isContentSpot(el)) {
       // Not contentEditable either: a ProseMirror view takes this element
       // over for the duration of edit mode and brings its own editing
-      // affordances (see InlineContentEditors.tsx). Snapshotting the
-      // baseline is all that's needed here - and it must happen before that
-      // view mounts, since mounting re-renders the element from the parsed
-      // doc.
+      // affordances (see InlineContentEditors.tsx) - except for a readonly
+      // spot, which InlineContentEditors deliberately skips mounting a view
+      // onto (see readContentSpots), so it stays plain HTML kept in sync via
+      // paintContentSpot's direct-paint branch. Snapshotting the baseline is
+      // all that's needed here either way - and for the editable case it
+      // must happen before that view mounts, since mounting re-renders the
+      // element from the parsed doc.
       if (key) rememberOriginal(key, el.innerHTML);
       return;
     }
     if (key) rememberOriginal(key, el.textContent ?? "");
+    if (isReadonlySpot(el)) return;
     el.contentEditable = "plaintext-only";
     // Firefox versions without plaintext-only support silently ignore it.
     if (el.contentEditable !== "plaintext-only") el.contentEditable = "true";
@@ -697,6 +717,9 @@ export async function hydrateDryAttributesFromMap(
     if (entry["data-dry-value"] !== undefined) {
       el.setAttribute("data-dry-value", entry["data-dry-value"]);
     }
+    if (entry["data-dry-readonly"]) {
+      el.setAttribute("data-dry-readonly", "true");
+    }
   }
   return true;
 }
@@ -751,7 +774,7 @@ export async function discardEditsIfBuildIsNewer(
 //
 // A Set, not one function: the same field can render more than once on a
 // page (e.g. brand.name shows up in the header, hero, footer, and About) -
-// dry.item() tags every occurrence with the identical key, so
+// dry.bind() tags every occurrence with the identical key, so
 // InlineContentEditors.tsx mounts one live view PER ELEMENT, each
 // registering its own painter here. A single-slot map would let the last
 // mount silently evict every earlier one, leaving those other on-page copies
@@ -784,12 +807,21 @@ export function setContentSpotPainter(
 // directly - a live ProseMirror view must never have its DOM written
 // underneath it.
 function paintContentSpot(key: string, html: string, els: HTMLElement[]): void {
+  // A readonly (.view()) content spot never gets a ProseMirror view mounted
+  // on it (InlineContentEditors.tsx's readContentSpots skips it), so it never
+  // registers a painter below - it always needs a direct paint, regardless of
+  // whether an editable sibling for the same key has a live view.
+  const readonlyEls = els.filter(isReadonlySpot);
+  readonlyEls.forEach((el) => {
+    el.innerHTML = html;
+  });
   const painters = contentSpotPainters.get(key);
   if (painters && painters.size > 0) {
     painters.forEach((paint) => paint(html));
     return;
   }
   els.forEach((el) => {
+    if (isReadonlySpot(el)) return; // already painted above
     el.innerHTML = html;
   });
 }
