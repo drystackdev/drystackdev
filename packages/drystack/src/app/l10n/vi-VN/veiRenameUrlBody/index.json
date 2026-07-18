@@ -1,6 +1,0 @@
-{
-  "key": "veiRenameUrlBody",
-  "value": "Trang này đang ở {fromUrl}. Đổi tên sẽ chuyển URL sang {toUrl} - nếu không tạo redirect, URL cũ sẽ trả về 404.",
-  "notes": "",
-  "type": "global"
-}
