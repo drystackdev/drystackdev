@@ -1,6 +1,7 @@
 import type { AstroIntegration } from "astro";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type {
+  Plugin,
   ResolvedConfig,
   RunnableDevEnvironment,
   ViteDevServer,
@@ -17,8 +18,12 @@ import {
 } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { pipeline } from "node:stream/promises";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { load } from "js-yaml";
+import {
+  getCollectionPath,
+  getSingletonPath,
+} from "@drystack/core/path-utils";
 import {
   parseRedirectEntries,
   serializeRedirectsFile,
@@ -226,6 +231,121 @@ async function writeDryMapFile(clientDir: string) {
   writeFileSync(destPath, JSON.stringify(registry));
 }
 
+// Dev-only. Makes `dry.collection(name).all()` (and therefore the
+// `getStaticPaths` that feeds off it) notice brand-new / deleted entries
+// without a dev-server restart.
+//
+// Why it's needed: with `output: 'static'`, Astro caches each route's
+// getStaticPaths result and only re-runs it when the route MODULE object
+// changes (see core/render/route-cache.js: `cached.mod === mod`). A route
+// module changes when it - or something in its Vite import graph - is
+// invalidated. drystack's reader reads entry files straight off disk via
+// `node:fs`, so `blog/<new-slug>/index.yaml` is not in any module's import
+// graph; Vite's watcher fires an `add` but nothing gets invalidated, the
+// cached path list stays stale, and the new URL 404s until you restart.
+//
+// This plugin closes that gap: it watches the on-disk directories that back
+// each collection/singleton (derived from the drystack config) and, when an
+// entry file/dir is added or removed there, invalidates every `.astro` page
+// module across Vite's environments. That forces Astro to re-load those
+// modules and re-run getStaticPaths on the next request, so the fresh slug is
+// there when the user navigates/refreshes.
+//
+// Deliberately does NOT push a client `full-reload`: adding an entry usually
+// happens from inside the drystack CMS (a React SPA route), and a blanket
+// reload would discard any unsaved form edits open in another tab. Server-side
+// invalidation alone is enough - the next navigation/refresh of the public URL
+// re-runs getStaticPaths and resolves. (A `publish: false -> true` flip is a
+// file *change*, not an add, so it's intentionally out of scope here to keep
+// routine CMS saves from invalidating routes on every keystroke-save.)
+function contentRefreshDevPlugin(): Plugin {
+  return {
+    name: "drystack:content-refresh",
+    apply: "serve",
+    configureServer(server) {
+      // Absolute on-disk dirs backing every collection/singleton, resolved
+      // once from the drystack config (executed in the Node dev env, the same
+      // way the local API middleware loads it) and cached for the server's
+      // lifetime.
+      let contentDirsPromise: Promise<string[]> | null = null;
+      const getContentDirs = () => {
+        if (!contentDirsPromise) {
+          contentDirsPromise = (async () => {
+            const env = server.environments[DRYSTACK_NODE_ENV] as
+              | RunnableDevEnvironment
+              | undefined;
+            if (!env?.runner) return [];
+            try {
+              const configMod = await env.runner.import(
+                "virtual:drystack-config",
+              );
+              const config = configMod.default;
+              const dirs: string[] = [];
+              for (const name of Object.keys(config.collections ?? {})) {
+                dirs.push(join(server.config.root, getCollectionPath(config, name)));
+              }
+              for (const name of Object.keys(config.singletons ?? {})) {
+                try {
+                  dirs.push(
+                    join(server.config.root, getSingletonPath(config, name)),
+                  );
+                } catch {
+                  // getSingletonPath throws on a `*`-containing path - skip it.
+                }
+              }
+              return dirs;
+            } catch {
+              // Config failed to load - fall back to doing nothing rather than
+              // throwing on a filesystem event.
+              return [];
+            }
+          })();
+        }
+        return contentDirsPromise;
+      };
+
+      const invalidateRouteModules = () => {
+        for (const env of Object.values(server.environments)) {
+          const graph = (env as { moduleGraph?: any }).moduleGraph;
+          if (!graph?.idToModuleMap) continue;
+          for (const mod of graph.idToModuleMap.values() as Iterable<{
+            file?: string | null;
+          }>) {
+            if (mod.file?.endsWith(".astro")) {
+              graph.invalidateModule(mod);
+            }
+          }
+        }
+      };
+
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const onFsEvent = (file: string) => {
+        getContentDirs()
+          .then((dirs) => {
+            const inContentDir = dirs.some(
+              (dir) => file === dir || file.startsWith(dir + sep),
+            );
+            if (!inContentDir) return;
+            // Debounce: creating one entry writes index.yaml + body.html (+
+            // any assets), firing several events in a burst.
+            clearTimeout(timer);
+            timer = setTimeout(invalidateRouteModules, 50);
+          })
+          .catch(() => {});
+      };
+
+      // Only structural events (a new/removed entry) can change the slug set;
+      // plain `change` events are already reflected because Astro re-renders
+      // each page's frontmatter (which re-reads via dry.entry()) per request
+      // in dev.
+      server.watcher.on("add", onFsEvent);
+      server.watcher.on("unlink", onFsEvent);
+      server.watcher.on("addDir", onFsEvent);
+      server.watcher.on("unlinkDir", onFsEvent);
+    },
+  };
+}
+
 export default function drystack(options?: {
   path?: string;
 }): AstroIntegration {
@@ -371,6 +491,7 @@ import "@drystack/core/ui";
                   });
                 },
               },
+              contentRefreshDevPlugin(),
             ],
           },
         });
