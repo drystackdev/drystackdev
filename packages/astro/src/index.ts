@@ -18,7 +18,7 @@ import {
 } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { pipeline } from "node:stream/promises";
-import { join, relative, sep } from "node:path";
+import { basename, dirname, join, relative, sep } from "node:path";
 import { load } from "js-yaml";
 import {
   getCollectionPath,
@@ -231,9 +231,18 @@ async function writeDryMapFile(clientDir: string) {
   writeFileSync(destPath, JSON.stringify(registry));
 }
 
+// Data-file basename for an `index`-location entry (`index.yaml`,
+// `index.json`, `index.md`, `index.mdx`, `index.mdoc`). A collection's data
+// extension depends on its format, so match them all - a false positive only
+// costs one wasted getStaticPaths re-run, never correctness.
+const INDEX_DATA_FILE_RE = /^index\.(ya?ml|json|md|mdx|mdoc)$/;
+// Data extension for a flat (`outer`-location) entry, e.g. `<slug>.yaml`
+// sitting directly in the collection dir.
+const DATA_EXT_RE = /\.(ya?ml|json|md|mdx|mdoc)$/;
+
 // Dev-only. Makes `dry.collection(name).all()` (and therefore the
-// `getStaticPaths` that feeds off it) notice brand-new / deleted entries
-// without a dev-server restart.
+// `getStaticPaths` that feeds off it) notice brand-new / deleted / newly
+// published entries without a dev-server restart.
 //
 // Why it's needed: with `output: 'static'`, Astro caches each route's
 // getStaticPaths result and only re-runs it when the route MODULE object
@@ -246,18 +255,25 @@ async function writeDryMapFile(clientDir: string) {
 //
 // This plugin closes that gap: it watches the on-disk directories that back
 // each collection/singleton (derived from the drystack config) and, when an
-// entry file/dir is added or removed there, invalidates every `.astro` page
-// module across Vite's environments. That forces Astro to re-load those
-// modules and re-run getStaticPaths on the next request, so the fresh slug is
-// there when the user navigates/refreshes.
+// entry is added, removed, or its data file changes there, invalidates every
+// `.astro` page module across Vite's environments. That forces Astro to
+// re-load those modules and re-run getStaticPaths on the next request, so the
+// fresh slug is there when the user navigates/refreshes.
 //
-// Deliberately does NOT push a client `full-reload`: adding an entry usually
-// happens from inside the drystack CMS (a React SPA route), and a blanket
-// reload would discard any unsaved form edits open in another tab. Server-side
-// invalidation alone is enough - the next navigation/refresh of the public URL
-// re-runs getStaticPaths and resolves. (A `publish: false -> true` flip is a
-// file *change*, not an add, so it's intentionally out of scope here to keep
-// routine CMS saves from invalidating routes on every keystroke-save.)
+// Scope of what triggers it: entry *data files* (index.yaml etc., or a flat
+// `<slug>.yaml`) and slug-directory add/remove. `body.html` and asset writes
+// are ignored - they never change the slug set or `publish` flag, and are
+// already reflected per-request (Astro re-runs each page's frontmatter, which
+// re-reads via dry.entry(), on every dev request). This keeps routine CMS
+// saves - which rewrite body.html + assets on every keystroke-autosave - from
+// needlessly invalidating routes, while still catching a `publish: false ->
+// true` flip (that edits the data file).
+//
+// Deliberately does NOT push a client `full-reload`: entries are usually
+// created/edited from inside the drystack CMS (a React SPA route), and a
+// blanket reload would discard unsaved form edits open in another tab.
+// Server-side invalidation alone is enough - the next navigation/refresh of
+// the public URL re-runs getStaticPaths and resolves.
 function contentRefreshDevPlugin(): Plugin {
   return {
     name: "drystack:content-refresh",
@@ -319,29 +335,44 @@ function contentRefreshDevPlugin(): Plugin {
       };
 
       let timer: ReturnType<typeof setTimeout> | undefined;
-      const onFsEvent = (file: string) => {
+      const schedule = () => {
+        // Debounce: touching one entry fires a burst of events (data file +
+        // body.html + assets, or a dir plus its children).
+        clearTimeout(timer);
+        timer = setTimeout(invalidateRouteModules, 50);
+      };
+      const inContentDir = (path: string, dirs: string[]) =>
+        dirs.some((dir) => path === dir || path.startsWith(dir + sep));
+
+      // add/change/unlink of a *file*: only an entry data file can change the
+      // slug set or a `publish` flag - ignore body.html/asset writes.
+      const onFileEvent = (file: string) => {
         getContentDirs()
           .then((dirs) => {
-            const inContentDir = dirs.some(
-              (dir) => file === dir || file.startsWith(dir + sep),
-            );
-            if (!inContentDir) return;
-            // Debounce: creating one entry writes index.yaml + body.html (+
-            // any assets), firing several events in a burst.
-            clearTimeout(timer);
-            timer = setTimeout(invalidateRouteModules, 50);
+            if (!inContentDir(file, dirs)) return;
+            const base = basename(file);
+            const isDataFile =
+              INDEX_DATA_FILE_RE.test(base) ||
+              (DATA_EXT_RE.test(base) && dirs.includes(dirname(file)));
+            if (isDataFile) schedule();
+          })
+          .catch(() => {});
+      };
+      // add/remove of a *directory*: a new/removed slug dir (its data file's
+      // own event may be debounced away, so react to the dir itself too).
+      const onDirEvent = (dir: string) => {
+        getContentDirs()
+          .then((dirs) => {
+            if (inContentDir(dir, dirs)) schedule();
           })
           .catch(() => {});
       };
 
-      // Only structural events (a new/removed entry) can change the slug set;
-      // plain `change` events are already reflected because Astro re-renders
-      // each page's frontmatter (which re-reads via dry.entry()) per request
-      // in dev.
-      server.watcher.on("add", onFsEvent);
-      server.watcher.on("unlink", onFsEvent);
-      server.watcher.on("addDir", onFsEvent);
-      server.watcher.on("unlinkDir", onFsEvent);
+      server.watcher.on("add", onFileEvent);
+      server.watcher.on("change", onFileEvent);
+      server.watcher.on("unlink", onFileEvent);
+      server.watcher.on("addDir", onDirEvent);
+      server.watcher.on("unlinkDir", onDirEvent);
     },
   };
 }
