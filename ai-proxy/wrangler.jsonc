@@ -1,0 +1,28 @@
+{
+  "name": "drystack-ai-proxy",
+  "main": "src/worker.ts",
+  "compatibility_date": "2025-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // Native Workers rate limiting - no KV/Durable Object to provision.
+  // `namespace_id` just needs to be unique within this Worker; it isn't a
+  // resource you create beforehand.
+  "ratelimits": [
+    {
+      "name": "AI_PROXY_RL",
+      "namespace_id": "1",
+      "simple": { "limit": 20, "period": 60 }
+    }
+  ],
+  "vars": {
+    // Optional. Comma-separated list of origins allowed to call this proxy
+    // (the demo site's own origin(s)). Unset = allow any origin, since the
+    // route has no session anyway and is meant to be called from a static
+    // site the Worker can't otherwise authenticate.
+    "ALLOWED_ORIGINS": ""
+  }
+  // Secrets (never committed): set with `wrangler secret put <name>`.
+  //   DRY_AI_KEY    - required, the provider API key.
+  //   DRY_AI_MODEL  - optional fallback model, used when a request doesn't
+  //                   name one (storage.ai.model in drystack.config.ts is
+  //                   the usual source - see src/worker.ts).
+}
