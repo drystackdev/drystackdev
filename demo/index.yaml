@@ -1,6 +1,7 @@
 text: >-
-  Astro là "ông vua" mới trong làng framework web nhờ tối ưu hóa SEO vượt trội
-  thông qua cơ chế Islands Architecture.
+  Astro là khung làm việc hiện đại tập trung vào hiệu suất, giúp website đạt tốc
+  độ tải trang cực nhanh nhờ cơ chế Islands Architecture, loại bỏ JavaScript
+  không cần thiết và tối ưu hóa SEO cho trải nghiệm người dùng vượt trội.
 content:
   wordCount: 410
   charCount: 1983
