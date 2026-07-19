@@ -1,4 +1,5 @@
 import { useRouter } from "./router";
+import { useScrollToFieldParam } from "./useScrollToFieldParam";
 import {
   FormEvent,
   ReactElement,
@@ -108,6 +109,7 @@ function SingletonPageInner(
   );
 
   const router = useRouter();
+  useScrollToFieldParam();
 
   const previewHref = useMemo(() => {
     if (!singletonConfig.previewUrl) return undefined;

@@ -162,11 +162,13 @@ export function FormForEntry({
                 <ScrollView>
                   <AddToPathProvider part={contentPanePath as ReadonlyPropPath}>
                     {/* Same contract as object/ui.tsx's wrapper: edit-sync
-                        finds the focused field by data-field. In this layout
-                        the field lives here, not in the pane that renders the
-                        rest of the schema. */}
+                        finds the focused field by data-field, and
+                        useScrollToFieldParam finds it by data-field-path.
+                        In this layout the field lives here, not in the pane
+                        that renders the rest of the schema. */}
                     <div
                       data-field={contentPanePath[0]}
+                      data-field-path={contentPanePath.join(".")}
                       className={contentPaneField}
                     >
                       <AiLockOverlay>

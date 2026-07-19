@@ -65,6 +65,7 @@ import {
 } from "./path-utils";
 import { useEntryEditSync } from "./useEntryEditSync";
 import { useRouter } from "./router";
+import { useScrollToFieldParam } from "./useScrollToFieldParam";
 import { HeaderBreadcrumbs } from "./shell/HeaderBreadcrumbs";
 import { useConfig } from "./shell/context";
 import { AiLockProvider } from "./ai/lock-context";
@@ -172,6 +173,7 @@ function ItemPageInner(
   const aiEntryDescription = useAiEntryDescription(config, collection);
 
   const router = useRouter();
+  useScrollToFieldParam();
   const baseCommit = useBaseCommit();
   const currentBasePath = getCollectionItemPath(config, collection, itemSlug);
   const formatInfo = getCollectionFormat(config, collection);

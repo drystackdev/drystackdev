@@ -1,0 +1,6 @@
+{
+  "key": "searchContent",
+  "value": "Search content",
+  "notes": "Checkbox label: also fetch and search the rich-text body of content() fields, not just visible columns.",
+  "type": "global"
+}

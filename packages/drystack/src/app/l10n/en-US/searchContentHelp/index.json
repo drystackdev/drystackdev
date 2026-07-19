@@ -1,0 +1,6 @@
+{
+  "key": "searchContentHelp",
+  "value": "Fetch and search inside the HTML body of content fields. This downloads extra data for every entry.",
+  "notes": "",
+  "type": "global"
+}

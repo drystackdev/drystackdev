@@ -1,5 +1,5 @@
 import { assert, assertNever } from "emery";
-import { useId, useMemo } from "react";
+import { useContext, useId, useMemo } from "react";
 
 import { Grid } from "@keystar/ui/layout";
 import { containerQueries, css } from "@keystar/ui/style";
@@ -10,7 +10,7 @@ import {
   ExtraFieldInputProps,
   InnerFormValueContentFromPreviewProps,
 } from "../../form-from-preview";
-import { AddToPathProvider } from "../text/path-slug-context";
+import { AddToPathProvider, PathContext } from "../text/path-slug-context";
 import { FIELD_GRID_COLUMNS, FieldContextProvider } from "../context";
 import { AiLockOverlay } from "../../../app/ai/AiLockOverlay";
 import { FieldMagicWriteButton } from "../../../app/ai/FieldMagicWriteButton";
@@ -39,15 +39,24 @@ function ObjectFieldInputEntry({
   // leaves behind an empty grid cell and a second Magic write button that
   // writes a field the user can't see from here.
   if (omitFieldAtPath?.length === 0) return null;
+  const path = useContext(PathContext);
 
   return (
     <FieldContextProvider value={span}>
       <div
-        // Lets edit-sync (packages/drystack/src/app/edit-sync.ts) find "is
-        // this top-level field currently focused" via
+        // Lets edit-sync (packages/drystack/src/app/useEntryEditSync.ts)
+        // find "is this top-level field currently focused" via
         // `document.querySelector('[data-field="x"]')?.contains(activeElement)`
         // without adding per-field-kind DOM plumbing.
         data-field={fieldKey}
+        // Full dot-path (e.g. "brand.name", "intro.stats") for scrolling
+        // straight to a field from outside - see
+        // app/useScrollToFieldParam.ts. Array items don't push their index
+        // onto PathContext (see AddToPathProvider call sites), so a path
+        // like "intro.stats.0.label" bottoms out here at "intro.stats" -
+        // that's an intentional fallback to the array's own container, not
+        // a bug.
+        data-field-path={[...path, fieldKey].join(".")}
         className={css({
           gridColumn: `span ${span}`,
           // Anchors the per-field Magic write button; it's positioned rather

@@ -1,4 +1,5 @@
 import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import Fuse from "fuse.js";
 import { isHotkey } from "is-hotkey";
 import React, {
   useCallback,
@@ -37,6 +38,7 @@ import {
   Row,
   SortDescriptor,
 } from "@keystar/ui/table";
+import { Tooltip, TooltipTrigger } from "@keystar/ui/tooltip";
 import { Heading, Text } from "@keystar/ui/typography";
 
 import { Config } from "../config";
@@ -48,6 +50,8 @@ import {
   getDisplayKind,
 } from "./collection-table/column-model";
 import { ColumnsMenu } from "./collection-table/ColumnsMenu";
+import { ContentPreviewDialog } from "./collection-table/ContentPreviewDialog";
+import { MatchRange } from "./collection-table/highlight";
 import {
   PendingCheckboxEdit,
   QuickEditCheckboxDialog,
@@ -69,10 +73,53 @@ import {
 import { useCollectionDraftSlugs } from "./persistence";
 import { notFound } from "./not-found";
 import { fetchBlobsBatch } from "./useItemData";
+import { getTreeNodeAtPath } from "./trees";
 import { loadDataFile } from "./required-files";
 import { parseProps } from "../form/parse-props";
 import { useData } from "./useData";
 import { useClient } from "urql";
+
+// document + magnifier glyph for the "search content" toggle - not part of
+// @keystar/ui's stroke-icon set (see searchIcon), so its paths carry their
+// own fill instead of relying on the shared --kui-icon-stroke variable.
+// Authored for a 20x20 grid (Icon's wrapper svg hardcodes viewBox="0 0 24
+// 24"), so scaled 1.2x (24/20) to fill the same box as every other icon.
+const contentSearchIcon = (
+  <path
+    strokeWidth={0.5}
+    fill="currentColor"
+    fillRule="evenodd"
+    d="M10.944 1.25h2.112c1.838 0 3.294 0 4.433.153c1.172.158 2.121.49 2.87 1.238c.748.749 1.08 1.698 1.238 2.87c.153 1.14.153 2.595.153 4.433v4.112c0 1.838 0 3.294-.153 4.433c-.158 1.172-.49 2.121-1.238 2.87c-.749.748-1.698 1.08-2.87 1.238c-1.14.153-2.595.153-4.433.153h-2.112c-1.838 0-3.294 0-4.433-.153c-1.172-.158-2.121-.49-2.87-1.238c-.748-.749-1.08-1.698-1.238-2.87c-.153-1.14-.153-2.595-.153-4.433V9.944c0-1.838 0-3.294.153-4.433c.158-1.172.49-2.121 1.238-2.87c.749-.748 1.698-1.08 2.87-1.238c1.14-.153 2.595-.153 4.433-.153M6.71 2.89c-1.006.135-1.586.389-2.01.812c-.422.423-.676 1.003-.811 2.009c-.138 1.028-.14 2.382-.14 4.289v4c0 1.907.002 3.262.14 4.29c.135 1.005.389 1.585.812 2.008s1.003.677 2.009.812c1.028.138 2.382.14 4.289.14h2c1.907 0 3.262-.002 4.29-.14c1.005-.135 1.585-.389 2.008-.812s.677-1.003.812-2.009c.138-1.027.14-2.382.14-4.289v-4c0-1.907-.002-3.261-.14-4.29c-.135-1.005-.389-1.585-.812-2.008s-1.003-.677-2.009-.812c-1.027-.138-2.382-.14-4.289-.14h-2c-1.907 0-3.261.002-4.29.14M7.25 10A.75.75 0 0 1 8 9.25h8a.75.75 0 0 1 0 1.5H8a.75.75 0 0 1-.75-.75m0 4a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5H8a.75.75 0 0 1-.75-.75"
+    clipRule="evenodd"
+  />
+);
+
+// ActionButton's own `isSelected` styling is a neutral gray, targeted via a
+// compound `&:not([data-prominence])[data-selected]` selector (see
+// useActionButtonStyles.tsx) - there's no built-in prop for the app's
+// primary/accent color. A same-specificity override here loses the
+// cascade tie to that selector's extra `:not(...)` clause regardless of
+// insertion order (module-level css() runs at import time, before
+// ActionButton's own css() call from its first render, so ours is
+// actually the *earlier* rule) - `!important` sidesteps the specificity
+// fight entirely rather than trying to out-specify it. Colors match the
+// `indigo9/10/11` scale steps the "Add" button (Button prominence="high"
+// tone="accent") uses, so the toggle reads as the same primary color.
+const contentSearchToggleStyle = css({
+  "&[data-selected]": {
+    backgroundColor: `${tokenSchema.color.scale.indigo9} !important`,
+    borderColor: `${tokenSchema.color.scale.indigo9} !important`,
+    color: `${tokenSchema.color.foreground.onEmphasis} !important`,
+  },
+  "&[data-selected][data-interaction=hover]": {
+    backgroundColor: `${tokenSchema.color.scale.indigo10} !important`,
+    borderColor: `${tokenSchema.color.scale.indigo10} !important`,
+  },
+  "&[data-selected][data-interaction=press]": {
+    backgroundColor: `${tokenSchema.color.scale.indigo11} !important`,
+    borderColor: `${tokenSchema.color.scale.indigo11} !important`,
+  },
+});
 
 type CollectionPageProps = {
   collection: string;
@@ -106,6 +153,12 @@ export function CollectionPage(props: CollectionPageProps) {
   );
 
   let debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
+
+  // opt-in: fields.content() bodies live in their own .html file and aren't
+  // fetched for the table listing by default (see the mainFiles loader
+  // below) - checking this trades extra network/decoding work for the
+  // ability to fuzzy-match inside that HTML.
+  const [searchContent, setSearchContent] = useState(false);
 
   // every schema field becomes a column automatically - the designated slug
   // field always comes first and is rendered as the "Name" column (see
@@ -163,9 +216,12 @@ export function CollectionPage(props: CollectionPageProps) {
         columns={columnDescriptors}
         hiddenColumns={hiddenColumns}
         onHiddenColumnsChange={setHiddenColumns}
+        searchContent={searchContent}
+        onSearchContentChange={setSearchContent}
       />
       <CollectionPageContent
         searchTerm={debouncedSearchTerm}
+        searchContent={searchContent}
         columnDescriptors={visibleColumnDescriptors}
         columnWidths={columnWidths}
         onColumnWidthsChange={setColumnWidths}
@@ -200,6 +256,8 @@ function CollectionToolbar(props: {
   columns: ColumnDescriptor[];
   hiddenColumns: ReadonlySet<string>;
   onHiddenColumnsChange: (hidden: Set<string>) => void;
+  searchContent: boolean;
+  onSearchContentChange: (value: boolean) => void;
 }) {
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const isAboveMobile = useMediaQuery(breakpointQueries.above.mobile);
@@ -245,10 +303,12 @@ function CollectionToolbar(props: {
         },
       })}
     >
-      <div
+      <Flex
         role="search"
-        style={{
-          display: searchVisible ? "block" : "none",
+        alignItems="center"
+        gap="regular"
+        UNSAFE_style={{
+          display: searchVisible ? "flex" : "none",
         }}
       >
         <SearchField
@@ -272,7 +332,18 @@ function CollectionToolbar(props: {
           value={props.searchTerm}
           width="scale.2400"
         />
-      </div>
+        <TooltipTrigger>
+          <ActionButton
+            aria-label={stringFormatter.format("searchContent")}
+            isSelected={props.searchContent}
+            onPress={() => props.onSearchContentChange(!props.searchContent)}
+            UNSAFE_className={contentSearchToggleStyle}
+          >
+            <Icon src={contentSearchIcon} />
+          </ActionButton>
+          <Tooltip>{stringFormatter.format("searchContentHelp")}</Tooltip>
+        </TooltipTrigger>
+      </Flex>
       <ActionButton
         aria-label="show search"
         isHidden={searchVisible || { above: "mobile" }}
@@ -305,6 +376,7 @@ function CollectionToolbar(props: {
 
 type CollectionPageContentProps = CollectionPageProps & {
   searchTerm: string;
+  searchContent: boolean;
   columnDescriptors: ColumnDescriptor[];
   columnWidths: Record<string, string> | undefined;
   onColumnWidthsChange: (widths: Record<string, string>) => void;
@@ -397,6 +469,12 @@ function CollectionTable(
 
   const [pendingCheckboxEdit, setPendingCheckboxEdit] =
     useState<PendingCheckboxEdit | null>(null);
+
+  const [contentPreview, setContentPreview] = useState<{
+    name: string;
+    fieldKey: string;
+    label: string;
+  } | null>(null);
 
   const draftSlugs = useCollectionDraftSlugs(props.collection);
 
@@ -541,20 +619,189 @@ function CollectionTable(
     });
   }, [entriesWithStatus, mainFiles]);
 
-  const filteredItems = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    if (!term) return entriesWithData;
-    return entriesWithData.filter((item) => {
-      const row = item.data ?? {};
-      const haystack = columnDescriptors
-        .map((descriptor) =>
-          columnValueToSearchText(descriptor, row[descriptor.key], item.name),
+  // fields.content() bodies live in their own `<field>.html` file per entry
+  // (see mainFiles above) - only look them up when the user has opted in,
+  // since fetching+decoding one blob per entry per content field is real
+  // extra work for a large collection.
+  const contentFieldKeys = useMemo(
+    () =>
+      Object.entries(collection.schema)
+        .filter(
+          ([, schema]) =>
+            schema.kind === "form" &&
+            schema.formKind === "assets" &&
+            !!schema.contentExtension,
         )
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(term);
+        .map(([key]) => key),
+    [collection],
+  );
+
+  // entryName -> fieldKey -> plain text stripped from that field's .html
+  const contentTexts = useData(
+    useCallback(async () => {
+      if (!props.searchContent || contentFieldKeys.length === 0) {
+        return new Map<string, Map<string, string>>();
+      }
+      const requests: {
+        oid: string;
+        filepath: string;
+        name: string;
+        field: string;
+      }[] = [];
+      for (const entry of entriesWithStatus) {
+        const entryDir = getCollectionItemPath(
+          props.config,
+          props.collection,
+          entry.name,
+        );
+        for (const fieldKey of contentFieldKeys) {
+          const node = getTreeNodeAtPath(
+            props.trees.current.tree,
+            `${entryDir}/${fieldKey}.html`,
+          );
+          if (node && !node.children) {
+            requests.push({
+              oid: node.entry.sha,
+              filepath: node.entry.path,
+              name: entry.name,
+              field: fieldKey,
+            });
+          }
+        }
+      }
+      if (requests.length === 0) return new Map<string, Map<string, string>>();
+      const blobsByOid = await fetchBlobsBatch(
+        props.config,
+        client,
+        requests.map((r) => ({ oid: r.oid, filepath: r.filepath })),
+        baseCommit,
+        repoInfo,
+        router.basePath,
+      );
+      const textByEntry = new Map<string, Map<string, string>>();
+      const decoder = new TextDecoder();
+      for (const request of requests) {
+        const bytes = blobsByOid.get(request.oid);
+        if (!bytes) continue;
+        const text = htmlToSearchableText(decoder.decode(bytes));
+        let fields = textByEntry.get(request.name);
+        if (!fields) {
+          fields = new Map();
+          textByEntry.set(request.name, fields);
+        }
+        fields.set(request.field, text);
+      }
+      return textByEntry;
+    }, [
+      props.searchContent,
+      contentFieldKeys,
+      entriesWithStatus,
+      props.config,
+      props.collection,
+      props.trees,
+      client,
+      baseCommit,
+      repoInfo,
+      router.basePath,
+    ]),
+  );
+  const contentTextsByEntry =
+    contentTexts.kind === "loaded" ? contentTexts.data : undefined;
+
+  // every column feeds search except image/checkbox (no text to fuzzy-match
+  // against) and content (handled separately above, since it needs the
+  // fetched .html text rather than the inline {wordCount,charCount} value)
+  const searchableColumnDescriptors = useMemo(
+    () =>
+      columnDescriptors.filter(
+        (d) =>
+          d.displayKind !== "image" &&
+          d.displayKind !== "checkbox" &&
+          d.displayKind !== "content",
+      ),
+    [columnDescriptors],
+  );
+
+  const searchableItems = useMemo(() => {
+    return entriesWithData.map((item) => {
+      const row = item.data ?? {};
+      const columns: Record<string, string> = {};
+      for (const descriptor of searchableColumnDescriptors) {
+        columns[descriptor.key] = columnValueToSearchText(
+          descriptor,
+          row[descriptor.key],
+          item.name,
+        );
+      }
+      const content: Record<string, string> = {};
+      const fields = contentTextsByEntry?.get(item.name);
+      if (fields) {
+        for (const [fieldKey, text] of fields) content[fieldKey] = text;
+      }
+      return { item, name: item.name, columns, content };
     });
-  }, [entriesWithData, searchTerm, columnDescriptors]);
+  }, [entriesWithData, searchableColumnDescriptors, contentTextsByEntry]);
+
+  const fuse = useMemo(
+    () =>
+      new Fuse(searchableItems, {
+        keys: [
+          ...searchableColumnDescriptors.map((d) => `columns.${d.key}`),
+          ...contentFieldKeys.map((key) => `content.${key}`),
+        ],
+        includeMatches: true,
+        threshold: 0.3,
+        ignoreLocation: true,
+      }),
+    [searchableItems, searchableColumnDescriptors, contentFieldKeys],
+  );
+
+  // per matched entry, the matches Fuse found, split by which bucket they
+  // landed in - drives the highlighted text shown in each column's cell
+  // (columnMatchesByEntry), the content field's cell snippet, and the marks
+  // in the full-text preview dialog (contentMatchesByEntry). Both empty
+  // whenever there's no active search term.
+  const { filteredItems, contentMatchesByEntry, columnMatchesByEntry } =
+    useMemo(() => {
+      const term = searchTerm.trim();
+      if (!term) {
+        return {
+          filteredItems: entriesWithData,
+          contentMatchesByEntry: new Map<string, Map<string, MatchRange[]>>(),
+          columnMatchesByEntry: new Map<string, Map<string, MatchRange[]>>(),
+        };
+      }
+      const results = fuse.search(term);
+      const contentMatches = new Map<string, Map<string, MatchRange[]>>();
+      const columnMatches = new Map<string, Map<string, MatchRange[]>>();
+      for (const result of results) {
+        for (const match of result.matches ?? []) {
+          if (!match.key || !match.indices?.length) continue;
+          if (match.key.startsWith("content.")) {
+            const fieldKey = match.key.slice("content.".length);
+            let fields = contentMatches.get(result.item.name);
+            if (!fields) {
+              fields = new Map();
+              contentMatches.set(result.item.name, fields);
+            }
+            fields.set(fieldKey, [...match.indices] as MatchRange[]);
+          } else if (match.key.startsWith("columns.")) {
+            const columnKey = match.key.slice("columns.".length);
+            let cols = columnMatches.get(result.item.name);
+            if (!cols) {
+              cols = new Map();
+              columnMatches.set(result.item.name, cols);
+            }
+            cols.set(columnKey, [...match.indices] as MatchRange[]);
+          }
+        }
+      }
+      return {
+        filteredItems: results.map((result) => result.item.item),
+        contentMatchesByEntry: contentMatches,
+        columnMatchesByEntry: columnMatches,
+      };
+    }, [fuse, searchTerm, entriesWithData]);
   const sortedItems = useMemo(() => {
     return [...filteredItems].sort((a, b) => {
       const readCol = (
@@ -583,6 +830,32 @@ function CollectionTable(
     sortDescriptor.column,
     sortDescriptor.direction,
   ]);
+
+  // react-aria's table Collection caches each row's rendered output keyed by
+  // the identity of the item object handed to `TableBody items={...}` - it
+  // does *not* re-invoke the render prop just because CollectionTable itself
+  // re-rendered. contentTexts/contentMatchesByEntry arrive asynchronously
+  // (after the initial row render) and live outside the item objects
+  // themselves, so a plain closure lookup inside the render prop would read
+  // stale (pre-fetch) data forever once react-aria decides a row doesn't
+  // need re-rendering. Baking the per-row content data directly onto a new
+  // item object here forces a genuinely different identity whenever that
+  // data changes, which is what actually triggers react-aria to redraw it.
+  const tableItems = useMemo(
+    () =>
+      sortedItems.map((item) => ({
+        ...item,
+        contentTexts: contentTextsByEntry?.get(item.name),
+        contentMatches: contentMatchesByEntry.get(item.name),
+        columnMatches: columnMatchesByEntry.get(item.name),
+      })),
+    [
+      sortedItems,
+      contentTextsByEntry,
+      contentMatchesByEntry,
+      columnMatchesByEntry,
+    ],
+  );
 
   // live drag feedback for controlled column widths - react-stately only
   // re-renders a *controlled* column at the width we feed it via the
@@ -857,7 +1130,7 @@ function CollectionTable(
               )
             }
           </TableHeader>
-          <TableBody items={sortedItems}>
+          <TableBody items={tableItems}>
             {(item) => {
               const statusCell = (
                 <Cell key={STATUS + item.name} textValue={item.status}>
@@ -875,6 +1148,44 @@ function CollectionTable(
                     ...(hideStatusColumn ? [] : [statusCell]),
                     ...columnDescriptors.map((descriptor) => {
                       const value = row[descriptor.key];
+                      const contentText =
+                        descriptor.displayKind === "content"
+                          ? item.contentTexts?.get(descriptor.key)
+                          : undefined;
+                      const contentCtx =
+                        descriptor.displayKind === "content"
+                          ? {
+                              fullText: contentText,
+                              matchIndices: item.contentMatches?.get(
+                                descriptor.key,
+                              ),
+                              isClickable:
+                                props.searchContent &&
+                                contentText !== undefined,
+                              onOpenPreview: () =>
+                                setContentPreview({
+                                  name: item.name,
+                                  fieldKey: descriptor.key,
+                                  label: descriptor.label,
+                                }),
+                            }
+                          : undefined;
+                      const columnMatchIndices =
+                        descriptor.displayKind !== "content" &&
+                        descriptor.displayKind !== "image" &&
+                        descriptor.displayKind !== "checkbox"
+                          ? item.columnMatches?.get(descriptor.key)
+                          : undefined;
+                      const matchCtx = columnMatchIndices?.length
+                        ? {
+                            text: columnValueToSearchText(
+                              descriptor,
+                              value,
+                              item.name,
+                            ),
+                            indices: columnMatchIndices,
+                          }
+                        : undefined;
                       return (
                         <Cell
                           key={descriptor.key + item.name}
@@ -886,6 +1197,8 @@ function CollectionTable(
                         >
                           {renderColumnCell(descriptor, value, item.name, {
                             onRequestCheckboxEdit: setPendingCheckboxEdit,
+                            content: contentCtx,
+                            match: matchCtx,
                           })}
                         </Cell>
                       );
@@ -908,6 +1221,27 @@ function CollectionTable(
             onDone={() => setPendingCheckboxEdit(null)}
           />
         )}
+      </DialogContainer>
+      <DialogContainer onDismiss={() => setContentPreview(null)}>
+        {contentPreview &&
+          (() => {
+            const text = contentTextsByEntry
+              ?.get(contentPreview.name)
+              ?.get(contentPreview.fieldKey);
+            if (text === undefined) return null;
+            const descriptor = columnDescriptors.find(
+              (d) => d.key === contentPreview.fieldKey,
+            );
+            return (
+              <ContentPreviewDialog
+                label={descriptor?.label ?? contentPreview.label}
+                text={text}
+                matchIndices={contentMatchesByEntry
+                  .get(contentPreview.name)
+                  ?.get(contentPreview.fieldKey)}
+              />
+            );
+          })()}
       </DialogContainer>
     </>
   );
@@ -950,4 +1284,60 @@ export function useDebouncedValue<T>(value: T, delay = 300): T {
   }, [value, delay]);
 
   return debouncedValue;
+}
+
+// block-level elements a ProseMirror content body can contain - a boundary
+// here gets a space inserted after it, so "</p><p>" doesn't fuse the last
+// word of one paragraph onto the first word of the next (plain
+// `.textContent` does exactly that, since it has no notion of layout).
+const BLOCK_TAGS = new Set([
+  "P",
+  "DIV",
+  "LI",
+  "H1",
+  "H2",
+  "H3",
+  "H4",
+  "H5",
+  "H6",
+  "BR",
+  "TR",
+  "TD",
+  "TH",
+  "TABLE",
+  "UL",
+  "OL",
+  "BLOCKQUOTE",
+  "FIGURE",
+  "FIGCAPTION",
+  "SECTION",
+  "ARTICLE",
+  "HR",
+]);
+
+function collectText(node: Node, out: string[]): void {
+  for (const child of Array.from(node.childNodes)) {
+    if (child.nodeType === Node.TEXT_NODE) {
+      out.push(child.textContent ?? "");
+    } else if (child.nodeType === Node.ELEMENT_NODE) {
+      const el = child as Element;
+      // script/style children are text nodes to the DOM even though a
+      // browser never renders them - skip rather than let their raw source
+      // (e.g. the responsive-grid CSS embedded in some content bodies) leak
+      // into the search index and highlighted snippets.
+      if (el.tagName === "SCRIPT" || el.tagName === "STYLE") continue;
+      collectText(el, out);
+      if (BLOCK_TAGS.has(el.tagName)) out.push(" ");
+    }
+  }
+}
+
+// fields.content() bodies are serialized ProseMirror HTML - parsing through
+// the DOM (rather than stripping tags with a regex) gets tag soup and
+// entities right for free, matching how a browser would actually decode it.
+function htmlToSearchableText(html: string): string {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const parts: string[] = [];
+  collectText(doc.body, parts);
+  return parts.join("").replace(/\s+/g, " ").trim();
 }

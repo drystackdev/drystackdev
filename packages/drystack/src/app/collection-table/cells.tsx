@@ -18,6 +18,7 @@ import {
   formatNumberValue,
   summarizeContent,
 } from "./format-helpers";
+import { HighlightedSnippet, HighlightedText, MatchRange } from "./highlight";
 import { PendingCheckboxEdit } from "./QuickEditCheckboxDialog";
 
 const lineClampStyle = css({
@@ -32,6 +33,14 @@ const lineClampStyle = css({
 });
 
 const dimText = { color: "neutralSecondary" as const, size: "small" as const };
+
+const clickableContentStyle = css({
+  cursor: "pointer",
+  borderRadius: 4,
+  padding: "2px 4px",
+  margin: "-2px -4px",
+  "&:hover": { backgroundColor: "rgba(128, 128, 128, 0.08)" },
+});
 
 export function EmptyCell() {
   return <Text {...dimText}>-</Text>;
@@ -131,7 +140,17 @@ export function FileCell(props: { path: string | null }) {
   );
 }
 
-export function ContentSizeCell(props: { value: unknown }) {
+export function ContentSizeCell(props: {
+  value: unknown;
+  // the plain-text body, only present once "search content" has fetched and
+  // stripped the field's .html file (see CollectionPage.tsx) - undefined
+  // means skip straight to the word-count summary below, same as before
+  // this feature existed.
+  fullText?: string;
+  matchIndices?: readonly MatchRange[];
+  isClickable?: boolean;
+  onOpenPreview?: () => void;
+}) {
   const value = props.value as
     | string
     | { wordCount: number; charCount: number }
@@ -142,12 +161,46 @@ export function ContentSizeCell(props: { value: unknown }) {
     (typeof value === "string"
       ? !value.trim()
       : !value.wordCount && !value.charCount);
-  if (isEmpty) {
+  const hasMatch = !!props.fullText && !!props.matchIndices?.length;
+  if (isEmpty && !hasMatch) {
     return <EmptyCell />;
   }
+
+  const inner = hasMatch ? (
+    <HighlightedSnippet text={props.fullText!} indices={props.matchIndices!} />
+  ) : (
+    summarizeContent(value)
+  );
+
+  if (!props.isClickable) {
+    return (
+      <Flex direction="column" gap="xsmall" minWidth={0}>
+        <Text UNSAFE_className={lineClampStyle}>{inner}</Text>
+      </Flex>
+    );
+  }
+
   return (
-    <Flex direction="column" gap="xsmall" minWidth={0}>
-      <Text UNSAFE_className={lineClampStyle}>{summarizeContent(value)}</Text>
+    <Flex
+      direction="column"
+      gap="xsmall"
+      minWidth={0}
+      role="button"
+      tabIndex={0}
+      UNSAFE_className={clickableContentStyle}
+      onClick={(e) => {
+        e.stopPropagation();
+        props.onOpenPreview?.();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          e.stopPropagation();
+          props.onOpenPreview?.();
+        }
+      }}
+    >
+      <Text UNSAFE_className={lineClampStyle}>{inner}</Text>
     </Flex>
   );
 }
@@ -292,8 +345,36 @@ export function renderColumnCell(
   descriptor: ColumnDescriptor,
   value: unknown,
   itemSlug: string,
-  ctx: { onRequestCheckboxEdit: (edit: PendingCheckboxEdit) => void },
+  ctx: {
+    onRequestCheckboxEdit: (edit: PendingCheckboxEdit) => void;
+    content?: {
+      fullText?: string;
+      matchIndices?: readonly MatchRange[];
+      isClickable: boolean;
+      onOpenPreview: () => void;
+    };
+    // a search match outside the content field's own .html body - covers
+    // every other column (name, text, select, date, url, ...) except
+    // image/checkbox, which have nothing textual to highlight. Overrides
+    // that column's normal formatted cell (badge, date, link icon, ...)
+    // with plain highlighted text, same tradeoff the content snippet makes:
+    // showing *what* matched beats preserving formatting no one asked to
+    // search past.
+    match?: { text: string; indices: readonly MatchRange[] };
+  },
 ): ReactNode {
+  if (
+    ctx.match &&
+    descriptor.displayKind !== "content" &&
+    descriptor.displayKind !== "image" &&
+    descriptor.displayKind !== "checkbox"
+  ) {
+    return (
+      <Text UNSAFE_className={lineClampStyle}>
+        <HighlightedText text={ctx.match.text} indices={ctx.match.indices} />
+      </Text>
+    );
+  }
   switch (descriptor.displayKind) {
     case "name":
       return (
@@ -353,7 +434,15 @@ export function renderColumnCell(
     case "number":
       return <NumberCell value={typeof value === "number" ? value : null} />;
     case "content":
-      return <ContentSizeCell value={value} />;
+      return (
+        <ContentSizeCell
+          value={value}
+          fullText={ctx.content?.fullText}
+          matchIndices={ctx.content?.matchIndices}
+          isClickable={ctx.content?.isClickable}
+          onOpenPreview={ctx.content?.onOpenPreview}
+        />
+      );
     case "slugPair":
       return <SlugPairCell value={value} />;
     case "array":

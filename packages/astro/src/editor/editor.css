@@ -403,6 +403,14 @@ body > .kui-scheme--auto {
   min-width: 200px;
   max-height: 260px;
   overflow: auto;
+  /* Scrollable but scrollbar-free: a visible scrollbar sits right at the
+     menu's edge and steals hover from whatever item happens to render
+     underneath it (e.g. a "Position N" item near the bottom of a long
+     tier-3 list never gets its onMouseEnter). Mouse-wheel/trackpad
+     scrolling keeps working either way - only the rendered track/thumb
+     goes away. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   padding: 4px;
   border-radius: 8px;
   background: #fff;
@@ -416,6 +424,10 @@ body > .kui-scheme--auto {
     Arial, sans-serif;
   font-size: 13px;
   line-height: 1.4;
+}
+.dry-ref-menu::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 .dry-ref-item {
   display: flex;
@@ -442,6 +454,19 @@ body > .kui-scheme--auto {
   padding: 8px 10px;
   font-size: 13px;
   opacity: 0.6;
+}
+/* Tiers 2 (entry -> its fields) and 3 (field -> its DOM occurrences) of the
+   ref menu - same look and same bottom-anchored positioning as the
+   top-level dropdown (see openRefMenu), just anchored next to the item
+   that opened them (left/bottom of its rect) instead of under the toolbar.
+   Anchoring by bottom rather than top means a long list grows upward
+   instead of running off the bottom of the viewport. See Toolbar's
+   openEntrySub/openFieldSub. */
+.dry-ref-chevron {
+  margin-left: auto;
+  padding-left: 8px;
+  opacity: 0.5;
+  font-weight: 600;
 }
 
 /* Review-changes accordion/diff styling now lives as scoped emotion classes

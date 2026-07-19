@@ -337,6 +337,25 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
+
+  // Tier 2 of the ref menu - hovering one entry item opens a submenu of that
+  // entry's own editable fields (entrySubOpen holds the entryRefKey it's
+  // showing). Tier 3 - hovering a field that renders at more than one DOM
+  // spot (e.g. a site title in both header and footer) opens a further
+  // submenu listing each occurrence (fieldSubOpen holds the field's spot
+  // key), since a single "flash" can't distinguish which one the user means.
+  // Both follow the same open-immediately/close-on-delay pattern as tier 1
+  // above, portaled to <body> for the same overflow reasons.
+  const [entrySubOpen, setEntrySubOpen] = useState<string | null>(null);
+  const [entrySubPos, setEntrySubPos] = useState({ left: 0, bottom: 0 });
+  const entrySubCloseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const [fieldSubOpen, setFieldSubOpen] = useState<string | null>(null);
+  const [fieldSubPos, setFieldSubPos] = useState({ left: 0, bottom: 0 });
+  const fieldSubCloseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
   const [refOpen, setRefOpen] = useState(false);
   const [refPos, setRefPos] = useState({ left: 0, bottom: 0 });
 
@@ -725,8 +744,10 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   // tab. github mode needs an async branch lookup, so open the tab up front -
   // preserving the click's user activation - and point it at the URL once
   // resolved; a window.open() issued after the await would be killed by the
-  // popup blocker.
-  const goToAdmin = async (ref: EntryRef) => {
+  // popup blocker. An optional field dot-path (e.g. "brand.name") is passed
+  // through as ?field=, read by useScrollToFieldParam on the admin side to
+  // scroll straight to that field once the page loads.
+  const goToAdmin = async (ref: EntryRef, field?: string) => {
     const tab = window.open("", "_blank");
     if (tab) tab.opener = null;
     try {
@@ -734,12 +755,13 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       const branchSegment = branch
         ? `branch/${encodeURIComponent(branch)}/`
         : "";
+      const fieldSuffix = field ? `?field=${encodeURIComponent(field)}` : "";
       const url =
-        ref.type === "singleton"
+        (ref.type === "singleton"
           ? `${adminBase}/${branchSegment}singleton/${encodeURIComponent(ref.name)}`
           : `${adminBase}/${branchSegment}collection/${encodeURIComponent(
               ref.name,
-            )}/item/${encodeURIComponent(ref.slug)}`;
+            )}/item/${encodeURIComponent(ref.slug)}`) + fieldSuffix;
       if (tab) tab.location.href = url;
       else window.open(url, "_blank", "noopener,noreferrer");
     } catch (err) {
@@ -799,6 +821,61 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     clearTimeout(closeTimer.current);
     closeTimer.current = setTimeout(() => setRefOpen(false), 140);
   };
+
+  // Tiers 2/3 are logically nested inside tier 1 (and tier 3 inside tier 2)
+  // even though each is a separate <body> portal, so entering any of them
+  // must keep every ancestor tier open too - otherwise the ancestor's own
+  // close timer fires while the pointer is still travelling toward a portal
+  // that isn't spatially contained in it.
+  // Anchored by bottom (like tier 1's own openRefMenu), not top: a submenu
+  // that grows downward from the hovered item's top edge gets clipped when
+  // that item sits near the bottom of the viewport and the list is long.
+  // Anchoring the submenu's bottom edge to the item's bottom edge instead
+  // makes it grow upward, which the 260px max-height keeps well within
+  // reach of virtually any viewport.
+  const openEntrySub = (key: string, rect: DOMRect) => {
+    clearTimeout(closeTimer.current);
+    clearTimeout(entrySubCloseTimer.current);
+    setEntrySubPos({
+      left: rect.right + 4,
+      bottom: window.innerHeight - rect.bottom,
+    });
+    setEntrySubOpen(key);
+  };
+  const scheduleCloseEntrySub = () => {
+    clearTimeout(entrySubCloseTimer.current);
+    entrySubCloseTimer.current = setTimeout(() => setEntrySubOpen(null), 140);
+  };
+  const keepEntrySubOpen = () => {
+    clearTimeout(closeTimer.current);
+    clearTimeout(entrySubCloseTimer.current);
+  };
+
+  const openFieldSub = (key: string, rect: DOMRect) => {
+    keepEntrySubOpen();
+    clearTimeout(fieldSubCloseTimer.current);
+    setFieldSubPos({
+      left: rect.right + 4,
+      bottom: window.innerHeight - rect.bottom,
+    });
+    setFieldSubOpen(key);
+  };
+  const scheduleCloseFieldSub = () => {
+    clearTimeout(fieldSubCloseTimer.current);
+    fieldSubCloseTimer.current = setTimeout(() => setFieldSubOpen(null), 140);
+  };
+  const keepFieldSubOpen = () => {
+    keepEntrySubOpen();
+    clearTimeout(fieldSubCloseTimer.current);
+  };
+
+  // Every DOM element currently rendering a given field spot's key - a spot
+  // is one entry per key (see readSpots), but the same key can back several
+  // elements on the page (e.g. a site title in both header and footer).
+  const spotElements = (key: string) =>
+    Array.from(
+      document.querySelectorAll<HTMLElement>(`[data-dry="${CSS.escape(key)}"]`),
+    );
 
   const nothingToSave = pendingCount === 0;
 
@@ -966,19 +1043,160 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
             onMouseEnter={openRefMenu}
             onMouseLeave={scheduleCloseRefMenu}
           >
-            {entryList.map((e) => (
-              <button
-                type="button"
-                role="menuitem"
-                key={e.key}
-                className="dry-ref-item"
-                onMouseEnter={() => flashEntry(e.key, true)}
-                onMouseLeave={() => flashEntry(e.key, false)}
-                onClick={() => goToAdmin(e.ref)}
-              >
-                <span className="dry-ref-name">{e.label}</span>
-              </button>
-            ))}
+            {entryList.map((e) => {
+              const entryFields = spots.filter(
+                (s) => entryRefKey(s.ref) === e.key,
+              );
+              return (
+                <React.Fragment key={e.key}>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    aria-haspopup={entryFields.length > 0}
+                    className="dry-ref-item"
+                    onMouseEnter={(ev) => {
+                      flashEntry(e.key, true);
+                      if (entryFields.length > 0) {
+                        openEntrySub(
+                          e.key,
+                          (ev.currentTarget as HTMLElement).getBoundingClientRect(),
+                        );
+                      }
+                    }}
+                    onMouseLeave={() => {
+                      flashEntry(e.key, false);
+                      scheduleCloseEntrySub();
+                    }}
+                    onClick={() => goToAdmin(e.ref)}
+                  >
+                    <span className="dry-ref-name">{e.label}</span>
+                    {entryFields.length > 0 && (
+                      <span className="dry-ref-chevron" aria-hidden="true">
+                        ›
+                      </span>
+                    )}
+                  </button>
+
+                  {entrySubOpen === e.key &&
+                    entryFields.length > 0 &&
+                    createPortal(
+                      <div
+                        className="dry-ref-menu dry-ref-submenu"
+                        role="menu"
+                        style={{
+                          left: entrySubPos.left,
+                          bottom: entrySubPos.bottom,
+                        }}
+                        onMouseEnter={keepEntrySubOpen}
+                        onMouseLeave={scheduleCloseEntrySub}
+                      >
+                        {entryFields.map((f) => {
+                          const occurrences = spotElements(f.key);
+                          const multi = occurrences.length > 1;
+                          return (
+                            <React.Fragment key={f.key}>
+                              <button
+                                type="button"
+                                role="menuitem"
+                                aria-haspopup={multi}
+                                className="dry-ref-item"
+                                onMouseEnter={(ev) => {
+                                  keepEntrySubOpen();
+                                  // Flash every occurrence right away, same as
+                                  // the entry-level hover above - the tier 3
+                                  // submenu (opened only when there's more
+                                  // than one) then lets hovering a specific
+                                  // "Position N" narrow the scroll target down
+                                  // to just that element.
+                                  occurrences.forEach((el) =>
+                                    el.classList.add("dry-spot-flash"),
+                                  );
+                                  occurrences[0]?.scrollIntoView({
+                                    behavior: "smooth",
+                                    block: "center",
+                                  });
+                                  if (multi) {
+                                    openFieldSub(
+                                      f.key,
+                                      (
+                                        ev.currentTarget as HTMLElement
+                                      ).getBoundingClientRect(),
+                                    );
+                                  } else {
+                                    setFieldSubOpen(null);
+                                  }
+                                }}
+                                onMouseLeave={() => {
+                                  occurrences.forEach((el) =>
+                                    el.classList.remove("dry-spot-flash"),
+                                  );
+                                  scheduleCloseFieldSub();
+                                }}
+                                onClick={() => goToAdmin(e.ref, f.field)}
+                              >
+                                <span className="dry-ref-name">{f.field}</span>
+                                {multi && (
+                                  <span
+                                    className="dry-ref-chevron"
+                                    aria-hidden="true"
+                                  >
+                                    ›
+                                  </span>
+                                )}
+                              </button>
+
+                              {multi &&
+                                fieldSubOpen === f.key &&
+                                createPortal(
+                                  <div
+                                    className="dry-ref-menu dry-ref-submenu"
+                                    role="menu"
+                                    style={{
+                                      left: fieldSubPos.left,
+                                      bottom: fieldSubPos.bottom,
+                                    }}
+                                    onMouseEnter={keepFieldSubOpen}
+                                    onMouseLeave={scheduleCloseFieldSub}
+                                  >
+                                    {occurrences.map((el, i) => (
+                                      <button
+                                        type="button"
+                                        role="menuitem"
+                                        key={i}
+                                        className="dry-ref-item"
+                                        onMouseEnter={() => {
+                                          keepFieldSubOpen();
+                                          el.classList.add("dry-spot-flash");
+                                          el.scrollIntoView({
+                                            behavior: "smooth",
+                                            block: "center",
+                                          });
+                                        }}
+                                        onMouseLeave={() =>
+                                          el.classList.remove("dry-spot-flash")
+                                        }
+                                        onClick={() => goToAdmin(e.ref, f.field)}
+                                      >
+                                        <span className="dry-ref-name">
+                                          {stringFormatter.format(
+                                            "veiRefFieldOccurrence",
+                                            { index: i + 1 },
+                                          )}
+                                        </span>
+                                      </button>
+                                    ))}
+                                  </div>,
+                                  document.body,
+                                )}
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>,
+                      document.body,
+                    )}
+                </React.Fragment>
+              );
+            })}
           </div>,
           document.body,
         )}
