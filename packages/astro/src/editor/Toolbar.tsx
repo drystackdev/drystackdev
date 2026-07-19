@@ -70,6 +70,7 @@ import {
   revertFieldToOriginal,
   setImageSpotClickHandler,
   setFileSpotClickHandler,
+  setFieldNavigateHandler,
 } from "./bind";
 import {
   getAllEdits,
@@ -769,6 +770,31 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       toastQueue.critical(err instanceof Error ? err.message : String(err));
     }
   };
+
+  // Ctrl/cmd-clicking a spot on the live page deep-links to that field's
+  // admin editor - the same place clicking it in the "ref" menu above goes -
+  // instead of the spot's normal in-page behavior (focus, the asset picker,
+  // ...). The modifier check and the preventDefault/stopPropagation that
+  // suppresses that normal behavior both live in bind.ts's
+  // handleSpotNavigateMouseDown/handleSpotNavigateClick, since they have to
+  // run in the capturing phase, ahead of contentEditable's native focus and a
+  // fields.content spot's own ProseMirror click handling - this effect just
+  // supplies the key -> ref/field resolution and navigation once that's
+  // decided.
+  useEffect(() => {
+    const handler = (key: string) => {
+      const parsed = parseEditKey(key);
+      if (!parsed) return;
+      const ref: EntryRef =
+        parsed.type === "singleton"
+          ? { type: "singleton", name: parsed.name }
+          : { type: "collection", name: parsed.name, slug: parsed.slug };
+      void goToAdmin(ref, parsed.field);
+    };
+    setFieldNavigateHandler(handler);
+    return () => setFieldNavigateHandler(undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config]);
 
   // Highlight (and scroll to) every editable spot belonging to one entry
   // (singleton or collection item), keyed by entryRefKey.

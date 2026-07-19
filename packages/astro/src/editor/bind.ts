@@ -591,6 +591,55 @@ function handleAssetSpotClick(e: MouseEvent) {
   assetSpotClickCallbacks[kind]?.(key);
 }
 
+// Registered by the toolbar - lets a ctrl/cmd-click on any spot (any kind,
+// readonly or not) deep-link to that field in the admin instead of doing the
+// spot's normal in-page thing (focus, the asset picker, ProseMirror's own
+// cursor placement, ...). A plain setter rather than a Map keyed by kind
+// (unlike assetSpotClickCallbacks above) since navigation doesn't branch on
+// kind - the toolbar resolves the ref/field itself from the key.
+let fieldNavigateCallback: ((key: string) => void) | undefined;
+
+export function setFieldNavigateHandler(cb: ((key: string) => void) | undefined) {
+  fieldNavigateCallback = cb;
+}
+
+function isNavigateModifierClick(e: MouseEvent): boolean {
+  return e.metaKey || e.ctrlKey;
+}
+
+// A modified mousedown on a spot must be swallowed here, at the earliest
+// possible point (the document's own capturing-phase listener), so it never
+// reaches the target at all - that's what stops both a contentEditable
+// spot's native focus/caret placement (a mousedown default action, not a
+// click one) and a fields.content spot's live ProseMirror view, which does
+// its own cursor-placement handling directly on the element and would
+// otherwise still see the event even though propagation never gets past this
+// listener's stopPropagation() call.
+function handleSpotNavigateMouseDown(e: MouseEvent) {
+  if (!isNavigateModifierClick(e)) return;
+  const el = (e.target as HTMLElement)?.closest<HTMLElement>("[data-dry]");
+  if (!el) return;
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+// The actual navigation fires on click, not mousedown - matches the ordinary
+// ctrl/cmd-click-opens-new-tab convention elsewhere on the web. Runs before
+// handleAssetSpotClick (registered after this one in enableEditing) and uses
+// stopImmediatePropagation - not just stopPropagation - to stop that sibling
+// listener on the same document node from also firing and opening the media
+// picker on top of the navigation.
+function handleSpotNavigateClick(e: MouseEvent) {
+  if (!isNavigateModifierClick(e)) return;
+  const el = (e.target as HTMLElement)?.closest<HTMLElement>("[data-dry]");
+  if (!el) return;
+  const key = el.getAttribute("data-dry");
+  if (!key) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  fieldNavigateCallback?.(key);
+}
+
 export function isEditing() {
   return editing;
 }
@@ -664,6 +713,8 @@ export function enableEditing(onChange?: () => void) {
     if (el.contentEditable !== "plaintext-only") el.contentEditable = "true";
   });
   document.addEventListener("input", handleInput, true);
+  document.addEventListener("mousedown", handleSpotNavigateMouseDown, true);
+  document.addEventListener("click", handleSpotNavigateClick, true);
   document.addEventListener("click", handleAssetSpotClick, true);
 }
 
@@ -681,6 +732,8 @@ export function disableEditing() {
     el.removeAttribute("contenteditable");
   });
   document.removeEventListener("input", handleInput, true);
+  document.removeEventListener("mousedown", handleSpotNavigateMouseDown, true);
+  document.removeEventListener("click", handleSpotNavigateClick, true);
   document.removeEventListener("click", handleAssetSpotClick, true);
 }
 
