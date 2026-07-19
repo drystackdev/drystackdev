@@ -1,8 +1,8 @@
 import { toastQueue } from "@keystar/ui/toast";
 import { Text } from "@keystar/ui/typography";
 import { useLocale } from "@react-aria/i18n";
-import { UseStore, clear, createStore, del, get, set } from "idb-keyval";
-import { useState, useMemo } from "react";
+import { UseStore, clear, createStore, del, get, keys, set } from "idb-keyval";
+import { useState, useMemo, useEffect } from "react";
 
 const units = {
   seconds: 60,
@@ -83,11 +83,11 @@ type Key =
 // the as anys are because the indexeddb types dont't accept readonly arrays
 
 export function setDraft(key: Key, val: unknown) {
-  return set(key as any, val, getStore());
+  return set(key as any, val, getStore()).then(notifyDraftsChanged);
 }
 
 export function delDraft(key: Key) {
-  return del(key as any, getStore());
+  return del(key as any, getStore()).then(notifyDraftsChanged);
 }
 
 export function getDraft(key: Key): Promise<unknown> {
@@ -96,6 +96,68 @@ export function getDraft(key: Key): Promise<unknown> {
 
 export async function clearDrafts() {
   await clear(getStore());
+  notifyDraftsChanged();
+}
+
+export function listDraftKeys(): Promise<Key[]> {
+  return keys(getStore()) as unknown as Promise<Key[]>;
+}
+
+// same-tab pub/sub so UI (sidebar nav, collection status column) can react
+// live to drafts being written/removed elsewhere in the app - idb-keyval has
+// no built-in change events
+const draftListeners = new Set<() => void>();
+
+function notifyDraftsChanged() {
+  for (const listener of draftListeners) listener();
+}
+
+export function subscribeDrafts(listener: () => void): () => void {
+  draftListeners.add(listener);
+  return () => {
+    draftListeners.delete(listener);
+  };
+}
+
+export function useDraftKeys(): Key[] {
+  const [draftKeys, setDraftKeys] = useState<Key[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = () => {
+      listDraftKeys().then((ks) => {
+        if (!cancelled) setDraftKeys(ks);
+      });
+    };
+    refresh();
+    const unsubscribe = subscribeDrafts(refresh);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
+  return draftKeys;
+}
+
+export function useCollectionDraftSlugs(collection: string): Set<string> {
+  const draftKeys = useDraftKeys();
+  return useMemo(() => {
+    const slugs = new Set<string>();
+    for (const key of draftKeys) {
+      if (key[0] === "collection" && key[1] === collection) {
+        slugs.add(key[2]);
+      }
+    }
+    return slugs;
+  }, [draftKeys, collection]);
+}
+
+export function useSingletonHasDraft(singleton: string): boolean {
+  const draftKeys = useDraftKeys();
+  return useMemo(
+    () =>
+      draftKeys.some((key) => key[0] === "singleton" && key[1] === singleton),
+    [draftKeys, singleton],
+  );
 }
 
 // per-collection entries-table column visibility/widths - kept in its own

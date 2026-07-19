@@ -5,7 +5,7 @@ import { dry } from "../lib/dry";
 import { htmlToPlainText } from "../lib/heading";
 
 const services = await getServices();
-const homepage = (await dry.singleton("homepage")) as any;
+const homepage = (await dry.singleton("homepage"));
 const { brand, contact: contactInfo, socialLinks, footerNav, footer } =
   homepage;
 

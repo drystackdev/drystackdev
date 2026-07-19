@@ -26,7 +26,6 @@ import { clipboardCopyIcon } from "@keystar/ui/icon/icons/clipboardCopyIcon";
 import { clipboardPasteIcon } from "@keystar/ui/icon/icons/clipboardPasteIcon";
 import { externalLinkIcon } from "@keystar/ui/icon/icons/externalLinkIcon";
 import { githubIcon } from "@keystar/ui/icon/icons/githubIcon";
-import { historyIcon } from "@keystar/ui/icon/icons/historyIcon";
 import { trash2Icon } from "@keystar/ui/icon/icons/trash2Icon";
 import { Box, Flex } from "@keystar/ui/layout";
 import { Notice } from "@keystar/ui/notice";
@@ -353,7 +352,6 @@ function ItemPageInner(
             onDuplicate={onDuplicate}
             onCopy={onCopy}
             onPaste={onPaste}
-            onReset={props.onReset}
             viewHref={viewHref}
             previewHref={previewHref}
             magicWrite={props.magicWrite}
@@ -515,6 +513,7 @@ function ItemPageInner(
             <ChangePreviewDialog
               changes={props.changes}
               onDelete={props.onRevertField}
+              onResetAll={props.onReset}
               renderImage={(path: string) => <AdminImageThumb path={path} />}
             />
           )}
@@ -732,7 +731,6 @@ function HeaderActions(props: {
   previewUrl?: string;
   urlForSlug: (slug: string) => string | undefined;
   onDuplicate: () => void;
-  onReset: () => void;
   onCopy: () => void;
   onPaste: () => void;
   previewHref?: string;
@@ -753,7 +751,6 @@ function HeaderActions(props: {
     previewUrl,
     urlForSlug,
     onDuplicate,
-    onReset,
     onCopy,
     onPaste,
     previewHref,
@@ -782,11 +779,6 @@ function HeaderActions(props: {
       rel?: string;
     };
     let items: ActionType[] = [
-      {
-        key: "reset",
-        label: "Reset changes", // TODO: l10n
-        icon: historyIcon,
-      },
       {
         key: "delete",
         label: "Delete entry…", // TODO: l10n
@@ -885,12 +877,8 @@ function HeaderActions(props: {
         density="compact"
         maxWidth={isBelowDesktop ? "element.regular" : undefined} // force switch to action menu on small devices
         items={menuActions}
-        disabledKeys={hasChanged ? [] : ["reset"]}
         onAction={(key) => {
           switch (key) {
-            case "reset":
-              onReset();
-              break;
             case "delete":
               setDeleteAlertOpen(true);
               break;

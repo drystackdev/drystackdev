@@ -65,7 +65,6 @@ import { ActionGroup, Item } from "@keystar/ui/action-group";
 import { useMediaQuery, breakpointQueries } from "@keystar/ui/style";
 import { githubIcon } from "@keystar/ui/icon/icons/githubIcon";
 import { externalLinkIcon } from "@keystar/ui/icon/icons/externalLinkIcon";
-import { historyIcon } from "@keystar/ui/icon/icons/historyIcon";
 import { usePreviewProps, useSingleton } from "./preview-props";
 import { ComponentSchema, GenericPreviewProps } from "..";
 import { copyEntryToClipboard, getPastedEntry } from "./entry-clipboard";
@@ -143,11 +142,6 @@ function SingletonPageInner(
       target?: string;
       rel?: string;
     }[] = [
-      {
-        key: "reset",
-        label: "Reset",
-        icon: historyIcon,
-      },
       {
         key: "copy",
         label: "Copy entry",
@@ -280,12 +274,8 @@ function SingletonPageInner(
             density="compact"
             maxWidth={isBelowDesktop ? "element.regular" : undefined} // force switch to action menu on small devices
             items={menuActions}
-            disabledKeys={props.hasChanged ? [] : ["reset"]}
             onAction={(key) => {
               switch (key) {
-                case "reset":
-                  props.onReset();
-                  break;
                 case "copy":
                   onCopy();
                   break;
@@ -395,6 +385,7 @@ function SingletonPageInner(
               <ChangePreviewDialog
                 changes={props.changes}
                 onDelete={props.onRevertField}
+                onResetAll={props.onReset}
                 renderImage={(path: string) => <AdminImageThumb path={path} />}
               />
             )}

@@ -56,13 +56,7 @@ import { useCollectionViewState } from "./collection-table/useCollectionViewStat
 import l10nMessages from "./l10n";
 import { useRouter } from "./router";
 import { EmptyState } from "./shell/empty-state";
-import {
-  useTree,
-  TreeData,
-  useBaseCommit,
-  useCurrentBranch,
-  useRepoInfo,
-} from "./shell/data";
+import { useTree, TreeData, useBaseCommit, useRepoInfo } from "./shell/data";
 import { PageRoot, PageHeader } from "./shell/page";
 import {
   getCollectionFormat,
@@ -71,8 +65,8 @@ import {
   getEntriesInCollectionWithTreeKey,
   getEntryDataFilepath,
   getSlugGlobForCollection,
-  isLocalConfig,
 } from "./utils";
+import { useCollectionDraftSlugs } from "./persistence";
 import { notFound } from "./not-found";
 import { fetchBlobsBatch } from "./useItemData";
 import { loadDataFile } from "./required-files";
@@ -392,21 +386,19 @@ function CollectionTable(
 
   const client = useClient();
   const repoInfo = useRepoInfo();
-  const currentBranch = useCurrentBranch();
-  let isLocalMode = isLocalConfig(props.config);
   let router = useRouter();
   const collection = props.config.collections![props.collection]!;
   let [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
     column: collection.slugField,
     direction: "ascending",
   });
-  let hideStatusColumn =
-    isLocalMode || currentBranch === repoInfo?.defaultBranch;
 
   const baseCommit = useBaseCommit();
 
   const [pendingCheckboxEdit, setPendingCheckboxEdit] =
     useState<PendingCheckboxEdit | null>(null);
+
+  const draftSlugs = useCollectionDraftSlugs(props.collection);
 
   const entriesWithStatus = useMemo(() => {
     const defaultEntries = new Map(
@@ -421,17 +413,30 @@ function CollectionTable(
       props.collection,
       props.trees.current.tree,
     ).map((entry) => {
+      const treeStatus = defaultEntries.has(entry.slug)
+        ? defaultEntries.get(entry.slug) === entry.key
+          ? "Unchanged"
+          : "Changed"
+        : "Added";
       return {
         name: entry.slug,
-        status: defaultEntries.has(entry.slug)
-          ? defaultEntries.get(entry.slug) === entry.key
-            ? "Unchanged"
-            : "Changed"
-          : "Added",
+        status:
+          treeStatus === "Unchanged" && draftSlugs.has(entry.slug)
+            ? "Changed"
+            : treeStatus,
         sha: entry.sha,
       };
     });
-  }, [props.collection, props.config, props.trees]);
+  }, [props.collection, props.config, props.trees, draftSlugs]);
+
+  // unlike the pure git-tree diff this replaces, this also reflects unsaved
+  // in-browser drafts (see useCollectionDraftSlugs) - so it stays hidden
+  // only when there's truly nothing changed to show, not just because we're
+  // in local mode or on the default branch (where a committed diff can never
+  // exist, but a draft still can)
+  let hideStatusColumn = !entriesWithStatus.some(
+    (entry) => entry.status !== "Unchanged",
+  );
 
   const mainFiles = useData(
     useCallback(async () => {

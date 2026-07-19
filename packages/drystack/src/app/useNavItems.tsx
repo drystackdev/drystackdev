@@ -1,4 +1,5 @@
 import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import { useMemo } from "react";
 
 import {
   Config,
@@ -9,6 +10,7 @@ import {
 import l10nMessages from "./l10n";
 import { useAppState, useConfig } from "./shell/context";
 import { useChanged } from "./shell/data";
+import { useDraftKeys } from "./persistence";
 
 type ItemData = {
   key: string;
@@ -39,6 +41,24 @@ export function useNavItems(): ItemOrGroup[] {
   let config = useConfig();
   let stringFormatter = useLocalizedStringFormatter(l10nMessages);
   let changeMap = useChanged();
+  let draftKeys = useDraftKeys();
+  let draftsByCollection = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const key of draftKeys) {
+      if (key[0] !== "collection") continue;
+      const [, collection, slug] = key;
+      if (!map.has(collection)) map.set(collection, new Set());
+      map.get(collection)!.add(slug);
+    }
+    return map;
+  }, [draftKeys]);
+  let draftSingletons = useMemo(
+    () =>
+      new Set(
+        draftKeys.flatMap((key) => (key[0] === "singleton" ? [key[1]] : [])),
+      ),
+    [draftKeys],
+  );
 
   const collectionKeys = Object.keys(config.collections || {});
   // the redirects singleton is reserved/system-owned - it never joins the
@@ -55,7 +75,13 @@ export function useNavItems(): ItemOrGroup[] {
       [stringFormatter.format("singletons")]: singletonKeys,
     }),
   };
-  const options = { basePath, changeMap, config };
+  const options = {
+    basePath,
+    changeMap,
+    config,
+    draftsByCollection,
+    draftSingletons,
+  };
 
   const itemOrGroups: ItemOrGroup[] = Array.isArray(items)
     ? items.map((key) => populateItemData(key, options))
@@ -93,9 +119,12 @@ function populateItemData(
     basePath: string;
     changeMap: ReturnType<typeof useChanged>;
     config: Config;
+    draftsByCollection: Map<string, Set<string>>;
+    draftSingletons: Set<string>;
   },
 ): Item {
-  let { basePath, changeMap, config } = options;
+  let { basePath, changeMap, config, draftsByCollection, draftSingletons } =
+    options;
 
   // divider
   if (key === NAVIGATION_DIVIDER_KEY) {
@@ -106,9 +135,13 @@ function populateItemData(
   if (config.collections && key in config.collections) {
     const href = `${basePath}/collection/${encodeURIComponent(key)}`;
     const changes = changeMap.collections.get(key);
-    const changed = changes
-      ? changes.changed.size + changes.added.size + changes.removed.size
-      : 0;
+    const changedSlugs = new Set([
+      ...(changes ? changes.changed : []),
+      ...(changes ? changes.added : []),
+      ...(changes ? changes.removed : []),
+      ...(draftsByCollection.get(key) ?? []),
+    ]);
+    const changed = changedSlugs.size;
 
     const label = config.collections[key].label;
 
@@ -118,7 +151,7 @@ function populateItemData(
   // singleton
   if (config.singletons && key in config.singletons) {
     const href = `${basePath}/singleton/${encodeURIComponent(key)}`;
-    const changed = changeMap.singletons.has(key);
+    const changed = changeMap.singletons.has(key) || draftSingletons.has(key);
     const label = config.singletons[key].label;
 
     return { key, href, label, changed };

@@ -544,7 +544,19 @@ function handleInput(e: Event) {
   if (isContentSpot(el)) return;
   const key = el.getAttribute("data-dry");
   if (!key) return;
-  publishEdit(key, el.textContent ?? "").then(() => onChangeCallback?.());
+  const value = el.textContent ?? "";
+  // A field can be rendered more than once on a page (e.g. a phone number in
+  // both a contact section and the footer) - publishEdit only reaches other
+  // *tabs* (subscribeEdits ignores this tab's own origin), so any other
+  // same-key spot in this tab needs painting here. Skip `el` itself: it's a
+  // live contenteditable the user is mid-typing into, and resetting its
+  // textContent would reset the cursor/undo state.
+  document
+    .querySelectorAll<HTMLElement>(`[data-dry="${CSS.escape(key)}"]`)
+    .forEach((sibling) => {
+      if (sibling !== el) sibling.textContent = value;
+    });
+  publishEdit(key, value).then(() => onChangeCallback?.());
 }
 
 // Registered by the toolbar once its admin-provider boundary is ready -
