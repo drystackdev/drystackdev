@@ -13,7 +13,6 @@ import { fieldMagicWriteIcon } from "../icons/fieldMagicWriteIcon";
 import l10nMessages from "../l10n";
 import { MagicWriteDialog } from "./MagicWriteDialog";
 import { useAiStatus } from "./useAiStatus";
-import { useHasContentSelection } from "./content-selection-context";
 import { useFieldMagicWrite } from "./field-magic-write-context";
 
 // The button floats over the field it writes - in the content pane, directly
@@ -42,6 +41,10 @@ const roundButton = css({
  * Only appears on top-level fields: the lock and the stream both key off the
  * top-level name, and a button on a nested item would suggest a granularity
  * the rest of the pipeline doesn't have.
+ *
+ * Content fields are excluded: their editor has its own AI button in the
+ * toolbar (ContentToolbarAiButton), which also handles rewriting a selected
+ * passage - a control this one has no notion of.
  */
 export function FieldMagicWriteButton() {
   const ctx = useFieldMagicWrite();
@@ -49,11 +52,6 @@ export function FieldMagicWriteButton() {
   const status = useAiStatus();
   const [isOpen, setOpen] = useState(false);
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
-  // Hooks can't sit behind the early returns below, so the key is read
-  // defensively here and validated after.
-  const hasSelection = useHasContentSelection(
-    typeof path[0] === "string" ? path[0] : "",
-  );
 
   if (!ctx) return null;
   if (path.length !== 1) return null;
@@ -64,15 +62,13 @@ export function FieldMagicWriteButton() {
   if (!schema) return null;
   // Unsupported kinds (image, file, relationship) have no spec at all - no
   // button rather than one that would fail.
-  if (!describeField(key, schema)) return null;
+  const spec = describeField(key, schema);
+  if (!spec) return null;
+  if (spec.kind === "content") return null;
   if (status?.configured === false) return null;
   // Mid-stream the field is inert; offering to restart it would race the
   // write already in flight.
   if (ctx.magicWrite.status === "streaming") return null;
-  // A passage is selected: the button at the selection speaks for the field
-  // instead. Two AI buttons at once would be asking the user to guess which
-  // one rewrites the whole field and which one only their selection.
-  if (hasSelection) return null;
 
   return (
     <>

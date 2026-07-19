@@ -23,7 +23,6 @@ import {
   getRootId,
   getToolbarId,
 } from './context';
-import { SelectionRewriteButton } from '../../../../app/ai/SelectionRewriteButton';
 import { useEntryLayoutSplitPaneContext } from '../../../../app/entry-form';
 import { useContentPanelSize } from '../../../../app/shell/context';
 import { yCursorPluginKey, ySyncPluginKey } from 'y-prosemirror';
@@ -140,9 +139,6 @@ export const Editor = forwardRef(function Editor(
         <NodeViews state={value} />
         <EditorPopoverDecoration state={value} />
         <AutocompleteDecoration />
-        {/* Renders nothing unless the field is a content field on an
-            AI-enabled entry with a passage selected - see the component. */}
-        <SelectionRewriteButton />
       </ProseMirrorEditor>
     </EditorContextProvider>
   );

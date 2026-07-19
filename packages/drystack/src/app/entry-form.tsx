@@ -29,65 +29,26 @@ import { ScrollView } from "./shell/primitives";
 import { PageContainer } from "./shell/page";
 import { useContentPanelQuery } from "./shell/context";
 import { isContentEditorField } from "../form/fields/content/is-content-field";
-import { css, tokenSchema } from "@keystar/ui/style";
+import { css } from "@keystar/ui/style";
 import { AiLockOverlay } from "./ai/AiLockOverlay";
-import { FieldMagicWriteButton } from "./ai/FieldMagicWriteButton";
 
 const emptyArray: ReadonlyPropPath = [];
 
 // The content pane renders its field directly, bypassing the object field's
-// per-field chrome (form/fields/object/ui.tsx) - so the Magic write button and
-// the AI lock have to be re-hung here, or the entry's main field would be the
-// one field the feature can't reach.
+// per-field chrome (form/fields/object/ui.tsx) - so the AI lock has to be
+// re-hung here, or the entry's main field would be the one field the feature
+// can't reach. The AI button itself needs no such re-hanging: it lives in the
+// content editor's own toolbar (markdoc/editor/Toolbar.tsx's
+// ContentToolbarAiButton), which this field renders regardless of which pane
+// it's in.
 //
-// Sticky rather than absolute: the pane scrolls, and a button that scrolls out
-// of reach on a long post is barely better than no button. Zero height keeps it
-// out of the flow, so hanging it here can't push the editor down.
-//
-// It lands in the editor toolbar's empty right end, which means it has to beat
-// the toolbar's own `zIndex: 2` (markdoc/editor/Toolbar.tsx). At an equal
-// z-index the toolbar wins on DOM order and paints its 90%-opaque background
-// over the button — which reads as a washed-out icon, but also silently makes
-// the button unclickable.
-const contentPaneAiFloat = css({
-  position: "sticky",
-  insetBlockStart: tokenSchema.size.space.regular,
-  zIndex: 3,
-  height: 0,
-  display: "flex",
-  justifyContent: "flex-end",
-  paddingInlineEnd: tokenSchema.size.space.regular,
-  // The zero-height strip spans the pane; only the button itself should
-  // swallow clicks meant for the text under it.
-  pointerEvents: "none",
-  "& > *": { pointerEvents: "auto" },
-  // Hidden until the field is hovered or focused, like every other field's
-  // button (form/fields/object/ui.tsx) — the editor's toolbar is busy enough
-  // without a control that belongs to the field, not the toolbar.
-  opacity: 0,
-  transition: "opacity 130ms",
-  // Keyboard users still reach it: focus-within below reveals it.
-  "&:focus-within": { opacity: 1 },
-});
-
-// The field wrapper is both the hover target for the button above and the
-// element edit-sync looks up by data-field, so it has to wrap the editor
-// itself. That puts it in the middle of the pane's height chain: the editor
-// sizes itself against its parent, so without at least 100% it collapses to
-// the height of the text and stops filling the pane.
-//
-// minHeight rather than height: a fixed height caps this element at exactly
-// one pane-height, which becomes the AI-float button's sticky containing
-// block (packages/drystack/src/app/ai/FieldMagicWriteButton.tsx). The
-// toolbar's containing block is the editor's own root box, which keeps
-// growing with a long article, so a fixed height here made the button's
-// sticky range run out before the toolbar's did - past that scroll offset the
-// button detached and got dragged upward with the (shorter) parent's edge.
+// The field wrapper is both the hover target for other fields' per-field
+// buttons and the element edit-sync looks up by data-field, so it has to wrap
+// the editor itself. That puts it in the middle of the pane's height chain:
+// the editor sizes itself against its parent, so without at least 100% it
+// collapses to the height of the text and stops filling the pane.
 const contentPaneField = css({
   minHeight: "100%",
-  "&:hover [data-drystack-field-ai], &:focus-within [data-drystack-field-ai]": {
-    opacity: 1,
-  },
 });
 const RESPONSIVE_PADDING = {
   mobile: "medium",
@@ -208,11 +169,6 @@ export function FormForEntry({
                       data-field={contentPanePath[0]}
                       className={contentPaneField}
                     >
-                      <div className={contentPaneAiFloat} data-drystack-field-ai="">
-                        <div>
-                          <FieldMagicWriteButton />
-                        </div>
-                      </div>
                       <AiLockOverlay>
                         <InnerFormValueContentFromPreviewProps
                           forceValidation={forceValidation}

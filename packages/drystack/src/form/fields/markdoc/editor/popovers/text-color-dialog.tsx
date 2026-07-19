@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { HexAlphaColorPicker, HexColorInput } from "react-colorful";
+import { HexAlphaColorPicker } from "react-colorful";
 import { Button, ButtonGroup } from "@keystar/ui/button";
 import { Dialog, useDialogContainer } from "@keystar/ui/dialog";
 import { Flex } from "@keystar/ui/layout";
 import { Content } from "@keystar/ui/slots";
 import { css, tokenSchema } from "@keystar/ui/style";
+import { TextField } from "@keystar/ui/text-field";
 import { Heading } from "@keystar/ui/typography";
 import { useRecentTextColors } from "../recent-colors";
 
@@ -29,7 +30,6 @@ function normalizeHexAlpha(value: string): string | null {
 
 const pickerClass = css({
   width: "100%",
-  "& .react-colorful": { width: "100%" },
 });
 
 const swatchButtonClass = css({
@@ -43,23 +43,6 @@ const swatchButtonClass = css({
   "&:disabled": {
     cursor: "default",
     opacity: 0.4,
-  },
-});
-
-const hexInputClass = css({
-  width: "100%",
-  boxSizing: "border-box",
-  height: tokenSchema.size.element.regular,
-  paddingInline: tokenSchema.size.space.regular,
-  borderRadius: tokenSchema.size.radius.regular,
-  border: `1px solid ${tokenSchema.color.alias.borderIdle}`,
-  font: "inherit",
-  color: tokenSchema.color.alias.foregroundIdle,
-  background: "transparent",
-
-  "&:focus": {
-    outline: "none",
-    borderColor: tokenSchema.color.alias.borderFocused,
   },
 });
 
@@ -79,21 +62,20 @@ export function TextColorDialog(props: {
       <Heading>Text color</Heading>
       <Content>
         <Flex direction="column" gap="large">
-          <HexAlphaColorPicker
-            className={pickerClass}
-            color={normalized ?? value}
-            onChange={setValue}
-          />
-          <HexColorInput
-            className={hexInputClass}
-            color={value}
-            onChange={setValue}
-            prefixed
-            alpha
-            placeholder={props.mixed ? "Mixed" : undefined}
+          <Flex justifyContent="center">
+            <HexAlphaColorPicker
+              className={pickerClass}
+              color={normalized ?? value}
+              onChange={setValue}
+            />
+          </Flex>
+          <TextField
             aria-label="Hex"
+            value={value}
+            onChange={setValue}
+            placeholder={props.mixed ? "Mixed" : undefined}
           />
-          <Flex gap="small">
+          <Flex gap="small" justifyContent="center">
             {Array.from({ length: 6 }).map((_, i) => {
               const recent = recentColors[i];
               return (

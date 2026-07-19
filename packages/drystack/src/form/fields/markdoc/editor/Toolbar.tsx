@@ -65,6 +65,7 @@ import { markAround } from "./popovers";
 import { useEditorKeydownListener } from "./keydown";
 import { gridInsertIcon } from "#icons/gridInsertIcon";
 import { textColorIcon } from "#icons/textColorIcon";
+import { ContentToolbarAiButton } from "../../../../app/ai/ContentToolbarAiButton";
 
 function Noop() {
   return null;
@@ -182,18 +183,26 @@ function LinkButton(props: { link: MarkType }) {
   );
 }
 
+// With a selection, the range is the selection itself. With just a cursor,
+// fall back to the boundaries of the color run it sits in (mirroring how
+// LinkButton uses markAround) so the toolbar reflects - and can edit or
+// remove - a color the cursor is resting inside without requiring the user
+// to select it first.
 function textColorRange(
   state: EditorState,
+  textColor: MarkType,
 ): { from: number; to: number } | null {
   const { from, to, empty } = state.selection;
-  return empty ? null : { from, to };
+  if (!empty) return { from, to };
+  const around = markAround(state.selection.$from, textColor);
+  return around && { from: around.from, to: around.to };
 }
 
 function getTextColorState(
   state: EditorState,
   textColor: MarkType,
 ): { isDisabled: boolean; value: string | undefined; mixed: boolean } {
-  const range = textColorRange(state);
+  const range = textColorRange(state, textColor);
   if (!range) return { isDisabled: true, value: undefined, mixed: false };
   // "" stands in for "no mark on this run" (fontSize's equivalent default is
   // "medium") so a real `undefined` is reserved purely for "nothing scanned
@@ -213,7 +222,7 @@ function getTextColorState(
 
 function setTextColor(textColor: MarkType, value: string | null): Command {
   return (state, dispatch) => {
-    const range = textColorRange(state);
+    const range = textColorRange(state, textColor);
     if (!range) return false;
     if (dispatch) {
       let tr = state.tr.removeMark(range.from, range.to, textColor);
@@ -388,6 +397,7 @@ export const Toolbar = memo(function Toolbar(
         </EditorToolbar>
       </ToolbarScrollArea>
 
+      <ContentToolbarAiButton />
       <InsertBlockMenu />
     </ToolbarWrapper>
   );

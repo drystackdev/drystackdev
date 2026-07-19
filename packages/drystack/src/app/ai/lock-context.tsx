@@ -1,7 +1,6 @@
 import { ReactNode, createContext, useContext, useMemo } from "react";
 
 import { PathContext } from "../../form/fields/text/path-slug-context";
-import { ContentSelectionProvider } from "./content-selection-context";
 import {
   FieldMagicWriteProvider,
   FieldMagicWriteValue,
@@ -15,10 +14,9 @@ const AiLockedKeysContext = createContext<ReadonlySet<string>>(new Set());
 
 /**
  * Everything the form below needs from the AI feature: which fields are
- * locked, which content field has a passage selected, and (when the entry is
- * opted in) what a per-field button would need to start a write. Combined into
- * one provider because they always mount together at the same point - the page
- * that owns the entry's state.
+ * locked, and (when the entry is opted in) what a per-field button would need
+ * to start a write. Combined into one provider because they always mount
+ * together at the same point - the page that owns the entry's state.
  */
 export function AiLockProvider(props: {
   lockedKeys: ReadonlySet<string>;
@@ -28,7 +26,7 @@ export function AiLockProvider(props: {
   return (
     <AiLockedKeysContext.Provider value={props.lockedKeys}>
       <FieldMagicWriteProvider value={props.fieldMagicWrite ?? null}>
-        <ContentSelectionProvider>{props.children}</ContentSelectionProvider>
+        {props.children}
       </FieldMagicWriteProvider>
     </AiLockedKeysContext.Provider>
   );
