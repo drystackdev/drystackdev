@@ -2,8 +2,16 @@
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 GlobalRegistrator.register();
 
-import { expect, test } from "@jest/globals";
+import { afterAll, expect, test } from "@jest/globals";
 import { embedSvgCharts } from "./apply-value";
+
+// Undoes the global registration above so a sibling test file that captures
+// `globalThis.fetch` at its own module scope (e.g. model-retry.test.ts) isn't
+// handed happy-dom's fetch instead of the real one when bun runs both files
+// in the same process.
+afterAll(async () => {
+  await GlobalRegistrator.unregister();
+});
 
 test("leaves html untouched when there's no <svg> in it", () => {
   const html = "<p>Xin chào</p>";

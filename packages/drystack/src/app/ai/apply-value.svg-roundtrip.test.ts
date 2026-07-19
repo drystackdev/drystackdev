@@ -2,8 +2,13 @@
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 GlobalRegistrator.register();
 
-import { expect, test } from "@jest/globals";
+import { afterAll, expect, test } from "@jest/globals";
 import { embedSvgCharts } from "./apply-value";
+
+// See apply-value.test.ts's afterAll for why this matters.
+afterAll(async () => {
+  await GlobalRegistrator.unregister();
+});
 import { createEditorSchema } from "../../form/fields/markdoc/editor/schema";
 import { editorOptionsToConfig } from "../../form/fields/markdoc/config";
 import { htmlToProseMirror } from "../../form/fields/markdoc/editor/html/parse";
