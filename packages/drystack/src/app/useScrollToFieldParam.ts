@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useRouter } from "./router";
 
-const FLASH_OUTLINE = "2px solid #f59e0b";
+const FLASH_OUTLINE = "1px solid #f59e0b";
 const FLASH_MS = 1600;
 const MAX_ATTEMPTS = 30;
 const RETRY_MS = 100;
@@ -53,21 +53,32 @@ export function useScrollToFieldParam() {
     window.addEventListener("wheel", stopSettling, { passive: true });
     window.addEventListener("touchstart", stopSettling, { passive: true });
 
+    // Flashed the moment the field is found, not after settle() below is
+    // done correcting the scroll position - waiting for that (up to
+    // SETTLE_MS) before showing anything reads as "nothing happened" for a
+    // couple of seconds. Left up for however long settling can still be
+    // nudging the scroll position, so the highlight doesn't fade mid-nudge.
+    const flash = (el: HTMLElement) => {
+      const prevOutline = el.style.outline;
+      const prevOffset = el.style.outlineOffset;
+      el.style.outline = FLASH_OUTLINE;
+      el.style.outlineOffset = "10px";
+      el.style.borderRadius = "1px";
+      setTimeout(
+        () => {
+          el.style.outline = prevOutline;
+          el.style.outlineOffset = prevOffset;
+        },
+        Math.max(FLASH_MS, SETTLE_MS),
+      );
+    };
+
     const settle = (el: HTMLElement, deadline: number) => {
       if (cancelled) return;
       el.scrollIntoView({ behavior: "smooth", block: "center" });
       if (Date.now() < deadline) {
         timeoutId = setTimeout(() => settle(el, deadline), SETTLE_INTERVAL_MS);
-        return;
       }
-      const prevOutline = el.style.outline;
-      const prevOffset = el.style.outlineOffset;
-      el.style.outline = FLASH_OUTLINE;
-      el.style.outlineOffset = "2px";
-      setTimeout(() => {
-        el.style.outline = prevOutline;
-        el.style.outlineOffset = prevOffset;
-      }, FLASH_MS);
     };
 
     const tryScroll = () => {
@@ -75,7 +86,14 @@ export function useScrollToFieldParam() {
       attempts += 1;
       const el = findFieldElement(field);
       if (el) {
-        settle(el, Date.now() + SETTLE_MS);
+        flash(el);
+        // One rAF between the outline write above and the first
+        // scrollIntoView call below forces the browser to actually paint the
+        // highlighted-but-not-yet-scrolled state first, rather than trusting
+        // it to coalesce both changes into the same frame - the highlight
+        // should be the very first thing visible, with the smooth-scroll
+        // animation only starting once it's already on screen.
+        requestAnimationFrame(() => settle(el, Date.now() + SETTLE_MS));
         return;
       }
       if (attempts < MAX_ATTEMPTS) timeoutId = setTimeout(tryScroll, RETRY_MS);

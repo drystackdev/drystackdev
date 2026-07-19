@@ -748,27 +748,49 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   // popup blocker. An optional field dot-path (e.g. "brand.name") is passed
   // through as ?field=, read by useScrollToFieldParam on the admin side to
   // scroll straight to that field once the page loads.
-  const goToAdmin = async (ref: EntryRef, field?: string) => {
-    const tab = window.open("", "_blank");
-    if (tab) tab.opener = null;
-    try {
-      const branch = await getCurrentBranchName(config);
-      const branchSegment = branch
-        ? `branch/${encodeURIComponent(branch)}/`
-        : "";
-      const fieldSuffix = field ? `?field=${encodeURIComponent(field)}` : "";
-      const url =
-        (ref.type === "singleton"
-          ? `${adminBase}/${branchSegment}singleton/${encodeURIComponent(ref.name)}`
-          : `${adminBase}/${branchSegment}collection/${encodeURIComponent(
-              ref.name,
-            )}/item/${encodeURIComponent(ref.slug)}`) + fieldSuffix;
-      if (tab) tab.location.href = url;
-      else window.open(url, "_blank", "noopener,noreferrer");
-    } catch (err) {
-      tab?.close();
-      toastQueue.critical(err instanceof Error ? err.message : String(err));
-    }
+  //
+  // The whole body runs inside a setTimeout(0), not straight off the click -
+  // this matters specifically for the ctrl/cmd-click spot navigation path
+  // (bind.ts's handleSpotNavigateClick): Chrome derives a window.open()
+  // call's tab disposition from whatever input event is currently
+  // mid-dispatch, exactly like it would for a real <a> click - so a
+  // window.open() reached synchronously from a ctrl/cmd-held click opens as a
+  // *background* tab, same as ctrl-clicking a plain link, and that's final -
+  // no tab.focus() called afterward talks Chrome out of it, since it's
+  // deliberately honoring what it read as the user's own explicit
+  // background-tab request. That convention doesn't apply here (this is a
+  // deliberate jump, not "open to read later"). Escaping to a fresh task
+  // before the first window.open() call removes the "currently dispatching
+  // event" context entirely, so Chrome falls back to opening it focused, its
+  // ordinary default - and a same-tick reschedule like this is still well
+  // within the click's transient activation window, so the popup blocker
+  // doesn't kick in either. No-op for the ref menu's plain (unmodified)
+  // clicks into this same function, which already open focused.
+  const goToAdmin = (ref: EntryRef, field?: string) => {
+    setTimeout(async () => {
+      const tab = window.open("", "_blank");
+      if (tab) tab.opener = null;
+      try {
+        const branch = await getCurrentBranchName(config);
+        const branchSegment = branch
+          ? `branch/${encodeURIComponent(branch)}/`
+          : "";
+        const fieldSuffix = field
+          ? `?field=${encodeURIComponent(field)}`
+          : "";
+        const url =
+          (ref.type === "singleton"
+            ? `${adminBase}/${branchSegment}singleton/${encodeURIComponent(ref.name)}`
+            : `${adminBase}/${branchSegment}collection/${encodeURIComponent(
+                ref.name,
+              )}/item/${encodeURIComponent(ref.slug)}`) + fieldSuffix;
+        if (tab) tab.location.href = url;
+        else window.open(url, "_blank", "noopener,noreferrer");
+      } catch (err) {
+        tab?.close();
+        toastQueue.critical(err instanceof Error ? err.message : String(err));
+      }
+    }, 0);
   };
 
   // Ctrl/cmd-clicking a spot on the live page deep-links to that field's
