@@ -175,7 +175,7 @@ export function MagicWriteDialog(props: {
               >
                 {(Object.keys(SIZE_SPECS) as AiSize[]).map((key) => (
                   <Radio key={key} value={key}>
-                    {`${stringFormatter.format(SIZE_LABEL_KEYS[key])} (${SIZE_SPECS[key].words})`}
+                    {`${stringFormatter.format(SIZE_LABEL_KEYS[key])}`}
                   </Radio>
                 ))}
               </RadioGroup>
