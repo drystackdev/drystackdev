@@ -1,30 +1,38 @@
-text: Nội dung đã chỉnh sửa
+text: >-
+  Astro là "ông vua" mới trong làng framework web nhờ tối ưu hóa SEO vượt trội
+  thông qua cơ chế Islands Architecture.
 content:
-  wordCount: 96
-  charCount: 464
+  wordCount: 410
+  charCount: 1983
 image: /assets/IMG_8972.JPG
 file: /assets/IMG_8972.JPG
 array:
-  - Item 1
-  - Item 2
-  - Item 3
+  - Tối ưu Core Web Vitals
+  - Hỗ trợ tốt cho nội dung tĩnh
+  - Kiến trúc JavaScript-free mặc định
+  - Dễ dàng quản lý thẻ meta và schema
 arrayImg:
   - /assets/IMG_8972.JPG
   - /assets/IMG_8972.JPG
   - /assets/IMG_8972.JPG
 arrayObject:
-  - name: Item 1
-    image: /assets/IMG_8972.JPG
-    file: /assets/IMG_8972.JPG
+  - name: Tối ưu hóa hiệu suất
+  - name: Kiến trúc module
+  - name: Hỗ trợ đa framework
 info:
-  label: Nội dung object
-  thumb: /assets/IMG_8972.JPG
+  label: Tài nguyên học tập
   links:
-    - '#'
-    - '##'
-    - '###'
+    - https://astro.build
+    - https://docs.astro.build
+    - https://community.astro.build
 sections:
-  - title: Item 1
+  - title: Lợi ích chính cho SEO
     items:
-      - Item array 1
-      - Item array 2
+      - Tải trang cực nhanh
+      - HTML thuần giúp bot thu thập dữ liệu dễ dàng
+      - Tối ưu hóa tài nguyên JavaScript
+  - title: Tại sao nên chuyển sang Astro?
+    items:
+      - Cải thiện thứ hạng tìm kiếm tự nhiên
+      - Giảm chi phí server thông qua Static Hosting
+      - Tăng tỷ lệ chuyển đổi nhờ UX mượt mà
