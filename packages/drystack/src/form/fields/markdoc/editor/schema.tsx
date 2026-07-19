@@ -126,6 +126,33 @@ function getTextAlignAttrs(dom: HTMLElement | string) {
   return { textAlign: TEXT_ALIGN_VALUES.has(textAlign) ? textAlign : null };
 }
 
+// "medium" (the browser default) is deliberately absent - it's represented by
+// the mark not being present at all, the same convention TEXT_ALIGN_VALUES
+// uses for "left". The keys match the standard CSS absolute-size keywords, so
+// they stay meaningful as the `data-dry-font-size` value round-tripped
+// through HTML - only the toolbar shows friendlier labels for them.
+export const FONT_SIZE_VALUES = {
+  "xx-small": "0.625rem",
+  "x-small": "0.75rem",
+  small: "0.875rem",
+  large: "1.25rem",
+  "x-large": "1.5rem",
+  "xx-large": "2rem",
+  "xxx-large": "2.5rem",
+} as const;
+
+export type FontSizeKey = keyof typeof FONT_SIZE_VALUES;
+
+// Canonical stored form: 8-digit lowercase hex, "#rrggbbaa" (RGB + alpha
+// folded into one value, one representation to validate). Untrusted markup
+// (paste, hand-edited HTML, AI codec output) must pass this before a
+// `data-dry-text-color` value is trusted.
+export const TEXT_COLOR_VALUE_PATTERN = /^#[0-9a-f]{8}$/;
+
+export function isValidTextColorValue(value: string): boolean {
+  return TEXT_COLOR_VALUE_PATTERN.test(value);
+}
+
 function withTextAlign(
   attrs: Record<string, string>,
   textAlign: string | null,
@@ -862,6 +889,48 @@ const markSpecs = {
       return inlineCodeDOM;
     },
   },
+  fontSize: {
+    attrs: { size: {} },
+    parseDOM: [
+      {
+        tag: "span[data-dry-font-size]",
+        getAttrs(dom) {
+          if (typeof dom === "string") return false;
+          const size = dom.getAttribute("data-dry-font-size");
+          return size && size in FONT_SIZE_VALUES ? { size } : false;
+        },
+      },
+    ],
+    toDOM(mark) {
+      const size = mark.attrs.size as FontSizeKey;
+      return [
+        "span",
+        { "data-dry-font-size": size, style: `font-size:${FONT_SIZE_VALUES[size]}` },
+        0,
+      ];
+    },
+  },
+  textColor: {
+    attrs: { value: {} },
+    parseDOM: [
+      {
+        tag: "span[data-dry-text-color]",
+        getAttrs(dom) {
+          if (typeof dom === "string") return false;
+          const value = dom.getAttribute("data-dry-text-color");
+          return value && isValidTextColorValue(value) ? { value } : false;
+        },
+      },
+    ],
+    toDOM(mark) {
+      const value = mark.attrs.value as string;
+      return [
+        "span",
+        { "data-dry-text-color": value, style: `color:${value}` },
+        0,
+      ];
+    },
+  },
 } satisfies Record<string, MarkSpec>;
 
 export type EditorSchema = {
@@ -1068,6 +1137,12 @@ export function createEditorSchema(
   }
   if (config.code) {
     markSpecsWithCustomMarks.code = markSpecs.code;
+  }
+  if (config.fontSize) {
+    markSpecsWithCustomMarks.fontSize = markSpecs.fontSize;
+  }
+  if (config.textColor) {
+    markSpecsWithCustomMarks.textColor = markSpecs.textColor;
   }
 
   const schema = new Schema({

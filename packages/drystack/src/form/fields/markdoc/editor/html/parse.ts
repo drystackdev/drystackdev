@@ -1,5 +1,10 @@
 import { MarkType, Node as ProseMirrorNode } from "prosemirror-model";
-import { EditorSchema, TEXT_ALIGN_VALUES } from "../schema";
+import {
+  EditorSchema,
+  FONT_SIZE_VALUES,
+  TEXT_ALIGN_VALUES,
+  isValidTextColorValue,
+} from "../schema";
 import { MEDIA_LIBRARY_DIRECTORY } from "../../../../../app/media-library/constants";
 import { imageLayoutFromElement } from "../image-layout";
 import {
@@ -154,6 +159,24 @@ function inlineNodeToProseMirror(
       href: el.getAttribute("href") ?? "",
       title: el.getAttribute("title") ?? "",
     };
+  } else if (tag === "span") {
+    // Both marks share the `<span>` tag, so they have to be tried inside one
+    // `else if` - two separate `tag === "span"` branches would let whichever
+    // comes first swallow the chain for every span, even ones lacking that
+    // mark's own data attribute (the other mark's branch would never run).
+    const size = schema.marks.fontSize
+      ? el.getAttribute("data-dry-font-size")
+      : null;
+    const colorValue = schema.marks.textColor
+      ? el.getAttribute("data-dry-text-color")
+      : null;
+    if (size && size in FONT_SIZE_VALUES) {
+      markType = schema.marks.fontSize;
+      markAttrs = { size };
+    } else if (colorValue && isValidTextColorValue(colorValue)) {
+      markType = schema.marks.textColor;
+      markAttrs = { value: colorValue };
+    }
   }
 
   const childMarks = markType

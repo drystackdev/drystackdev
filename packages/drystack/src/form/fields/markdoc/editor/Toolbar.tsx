@@ -53,16 +53,18 @@ import {
 import { toggleList } from "./lists";
 import { insertNode, insertTable, toggleCodeBlock } from "./commands/misc";
 import { insertGrid } from "./grid";
-import { EditorSchema } from "./schema";
+import { EditorSchema, FONT_SIZE_VALUES, FontSizeKey } from "./schema";
 import { ImageToolbarButton } from "./images";
 import { useEntryLayoutSplitPaneContext } from "../../../../app/entry-form";
 import { itemRenderer } from "./autocomplete/insert-menu";
 import { LinkDialog } from "./popovers/link-toolbar";
+import { TextColorDialog } from "./popovers/text-color-dialog";
 import { DialogContainer } from "@keystar/ui/dialog";
 import { linkIcon } from "@keystar/ui/icon/icons/linkIcon";
 import { markAround } from "./popovers";
 import { useEditorKeydownListener } from "./keydown";
 import { gridInsertIcon } from "#icons/gridInsertIcon";
+import { textColorIcon } from "#icons/textColorIcon";
 
 function Noop() {
   return null;
@@ -180,6 +182,86 @@ function LinkButton(props: { link: MarkType }) {
   );
 }
 
+function textColorRange(
+  state: EditorState,
+): { from: number; to: number } | null {
+  const { from, to, empty } = state.selection;
+  return empty ? null : { from, to };
+}
+
+function getTextColorState(
+  state: EditorState,
+  textColor: MarkType,
+): { isDisabled: boolean; value: string | undefined; mixed: boolean } {
+  const range = textColorRange(state);
+  if (!range) return { isDisabled: true, value: undefined, mixed: false };
+  // "" stands in for "no mark on this run" (fontSize's equivalent default is
+  // "medium") so a real `undefined` is reserved purely for "nothing scanned
+  // yet" - conflating the two would make a colored run following plain runs
+  // look non-mixed.
+  let selected: string | undefined;
+  let mixed = false;
+  state.doc.nodesBetween(range.from, range.to, (node) => {
+    if (!node.isText) return;
+    const mark = textColor.isInSet(node.marks);
+    const value = (mark?.attrs.value as string | undefined) ?? "";
+    if (selected === undefined) selected = value;
+    else if (selected !== value) mixed = true;
+  });
+  return { isDisabled: false, value: mixed ? undefined : selected || undefined, mixed };
+}
+
+function setTextColor(textColor: MarkType, value: string | null): Command {
+  return (state, dispatch) => {
+    const range = textColorRange(state);
+    if (!range) return false;
+    if (dispatch) {
+      let tr = state.tr.removeMark(range.from, range.to, textColor);
+      if (value) tr = tr.addMark(range.from, range.to, textColor.create({ value }));
+      dispatch(tr.scrollIntoView());
+    }
+    return true;
+  };
+}
+
+function TextColorButton(props: { textColor: MarkType }) {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const state = useEditorState();
+  const runCommand = useEditorDispatchCommand();
+  const { isDisabled, value, mixed } = getTextColorState(state, props.textColor);
+  return useMemo(
+    () => (
+      <>
+        <TooltipTrigger>
+          <EditorToolbarButton
+            aria-label="Text color"
+            isDisabled={isDisabled}
+            isSelected={!!value}
+            onPress={() => setDialogOpen(true)}
+          >
+            <Icon src={textColorIcon(mixed ? undefined : value)} />
+          </EditorToolbarButton>
+          <Tooltip>
+            <Text>Text color</Text>
+          </Tooltip>
+        </TooltipTrigger>
+        <DialogContainer onDismiss={() => setDialogOpen(false)}>
+          {dialogOpen && (
+            <TextColorDialog
+              initialValue={value}
+              mixed={mixed}
+              onSubmit={(next) => {
+                runCommand(setTextColor(props.textColor, next));
+              }}
+            />
+          )}
+        </DialogContainer>
+      </>
+    ),
+    [isDisabled, value, mixed, props.textColor, runCommand, dialogOpen],
+  );
+}
+
 export const Toolbar = memo(function Toolbar(
   props: HTMLAttributes<HTMLDivElement>,
 ) {
@@ -194,6 +276,7 @@ export const Toolbar = memo(function Toolbar(
     <ToolbarWrapper {...props}>
       <ToolbarScrollArea>
         {nodes.heading && <HeadingMenu headingType={nodes.heading} />}
+        {marks.fontSize && <FontSizeMenu fontSize={marks.fontSize} />}
         <EditorToolbar aria-label="Formatting options">
           <Separator />
           <InlineMarks />
@@ -223,6 +306,9 @@ export const Toolbar = memo(function Toolbar(
               </TooltipTrigger>
             )}
             {marks.link && <LinkButton link={marks.link} />}
+            {marks.textColor && (
+              <TextColorButton textColor={marks.textColor} />
+            )}
             {nodes.blockquote && (
               <TooltipTrigger>
                 <ToolbarButton
@@ -488,6 +574,109 @@ const HeadingMenu = (props: { headingType: NodeType }) => {
     [items, menuState, nodes.paragraph, props.headingType, runCommand],
   );
 };
+
+type FontSizeValue = FontSizeKey | "medium";
+
+const FONT_SIZE_ITEMS: { key: FontSizeValue; label: string }[] = [
+  { key: "xx-small", label: "2X Small" },
+  { key: "x-small", label: "X Small" },
+  { key: "small", label: "Small" },
+  { key: "medium", label: "Medium" },
+  { key: "large", label: "Large" },
+  { key: "x-large", label: "X Large" },
+  { key: "xx-large", label: "2X Large" },
+  { key: "xxx-large", label: "3X Large" },
+];
+
+// With no selection, font size applies to the whole block the cursor sits
+// in - except inside a table or grid, where it applies to the entire
+// table/grid rather than just the current cell. Walking outward from the
+// cursor and stopping at the first table/grid ancestor (before falling back
+// to the innermost block) gives exactly that priority.
+function fontSizeBlockRange(
+  state: EditorState,
+): { from: number; to: number } | null {
+  const $pos = state.selection.$from;
+  for (let d = $pos.depth; d >= 0; d--) {
+    const node = $pos.node(d);
+    if (node.type.name === "table" || node.type.name === "grid") {
+      return { from: $pos.start(d), to: $pos.end(d) };
+    }
+  }
+  if ($pos.depth === 0) return null;
+  return { from: $pos.start($pos.depth), to: $pos.end($pos.depth) };
+}
+
+function fontSizeRange(
+  state: EditorState,
+): { from: number; to: number } | null {
+  const { from, to, empty } = state.selection;
+  if (!empty) return { from, to };
+  return fontSizeBlockRange(state);
+}
+
+function getFontSizeState(
+  state: EditorState,
+  fontSize: MarkType,
+): { isDisabled: boolean; selected: FontSizeValue | null } {
+  const range = fontSizeRange(state);
+  if (!range || range.from === range.to) {
+    return { isDisabled: true, selected: null };
+  }
+  let selected: FontSizeValue | undefined;
+  let mixed = false;
+  state.doc.nodesBetween(range.from, range.to, (node) => {
+    if (!node.isText) return;
+    const mark = fontSize.isInSet(node.marks);
+    const value = ((mark?.attrs.size as FontSizeValue) ?? "medium") as FontSizeValue;
+    if (selected === undefined) selected = value;
+    else if (selected !== value) mixed = true;
+  });
+  if (selected === undefined) return { isDisabled: true, selected: null };
+  return { isDisabled: false, selected: mixed ? null : selected };
+}
+
+function setFontSize(fontSize: MarkType, value: FontSizeValue): Command {
+  return (state, dispatch) => {
+    const range = fontSizeRange(state);
+    if (!range || range.from === range.to) return false;
+    if (dispatch) {
+      let tr = state.tr.removeMark(range.from, range.to, fontSize);
+      if (value !== "medium") {
+        tr = tr.addMark(range.from, range.to, fontSize.create({ size: value }));
+      }
+      dispatch(tr.scrollIntoView());
+    }
+    return true;
+  };
+}
+
+function FontSizeMenu(props: { fontSize: MarkType }) {
+  const state = useEditorState();
+  const runCommand = useEditorDispatchCommand();
+  const { isDisabled, selected } = getFontSizeState(state, props.fontSize);
+  const current = selected ?? "medium";
+
+  return useMemo(
+    () => (
+      <Picker
+        flexShrink={0}
+        width="scale.1700"
+        prominence="low"
+        aria-label="Font size"
+        items={FONT_SIZE_ITEMS}
+        isDisabled={isDisabled}
+        selectedKey={current}
+        onSelectionChange={(key) => {
+          runCommand(setFontSize(props.fontSize, key as FontSizeValue));
+        }}
+      >
+        {(item) => <Item key={item.key}>{item.label}</Item>}
+      </Picker>
+    ),
+    [isDisabled, current, props.fontSize, runCommand],
+  );
+}
 
 function InsertBlockMenu() {
   const entryLayoutPane = useEntryLayoutSplitPaneContext();

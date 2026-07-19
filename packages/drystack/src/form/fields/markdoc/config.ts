@@ -44,6 +44,12 @@ export type EditorConfig = {
   underline: boolean;
   strikethrough: boolean;
   code: boolean;
+  // no markdoc/mdx syntax maps to an arbitrary font size, so this only
+  // defaults on for the HTML-backed editor (see editorOptionsToConfig)
+  fontSize: boolean;
+  // no markdoc/mdx syntax maps to an arbitrary text color, so this only
+  // defaults on for the HTML-backed editor (see editorOptionsToConfig)
+  textColor: boolean;
   heading: {
     levels: readonly (1 | 2 | 3 | 4 | 5 | 6)[];
     schema: Record<string, ComponentSchema>;
@@ -91,6 +97,8 @@ export type MarkdocEditorOptions = {
   underline?: boolean;
   strikethrough?: boolean;
   code?: boolean;
+  fontSize?: boolean;
+  textColor?: boolean;
   heading?:
     | HeadingLevels
     | { levels: HeadingLevels; schema: Record<string, ComponentSchema> };
@@ -118,6 +126,8 @@ export type MDXEditorOptions = {
   underline?: boolean;
   strikethrough?: boolean;
   code?: boolean;
+  fontSize?: boolean;
+  textColor?: boolean;
   heading?: HeadingLevels;
   blockquote?: boolean;
   orderedList?: boolean;
@@ -154,6 +164,8 @@ export function editorOptionsToConfig(
     underline: options.underline ?? isHtml,
     strikethrough: options.strikethrough ?? true,
     code: options.code ?? true,
+    fontSize: options.fontSize ?? isHtml,
+    textColor: options.textColor ?? isHtml,
     heading: inlineOnly
       ? { levels: [], schema: {} }
       : (() => {

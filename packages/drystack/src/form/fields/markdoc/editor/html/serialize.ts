@@ -1,5 +1,5 @@
 import { Fragment, Mark, Node as ProseMirrorNode } from "prosemirror-model";
-import { EditorSchema, getEditorSchema } from "../schema";
+import { EditorSchema, FONT_SIZE_VALUES, FontSizeKey, getEditorSchema } from "../schema";
 import { textblockChildren } from "../serialize-inline";
 import { MEDIA_LIBRARY_DIRECTORY } from "../../../../../app/media-library/constants";
 import { imageLayoutStyleString } from "../image-layout";
@@ -208,6 +208,30 @@ function getWrapperForMark(
       attrs: {
         href: mark.attrs.href,
         ...(mark.attrs.title ? { title: mark.attrs.title } : {}),
+      },
+      children: [],
+    };
+  }
+  if (mark.type === schema.marks.fontSize) {
+    const size = mark.attrs.size as FontSizeKey;
+    return {
+      kind: "element",
+      tag: "span",
+      attrs: {
+        style: `font-size:${FONT_SIZE_VALUES[size]}`,
+        "data-dry-font-size": size,
+      },
+      children: [],
+    };
+  }
+  if (mark.type === schema.marks.textColor) {
+    const value = mark.attrs.value as string;
+    return {
+      kind: "element",
+      tag: "span",
+      attrs: {
+        style: `color:${value}`,
+        "data-dry-text-color": value,
       },
       children: [],
     };

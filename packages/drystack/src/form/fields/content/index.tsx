@@ -53,6 +53,7 @@ function allowedHtmlTags(config: EditorConfig): string[] {
   if (config.unorderedList || config.orderedList) tags.push("li");
   if (config.strikethrough) tags.push("s");
   if (config.code) tags.push("code");
+  if (config.fontSize || config.textColor) tags.push("span");
   if (config.divider) tags.push("hr");
   return tags;
 }
