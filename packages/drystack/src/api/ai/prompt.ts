@@ -53,6 +53,15 @@ export function buildSystemPrompt(args: {
     rules.push(
       "Với field HTML: xuất HTML fragment, không có <html>, <body> hay <img>. Độ dài của từng field ghi ngay tại phần CẦN ĐIỀN.",
     );
+    // Only stated when at least one target's own tag list (see the "HTML,
+    // chỉ dùng các thẻ" annotation in the skeleton) actually includes `svg` -
+    // a field with images turned off never lists it, and shouldn't be told
+    // it's an option.
+    if (targets.some((t) => t.kind === "content" && t.htmlTags?.includes("svg"))) {
+      rules.push(
+        "Với field cho phép thẻ <svg>: có thể vẽ biểu đồ/sơ đồ minh hoạ đơn giản bằng <svg> tự chứa - khai báo đủ viewBox, width, height, có thể thêm <title> mô tả ngắn; không tham chiếu ảnh/font/script bên ngoài. Chỉ dùng khi thực sự cần minh hoạ dữ liệu, đừng lạm dụng.",
+      );
+    }
   }
   if (seedKeys.length) {
     rules.push(

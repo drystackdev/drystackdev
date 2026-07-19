@@ -36,6 +36,12 @@ const defaultHeadingLevels = [2, 3, 4, 5, 6] as const;
 // produce asset bytes, and a made-up src would point at nothing (see the
 // content image src format - `/<entryDir>/assets/<name>`).
 //
+// `<svg>` IS listed when images are enabled - unlike `<img>`, the model can
+// produce a whole `<svg>` itself (it's markup, not bytes it has to invent).
+// The AI codec's apply-value.ts turns each one into a real embedded image
+// (bytes go through the same `other` map an uploaded image's would), so by
+// the time it reaches this field's own parse() it's an `<img>` like any other.
+//
 // Deliberately omits `table` and `grid` even though both default on for the
 // HTML editor: their markup is structural rather than prose, and a model
 // improvising it tends to produce nodes the schema drops on parse. Leaving
@@ -55,6 +61,7 @@ function allowedHtmlTags(config: EditorConfig): string[] {
   if (config.code) tags.push("code");
   if (config.fontSize || config.textColor) tags.push("span");
   if (config.divider) tags.push("hr");
+  if (config.image) tags.push("svg");
   return tags;
 }
 
