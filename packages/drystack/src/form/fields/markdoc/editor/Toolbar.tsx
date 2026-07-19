@@ -7,7 +7,9 @@ import {
   ReactElement,
   ReactNode,
   memo,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -465,8 +467,34 @@ const ToolbarWrapper = (props: HTMLAttributes<HTMLDivElement>) => {
 
 const ToolbarScrollArea = (props: { children: ReactNode }) => {
   let entryLayoutPane = useEntryLayoutSplitPaneContext();
+  // Mutable, not state - drag position updates on every pointer move and
+  // shouldn't trigger a re-render of the whole toolbar.
+  const drag = useRef({
+    dragging: false,
+    pointerId: -1,
+    startX: 0,
+    scrollLeft: 0,
+    moved: false,
+  });
+  const elRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el) return;
+    // React attaches `onWheel` as a passive listener, so its
+    // `event.preventDefault()` can't actually stop the page from also
+    // scrolling vertically - a real, non-passive listener is required to
+    // contain the gesture inside the toolbar.
+    const onWheel = (event: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth || event.deltaY === 0) return;
+      el.scrollLeft += event.deltaY;
+      event.preventDefault();
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
   return (
     <div
+      ref={elRef}
       data-layout={entryLayoutPane}
       className={css({
         alignItems: "center",
@@ -490,6 +518,60 @@ const ToolbarScrollArea = (props: { children: ReactNode }) => {
           paddingInline: 0,
         },
       })}
+      // Capture phase, not bubble - the toolbar is almost entirely covered
+      // by buttons/pickers whose own press handling stops propagation, so a
+      // bubble-phase listener here would only ever see drags starting in
+      // the few pixels of gap between them. Capture runs before that.
+      onPointerDownCapture={(event) => {
+        const el = event.currentTarget;
+        if (event.pointerType === "mouse" && event.button !== 0) return;
+        if (el.scrollWidth <= el.clientWidth) return;
+        drag.current = {
+          dragging: true,
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          scrollLeft: el.scrollLeft,
+          moved: false,
+        };
+      }}
+      onPointerMoveCapture={(event) => {
+        const state = drag.current;
+        if (!state.dragging || event.pointerId !== state.pointerId) return;
+        const delta = event.clientX - state.startX;
+        if (!state.moved) {
+          if (Math.abs(delta) < 5) return;
+          state.moved = true;
+          event.currentTarget.style.cursor = "grabbing";
+          // Once the drag threshold is crossed, capture the pointer so
+          // moves/up keep reaching this element even when the cursor
+          // strays over a button or outside the toolbar's own bounds.
+          event.currentTarget.setPointerCapture(state.pointerId);
+        }
+        event.preventDefault();
+        event.currentTarget.scrollLeft = state.scrollLeft - delta;
+      }}
+      onPointerUpCapture={(event) => {
+        if (event.pointerId !== drag.current.pointerId) return;
+        drag.current.dragging = false;
+        event.currentTarget.style.cursor = "";
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+      }}
+      onPointerCancelCapture={(event) => {
+        if (event.pointerId !== drag.current.pointerId) return;
+        drag.current.dragging = false;
+        event.currentTarget.style.cursor = "";
+      }}
+      onClickCapture={(event) => {
+        // A drag that ends over a button would otherwise also fire that
+        // button's click - swallow it once per drag.
+        if (drag.current.moved) {
+          event.preventDefault();
+          event.stopPropagation();
+          drag.current.moved = false;
+        }
+      }}
       {...props}
     />
   );
