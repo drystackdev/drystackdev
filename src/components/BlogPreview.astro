@@ -28,7 +28,10 @@ function formatDate(d: string) {
 ---
 
 <section class="blog-preview section--dark" id="blog">
-  <span class="section-kicker-word kicker-right" {...blogPreview.bind("eyebrow")}>{blogPreview.eyebrow}</span>
+  <span
+    class="section-kicker-word kicker-right"
+    {...blogPreview.bind("eyebrow")}>{blogPreview.eyebrow}</span
+  >
 
   <div class="bg-layer">
     <div
@@ -40,13 +43,19 @@ function formatDate(d: string) {
   </div>
 
   <div class="container blog-preview__head">
-    <p class="eyebrow reveal" {...blogPreview.bind("eyebrow")}>{blogPreview.eyebrow}</p>
+    <p class="eyebrow reveal" {...blogPreview.bind("eyebrow")}>
+      {blogPreview.eyebrow}
+    </p>
     <h2
       class:list={["section-title reveal", "heading-rich"]}
       set:html={blogPreview.heading}
       {...blogPreview.bind("heading")}
     />
-    <p class="section-lede reveal" style="margin: 1rem auto 0;" {...blogPreview.bind("lede")}>
+    <p
+      class="section-lede reveal"
+      style="margin: 1rem auto 0;"
+      {...blogPreview.bind("lede")}
+    >
       {blogPreview.lede}
     </p>
   </div>
@@ -56,7 +65,13 @@ function formatDate(d: string) {
       latest.map((p) => (
         <a href={`${p.basePath}/${p.slug}`} class="post-card reveal">
           <div class="post-card__cover">
-            <Image src={p.cover} alt={p.title} loading="lazy" width={800} height={450} />
+            <Image
+              src={p.cover}
+              alt={p.title}
+              loading="lazy"
+              width={800}
+              height={450}
+            />
           </div>
           <h3>{p.title}</h3>
           <p class="post-card__excerpt">{p.excerpt}</p>
@@ -105,7 +120,8 @@ function formatDate(d: string) {
   }
 
   .post-card {
-    display: block;
+    display: flex;
+    flex-direction: column;
     background: var(--surface-card);
     border: 1px solid rgba(212, 175, 55, 0.15);
     border-radius: var(--radius-lg);
@@ -150,6 +166,7 @@ function formatDate(d: string) {
     color: var(--text-muted);
     font-size: 0.88rem;
     margin-bottom: 1.5rem;
+    flex: 1;
   }
 
   .post-card__meta {
