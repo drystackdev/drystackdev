@@ -57,15 +57,18 @@ const demo = await dry.singleton("demo");
 
   <div class="imglist" {...demo.bind("arrayImg")}>
     {
-      demo.arrayImg.map((img, idx) => (
-        <Image
-          width={200}
-          height={200}
-          alt="hình ảnh demo"
-          src={img!}
-          {...demo.bind(`arrayImg.${idx}`)}
-        />
-      ))
+      demo.arrayImg.map(
+        (img, idx) =>
+          img && (
+            <Image
+              width={200}
+              height={200}
+              alt="hình ảnh demo"
+              src={img}
+              {...demo.bind(`arrayImg.${idx}`)}
+            />
+          ),
+      )
     }
   </div>
 
@@ -74,13 +77,15 @@ const demo = await dry.singleton("demo");
       demo.arrayObject.map((obj, idx) => (
         <div style="display:flex; flex-direction: column; gap: 1rem">
           <h4 {...demo.bind(`arrayObject.${idx}.name`)}>{obj.name}</h4>
-          <Image
-            width={200}
-            height={200}
-            alt="hình ảnh demo"
-            src={obj.image!}
-            {...demo.bind(`arrayObject.${idx}.image`)}
-          />
+          {obj.image && (
+            <Image
+              width={200}
+              height={200}
+              alt="hình ảnh demo"
+              src={obj.image}
+              {...demo.bind(`arrayObject.${idx}.image`)}
+            />
+          )}
           <a href={obj.file ?? "#"} {...demo.bind(`arrayObject.${idx}.file`)}>
             Tải tệp
           </a>
