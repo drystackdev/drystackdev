@@ -9,6 +9,7 @@ import {
 import { TableMap, cellAround, pointsAtCell } from "prosemirror-tables";
 
 import { css } from "@keystar/ui/style";
+import { figcaptionClass } from "./figcaption";
 
 // how close (in px) the pointer must be to a column boundary to activate
 // its resize handle
@@ -217,34 +218,68 @@ export function setAllColumnWidthPercents(
 // `colwidth`) and to reading any row's plain cell for a column (rather than
 // only the first row's), which is what actually fixes the merged-header case
 // this was written for.
+// Browsers give a bare `<figure>` a default `margin: 1em 40px` - neutralized
+// here so wrapping the table in one (for the `<figcaption>` below) doesn't
+// shift it versus the unwrapped layout. Admin-only: on a host page (see
+// createEditorSchema's `hostTypography`) the page's own `.rich-content
+// figure` rule already resets this (see global.css), the same reasoning as
+// `tableHostElementClass` vs `tableElementClass`.
+const tableFigureClass = css({ margin: 0 });
+
 export class TableColgroupNodeView implements NodeView {
-  dom: HTMLTableElement;
+  // The whole node's outer DOM is now a `<figure>` rather than the `<table>`
+  // itself - a `<figcaption>` can't legally sit inside a `<table>` (only a
+  // native `<caption>` can), so the table moved one level in. `contentDOM`
+  // is unaffected: it's still the `<tbody>`, just nested one level deeper.
+  dom: HTMLElement;
   contentDOM: HTMLElement;
   private node: ProsemirrorNode;
   private colgroup: HTMLElement;
+  private table: HTMLTableElement;
+  private figcaption: HTMLElement;
 
-  constructor(node: ProsemirrorNode, tableClass: string) {
+  constructor(node: ProsemirrorNode, tableClass: string, hostTypography = false) {
     this.node = node;
-    this.dom = document.createElement("table");
-    this.dom.className = tableClass;
-    this.colgroup = this.dom.appendChild(document.createElement("colgroup"));
-    this.contentDOM = this.dom.appendChild(document.createElement("tbody"));
+    this.table = document.createElement("table");
+    this.table.className = tableClass;
+    this.colgroup = this.table.appendChild(document.createElement("colgroup"));
+    this.contentDOM = this.table.appendChild(document.createElement("tbody"));
+
+    this.figcaption = document.createElement("figcaption");
+    this.figcaption.contentEditable = "false";
+    // Read-only here too - editing happens through the table's popover
+    // "Caption" field, matching image/grid (see figcaption.tsx).
+    if (!hostTypography) this.figcaption.className = figcaptionClass;
+
+    this.dom = document.createElement("figure");
+    if (!hostTypography) this.dom.className = tableFigureClass;
+    this.dom.appendChild(this.table);
+    this.dom.appendChild(this.figcaption);
+
     this.syncColgroup(node);
+    this.syncCaption(node);
   }
 
   update(node: ProsemirrorNode): boolean {
     if (node.type !== this.node.type) return false;
     this.node = node;
     this.syncColgroup(node);
+    this.syncCaption(node);
     return true;
   }
 
   ignoreMutation(
     record: MutationRecord | { type: "selection"; target: Node },
   ): boolean {
+    // The figcaption's text is only ever written by `syncCaption` below,
+    // never typed into directly (it's not contenteditable) - but setting
+    // `.textContent` is itself a DOM mutation PM's observer would otherwise
+    // flag, so anything inside it is unconditionally ignored rather than
+    // gated on `record.type` like the colgroup/table check below.
+    if (this.figcaption.contains(record.target as Node)) return true;
     return (
       record.type === "attributes" &&
-      (record.target === this.dom ||
+      (record.target === this.table ||
         this.colgroup.contains(record.target as Node))
     );
   }
@@ -262,6 +297,12 @@ export class TableColgroupNodeView implements NodeView {
       const width = pct != null ? `${pct}%` : "";
       if (col.style.width !== width) col.style.width = width;
     });
+  }
+
+  private syncCaption(node: ProsemirrorNode) {
+    const text: string = node.attrs.caption ?? "";
+    if (this.figcaption.textContent !== text) this.figcaption.textContent = text;
+    this.figcaption.style.display = text ? "" : "none";
   }
 }
 

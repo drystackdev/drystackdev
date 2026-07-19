@@ -20,6 +20,7 @@ import { useEditorReferenceElement } from "./reference";
 import { ImagePopover } from "./images";
 import { CellOptionsMenu, isSelectionInTableCell } from "./table";
 import { GridItemControls, GridPopover } from "./grid";
+import { CaptionButton } from "../figcaption";
 import { Dialog, DialogContainer } from "@keystar/ui/dialog";
 import { FormValue } from "../FormValue";
 import { Heading } from "@keystar/ui/typography";
@@ -164,13 +165,25 @@ const popoverComponents: Record<
     const dispatchCommand = useEditorDispatchCommand();
 
     return (
-      <Flex gap="regular" padding="regular">
+      <Flex gap="regular" padding="regular" alignItems="center">
         {isSelectionInTableCell(props.state) && (
           <>
             <CellOptionsMenu node={props.node} />
             <Divider orientation="vertical" />
           </>
         )}
+        <CaptionButton
+          caption={props.node.attrs.caption}
+          onSubmit={(caption) => {
+            dispatchCommand((state, dispatch) => {
+              if (dispatch) {
+                dispatch(state.tr.setNodeAttribute(props.pos, "caption", caption));
+              }
+              return true;
+            });
+          }}
+        />
+        <Divider orientation="vertical" />
         <TooltipTrigger>
           <ActionButton
             prominence="low"
@@ -258,6 +271,20 @@ function TableInGridPopover(props: {
           <CellOptionsMenu node={props.table.node} />
         </>
       )}
+      <Divider orientation="vertical" />
+      <CaptionButton
+        caption={props.table.node.attrs.caption}
+        onSubmit={(caption) => {
+          dispatchCommand((state, dispatch) => {
+            if (dispatch) {
+              dispatch(
+                state.tr.setNodeAttribute(props.table.pos, "caption", caption),
+              );
+            }
+            return true;
+          });
+        }}
+      />
       <Divider orientation="vertical" />
       <TooltipTrigger>
         <ActionButton

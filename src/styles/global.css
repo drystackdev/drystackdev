@@ -297,6 +297,19 @@ section {
   border-radius: var(--radius-lg);
 }
 
+.rich-content figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.rich-content figcaption {
+  font-size: 0.9rem;
+  text-align: center;
+  color: color-mix(in srgb, currentColor 60%, transparent);
+}
+
 .rich-content table {
   width: 100%;
   border-collapse: collapse;

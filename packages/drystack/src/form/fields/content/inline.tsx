@@ -27,6 +27,9 @@ const TOOLBAR_GAP = 8;
 // edge - off-screen too, with nothing left to click to format the selection.
 const VIEWPORT_TOP_OFFSET = 30;
 
+// Gap kept between the toolbar's right edge and the viewport's right edge.
+const VIEWPORT_SIDE_MARGIN = 8;
+
 // This toolbar portals to <body>, so packages/astro's editor.css catches its
 // KeystarProvider wrapper with `body > .kui-scheme--*` - a rule written for
 // Keystar's own portalled overlays (dialogs, tooltips) that lifts them to
@@ -191,6 +194,14 @@ function FloatingToolbar({ anchor, id }: { anchor: HTMLElement; id: string }) {
     VIEWPORT_TOP_OFFSET,
     rect.top - TOOLBAR_GAP - toolbarHeight,
   );
+  // Left-anchored with no `width`/`right` of its own, this box otherwise
+  // sizes to fit every button (shrink-to-fit, same as a floated element) -
+  // on a narrow (mobile) viewport that's wider than the screen, and with no
+  // ancestor clipping it, it simply overflows past the right edge with no
+  // way to reach the buttons that fall off it. Capping `maxWidth` to what's
+  // left of the viewport forces ToolbarScrollArea's own `overflowX: auto`
+  // (see Toolbar.tsx) to actually kick in and scroll internally instead.
+  const maxWidth = `calc(100vw - ${rect.left}px - ${VIEWPORT_SIDE_MARGIN}px)`;
 
   return createPortal(
     <KeystarProvider
@@ -207,6 +218,7 @@ function FloatingToolbar({ anchor, id }: { anchor: HTMLElement; id: string }) {
           position: "fixed",
           top,
           left: rect.left,
+          maxWidth,
           zIndex: 100,
         }}
       >

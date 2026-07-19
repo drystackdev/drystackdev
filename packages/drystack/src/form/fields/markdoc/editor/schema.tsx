@@ -469,6 +469,11 @@ const nodeSpecs = {
     tableRole: "table",
     isolating: true,
     group: "block",
+    attrs: {
+      // rendered as a `<figcaption>` under the table (see html/serialize.ts
+      // and html/parse.ts) - empty means no `<figure>` wrapper at all.
+      caption: { default: "" },
+    },
     parseDOM: [{ tag: "table" }],
     // the live editor DOM needs `<colgroup>` widths to stay in sync with
     // per-cell resizes, which `toDOM` alone can't do (see
@@ -541,6 +546,9 @@ const nodeSpecs = {
       // image edit dialog - not serialized to DOM, so it resets to its
       // default (locked) on reload rather than round-tripping
       lockAspectRatio: { default: true },
+      // rendered as a `<figcaption>` under the image (see html/serialize.ts
+      // and html/parse.ts) - empty means no `<figure>` wrapper at all.
+      caption: { default: "" },
     },
     insertMenu: {
       label: "Image",
@@ -648,6 +656,9 @@ const nodeSpecs = {
       columns: { default: GRID_DEFAULT_COLUMNS },
       // number of explicit (equal-height) row tracks - see GRID_DEFAULT_ROWS
       rows: { default: GRID_DEFAULT_ROWS },
+      // rendered as a `<figcaption>` under the grid (see html/serialize.ts
+      // and html/parse.ts) - empty means no `<figure>` wrapper at all.
+      caption: { default: "" },
     },
     insertMenu: {
       label: "Grid Layout",
@@ -989,7 +1000,8 @@ export function createEditorSchema(
       : tableElementClass;
     nodeSpecsWithCustomNodes.table = {
       ...nodeSpecs.table,
-      nodeView: (node) => new TableColgroupNodeView(node, elementClass),
+      nodeView: (node) =>
+        new TableColgroupNodeView(node, elementClass, hostTypography),
       toDOM(node) {
         return [
           "table",

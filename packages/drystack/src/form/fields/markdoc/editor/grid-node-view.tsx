@@ -19,6 +19,7 @@ import {
   useEditorState,
 } from "./editor-view";
 import { GRID_DEFAULT_COLUMNS, GRID_DEFAULT_ROWS, clampSpan } from "./grid";
+import { Figcaption } from "./figcaption";
 
 // A ProseMirror editor is a *single* contenteditable, so `document.activeElement`
 // is always the editor root - never an individual cell. That means CSS
@@ -46,20 +47,27 @@ type NodeViewProps = {
 export function GridNodeView(props: NodeViewProps) {
   const columns: number = props.node.attrs.columns ?? GRID_DEFAULT_COLUMNS;
   const rows: number = props.node.attrs.rows ?? GRID_DEFAULT_ROWS;
+  const { hostTypography } = useEditorSchema();
   return (
-    <div
-      className={gridClass}
-      style={{
-        gap: props.node.attrs.gap,
-        // track count is per-grid (node attr), so it lives inline rather than
-        // in the static class
-        gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-        gridTemplateRows: `repeat(${rows}, 1fr)`,
-      }}
-      data-dry-grid=""
-    >
-      {props.children}
-    </div>
+    <>
+      <div
+        className={gridClass}
+        style={{
+          gap: props.node.attrs.gap,
+          // track count is per-grid (node attr), so it lives inline rather
+          // than in the static class
+          gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+          gridTemplateRows: `repeat(${rows}, 1fr)`,
+        }}
+        data-dry-grid=""
+      >
+        {props.children}
+      </div>
+      <Figcaption
+        text={props.node.attrs.caption}
+        hostTypography={hostTypography}
+      />
+    </>
   );
 }
 

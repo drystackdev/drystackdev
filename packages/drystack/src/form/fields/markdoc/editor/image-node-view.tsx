@@ -13,6 +13,7 @@ import { css, tokenSchema } from "@keystar/ui/style";
 import { resolveMediaLibraryBytes } from "../../../../app/media-library/bridge";
 import { useEditorSchema, useEditorViewRef } from "./editor-view";
 import { ImageAlign } from "./image-layout";
+import { Figcaption } from "./figcaption";
 
 const MIN_SIZE = 24;
 
@@ -391,6 +392,11 @@ export function ImageNodeView(props: {
             height: Math.round(rect.height),
           });
         }}
+      />
+
+      <Figcaption
+        text={node.attrs.caption}
+        hostTypography={schema.hostTypography}
       />
 
       {showControls &&

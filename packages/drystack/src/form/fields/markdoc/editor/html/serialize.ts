@@ -125,13 +125,14 @@ function getLeafContent(
       ...(align ? { "data-align": align } : {}),
       ...(style ? { style } : {}),
     };
+    let img: HtmlElementNode;
     if (node.attrs.src.byteLength > 0) {
       // has real bytes in-memory (freshly inserted, or an existing node the
       // user edited this session) - embed them as a sibling file scoped to
       // this entry instead of the shared media library directory
       const key = uniqueFilename(state.other, filename);
       state.other.set(key, node.attrs.src);
-      return {
+      img = {
         kind: "element",
         tag: "img",
         attrs: {
@@ -144,24 +145,36 @@ function getLeafContent(
         },
         children: [],
       };
+    } else {
+      // Loaded from stored HTML with no embedded bytes and untouched this
+      // session - write back the exact src it was parsed with, so an image
+      // nobody edited survives a save byte-for-byte even if its bytes were
+      // never hydrated. Only a node that never had a src to begin with (a
+      // library reference picked this session) falls through to the shared
+      // directory, which is where its bytes actually live.
+      img = {
+        kind: "element",
+        tag: "img",
+        attrs: {
+          src: node.attrs.srcUrl || `/${MEDIA_LIBRARY_DIRECTORY}/${filename}`,
+          alt: alt ?? "",
+          ...(title ? { title } : {}),
+          ...layoutAttrs,
+        },
+        children: [],
+      };
     }
-    // Loaded from stored HTML with no embedded bytes and untouched this
-    // session - write back the exact src it was parsed with, so an image
-    // nobody edited survives a save byte-for-byte even if its bytes were never
-    // hydrated. Only a node that never had a src to begin with (a library
-    // reference picked this session) falls through to the shared directory,
-    // which is where its bytes actually live.
-    return {
-      kind: "element",
-      tag: "img",
-      attrs: {
-        src: node.attrs.srcUrl || `/${MEDIA_LIBRARY_DIRECTORY}/${filename}`,
-        alt: alt ?? "",
-        ...(title ? { title } : {}),
-        ...layoutAttrs,
-      },
-      children: [],
-    };
+    // Only reached for a captioned image the paragraph-level fast path
+    // above didn't already handle - i.e. one with other inline siblings in
+    // its paragraph (mixed text/marks alongside it). Wrapping it in
+    // `<figure>` right here, nested inside the `<p>`, is invalid HTML (a `<p>`
+    // can't contain flow content) - but a browser's own error-recovery
+    // parsing splits it into the same shape `blocksFromChildNodes` already
+    // round-trips (`<p>before</p><figure>…</figure><p>after</p>`, see
+    // html/parse.ts), so this loses nothing. The alternative - dropping the
+    // caption because there's nowhere "clean" to put it - actively lost
+    // user content the first time this shipped.
+    return node.attrs.caption ? figureWrap(img, node.attrs.caption) : img;
   }
   if (node.text !== undefined) {
     return { kind: "text", text: node.text };
@@ -208,6 +221,26 @@ function textAlignAttr(
   return textAlign ? { style: `text-align:${textAlign}` } : undefined;
 }
 
+// Wraps `inner` (an image/table/grid's own markup) in a `<figure>` with a
+// `<figcaption>` when there's a caption to show - see the `caption` attr on
+// those three node specs in schema.tsx. Returns `inner` unchanged for an
+// empty caption, so a node that never had one round-trips byte-for-byte.
+function figureWrap(inner: HtmlElementNode, caption: string): HtmlNode {
+  if (!caption) return inner;
+  return {
+    kind: "element",
+    tag: "figure",
+    children: [
+      inner,
+      {
+        kind: "element",
+        tag: "figcaption",
+        children: [{ kind: "text", text: caption }],
+      },
+    ],
+  };
+}
+
 function proseMirrorToHtmlNode(
   node: ProseMirrorNode,
   state: SerializationState,
@@ -225,6 +258,19 @@ function proseMirrorToHtmlNode(
     };
   }
   if (node.type === schema.nodes.paragraph) {
+    // A captioned image alone in its paragraph skips the `<p>` wrapper
+    // entirely - `getLeafContent` below already figure-wraps it (any other
+    // shape is handled there too, nested inside the `<p>`; see the comment
+    // on the image case in `getLeafContent` for why that's fine even though
+    // it's not, strictly, valid HTML).
+    if (
+      node.childCount === 1 &&
+      schema.nodes.image &&
+      node.firstChild!.type === schema.nodes.image &&
+      node.firstChild!.attrs.caption
+    ) {
+      return getLeafContent(node.firstChild!, state)!;
+    }
     return {
       kind: "element",
       tag: "p",
@@ -326,12 +372,15 @@ function proseMirrorToHtmlNode(
     // <col> percentages. Emit the two load-bearing properties inline so the
     // real UI (and the visual editor's inline spots reading this HTML back)
     // lay the table out exactly like the admin editor does.
-    return {
-      kind: "element",
-      tag: "table",
-      attrs: { style: "width:100%;table-layout:fixed" },
-      children,
-    };
+    return figureWrap(
+      {
+        kind: "element",
+        tag: "table",
+        attrs: { style: "width:100%;table-layout:fixed" },
+        children,
+      },
+      node.attrs.caption,
+    );
   }
   if (node.type === schema.nodes.table_row) {
     return {
@@ -364,7 +413,7 @@ function proseMirrorToHtmlNode(
     // flag already set and doesn't emit a second copy of the media rule
     const emitStyle = !state.gridStyleEmitted;
     state.gridStyleEmitted = true;
-    const gridDiv: HtmlNode = {
+    const gridDiv: HtmlElementNode = {
       kind: "element",
       tag: "div",
       attrs: {
@@ -377,7 +426,8 @@ function proseMirrorToHtmlNode(
       },
       children: blocks(node.content),
     };
-    if (!emitStyle) return gridDiv;
+    const gridOutput = figureWrap(gridDiv, node.attrs.caption);
+    if (!emitStyle) return gridOutput;
     // `<style>` in the body is `display:none` and inert layout-wise, so it's
     // safe to sit next to the grid; it carries the mobile "1 column" rule
     return {
@@ -388,7 +438,7 @@ function proseMirrorToHtmlNode(
           tag: "style",
           children: [{ kind: "text", text: GRID_RESPONSIVE_CSS }],
         },
-        gridDiv,
+        gridOutput,
       ],
     };
   }

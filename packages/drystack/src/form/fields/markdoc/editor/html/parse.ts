@@ -64,6 +64,54 @@ function textAlignFromElement(el: Element): string | null {
   return textAlign && TEXT_ALIGN_VALUES.has(textAlign) ? textAlign : null;
 }
 
+// Shared by both the plain `<img>` case (inline, no caption) and the
+// `<figure><img>...<figcaption>` case (see the "figure" branch in
+// `blocksFromChildNodes`) - the only difference is the caption text.
+function imageFromElement(
+  el: Element,
+  state: ParseState,
+  caption: string,
+): ProseMirrorNode | null {
+  const { schema } = state;
+  if (!schema.nodes.image) return null;
+  const src = el.getAttribute("src") ?? "";
+  const prefix = `/${MEDIA_LIBRARY_DIRECTORY}/`;
+  const isLegacyLibraryReference = src.startsWith(prefix);
+  const decoded = decodeURIComponent(
+    isLegacyLibraryReference ? src.slice(prefix.length) : src,
+  );
+  if (!decoded) return null;
+  // The serializer writes an entry-scoped image's src as a public path
+  // (`/<entryDir>/assets/<name>`, see serialize.ts) so it resolves on the
+  // live site, but `other` is keyed by the bare filename - so hydrate by
+  // basename. This also tolerates older/looser prefixes (e.g. `/assets/…`).
+  const filename = isLegacyLibraryReference
+    ? decoded
+    : decoded.slice(decoded.lastIndexOf("/") + 1);
+  if (!filename) return null;
+  // legacy images keep resolving lazily via `resolveMediaLibraryBytes`
+  // (see schema.tsx); new images are resolved synchronously here from
+  // this entry's own sibling files
+  const content = isLegacyLibraryReference
+    ? UNHYDRATED_IMAGE_BYTES
+    : (state.other.get(filename) ?? UNHYDRATED_IMAGE_BYTES);
+  const layout = imageLayoutFromElement(el as HTMLElement);
+  return schema.nodes.image.createChecked({
+    src: content,
+    // Verbatim, so an untouched image serializes back to the exact src it
+    // came in with, and so the node view has something to render when
+    // `content` is unhydrated.
+    srcUrl: src,
+    filename,
+    alt: el.getAttribute("alt") ?? "",
+    title: el.getAttribute("title") ?? "",
+    width: layout.width,
+    height: layout.height,
+    align: layout.align,
+    caption,
+  });
+}
+
 function inlineNodeToProseMirror(
   node: ChildNode,
   state: ParseState,
@@ -84,44 +132,8 @@ function inlineNodeToProseMirror(
     return [schema.nodes.hard_break.create()];
   }
   if (tag === "img") {
-    if (!schema.nodes.image) return [];
-    const src = el.getAttribute("src") ?? "";
-    const prefix = `/${MEDIA_LIBRARY_DIRECTORY}/`;
-    const isLegacyLibraryReference = src.startsWith(prefix);
-    const decoded = decodeURIComponent(
-      isLegacyLibraryReference ? src.slice(prefix.length) : src,
-    );
-    if (!decoded) return [];
-    // The serializer writes an entry-scoped image's src as a public path
-    // (`/<entryDir>/assets/<name>`, see serialize.ts) so it resolves on the
-    // live site, but `other` is keyed by the bare filename - so hydrate by
-    // basename. This also tolerates older/looser prefixes (e.g. `/assets/…`).
-    const filename = isLegacyLibraryReference
-      ? decoded
-      : decoded.slice(decoded.lastIndexOf("/") + 1);
-    if (!filename) return [];
-    // legacy images keep resolving lazily via `resolveMediaLibraryBytes`
-    // (see schema.tsx); new images are resolved synchronously here from
-    // this entry's own sibling files
-    const content = isLegacyLibraryReference
-      ? UNHYDRATED_IMAGE_BYTES
-      : (state.other.get(filename) ?? UNHYDRATED_IMAGE_BYTES);
-    const layout = imageLayoutFromElement(el as HTMLElement);
-    return [
-      schema.nodes.image.createChecked({
-        src: content,
-        // Verbatim, so an untouched image serializes back to the exact src it
-        // came in with, and so the node view has something to render when
-        // `content` is unhydrated.
-        srcUrl: src,
-        filename,
-        alt: el.getAttribute("alt") ?? "",
-        title: el.getAttribute("title") ?? "",
-        width: layout.width,
-        height: layout.height,
-        align: layout.align,
-      }),
-    ];
+    const image = imageFromElement(el, state, "");
+    return image ? [image] : [];
   }
 
   let markType: MarkType | undefined;
@@ -218,26 +230,37 @@ function elementToBlockNode(
         text ? schema.schema.text(text) : undefined,
       );
     }
-    case "table": {
-      if (!schema.nodes.table) return null;
-      const rows: ProseMirrorNode[] = [];
-      for (const section of Array.from(el.children)) {
-        const sectionTag = section.tagName.toLowerCase();
-        if (sectionTag === "thead" || sectionTag === "tbody") {
-          for (const rowEl of Array.from(section.children)) {
-            const row = tableRow(rowEl, state);
-            if (row) rows.push(row);
-          }
-        } else if (sectionTag === "tr") {
-          const row = tableRow(section, state);
-          if (row) rows.push(row);
-        }
-      }
-      return schema.nodes.table.createAndFill({}, rows);
-    }
+    case "table":
+      return tableFromElement(el, state, "");
     default:
       return null;
   }
+}
+
+// Shared by both the plain `<table>` case (no caption) and the
+// `<figure><table>...<figcaption>` case (see the "figure" branch in
+// `blocksFromChildNodes`) - the only difference is the caption text.
+function tableFromElement(
+  el: Element,
+  state: ParseState,
+  caption: string,
+): ProseMirrorNode | null {
+  const { schema } = state;
+  if (!schema.nodes.table) return null;
+  const rows: ProseMirrorNode[] = [];
+  for (const section of Array.from(el.children)) {
+    const sectionTag = section.tagName.toLowerCase();
+    if (sectionTag === "thead" || sectionTag === "tbody") {
+      for (const rowEl of Array.from(section.children)) {
+        const row = tableRow(rowEl, state);
+        if (row) rows.push(row);
+      }
+    } else if (sectionTag === "tr") {
+      const row = tableRow(section, state);
+      if (row) rows.push(row);
+    }
+  }
+  return schema.nodes.table.createAndFill({ caption }, rows);
 }
 
 function widthPercentFromStyle(style: string): number | null {
@@ -293,6 +316,7 @@ function tableRow(el: Element, state: ParseState): ProseMirrorNode | null {
 function gridFromElement(
   el: Element,
   state: ParseState,
+  caption: string = "",
 ): ProseMirrorNode | null {
   const { schema } = state;
   if (!schema.nodes.grid || !schema.nodes.grid_cell) return null;
@@ -320,7 +344,7 @@ function gridFromElement(
   }
   if (!cells.length) return null;
   const gap = parseGridGap(gridStyle);
-  return schema.nodes.grid.createAndFill({ gap, columns, rows }, cells);
+  return schema.nodes.grid.createAndFill({ gap, columns, rows, caption }, cells);
 }
 
 function blocksFromChildNodes(
@@ -351,6 +375,41 @@ function blocksFromChildNodes(
         } else {
           // grid disabled in this config - unwrap rather than drop content
           result.push(...blockChildren(el, state));
+        }
+        continue;
+      }
+      // The serializer's counterpart to this block: an image/table/grid with
+      // a caption gets wrapped in `<figure>…<figcaption>` (see
+      // html/serialize.ts's `figureWrap`). Unwrap it back to the inner
+      // node with its `caption` attr set, rather than falling through to
+      // `isBlockTag`/`inlineNodeToProseMirror` below, which don't know this
+      // tag at all and would drop it.
+      if (tag === "figure") {
+        flush();
+        const children = Array.from(el.children);
+        const caption =
+          children.find((child) => child.tagName.toLowerCase() === "figcaption")
+            ?.textContent ?? "";
+        const contentEl = children.find(
+          (child) => child.tagName.toLowerCase() !== "figcaption",
+        );
+        if (contentEl) {
+          const contentTag = contentEl.tagName.toLowerCase();
+          if (contentTag === "img") {
+            const image = imageFromElement(contentEl, state, caption);
+            if (image) pendingInline.push(image);
+          } else if (contentTag === "table") {
+            const table = tableFromElement(contentEl, state, caption);
+            if (table) result.push(table);
+          } else if (
+            contentTag === "div" &&
+            contentEl.hasAttribute("data-dry-grid") &&
+            state.schema.nodes.grid &&
+            state.schema.nodes.grid_cell
+          ) {
+            const grid = gridFromElement(contentEl, state, caption);
+            if (grid) result.push(grid);
+          }
         }
         continue;
       }

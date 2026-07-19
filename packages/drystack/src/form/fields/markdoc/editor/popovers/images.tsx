@@ -34,6 +34,7 @@ import { imageAttrsForPick, naturalRatioForPick } from "../image-pick";
 import { ImageAlign } from "../image-layout";
 import { useImageObjectUrl } from "../image-node-view";
 import { useMediaScope } from "../media-scope";
+import { CaptionButton } from "../figcaption";
 
 const MIN_SIZE = 24;
 
@@ -189,6 +190,17 @@ export function ImagePopover(props: {
             </ActionButton>
             <Tooltip>Choose from library</Tooltip>
           </TooltipTrigger>
+          <CaptionButton
+            caption={props.node.attrs.caption}
+            onSubmit={(caption) => {
+              runCommand((state, dispatch) => {
+                if (dispatch) {
+                  dispatch(state.tr.setNodeAttribute(props.pos, "caption", caption));
+                }
+                return true;
+              });
+            }}
+          />
         </Flex>
         <Divider orientation="vertical" />
         <TooltipTrigger>

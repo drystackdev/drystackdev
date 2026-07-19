@@ -18,6 +18,7 @@ import { Text } from "@keystar/ui/typography";
 import { TooltipTrigger, Tooltip } from "@keystar/ui/tooltip";
 
 import { useEditorDispatchCommand, useEditorState } from "../editor-view";
+import { CaptionButton } from "../figcaption";
 import {
   addCell,
   deleteFocusedCell,
@@ -330,6 +331,17 @@ export function GridItemControls(props: {
   return (
     <>
       <GridSettingsMenu node={props.node} state={props.state} pos={props.pos} />
+      <CaptionButton
+        caption={props.node.attrs.caption}
+        onSubmit={(caption) => {
+          runCommand((state, dispatch) => {
+            if (dispatch) {
+              dispatch(state.tr.setNodeAttribute(props.pos, "caption", caption));
+            }
+            return true;
+          });
+        }}
+      />
       <GridLayoutMenu state={props.state} />
       <TooltipTrigger>
         <ActionButton
