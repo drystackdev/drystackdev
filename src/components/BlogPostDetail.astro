@@ -95,7 +95,7 @@ const breadcrumbSchema = {
 
 	<section class="post-body section--light">
 		<div class="container post-layout">
-			<div class="post-body__inner reveal" id="post-content" set:html={entry.body} {...entry.bind("body")} />
+			<div class="post-body__inner rich-content reveal" id="post-content" set:html={entry.body} {...entry.bind("body")} />
 			<aside class="post-toc reveal reveal-right" id="post-toc-wrap" aria-label="Mục lục bài viết">
 				<p class="post-toc__title">Tóm tắt</p>
 				<nav class="post-toc__nav" id="post-toc-nav"></nav>
@@ -269,9 +269,6 @@ const breadcrumbSchema = {
 	.post-body__inner {
 		grid-column: 1;
 		grid-row: 1;
-		display: flex;
-		flex-direction: column;
-		gap: 1.25rem;
 	}
 
 	/* reveal/reveal-right và position: sticky phải nằm trên CÙNG một phần tử.
@@ -334,13 +331,6 @@ const breadcrumbSchema = {
 		padding-left: 2rem;
 	}
 
-	/* Bù trừ cho header fixed khi cuộn tới neo #id từ mục lục. */
-	.post-body__inner :global(h2),
-	.post-body__inner :global(h3),
-	.post-body__inner :global(h4) {
-		scroll-margin-top: 7rem;
-	}
-
 	@media (max-width: 860px) {
 		.post-layout {
 			grid-template-columns: 1fr;
@@ -358,46 +348,6 @@ const breadcrumbSchema = {
 			grid-column: 1;
 			grid-row: 2;
 		}
-	}
-
-	/* Markdoc wraps rendered output in an <article> - collapse it out of
-	   the flow so the flex/gap layout above still applies to the <p> tags. */
-	.post-body__inner :global(article) {
-		display: contents;
-	}
-
-	/* :global() because this content is injected via set:html (rendered
-	   from Markdoc), so Astro's scoped-style attribute never lands on it. */
-	.post-body__inner :global(p) {
-		font-size: 1.05rem;
-		color: var(--text-dark-muted);
-	}
-
-	/* Aligned image from the "Ảnh" content component. .post-body__inner is a
-	   flex column, so align-self on the <figure> itself is enough - no nested
-	   wrapper needed. */
-	.post-body__inner :global(.content-align) {
-		margin: 0;
-		max-width: 100%;
-	}
-
-	.post-body__inner :global(.content-align img) {
-		display: block;
-		max-width: 100%;
-		height: auto;
-		border-radius: var(--radius-lg);
-	}
-
-	.post-body__inner :global(.content-align--left) {
-		align-self: flex-start;
-	}
-
-	.post-body__inner :global(.content-align--center) {
-		align-self: center;
-	}
-
-	.post-body__inner :global(.content-align--right) {
-		align-self: flex-end;
 	}
 
 	.post-cover {

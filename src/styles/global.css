@@ -192,6 +192,128 @@ section {
   opacity: 0.05;
 }
 
+/* ---------- Rich content ----------
+   Dùng chung cho mọi nơi render HTML từ fields.content() qua set:html
+   (bài viết blog, và các vùng nội dung tương tự sau này). Màu chữ dựa trên
+   currentColor (kế thừa từ .section--light/.section--dark) nên tự thích
+   ứng theo nền sáng/tối mà không cần viết lại rule riêng; chỉ màu nhấn
+   (link/blockquote/marker) mới cần override theo theme bên dưới. */
+
+.rich-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.rich-content :where(h2, h3, h4, h5, h6) {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.3;
+  scroll-margin-top: 7rem;
+}
+
+.rich-content h2 {
+  font-size: 1.75rem;
+}
+
+.rich-content h3 {
+  font-size: 1.4rem;
+}
+
+.rich-content :where(h4, h5, h6) {
+  font-size: 1.15rem;
+}
+
+.rich-content p {
+  color: color-mix(in srgb, currentColor 78%, transparent);
+}
+
+.rich-content a {
+  color: var(--primary-light);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+}
+
+.rich-content a:hover {
+  text-decoration-color: currentColor;
+}
+
+.section--light .rich-content a {
+  color: var(--secondary);
+}
+
+.rich-content :where(ul, ol) {
+  padding-left: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.rich-content ul {
+  list-style: disc;
+}
+
+.rich-content ol {
+  list-style: decimal;
+}
+
+.rich-content li::marker {
+  color: var(--primary-light);
+}
+
+.section--light .rich-content li::marker {
+  color: var(--secondary);
+}
+
+.rich-content blockquote {
+  padding-left: 1.25rem;
+  border-left: 3px solid var(--primary-light);
+  font-style: italic;
+  opacity: 0.85;
+}
+
+.section--light .rich-content blockquote {
+  border-left-color: var(--secondary);
+}
+
+.rich-content code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+  padding: 0.15em 0.4em;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.rich-content hr {
+  border: none;
+  height: 1px;
+  background: color-mix(in srgb, currentColor 15%, transparent);
+}
+
+.rich-content img {
+  border-radius: var(--radius-lg);
+}
+
+.rich-content table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.rich-content :where(th, td) {
+  border: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+}
+
+.rich-content th {
+  font-family: var(--font-display);
+  font-weight: 700;
+  background: color-mix(in srgb, currentColor 5%, transparent);
+}
+
 /* ---------- Buttons ---------- */
 
 .btn {

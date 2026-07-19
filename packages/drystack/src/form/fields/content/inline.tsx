@@ -21,6 +21,12 @@ import { EditorContextProvider, getToolbarId } from "../markdoc/editor/context";
 // Distance between the edited element and the floating toolbar above it.
 const TOOLBAR_GAP = 8;
 
+// Floor for the toolbar's distance from the viewport's top edge. Without
+// this, editing a content block taller than the viewport (so its top edge
+// scrolls above screen) pushes the toolbar - floated just above that top
+// edge - off-screen too, with nothing left to click to format the selection.
+const VIEWPORT_TOP_OFFSET = 30;
+
 // This toolbar portals to <body>, so packages/astro's editor.css catches its
 // KeystarProvider wrapper with `body > .kui-scheme--*` - a rule written for
 // Keystar's own portalled overlays (dialogs, tooltips) that lifts them to
@@ -146,6 +152,12 @@ function tokenClassesFor(colorScheme: "auto" | "light" | "dark" | undefined) {
  */
 function FloatingToolbar({ anchor, id }: { anchor: HTMLElement; id: string }) {
   const [rect, setRect] = useState<DOMRect | null>(null);
+  // Measured rather than assumed, since the toolbar's own height (which
+  // varies with the schema's enabled buttons - see Toolbar's Separator/
+  // config.inlineOnly branching) is what `top` needs to place its *bottom*
+  // edge `TOOLBAR_GAP` above the anchor.
+  const [toolbarEl, setToolbarEl] = useState<HTMLDivElement | null>(null);
+  const [toolbarHeight, setToolbarHeight] = useState(0);
 
   useLayoutEffect(() => {
     const update = () => setRect(anchor.getBoundingClientRect());
@@ -163,7 +175,22 @@ function FloatingToolbar({ anchor, id }: { anchor: HTMLElement; id: string }) {
     };
   }, [anchor]);
 
+  useLayoutEffect(() => {
+    if (toolbarEl) setToolbarHeight(toolbarEl.getBoundingClientRect().height);
+  }, [toolbarEl]);
+
   if (!rect) return null;
+
+  // Natural placement floats the toolbar just above the anchor's top edge.
+  // Once scrolling has carried that edge high enough that this would push
+  // the toolbar above the viewport - editing inside a content block taller
+  // than the viewport scrolls its top edge, and so this anchor, way above
+  // screen - pin it just under the viewport's top edge instead, so it's
+  // never unreachable mid-edit.
+  const top = Math.max(
+    VIEWPORT_TOP_OFFSET,
+    rect.top - TOOLBAR_GAP - toolbarHeight,
+  );
 
   return createPortal(
     <KeystarProvider
@@ -174,12 +201,12 @@ function FloatingToolbar({ anchor, id }: { anchor: HTMLElement; id: string }) {
       }}
     >
       <div
+        ref={setToolbarEl}
         data-drystack-inline-toolbar=""
         style={{
           position: "fixed",
-          top: rect.top - TOOLBAR_GAP,
+          top,
           left: rect.left,
-          transform: "translateY(-100%)",
           zIndex: 100,
         }}
       >
