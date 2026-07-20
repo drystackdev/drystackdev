@@ -10,7 +10,7 @@ const collectionPath = /\/\*\*?(?:$|\/)/;
 
 function getConfiguredCollectionPath(config: Config, collection: string) {
   const collectionConfig = config.collections![collection];
-  const path = collectionConfig.path ?? `${collection}/*/`;
+  const path = collectionConfig.path ?? `content/${collection}/*/`;
   if (!collectionPath.test(path)) {
     throw new Error(
       `Collection path must end with /* or /** or include /*/ or /**/ but ${collection} has ${path}`
@@ -74,7 +74,7 @@ export function getSingletonPath(config: Config, singleton: string) {
       }`
     );
   }
-  return fixPath(config.singletons![singleton].path ?? singleton);
+  return fixPath(config.singletons![singleton].path ?? `content/${singleton}`);
 }
 
 export function getDataFileExtension(formatInfo: FormatInfo) {
@@ -95,7 +95,7 @@ function _getFormatInfo(
   const path =
     type === 'collections'
       ? getConfiguredCollectionPath(config, key)
-      : collectionOrSingleton.path ?? `${key}/`;
+      : collectionOrSingleton.path ?? `content/${key}/`;
   const dataLocation = path.endsWith('/') ? 'index' : 'outer';
   const { schema, format } = collectionOrSingleton;
   let contentField: FormatInfo['contentField'];
