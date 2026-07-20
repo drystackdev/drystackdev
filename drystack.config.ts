@@ -85,6 +85,7 @@ export default config({
       demo: "Kiến thức ngẫu nhiên liên quan đến công nghệ!",
     },
   },
+  locale: "vi-VN",
   collections: {
     blog: postCollection("Bài viết", "/blog/{slug}"),
     seoKnowledge: postCollection("Kiến thức SEO", "/blog-kien-thuc/{slug}"),
