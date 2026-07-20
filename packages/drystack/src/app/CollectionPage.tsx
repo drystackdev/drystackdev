@@ -294,7 +294,9 @@ function CollectionToolbar(props: {
       gap="regular"
       paddingTop={{ tablet: "large" }}
       UNSAFE_className={css({
-        marginInline: tokenSchema.size.space.regular,
+        // Tighter than the table below it: with the content toggle now always
+        // on screen, the open search field and three buttons need the room.
+        marginInline: tokenSchema.size.space.small,
         [breakpointQueries.above.mobile]: {
           marginInline: `calc(${tokenSchema.size.space.xlarge} - ${tokenSchema.size.space.medium})`,
         },
@@ -303,16 +305,14 @@ function CollectionToolbar(props: {
         },
       })}
     >
-      <Flex
-        role="search"
-        alignItems="center"
-        gap="regular"
-        UNSAFE_style={{
-          display: searchVisible ? "flex" : "none",
-        }}
-      >
+      <Flex role="search" alignItems="center" gap="regular">
         <SearchField
           ref={searchRef}
+          // Only the field itself collapses on mobile - the content toggle
+          // beside it stays put, like the columns menu. It's a persistent
+          // preference for how the collection is searched, so hiding it behind
+          // the field made it look like it had been turned off.
+          isHidden={!searchVisible}
           aria-label={stringFormatter.format("search")} // TODO: l10n "Search {collection}"?
           onChange={props.onSearchTermChange}
           onClear={() => {
@@ -345,7 +345,7 @@ function CollectionToolbar(props: {
         </TooltipTrigger>
       </Flex>
       <ActionButton
-        aria-label="show search"
+        aria-label={stringFormatter.format("showSearchAriaLabel")}
         isHidden={searchVisible || { above: "mobile" }}
         onPress={() => {
           setSearchVisible(true);

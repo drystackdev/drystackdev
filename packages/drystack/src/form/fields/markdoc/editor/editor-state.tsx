@@ -115,7 +115,7 @@ export function createEditorState(
       // the other half of the drag story: `blockHandle` picks up the block a
       // press lands on, which inside a table/grid is always a block *within* a
       // cell - this grips the container itself
-      containerDragHandle(),
+      containerDragHandle(getStringFormatter().format("dragToMove")),
       inputRules({
         rules: inputRulesForSchema(schema),
         enterRules: enterInputRulesForSchema(schema),

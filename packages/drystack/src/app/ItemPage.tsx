@@ -865,10 +865,14 @@ function HeaderActions(props: {
               width="scale.75"
               borderRadius="full"
             >
-              <Text visuallyHidden>Unsaved</Text>
+              <Text visuallyHidden>
+                {stringFormatter.format("unsavedBadge")}
+              </Text>
             </Box>
           ) : (
-            <Badge tone="pending">Unsaved</Badge>
+            <Badge tone="pending">
+              {stringFormatter.format("unsavedBadge")}
+            </Badge>
           )}
         </button>
       );

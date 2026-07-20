@@ -1,5 +1,7 @@
 import { Field, FieldProps } from '@keystar/ui/field';
+import { useLocalizedStringFormatter } from '@react-aria/i18n';
 import { FormFieldInputProps } from '../../api';
+import l10nMessages from '../../../app/l10n';
 import { EditorState } from 'prosemirror-state';
 import { Editor } from './editor';
 import { createEditorState } from './editor/editor-state';
@@ -133,6 +135,7 @@ export function DocumentFieldInput(
 ) {
   let entryLayoutPane = useEntryLayoutSplitPaneContext();
   let entryDirectory = useEntryDirectoryContext();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   let fieldProps: FieldProps = {
     label: props.label,
@@ -152,7 +155,7 @@ export function DocumentFieldInput(
         entryDirectory
           ? {
               directory: `${entryDirectory}/assets`,
-              label: 'This entry',
+              label: stringFormatter.format('thisEntryLabel'),
             }
           : null
       }

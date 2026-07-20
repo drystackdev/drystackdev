@@ -76,7 +76,7 @@ function onDragStart(view: EditorView, event: DragEvent) {
   );
 }
 
-function renderGrip(view: EditorView) {
+function renderGrip(view: EditorView, label: string) {
   const grip = document.createElement("button");
   grip.type = "button";
   grip.className = gripClass;
@@ -86,8 +86,8 @@ function renderGrip(view: EditorView) {
   // the same reason block-handle.ts drags a non-editable proxy.
   grip.draggable = true;
   grip.setAttribute("data-drag-grip", "");
-  grip.setAttribute("aria-label", "Drag to move");
-  grip.title = "Drag to move";
+  grip.setAttribute("aria-label", label);
+  grip.title = label;
   grip.innerHTML = gripSvg;
   grip.addEventListener("dragstart", (event) => onDragStart(view, event));
   grip.addEventListener("dragend", () => {
@@ -99,14 +99,17 @@ function renderGrip(view: EditorView) {
   return grip;
 }
 
-export function containerDragHandle() {
+export function containerDragHandle(dragToMoveLabel: string) {
+  // Bound once so the widget's `toDOM` keeps a stable identity across
+  // `decorations` calls, same reason as `key` below.
+  const toDOM = (view: EditorView) => renderGrip(view, dragToMoveLabel);
   return new Plugin({
     props: {
       decorations(state) {
         const container = findContainer(state);
         if (!container) return null;
         return DecorationSet.create(state.doc, [
-          Decoration.widget(container.pos + 1, renderGrip, {
+          Decoration.widget(container.pos + 1, toDOM, {
             side: -1,
             // Without a key prosemirror-view compares widgets by `toDOM`
             // identity and redraws this one on every state change - including

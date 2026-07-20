@@ -174,7 +174,9 @@ function CreateItemWrapper(props: {
   ) {
     return (
       <PageBody>
-        <Notice tone="caution">Entry not found.</Notice>
+        <Notice tone="caution">
+          {stringFormatter.format('entryNotFound')}
+        </Notice>
       </PageBody>
     );
   }

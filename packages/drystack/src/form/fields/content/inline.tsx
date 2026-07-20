@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
 import { EditorState } from "prosemirror-state";
 import { KeystarProvider, useProvider } from "@keystar/ui/core";
 import {
@@ -17,6 +18,7 @@ import { AutocompleteDecoration } from "../markdoc/editor/autocomplete/decoratio
 import { NodeViews } from "../markdoc/editor/react-node-views";
 import { MediaScopeProvider } from "../markdoc/editor/media-scope";
 import { EditorContextProvider, getToolbarId } from "../markdoc/editor/context";
+import l10nMessages from "../../../app/l10n";
 
 // Distance between the edited element and the floating toolbar above it.
 const TOOLBAR_GAP = 8;
@@ -270,12 +272,14 @@ export function InlineDocumentEditor({
 
   const toolbarVisible = useToolbarVisible(mount);
 
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
+  const thisEntryLabel = stringFormatter.format("thisEntryLabel");
   const mediaScope = useMemo(
     () =>
       entryDirectory
-        ? { directory: `${entryDirectory}/assets`, label: "This entry" }
+        ? { directory: `${entryDirectory}/assets`, label: thisEntryLabel }
         : null,
-    [entryDirectory],
+    [entryDirectory, thisEntryLabel],
   );
 
   return (

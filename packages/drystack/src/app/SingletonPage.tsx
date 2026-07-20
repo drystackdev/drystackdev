@@ -270,7 +270,9 @@ function SingletonPageInner(
                     cursor: "pointer",
                   }}
                 >
-                  <Badge tone="pending">Unsaved</Badge>
+                  <Badge tone="pending">
+                    {stringFormatter.format("unsavedBadge")}
+                  </Badge>
                 </button>
               )
             )}
@@ -320,7 +322,7 @@ function SingletonPageInner(
             prominence="high"
             type="submit"
           >
-            {isCreating ? "Create" : "Save"}
+            {stringFormatter.format(isCreating ? "create" : "save")}
           </Button>
         </PageHeader>
         <Flex

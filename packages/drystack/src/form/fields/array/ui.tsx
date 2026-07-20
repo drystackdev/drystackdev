@@ -114,7 +114,7 @@ export function ArrayFieldInput<Element extends ComponentSchema>(
           if (modalState.state !== 'edit') return;
           return (
             <Dialog>
-              <Heading>Edit item</Heading>
+              <Heading>{stringFormatter.format('arrayEditItemTitle')}</Heading>
               <ArrayEditItemModalContent
                 formId={formId}
                 modalStateIndex={modalState.index}
@@ -125,7 +125,7 @@ export function ArrayFieldInput<Element extends ComponentSchema>(
               />
               <ButtonGroup>
                 <Button form={formId} prominence="high" type="submit">
-                  Done
+                  {stringFormatter.format('done')}
                 </Button>
               </ButtonGroup>
             </Dialog>
@@ -176,7 +176,7 @@ function ArrayFieldAddItemModalContent(props: {
   )(value);
   return (
     <Dialog>
-      <Heading>Add item</Heading>
+      <Heading>{stringFormatter.format('arrayAddItemTitle')}</Heading>
       <Content>
         <VStack
           id={props.formId}
@@ -393,7 +393,9 @@ export function ArrayFieldListView<Element extends ComponentSchema>(
       {item => {
         const label =
           props.schema.itemLabel?.(item) ||
-          `Item ${props.elements.indexOf(item) + 1}`;
+          stringFormatter.format('arrayItemFallbackLabel', {
+            index: props.elements.indexOf(item) + 1,
+          });
         return (
           <Item key={item.key} textValue={label}>
             <Text>{label}</Text>
@@ -415,6 +417,11 @@ export function ArrayFieldListView<Element extends ComponentSchema>(
 }
 
 function arrayFieldEmptyState() {
+  return <ArrayFieldEmptyState />;
+}
+
+function ArrayFieldEmptyState() {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   return (
     <VStack
       gap="large"
@@ -430,10 +437,10 @@ function arrayFieldEmptyState() {
         size="large"
         weight="medium"
       >
-        Empty list
+        {stringFormatter.format('emptyListTitle')}
       </Text>
       <Text align="center" color="neutralTertiary">
-        Add the first item to see it here.
+        {stringFormatter.format('emptyListDescription')}
       </Text>
     </VStack>
   );

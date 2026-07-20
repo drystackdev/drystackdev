@@ -5,9 +5,11 @@ import { Flex, Box } from "@keystar/ui/layout";
 import { containerQueries, css } from "@keystar/ui/style";
 import { TextField } from "@keystar/ui/text-field";
 import { Text } from "@keystar/ui/typography";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
 import { useContext, useState } from "react";
 
 import { FormFieldInputProps } from "../../api";
+import l10nMessages from "../../../app/l10n";
 import { SlugFieldContext, PathContext } from "../text/path-slug-context";
 import { validateText } from "../text/validateText";
 
@@ -22,6 +24,7 @@ export function SlugFieldInput(
     naiveGenerateSlug: (name: string) => string;
   },
 ) {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const slugContext = useContext(SlugFieldContext);
   const path = useContext(PathContext);
   const slugInfo =
@@ -54,7 +57,8 @@ export function SlugFieldInput(
     return generated;
   };
 
-  const slugFieldLabel = props.args.slug?.label ?? "Slug";
+  const slugFieldLabel =
+    props.args.slug?.label ?? stringFormatter.format("slugFieldDefaultLabel");
   const slugErrorMessage =
     props.forceValidation || blurredSlug
       ? validateText(
@@ -111,7 +115,7 @@ export function SlugFieldInput(
         />
         <Flex gap="regular" direction="column">
           <ActionButton
-            aria-label="regenerate"
+            aria-label={stringFormatter.format("regenerate")}
             onPress={() => {
               props.onChange({
                 name: props.value.name,
@@ -130,7 +134,7 @@ export function SlugFieldInput(
                 [containerQueries.below.tablet]: { display: "none" },
               })}
             >
-              Regenerate
+              {stringFormatter.format("regenerate")}
             </Text>
           </ActionButton>
           {/* display shim to offset the error message */}

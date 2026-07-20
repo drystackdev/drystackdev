@@ -11,8 +11,10 @@ import { VStack } from '@keystar/ui/layout';
 import { ListView } from '@keystar/ui/list-view';
 import { css, tokenSchema } from '@keystar/ui/style';
 import { Text } from '@keystar/ui/typography';
+import { useLocalizedStringFormatter } from '@react-aria/i18n';
 
 import { FormFieldInputProps } from '../../api';
+import l10nMessages from '../../../app/l10n';
 import { useSlugsInCollection } from '../../../app/useSlugsInCollection';
 import { ExtraFieldInputProps } from '../../form-from-preview';
 import { validateMultiRelationshipLength } from './validate';
@@ -51,22 +53,29 @@ export function MultiRelationshipInput(
     return options.filter(option => !elementSet.has(option.slug));
   }, [props.value, options]);
 
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
+  // doubles as the Item key for the placeholder row, so the disabledKeys entry
+  // and the defaultItems entry have to be the exact same string
+  const noMoreItems = stringFormatter.format('noMoreItems');
+
   return (
     <VStack gap="medium" minWidth={0}>
       <Combobox
         label={props.label}
         description={props.description}
         selectedKey={null}
-        placeholder={items.length === 0 ? 'All selected' : undefined}
+        placeholder={
+          items.length === 0 ? stringFormatter.format('allSelected') : undefined
+        }
         onSelectionChange={key => {
           if (typeof key === 'string') {
             props.onChange([...props.value, key]);
           }
         }}
-        disabledKeys={['No more items…']}
+        disabledKeys={[noMoreItems]}
         onBlur={onBlur}
         autoFocus={props.autoFocus}
-        defaultItems={items.length ? items : [{ slug: 'No more items…' }]}
+        defaultItems={items.length ? items : [{ slug: noMoreItems }]}
         isReadOnly={items.length === 0}
         isRequired={
           props.validation?.length?.min !== undefined &&
@@ -113,6 +122,7 @@ function MultiRelationshipListView(
   };
 
   const dragType = useMemo(() => Math.random().toString(36), []);
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   let { dragAndDropHooks } = useDragAndDrop({
     getItems(keys) {
@@ -200,9 +210,9 @@ function MultiRelationshipListView(
           }
         }}
       >
-        <Item key="delete" textValue="Remove">
+        <Item key="delete" textValue={stringFormatter.format('remove')}>
           <Icon src={trash2Icon} />
-          <Text>Remove</Text>
+          <Text>{stringFormatter.format('remove')}</Text>
         </Item>
       </ActionBar>
     </ActionBarContainer>
@@ -210,6 +220,11 @@ function MultiRelationshipListView(
 }
 
 function arrayFieldEmptyState() {
+  return <MultiRelationshipEmptyState />;
+}
+
+function MultiRelationshipEmptyState() {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   return (
     <VStack
       gap="large"
@@ -219,7 +234,7 @@ function arrayFieldEmptyState() {
       padding="regular"
     >
       <Text align="center" color="neutralTertiary">
-        No items selected…
+        {stringFormatter.format('noItemsSelected')}
       </Text>
     </VStack>
   );
