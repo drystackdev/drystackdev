@@ -139,14 +139,23 @@ function handleStatus(
  * In GitHub mode the admin UI is deployed publicly, so without this the AI
  * routes would be an open, unauthenticated proxy to a paid AI account. Local
  * mode only ever runs on the developer's own machine.
+ *
+ * The token is verified against GitHub, not merely read: the cookie is
+ * caller-supplied, so treating its presence as proof would let any visitor
+ * spend the site owner's key by setting one. These routes cost real money on
+ * someone else's account, which is a higher bar than the rest of the admin
+ * API - `description` and `context` reach the model as free text, so an
+ * unverified caller would have a general-purpose LLM proxy, not just the
+ * ability to fill in one entry's fields.
  */
-function requireSession(
+async function requireSession(
   req: DrystackRequest,
   config: Config<any, any>,
-): DrystackResponse | undefined {
+): Promise<DrystackResponse | undefined> {
   if (config.storage.kind !== "github") return undefined;
   const cookies = cookie.parse(req.headers.get("cookie") ?? "");
-  if (!cookies["drystack-gh-access-token"]) {
+  const token = cookies["drystack-gh-access-token"];
+  if (!token || !(await verifyGitHubAccess(config, token))) {
     return json({ error: "Chưa đăng nhập." }, 401);
   }
   return undefined;

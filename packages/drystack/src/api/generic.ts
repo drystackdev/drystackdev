@@ -7,15 +7,7 @@ import { makeAiRouteHandler } from "./ai";
 import { webcrypto } from "#webcrypto";
 import { bytesToHex } from "../hex";
 import { decryptValue, encryptValue } from "./encryption";
-import { serializeRepoConfig } from "../app/repo-config";
-
-// GitHub's REST API (api.github.com, as opposed to the OAuth endpoints on
-// github.com) rejects any request with no `User-Agent` header - 403 "Request
-// forbidden by administrative rules", not a 401 - regardless of how valid
-// the bearer token is. Cloudflare Workers' `fetch()` doesn't set one by
-// default (unlike a browser), so every api.github.com call here needs this
-// set explicitly or GitHub bounces it before even looking at the token.
-const GITHUB_API_USER_AGENT = "drystack";
+import { GITHUB_API_USER_AGENT, verifyGitHubAccess } from "./github-access";
 
 // Public path (relative to the site root) of the dry-map static asset
 // written by @drystack/astro's astro:build:done hook - see index.ts's
@@ -421,30 +413,6 @@ async function githubRepoNotFound(
   return githubLogin(req, config);
 }
 
-// The only server-side check anywhere in drystack that a GitHub token is
-// real (every other "auth" check - getAuth/getSyncAuth - just reads whether
-// a client-readable cookie is present, which is trivially spoofable). Hits
-// the repo directly, not just /user, so a valid token for an *unrelated*
-// GitHub account (no access to this repo) is correctly rejected too - a
-// private repo 404s for non-collaborators, a public one still requires the
-// token to be genuine to get a 200 from GitHub.
-async function verifyGitHubAccess(
-  token: string,
-  config: InnerAPIRouteConfig,
-): Promise<boolean> {
-  if (config.config.storage.kind !== "github") return false;
-  const res = await fetch(
-    `https://api.github.com/repos/${serializeRepoConfig(config.config.storage.repo)}`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "User-Agent": GITHUB_API_USER_AGENT,
-      },
-    },
-  );
-  return res.ok;
-}
-
 // Verified editors only: returns the build-time
 // data-dry-id → {data-dry, data-dry-kind, data-dry-value} registry so the
 // VEI client can patch the real attributes back onto `[data-dry-id]`
@@ -458,7 +426,7 @@ async function githubDryMap(
 ): Promise<DrystackResponse> {
   const cookies = cookie.parse(req.headers.get("cookie") ?? "");
   const accessToken = cookies["drystack-gh-access-token"];
-  if (!accessToken || !(await verifyGitHubAccess(accessToken, config))) {
+  if (!accessToken || !(await verifyGitHubAccess(config.config, accessToken))) {
     return { status: 401, body: "Not authorized" };
   }
   if (!config.assetsFetcher) {
