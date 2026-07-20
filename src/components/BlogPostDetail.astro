@@ -104,9 +104,10 @@ const breadcrumbSchema = {
 	</section>
 
 	<script>
-		// Xây mục lục (Tóm tắt) từ các thẻ h2/h3/h4 bên trong nội dung bài viết,
-		// vì post.contentHtml là HTML tự do (từ content editor) nên không có id
-		// sẵn - phải gán id lúc chạy rồi mới build được các link neo (#id).
+		// Xây mục lục (Tóm tắt) từ các thẻ h2/h3/h4 bên trong nội dung bài viết.
+		// HTML lưu từ content editor đã kèm sẵn id (slug tiếng Việt + cid, xem
+		// markdoc/editor/html/serialize.ts) - nhánh gán id lúc chạy bên dưới chỉ
+		// còn là fallback cho bài viết lưu từ trước khi serializer sinh id.
 		const combiningMarks = new RegExp("[\\u0300-\\u036f]", "g");
 
 		function slugify(text: string): string {

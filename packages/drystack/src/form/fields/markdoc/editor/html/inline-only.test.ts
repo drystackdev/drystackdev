@@ -2,11 +2,16 @@
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 GlobalRegistrator.register();
 
-import { expect, test } from "@jest/globals";
+import { afterAll, expect, test } from "@jest/globals";
 import { createEditorSchema } from "../schema";
 import { editorOptionsToConfig } from "../../config";
 import { htmlToProseMirror } from "./parse";
 import { serializeFromEditorStateToHTML } from "./serialize";
+
+// See apply-value.test.ts's afterAll for why this matters.
+afterAll(async () => {
+  await GlobalRegistrator.unregister();
+});
 
 function inlineOnlySchema() {
   return createEditorSchema(editorOptionsToConfig({}, true, true), {}, false);

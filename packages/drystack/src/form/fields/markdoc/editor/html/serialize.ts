@@ -73,6 +73,9 @@ type SerializationState = {
   // the responsive media rule for grids is emitted once per document (on the
   // first grid encountered) - see the `grid` case in `proseMirrorToHtmlNode`
   gridStyleEmitted: boolean;
+  // per-document bookkeeping for heading anchor ids - see headingAnchorId
+  headingIdCounts: Map<string, number>;
+  usedHeadingIds: Set<string>;
   // Repo-relative directory of the entry this document belongs to (e.g.
   // `demo`, `blog/my-post`). An entry-scoped image is written to
   // `<entryDirectory>/assets/<name>` (see serialize-props.ts/save.ts), so its
@@ -259,6 +262,58 @@ function getWrapperForMark(
   }
 }
 
+const COMBINING_MARKS = /[\u0300-\u036f]/g;
+
+// Same algorithm as the site TOC's runtime fallback (BlogPostDetail.astro) so
+// the slug part of an anchor never depends on which of the two produced it.
+function slugifyHeadingText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(COMBINING_MARKS, "")
+    .replace(/đ/g, "d")
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+}
+
+// FNV-1a, truncated to 5 base36 chars - enough to tell same-text headings
+// apart without turning the anchor into line noise.
+function headingCid(input: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36).padStart(7, "0").slice(0, 5);
+}
+
+// Anchor ids exist only in the written HTML: the heading node stores no id
+// (parseDOM keeps just level/textAlign, see schema.tsx), so every save
+// re-derives `<slug of the heading's text>-<cid>` here. Both inputs are pure
+// functions of the document (text + occurrence order), which keeps
+// parse -> serialize byte-identical - the invariant the visual editor's
+// inline spots rely on (see InlineContentEditors.tsx).
+function headingAnchorId(
+  node: ProseMirrorNode,
+  state: SerializationState,
+): string {
+  const text = node.textBetween(0, node.content.size, undefined, " ");
+  const slug = slugifyHeadingText(text) || "muc";
+  let occurrence = state.headingIdCounts.get(slug) ?? 0;
+  let id = `${slug}-${headingCid(`${slug}#${occurrence}`)}`;
+  // a truncated-hash collision across different slugs is the only way `id`
+  // can repeat; bumping the occurrence re-rolls until it's free
+  while (state.usedHeadingIds.has(id)) {
+    occurrence++;
+    id = `${slug}-${headingCid(`${slug}#${occurrence}`)}`;
+  }
+  state.headingIdCounts.set(slug, occurrence + 1);
+  state.usedHeadingIds.add(id);
+  return id;
+}
+
 function textAlignAttr(
   node: ProseMirrorNode,
 ): Record<string, string> | undefined {
@@ -337,7 +392,10 @@ function proseMirrorToHtmlNode(
     return {
       kind: "element",
       tag: `h${node.attrs.level}`,
-      attrs: textAlignAttr(node),
+      attrs: {
+        id: headingAnchorId(node, state),
+        ...textAlignAttr(node),
+      },
       children: inline(node.content),
     };
   }
@@ -515,6 +573,8 @@ export function serializeFromEditorStateToHTML(
     schema: getEditorSchema(node.type.schema),
     other,
     gridStyleEmitted: false,
+    headingIdCounts: new Map(),
+    usedHeadingIds: new Set(),
     entryDirectory,
   };
   return renderNode(proseMirrorToHtmlNode(node, state));
