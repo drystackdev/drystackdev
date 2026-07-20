@@ -24,10 +24,9 @@ interface Props {
 	related: BlogPost[];
 	basePath: string;
 	eyebrowLabel: string;
-	backLabel: string;
 }
 
-const { entry, related, basePath, eyebrowLabel, backLabel } = Astro.props;
+const { entry, related, basePath, eyebrowLabel } = Astro.props;
 
 const { brand } = await getHomepage() as any;
 const siteName = htmlToPlainText(brand.name);
@@ -75,7 +74,6 @@ const breadcrumbSchema = {
 			<div class="orb orb--gold" style="width:380px;height:380px;top:-10%;left:-8%;" data-parallax="0.12"></div>
 		</div>
 		<div class="container post-hero__inner">
-			<a href={basePath} class="back-link reveal"><Icon name="arrow-left" size={16} /> {backLabel}</a>
 			<p class="eyebrow reveal">{eyebrowLabel}</p>
 			<h1 class="section-title reveal" {...entry.bind("title")}>{entry.title}</h1>
 			<div class="post-hero__meta reveal">
