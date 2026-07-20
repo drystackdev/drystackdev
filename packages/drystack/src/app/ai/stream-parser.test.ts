@@ -29,6 +29,33 @@ test("reads a one-line scalar", () => {
   });
 });
 
+// A one-line value is YAML, not raw text. Models quote correctly when they
+// have to - a Vietnamese title with a colon *must* be quoted to parse - so
+// taking the line verbatim would put the quotes in the field.
+const scalar = (chunk: string) =>
+  doneValues(runParser(["title"], [chunk])).title;
+
+test("resolves quoting on a one-line scalar", () => {
+  expect(scalar('title: "SEO 2026: xu hướng mới"\n')).toBe(
+    "SEO 2026: xu hướng mới",
+  );
+  expect(scalar("title: 'Bảng giá'\n")).toBe("Bảng giá");
+});
+
+test("folds a folded scalar", () => {
+  expect(scalar("title: >\n  dòng một\n  dòng hai\n")).toBe(
+    "dòng một dòng hai\n",
+  );
+});
+
+// Only strings survive the parse; everything else would be dropped by the
+// apply step and leave the field blank, so the text as written is better.
+test("keeps text as written when YAML would retype or reject it", () => {
+  expect(scalar("title: 2026\n")).toBe("2026");
+  expect(scalar("title: yes\n")).toBe("yes");
+  expect(scalar('title: "chưa đóng ngoặc\n')).toBe('"chưa đóng ngoặc');
+});
+
 test("reads a block scalar and strips its indentation", () => {
   const events = runParser(
     ["excerpt"],
@@ -135,9 +162,19 @@ test("ignores nested keys that share a name with a target", () => {
   });
 });
 
+// An unrequested key gets no field of its own, and doesn't get glued onto the
+// one above it either: at column 0 it's a separate mapping key, which is
+// exactly what js-yaml reads it as.
 test("ignores keys that were never requested", () => {
   const events = runParser(["title"], ["title: Giữ\nrandom: Bỏ qua\n"]);
-  expect(doneValues(events)).toEqual({ title: "Giữ\nrandom: Bỏ qua" });
+  expect(doneValues(events)).toEqual({ title: "Giữ" });
+});
+
+// The flip side: an *indented* continuation is part of the value, not a new
+// key, so a plain multi-line scalar still arrives whole.
+test("keeps an indented continuation line", () => {
+  const events = runParser(["title"], ["title: dòng một\n  dòng hai\n"]);
+  expect(doneValues(events)).toEqual({ title: "dòng một dòng hai" });
 });
 
 test("absorbs a code fence the model added", () => {

@@ -132,7 +132,7 @@ export class AiStreamParser {
       this.#emit({
         type: "field-done",
         key: pending.key,
-        raw: pending.lines.join("\n").trim(),
+        raw: this.#scalar(pending),
       });
       return;
     }
@@ -154,6 +154,35 @@ export class AiStreamParser {
         key: pending.key,
         detail: err instanceof Error ? err.message : String(err),
       });
+    }
+  }
+
+  /**
+   * The final value of a non-block field, with YAML quoting resolved.
+   *
+   * The raw text can't be used as-is: a value containing `:` - which a
+   * Vietnamese title routinely does - is only valid YAML when quoted, so a
+   * model doing the right thing would otherwise land literal `"` in the
+   * field. Folded scalars (`key: >`) come out right here too, since js-yaml
+   * does the folding.
+   *
+   * Only a string result is taken. `title: 2026` parses to a number and
+   * `title: yes` to a boolean, neither of which a text field can hold - the
+   * apply step would drop them and leave the field blank, so those (and
+   * anything js-yaml outright rejects) fall back to the text as written.
+   * Reconstructing the original `key: …` document is what lets js-yaml see
+   * the same indentation the model emitted.
+   */
+  #scalar(pending: Pending): string {
+    const text = pending.lines.join("\n").trim();
+    try {
+      const parsed = load(`${pending.key}:${pending.lines.join("\n")}`) as
+        | Record<string, unknown>
+        | undefined;
+      const value = parsed?.[pending.key];
+      return typeof value === "string" ? value : text;
+    } catch {
+      return text;
     }
   }
 

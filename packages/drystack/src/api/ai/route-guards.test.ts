@@ -73,6 +73,54 @@ test("github mode rejects a generate with no session too", async () => {
   expect(res.status).toBe(401);
 });
 
+// A cookie is caller-supplied, so its presence proves nothing: these pin down
+// that the token behind it is actually put to GitHub. Without the check, any
+// visitor to a public github-mode deploy could set the cookie by hand and
+// spend the site owner's AI key.
+async function withStubbedFetch<T>(
+  ok: boolean,
+  body: () => Promise<T>,
+): Promise<{ result: T; calls: string[] }> {
+  const real = globalThis.fetch;
+  const calls: string[] = [];
+  globalThis.fetch = (async (url: any) => {
+    calls.push(String(url));
+    return { ok } as Response;
+  }) as typeof fetch;
+  try {
+    return { result: await body(), calls };
+  } finally {
+    globalThis.fetch = real;
+  }
+}
+
+test("github mode rejects a forged session cookie", async () => {
+  const { result, calls } = await withStubbedFetch(false, () =>
+    call("github", "ai/generate", {
+      entry: { kind: "collection", key: "blog" },
+      targets: ["body"],
+      sizes: { body: "medium" },
+    }, "drystack-gh-access-token=forged"),
+  );
+  expect(result.status).toBe(401);
+  // Verified against the repo, not just /user: a real token for someone
+  // else's account must not open this route either.
+  expect(calls).toEqual(["https://api.github.com/repos/o/n"]);
+});
+
+test("github mode lets a verified session past the guard", async () => {
+  // Uses an entry that never opted into ai.for, so the request stops at the
+  // *next* guard (403). Proves the session check passed without letting the
+  // test reach a real provider.
+  const { result } = await withStubbedFetch(true, () =>
+    call("github", "ai/generate", {
+      entry: { kind: "collection", key: "notListed" },
+      targets: ["body"],
+    }, "drystack-gh-access-token=real"),
+  );
+  expect(result.status).toBe(403);
+});
+
 test("rewrite refuses an entry that never opted into ai.for", async () => {
   const res = await call("local", "ai/rewrite", {
     ...rewriteBody,

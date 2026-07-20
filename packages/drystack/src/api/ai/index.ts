@@ -3,6 +3,7 @@ import * as cookie from "cookie";
 import type { Config } from "../..";
 import type { ComponentSchema } from "../../form/api";
 import type { DrystackRequest, DrystackResponse } from "../internal-utils";
+import { verifyGitHubAccess } from "../github-access";
 import {
   AiConfigError,
   AiEnv,
@@ -172,7 +173,7 @@ async function handleModels(
   config: Config<any, any>,
   resolved: AiRuntimeConfig | AiConfigError,
 ): Promise<DrystackResponse> {
-  const denied = requireSession(req, config);
+  const denied = await requireSession(req, config);
   if (denied) return denied;
 
   if (isAiConfigError(resolved)) {
@@ -217,7 +218,7 @@ async function handleVerifyModel(
   config: Config<any, any>,
   resolved: AiRuntimeConfig | AiConfigError,
 ): Promise<DrystackResponse> {
-  const denied = requireSession(req, config);
+  const denied = await requireSession(req, config);
   if (denied) return denied;
 
   if (isAiConfigError(resolved)) {
@@ -283,7 +284,7 @@ async function preflight(
   // Authentication is checked before anything else, config included:
   // answering config questions first would tell an anonymous caller whether a
   // key is present, which is nobody's business but the signed-in user's.
-  const denied = requireSession(req, config);
+  const denied = await requireSession(req, config);
   if (denied) return denied;
 
   if (isAiConfigError(resolved)) {
@@ -478,7 +479,7 @@ async function handleGenerate(
     }),
     user: buildUserPrompt({
       context: sanitiseContext(context),
-      description: typeof description === "string" ? description : "",
+      description: sanitiseText(description),
       seeds,
     }),
     maxTokens: generateMaxTokens({ sizes, seedChars }),
@@ -586,10 +587,19 @@ async function handleRewrite(
     user: buildRewriteUserPrompt({
       context: sanitiseContext(context),
       selection: passage,
-      description: typeof description === "string" ? description : "",
+      description: sanitiseText(description),
     }),
     maxTokens: rewriteMaxTokens(passage.length),
   });
+}
+
+/**
+ * A caller-supplied free-text field, clamped to the same ceiling as every
+ * other text on these routes. `description` reaches the model verbatim, so
+ * without this it's the one input that could carry an unbounded prompt.
+ */
+function sanitiseText(value: unknown): string {
+  return typeof value === "string" ? value.slice(0, MAX_TEXT_CHARS) : "";
 }
 
 function sanitiseContext(context: unknown): Record<string, string> {
