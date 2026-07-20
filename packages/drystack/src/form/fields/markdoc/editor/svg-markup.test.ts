@@ -96,6 +96,59 @@ test("rejects a style attribute that reaches outside the document", () => {
   expect(out).not.toContain("evil.test");
 });
 
+// The regression these guard: SVG's initial `fill` is black, so a `<text>`
+// label with no fill of its own ignored the theme entirely and vanished on a
+// dark background.
+
+test("text with no colour of its own gets an explicit currentColor", () => {
+  const out = sanitizeSvgMarkup(
+    '<svg viewBox="0 0 100 50"><text x="5" y="40">Tháng 1</text></svg>',
+  )!;
+  // On the element itself, not merely inherited from the root - a label's
+  // colour has to survive the drawing being copied or re-nested.
+  expect(out).toContain('<text x="5" y="40" fill="currentColor">');
+});
+
+test("text keeps a colour it states itself", () => {
+  const out = sanitizeSvgMarkup(
+    '<svg viewBox="0 0 100 50"><text x="5" y="40" fill="#e11">cảnh báo</text></svg>',
+  )!;
+  expect(out).toContain('fill="#e11"');
+  expect(out).not.toMatch(/<text[^>]*currentColor/);
+});
+
+test("text keeps a colour an ancestor states for it", () => {
+  const out = sanitizeSvgMarkup(
+    '<svg viewBox="0 0 100 50"><g fill="#e11"><text x="5" y="40">cảnh báo</text></g></svg>',
+  )!;
+  expect(out).toContain('<g fill="#e11">');
+  // Left to inherit the group's colour, which is the author's clear intent.
+  expect(out).not.toMatch(/<text[^>]*fill=/);
+});
+
+test("a fill stated via inline style counts as stated", () => {
+  const out = sanitizeSvgMarkup(
+    '<svg viewBox="0 0 100 50"><text x="5" y="40" style="fill:#e11">cảnh báo</text></svg>',
+  )!;
+  expect(out).not.toMatch(/<text[^>]*fill="currentColor"/);
+});
+
+test("shapes fall back to the root's currentColor, keeping their own when set", () => {
+  const out = sanitizeSvgMarkup(
+    '<svg viewBox="0 0 100 50"><rect width="10" height="10" fill="#e11"/><rect width="10" height="10"/></svg>',
+  )!;
+  expect(out).toContain('fill="#e11"');
+  expect(out).toMatch(/<svg[^>]*fill="currentColor"/);
+});
+
+test("a root fill the author chose is left alone", () => {
+  const out = sanitizeSvgMarkup(
+    '<svg viewBox="0 0 100 50" fill="#333"><text x="5" y="40">Tháng 1</text></svg>',
+  )!;
+  expect(out).toContain('fill="#333"');
+  expect(out).not.toContain("currentColor");
+});
+
 test("returns null for input that isn't a drawing at all", () => {
   expect(sanitizeSvgMarkup("<p>chỉ là chữ</p>")).toBe(null);
   expect(sanitizeSvgMarkup("")).toBe(null);

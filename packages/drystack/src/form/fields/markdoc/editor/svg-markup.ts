@@ -94,6 +94,21 @@ const UNSAFE_STYLE = /url\s*\(|expression\s*\(|javascript\s*:/i;
 // not something a person meant to inline into prose.
 const MAX_SVG_BYTES = 256 * 1024;
 
+// The elements that paint glyphs. They're the ones that actually hurt when
+// SVG's initial `fill` (black, not `currentColor`) applies: a chart's bars
+// being the wrong colour is ugly, its labels going black on a dark section
+// makes them unreadable.
+const TEXT_TAGS = new Set(["text", "tspan", "textpath"]);
+
+// Whether this element decides its own fill, by attribute or inline style.
+// Checked *after* attribute scrubbing, so a `fill` that only existed inside a
+// rejected `style` doesn't count.
+function declaresFill(el: Element): boolean {
+  if (el.hasAttribute("fill")) return true;
+  const style = el.getAttribute("style");
+  return !!style && /(?:^|;)\s*fill\s*:/i.test(style);
+}
+
 function isAllowedAttribute(name: string, value: string): boolean {
   const lower = name.toLowerCase();
   // Event handlers - the whole reason this allowlist exists.
@@ -103,21 +118,35 @@ function isAllowedAttribute(name: string, value: string): boolean {
   return true;
 }
 
-// Strips everything outside the allowlist from `el` (mutating it) and reports
-// whether anything usable is left. Depth-first and iterating over a snapshot of
-// the children, because removing during a live-collection walk skips siblings.
-function scrubElement(el: Element): void {
+// Strips everything outside the allowlist from `el` (mutating it), and gives
+// text that would otherwise fall back to black an explicit `currentColor`.
+// Depth-first and iterating over a snapshot of the children, because removing
+// during a live-collection walk skips siblings.
+//
+// `inheritsFill` says whether some ancestor inside this drawing already decided
+// a fill. Threading it through the walk is what makes "a specific colour when
+// there's a reason for one" hold: text under a `<g fill="#e11">`, or in a
+// drawing whose root sets a colour, is left exactly as the author wrote it.
+function scrubElement(el: Element, inheritsFill: boolean): void {
   for (const attr of Array.from(el.attributes)) {
     if (!isAllowedAttribute(attr.name, attr.value)) {
       el.removeAttribute(attr.name);
     }
+  }
+  let fillDecided = inheritsFill || declaresFill(el);
+  if (!fillDecided && TEXT_TAGS.has(el.tagName.toLowerCase())) {
+    // Written onto the element itself rather than left to inherit from the
+    // root: a label's colour is the one thing here that has to survive being
+    // read, copied, or re-nested somewhere else.
+    el.setAttribute("fill", "currentColor");
+    fillDecided = true;
   }
   for (const child of Array.from(el.children)) {
     if (!ALLOWED_TAGS.has(child.tagName.toLowerCase())) {
       child.remove();
       continue;
     }
-    scrubElement(child);
+    scrubElement(child, fillDecided);
   }
 }
 
@@ -132,11 +161,23 @@ function scrubElement(el: Element): void {
 export function sanitizeSvgElement(el: Element): string | null {
   if (el.tagName.toLowerCase() !== "svg") return null;
   const clone = el.cloneNode(true) as Element;
-  scrubElement(clone);
+  // Walks before the root default below, so the walk sees the drawing's own
+  // fill decisions rather than one this function just invented.
+  scrubElement(clone, false);
   // Serialized standalone, so it needs the namespace declaration even when the
   // source document supplied it implicitly (an `<svg>` in an HTML document is
   // in the SVG namespace whether or not `xmlns` was written out).
   clone.setAttribute("xmlns", SVG_NAMESPACE);
+  // SVG's initial `fill` is *black*, not `currentColor`, so anything that never
+  // states a colour renders black no matter what the theme says. `scrubElement`
+  // has already given text its own explicit `currentColor`; this covers the
+  // shapes, which can inherit it from here (`fill` is an inherited presentation
+  // attribute, and an element carrying its own still wins - an inherited value
+  // is the lowest-priority source in the cascade). Skipped when the root
+  // already states a colour, so a drawing deliberately based on one keeps it.
+  if (!declaresFill(clone)) {
+    clone.setAttribute("fill", "currentColor");
+  }
   const markup = clone.outerHTML;
   if (!markup || markup.length > MAX_SVG_BYTES) return null;
   return markup;

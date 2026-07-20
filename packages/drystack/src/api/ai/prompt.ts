@@ -67,7 +67,7 @@ export function buildSystemPrompt(args: {
       // this node exists, and the model has to be told - left to itself it
       // reaches for hex fills and a font-family every time.
       rules.push(
-        "SVG được nhúng thẳng vào trang nên kế thừa được theme: dùng fill=\"currentColor\"/stroke=\"currentColor\" cho nét, chữ và các phần đơn sắc thay vì mã màu cố định; chỉ dùng màu cụ thể khi thật sự cần phân biệt các chuỗi dữ liệu, và khi đó dùng vài màu tương phản tốt trên cả nền sáng lẫn nền tối. Không đặt font-family, không thêm <style> hay thuộc tính on*; để chữ thừa hưởng font của trang.",
+        "SVG được nhúng thẳng vào trang nên kế thừa được theme: dùng fill=\"currentColor\"/stroke=\"currentColor\" cho nét, chữ và các phần đơn sắc thay vì mã màu cố định; chỉ dùng màu cụ thể khi thật sự cần phân biệt các chuỗi dữ liệu, và khi đó dùng vài màu tương phản tốt trên cả nền sáng lẫn nền tối. Mọi thẻ <text> phải ghi rõ fill=\"currentColor\" - bỏ trống thì SVG mặc định màu đen và chữ sẽ chìm trên nền tối. Không đặt font-family, không thêm <style> hay thuộc tính on*; để chữ thừa hưởng font của trang.",
       );
     }
     // Only stated when a target actually advertises `table` (see
