@@ -69,6 +69,7 @@ export function computeFieldChanges(
   schema: ObjectField<Record<string, ComponentSchema>>,
   initialState: Record<string, unknown> | null,
   state: Record<string, unknown>,
+  stringFormatter?: Parameters<typeof summarizeContentChange>[1],
 ): FieldChange[] {
   const changes: FieldChange[] = [];
   for (const [key, field] of Object.entries(schema.fields)) {
@@ -83,8 +84,14 @@ export function computeFieldChanges(
         key,
         label,
         kind: "text",
-        before: summarizeContentChange(contentSummaryOf(field, before)),
-        after: summarizeContentChange(contentSummaryOf(field, after)),
+        before: summarizeContentChange(
+          contentSummaryOf(field, before),
+          stringFormatter,
+        ),
+        after: summarizeContentChange(
+          contentSummaryOf(field, after),
+          stringFormatter,
+        ),
         diffBefore: prettifyContentHtml(contentHtmlOf(field, before) ?? ""),
         diffAfter: prettifyContentHtml(contentHtmlOf(field, after) ?? ""),
       });

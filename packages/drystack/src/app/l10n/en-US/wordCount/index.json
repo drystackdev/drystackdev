@@ -1,0 +1,6 @@
+{
+  "key": "wordCount",
+  "value": "{count, plural, one {# word} other {# words}}",
+  "notes": "",
+  "type": "global"
+}

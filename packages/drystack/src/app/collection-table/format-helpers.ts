@@ -1,3 +1,26 @@
+import {
+  LocalizedStringDictionary,
+  LocalizedStringFormatter,
+} from "@internationalized/string";
+import l10nMessages from "../l10n";
+
+type Formatter = {
+  format(key: string, variables?: Record<string, string | number | boolean>): string;
+};
+
+const l10nDictionary = new LocalizedStringDictionary(l10nMessages);
+
+// Non-hook fallback for callers reached from outside a React render (VEI's
+// getPendingChanges, a plain async function) - takes a locale snapshot
+// rather than reacting to changes, which is fine for this one-off summary.
+function getDefaultFormatter(): Formatter {
+  const locale =
+    (typeof document !== "undefined" && document.documentElement.lang) ||
+    (typeof navigator !== "undefined" && navigator.language) ||
+    "en-US";
+  return new LocalizedStringFormatter(locale, l10nDictionary);
+}
+
 export function formatDateValue(value: string): string {
   const date = new Date(value.includes("T") ? value : `${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return value;
@@ -54,16 +77,21 @@ export function countWordsAndChars(plainText: string): {
 // stores its value as a raw string inline, so this accepts either shape.
 export function summarizeContent(
   value: string | { wordCount: number; charCount: number } | undefined | null,
+  stringFormatter: Formatter = getDefaultFormatter(),
 ): string {
   const counts =
     typeof value === "string"
       ? countWordsAndChars(stripHtmlForPreview(value))
       : value;
-  if (!counts || (!counts.wordCount && !counts.charCount)) return "Empty";
+  if (!counts || (!counts.wordCount && !counts.charCount)) {
+    return stringFormatter.format("empty");
+  }
   const { wordCount, charCount } = counts;
   const charLabel =
     charCount >= 1000
-      ? `${(charCount / 1000).toFixed(1)}k characters`
-      : `${charCount} characters`;
-  return `${charLabel} - ${wordCount} word${wordCount === 1 ? "" : "s"}`;
+      ? stringFormatter.format("charCountThousands", {
+          count: (charCount / 1000).toFixed(1),
+        })
+      : stringFormatter.format("charCount", { count: charCount });
+  return `${charLabel} - ${stringFormatter.format("wordCount", { count: wordCount })}`;
 }

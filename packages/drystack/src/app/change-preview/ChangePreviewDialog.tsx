@@ -114,8 +114,9 @@ export function prettifyContentHtml(html: string): string {
 // drop such an edit from the list.
 export function summarizeContentChange(
   value: string | ContentSummary | undefined,
+  stringFormatter?: Parameters<typeof summarizeContent>[1],
 ): string {
-  return summarizeContent(value);
+  return summarizeContent(value, stringFormatter);
 }
 
 // `changes: null` means still loading (VEI reads its list from IndexedDB

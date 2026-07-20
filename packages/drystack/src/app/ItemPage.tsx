@@ -542,6 +542,7 @@ function LocalItemPage(
     draft,
   } = props;
   const { collectionConfig, schema } = useCollection(collection);
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const magicWriteEntry = useMemo(
     () => ({ kind: "collection" as const, key: collection }),
     [collection],
@@ -597,8 +598,9 @@ function LocalItemPage(
   });
 
   const changes = useMemo(
-    () => computeFieldChanges(schema, effectiveInitialState, state),
-    [schema, effectiveInitialState, state],
+    () =>
+      computeFieldChanges(schema, effectiveInitialState, state, stringFormatter),
+    [schema, effectiveInitialState, state, stringFormatter],
   );
 
   const slug = getSlugFromState(collectionConfig, state);

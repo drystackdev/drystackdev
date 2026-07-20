@@ -1,0 +1,6 @@
+{
+  "key": "charCount",
+  "value": "{count, plural, one {# character} other {# characters}}",
+  "notes": "",
+  "type": "global"
+}

@@ -153,6 +153,7 @@ export function ContentSizeCell(props: {
   isClickable?: boolean;
   onOpenPreview?: () => void;
 }) {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const value = props.value as
     | string
     | { wordCount: number; charCount: number }
@@ -171,7 +172,7 @@ export function ContentSizeCell(props: {
   const inner = hasMatch ? (
     <HighlightedSnippet text={props.fullText!} indices={props.matchIndices!} />
   ) : (
-    summarizeContent(value)
+    summarizeContent(value, stringFormatter)
   );
 
   if (!props.isClickable) {

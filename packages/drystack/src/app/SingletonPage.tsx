@@ -417,6 +417,7 @@ function LocalSingletonPage(
   const { singleton, initialFiles, initialState, localTreeKey, config, draft } =
     props;
   const { schema, singletonConfig } = useSingleton(props.singleton);
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const singletonPath = getSingletonPath(config, singleton);
   const singletonRef: EntryRef = useMemo(
     () => ({ type: "singleton", name: singleton }),
@@ -471,8 +472,9 @@ function LocalSingletonPage(
     }) || isCreating;
 
   const changes = useMemo(
-    () => computeFieldChanges(schema, effectiveInitialState, state),
-    [schema, effectiveInitialState, state],
+    () =>
+      computeFieldChanges(schema, effectiveInitialState, state, stringFormatter),
+    [schema, effectiveInitialState, state, stringFormatter],
   );
 
   useEffect(() => {
