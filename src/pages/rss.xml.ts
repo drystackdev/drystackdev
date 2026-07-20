@@ -9,7 +9,7 @@ export async function GET(context: APIContext) {
 	]);
 	const items = [
 		...blogPosts.map((p) => ({ ...p, basePath: "/blog" })),
-		...seoKnowledgePosts.map((p) => ({ ...p, basePath: "/blog-kien-thuc" })),
+		...seoKnowledgePosts.map((p) => ({ ...p, basePath: "/kien-thuc-seo" })),
 	].sort((a, b) => b.date.localeCompare(a.date));
 
 	return rss({

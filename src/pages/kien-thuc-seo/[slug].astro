@@ -15,7 +15,7 @@ export async function getStaticPaths() {
 const posts = await getSeoKnowledgePosts();
 const post = posts.find((p) => p.slug === Astro.params.slug);
 if (!post) {
-	return Astro.redirect("/blog-kien-thuc");
+	return Astro.redirect("/kien-thuc-seo");
 }
 
 const related = posts.filter((p) => p.slug !== post.slug).slice(0, 3);
@@ -38,7 +38,7 @@ const entry = {
 <BlogPostDetail
 	entry={entry}
 	related={related}
-	basePath="/blog-kien-thuc"
+	basePath="/kien-thuc-seo"
 	eyebrowLabel="Kiến thức SEO"
 	backLabel="Tất cả kiến thức SEO"
 />

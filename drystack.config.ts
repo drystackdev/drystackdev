@@ -88,7 +88,7 @@ export default config({
   locale: "vi-VN",
   collections: {
     blog: postCollection("Bài viết", "/blog/{slug}"),
-    seoKnowledge: postCollection("Kiến thức SEO", "/blog-kien-thuc/{slug}"),
+    seoKnowledge: postCollection("Kiến thức SEO", "/kien-thuc-seo/{slug}"),
     services: collection({
       label: "Dịch vụ",
       slugField: "title",
