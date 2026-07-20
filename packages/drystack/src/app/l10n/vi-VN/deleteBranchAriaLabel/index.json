@@ -1,0 +1,6 @@
+{
+  "key": "deleteBranchAriaLabel",
+  "value": "Xoá branch {branch}",
+  "notes": "",
+  "type": "global"
+}

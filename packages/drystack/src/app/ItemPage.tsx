@@ -171,6 +171,7 @@ function ItemPageInner(
   } = props;
   const { collectionConfig, schema } = useCollection(collection);
   const aiEntryDescription = useAiEntryDescription(config, collection);
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   const router = useRouter();
   useScrollToFieldParam();
@@ -285,9 +286,9 @@ function ItemPageInner(
     });
     if (entry) {
       setValueToPreviewProps(entry, props.previewProps);
-      toastQueue.positive("Entry pasted", {
+      toastQueue.positive(stringFormatter.format("entryPastedToast"), {
         shouldCloseOnAction: true,
-        actionLabel: "Undo",
+        actionLabel: stringFormatter.format("undo"),
         onAction: () => {
           setValueToPreviewProps(props.state, props.previewProps);
         },
@@ -395,11 +396,11 @@ function ItemPageInner(
         <DialogContainer onDismiss={() => setPendingRename(null)}>
           {pendingRename && (
             <AlertDialog
-              title="Change entry URL"
+              title={stringFormatter.format("changeEntryUrlTitle")}
               tone="neutral"
-              cancelLabel="Cancel"
-              secondaryActionLabel="Rename without redirect"
-              primaryActionLabel="Create 301 redirect"
+              cancelLabel={stringFormatter.format("cancel")}
+              secondaryActionLabel={stringFormatter.format("renameWithoutRedirect")}
+              primaryActionLabel={stringFormatter.format("create301Redirect")}
               autoFocusButton="primary"
               UNSAFE_style={wideDialogStyle}
               onPrimaryAction={() => {
@@ -415,15 +416,15 @@ function ItemPageInner(
               }}
             >
               <Text>
-                This entry is currently at{" "}
+                {stringFormatter.format("changeUrlBodyIntro")}{" "}
                 <Text elementType="span" UNSAFE_className={codeText}>
                   {pendingRename.from}
                 </Text>
-                . Renaming it will change its URL to{" "}
+                . {stringFormatter.format("changeUrlBodyMiddle")}{" "}
                 <Text elementType="span" UNSAFE_className={codeText}>
                   {pendingRename.to}
                 </Text>{" "}
-                - without a redirect, the old URL will 404.
+                {stringFormatter.format("changeUrlBodyOutro")}
               </Text>
             </AlertDialog>
           )}
@@ -783,29 +784,29 @@ function HeaderActions(props: {
     let items: ActionType[] = [
       {
         key: "delete",
-        label: "Delete entry…", // TODO: l10n
+        label: stringFormatter.format("deleteEntryMenu"),
         icon: trash2Icon,
       },
       {
         key: "copy",
-        label: "Copy entry", // TODO: l10n
+        label: stringFormatter.format("copyEntry"),
         icon: clipboardCopyIcon,
       },
       {
         key: "paste",
-        label: "Paste entry", // TODO: l10n
+        label: stringFormatter.format("pasteEntry"),
         icon: clipboardPasteIcon,
       },
       {
         key: "duplicate",
-        label: "Duplicate entry…", // TODO: l10n
+        label: stringFormatter.format("duplicateEntryMenu"),
         icon: copyPlusIcon,
       },
     ];
     if (previewHref) {
       items.push({
         key: "preview",
-        label: "Preview",
+        label: stringFormatter.format("preview"),
         icon: externalLinkIcon,
         href: previewHref,
         target: "_blank",
@@ -815,7 +816,7 @@ function HeaderActions(props: {
     if (viewHref) {
       items.push({
         key: "view",
-        label: "View on GitHub",
+        label: stringFormatter.format("viewOnGithub"),
         icon: githubIcon,
         href: viewHref,
         target: "_blank",
@@ -824,13 +825,13 @@ function HeaderActions(props: {
     }
 
     return items;
-  }, [previewHref, viewHref]);
+  }, [previewHref, viewHref, stringFormatter]);
 
   const indicatorElement = (() => {
     if (isLoading) {
       return (
         <ProgressCircle
-          aria-label="Saving changes"
+          aria-label={stringFormatter.format("savingChanges")}
           isIndeterminate
           size="small"
           alignSelf="center"
@@ -843,7 +844,7 @@ function HeaderActions(props: {
         <button
           type="button"
           onClick={onOpenReview}
-          aria-label="Review changes"
+          aria-label={stringFormatter.format("reviewChanges")}
           style={{
             all: "unset",
             display: "inline-flex",
@@ -948,14 +949,14 @@ function HeaderActions(props: {
       <DialogContainer onDismiss={() => setDuplicateAlertOpen(false)}>
         {duplicateAlertIsOpen && (
           <AlertDialog
-            title="Save and duplicate entry"
+            title={stringFormatter.format("saveAndDuplicateTitle")}
             tone="neutral"
-            cancelLabel="Cancel"
-            primaryActionLabel="Save and duplicate"
+            cancelLabel={stringFormatter.format("cancel")}
+            primaryActionLabel={stringFormatter.format("saveAndDuplicateAction")}
             autoFocusButton="primary"
             onPrimaryAction={onDuplicate}
           >
-            You have unsaved changes. Save this entry to duplicate it.
+            {stringFormatter.format("saveAndDuplicateBody")}
           </AlertDialog>
         )}
       </DialogContainer>
@@ -978,6 +979,7 @@ function DeleteEntryDialog(props: {
 }) {
   const [target, setTarget] = useState<"none" | "parent" | "entry">("none");
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   const redirect = (() => {
     if (!props.itemUrl) return undefined;
@@ -993,28 +995,28 @@ function DeleteEntryDialog(props: {
 
   return (
     <AlertDialog
-      title="Delete entry"
+      title={stringFormatter.format("deleteEntryDialogTitle")}
       tone="critical"
-      cancelLabel="Cancel"
-      primaryActionLabel="Yes, delete"
+      cancelLabel={stringFormatter.format("cancel")}
+      primaryActionLabel={stringFormatter.format("yesDeleteAction")}
       isPrimaryActionDisabled={target === "entry" && !selectedSlug}
       autoFocusButton="cancel"
       UNSAFE_style={wideDialogStyle}
       onPrimaryAction={() => props.onDelete(redirect)}
     >
       <Flex direction="column" gap="large">
-        <Text>Are you sure? This action cannot be undone.</Text>
+        <Text>{stringFormatter.format("deleteEntryConfirmBody")}</Text>
         {props.itemUrl && (
           <RadioGroup
-            label="After deleting, the old URL should"
+            label={stringFormatter.format("afterDeletingLabel")}
             value={target}
             onChange={(value) => setTarget(value as typeof target)}
           >
-            <Radio value="none">Return a 404 (no redirect)</Radio>
+            <Radio value="none">{stringFormatter.format("return404Radio")}</Radio>
             {props.parentUrl && (
               <Radio value="parent">
                 <Text>
-                  301 redirect to the listing page (
+                  {stringFormatter.format("redirectToListingPagePrefix")}
                   <Text elementType="span" UNSAFE_className={codeText}>
                     {props.parentUrl}
                   </Text>
@@ -1022,12 +1024,14 @@ function DeleteEntryDialog(props: {
                 </Text>
               </Radio>
             )}
-            <Radio value="entry">301 redirect to another entry</Radio>
+            <Radio value="entry">
+              {stringFormatter.format("redirectToAnotherEntryRadio")}
+            </Radio>
           </RadioGroup>
         )}
         {props.itemUrl && target === "entry" && (
           <Combobox
-            aria-label="Target entry"
+            aria-label={stringFormatter.format("targetEntryLabel")}
             defaultItems={props.otherSlugs.map((slug) => ({ slug }))}
             selectedKey={selectedSlug}
             onSelectionChange={(key) =>
@@ -1104,7 +1108,7 @@ export function CreateBranchDuringUpdateDialog(props: {
             <TextField
               value={branchName}
               onChange={setBranchName}
-              label="Branch name"
+              label={stringFormatter.format("branchNameLabel")}
               description={props.reason}
               autoFocus
               errorMessage={prettyErrorForCreateBranchMutation(error)}
@@ -1117,7 +1121,7 @@ export function CreateBranchDuringUpdateDialog(props: {
             {stringFormatter.format("cancel")}
           </Button>
           <Button isPending={isLoading} prominence="high" type="submit">
-            Create branch and save
+            {stringFormatter.format("createBranchAndSave")}
           </Button>
         </ButtonGroup>
       </form>
@@ -1133,6 +1137,7 @@ type ItemPageWrapperProps = {
 };
 
 function ItemPageOuterWrapper(props: ItemPageWrapperProps) {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const collectionConfig = props.config.collections?.[props.collection];
   if (!collectionConfig) notFound();
   const format = useMemo(
@@ -1199,7 +1204,7 @@ function ItemPageOuterWrapper(props: ItemPageWrapperProps) {
       fallback={
         <ItemPageShell {...props}>
           <PageBody>
-            <Notice tone="caution">Entry not found.</Notice>
+            <Notice tone="caution">{stringFormatter.format("entryNotFound")}</Notice>
           </PageBody>
         </ItemPageShell>
       }
@@ -1240,7 +1245,7 @@ function ItemPageOuterWrapper(props: ItemPageWrapperProps) {
                 minHeight="scale.3000"
               >
                 <ProgressCircle
-                  aria-label="Loading Item"
+                  aria-label={stringFormatter.format("loadingItem")}
                   isIndeterminate
                   size="large"
                 />

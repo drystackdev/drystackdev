@@ -1,3 +1,5 @@
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "./l10n";
 import { useRouter } from "./router";
 import { useScrollToFieldParam } from "./useScrollToFieldParam";
 import {
@@ -107,6 +109,7 @@ function SingletonPageInner(
     useConfig(),
     props.singleton,
   );
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   const router = useRouter();
   useScrollToFieldParam();
@@ -146,19 +149,19 @@ function SingletonPageInner(
     }[] = [
       {
         key: "copy",
-        label: "Copy entry",
+        label: stringFormatter.format("copyEntry"),
         icon: clipboardCopyIcon,
       },
       {
         key: "paste",
-        label: "Paste entry",
+        label: stringFormatter.format("pasteEntry"),
         icon: clipboardPasteIcon,
       },
     ];
     if (previewHref) {
       actions.push({
         key: "preview",
-        label: "Preview",
+        label: stringFormatter.format("preview"),
         icon: externalLinkIcon,
         href: previewHref,
         target: "_blank",
@@ -168,7 +171,7 @@ function SingletonPageInner(
     if (viewHref) {
       actions.push({
         key: "view",
-        label: "View on GitHub",
+        label: stringFormatter.format("viewOnGithub"),
         icon: githubIcon,
         href: viewHref,
         target: "_blank",
@@ -176,7 +179,7 @@ function SingletonPageInner(
       });
     }
     return actions;
-  }, [previewHref, viewHref]);
+  }, [previewHref, viewHref, stringFormatter]);
 
   const formID = "singleton-form";
 
@@ -215,9 +218,9 @@ function SingletonPageInner(
     );
     if (entry) {
       setValueToPreviewProps(entry, props.previewProps);
-      toastQueue.positive("Entry pasted", {
+      toastQueue.positive(stringFormatter.format("entryPastedToast"), {
         shouldCloseOnAction: true,
-        actionLabel: "Undo",
+        actionLabel: stringFormatter.format("undo"),
         onAction: () => {
           setValueToPreviewProps(props.state, props.previewProps);
         },
@@ -247,7 +250,9 @@ function SingletonPageInner(
             </Heading>
             {props.updateResult.kind === "loading" ? (
               <ProgressCircle
-                aria-label={`Updating ${singletonConfig.label}`}
+                aria-label={stringFormatter.format("updatingEntity", {
+                  label: singletonConfig.label,
+                })}
                 isIndeterminate
                 size="small"
                 alignSelf="center"
@@ -257,7 +262,7 @@ function SingletonPageInner(
                 <button
                   type="button"
                   onClick={() => setReviewOpen(true)}
-                  aria-label="Review changes"
+                  aria-label={stringFormatter.format("reviewChanges")}
                   style={{
                     all: "unset",
                     display: "inline-flex",
@@ -603,6 +608,7 @@ const storedValSchema = s.type({
 });
 
 function SingletonPageWrapper(props: { singleton: string; config: Config }) {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const singletonConfig = props.config.singletons?.[props.singleton];
   if (!singletonConfig) notFound();
   const header = (
@@ -685,7 +691,9 @@ function SingletonPageWrapper(props: { singleton: string; config: Config }) {
             minHeight="scale.3000"
           >
             <ProgressCircle
-              aria-label={`Loading ${singletonConfig.label}`}
+              aria-label={stringFormatter.format("loadingEntity", {
+                label: singletonConfig.label,
+              })}
               isIndeterminate
               size="large"
             />

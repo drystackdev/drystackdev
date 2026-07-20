@@ -63,6 +63,7 @@ function CreateItemWrapper(props: {
   basePath: string;
 }) {
   const router = useRouter();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const duplicateSlug = useMemo(() => {
     const url = new URL(router.href, 'http://localhost');
     return url.searchParams.get('duplicate');
@@ -159,7 +160,7 @@ function CreateItemWrapper(props: {
     return (
       <Flex alignItems="center" justifyContent="center" minHeight="scale.3000">
         <ProgressCircle
-          aria-label="Loading Item"
+          aria-label={stringFormatter.format('loadingItem')}
           isIndeterminate
           size="large"
         />
@@ -362,7 +363,9 @@ function CreateItemInner(props: {
     if (await props.createItem()) {
       const slug = getSlugFromState(collectionConfig, props.state);
       router.push(`${collectionPath}/item/${encodeURIComponent(slug)}`);
-      toastQueue.positive('Entry created', { timeout: 5000 }); // TODO: l10n
+      toastQueue.positive(stringFormatter.format('entryCreatedToast'), {
+        timeout: 5000,
+      });
     }
   };
 
@@ -380,9 +383,9 @@ function CreateItemInner(props: {
     });
     if (entry) {
       setValueToPreviewProps(entry, props.previewProps);
-      toastQueue.positive('Entry pasted', {
+      toastQueue.positive(stringFormatter.format('entryPastedToast'), {
         shouldCloseOnAction: true,
-        actionLabel: 'Undo',
+        actionLabel: stringFormatter.format('undo'),
         onAction: () => {
           setValueToPreviewProps(props.state, props.previewProps);
         },
@@ -429,7 +432,7 @@ function CreateItemInner(props: {
           <HeaderBreadcrumbs items={breadcrumbItems} />
           {isLoading && (
             <ProgressCircle
-              aria-label="Creating entry"
+              aria-label={stringFormatter.format('creatingEntry')}
               isIndeterminate
               size="small"
             />

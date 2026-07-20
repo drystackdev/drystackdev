@@ -1,0 +1,6 @@
+{
+  "key": "deleteBranchConfirmBodyPrefix",
+  "value": "Any changes not yet deployed on",
+  "notes": "",
+  "type": "global"
+}

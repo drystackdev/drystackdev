@@ -1,0 +1,6 @@
+{
+  "key": "changeUrlBodyOutro",
+  "value": "- without a redirect, the old URL will 404.",
+  "notes": "",
+  "type": "global"
+}

@@ -1,4 +1,6 @@
 import { useMemo, useRef, useState } from "react";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "../l10n";
 import { PressResponder } from "@react-aria/interactions";
 import { useOverlayTrigger } from "@react-aria/overlays";
 import { useOverlayTriggerState } from "@react-stately/overlays";
@@ -28,6 +30,7 @@ import { truncateToastMessage } from "../toast-message";
 import { getBranchPrefix } from "../utils";
 
 export function CurrentBrandChip() {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const brand = useCurrentBrand();
   const branches = useBranches();
   const repoInfo = useRepoInfo();
@@ -121,7 +124,7 @@ export function CurrentBrandChip() {
   const confirmDelete = async (branchName: string) => {
     const branchInfo = branches.get(branchName);
     if (!branchInfo) {
-      toastQueue.critical("Không tìm thấy branch");
+      toastQueue.critical(stringFormatter.format("branchNotFoundToast"));
       return;
     }
     const result = await deleteBranch({ refId: branchInfo.id });
@@ -129,7 +132,9 @@ export function CurrentBrandChip() {
       toastQueue.critical(truncateToastMessage(result.error.message));
       return;
     }
-    toastQueue.positive("Đã xoá branch", { timeout: 2000 });
+    toastQueue.positive(stringFormatter.format("branchDeletedToast"), {
+      timeout: 2000,
+    });
     setPendingDelete(null);
   };
 
@@ -139,7 +144,7 @@ export function CurrentBrandChip() {
         <ActionButton
           ref={triggerRef}
           isDisabled={!brand || brandBranches.length === 0}
-          aria-label="Chọn branch"
+          aria-label={stringFormatter.format("chooseBranchAriaLabel")}
           flex
           minWidth={0}
           UNSAFE_className={css({ justifyContent: "space-between" })}
@@ -226,12 +231,12 @@ export function CurrentBrandChip() {
                   </Text>
                   <Text trim={false} truncate size="small" color="neutralTertiary">
                     {branch.isDefault
-                      ? "Nhánh chính"
+                      ? stringFormatter.format("mainBranchLabel")
                       : branch.owner
                         ? branch.owner === viewer?.login
-                          ? "Của bạn"
+                          ? stringFormatter.format("yourBranchLabel")
                           : branch.owner
-                        : "Chưa có thay đổi"}
+                        : stringFormatter.format("noChangesYetLabel")}
                   </Text>
                 </VStack>
               </button>
@@ -239,12 +244,14 @@ export function CurrentBrandChip() {
                 <TooltipTrigger>
                   <ActionButton
                     prominence="low"
-                    aria-label={`Xoá branch ${brandRefDisplayLabel(branch.name, branchPrefix)}`}
+                    aria-label={stringFormatter.format("deleteBranchAriaLabel", {
+                      branch: brandRefDisplayLabel(branch.name, branchPrefix),
+                    })}
                     onPress={() => setPendingDelete(branch.name)}
                   >
                     <Icon src={trashIcon} />
                   </ActionButton>
-                  <Tooltip>Xoá branch</Tooltip>
+                  <Tooltip>{stringFormatter.format("deleteBranchTooltip")}</Tooltip>
                 </TooltipTrigger>
               )}
             </HStack>
@@ -255,17 +262,17 @@ export function CurrentBrandChip() {
       <DialogContainer onDismiss={() => setPendingDelete(null)}>
         {pendingDelete && (
           <AlertDialog
-            title="Xoá branch?"
+            title={stringFormatter.format("deleteBranchConfirmTitle")}
             tone="critical"
-            cancelLabel="Hủy"
-            primaryActionLabel="Xoá"
+            cancelLabel={stringFormatter.format("cancel")}
+            primaryActionLabel={stringFormatter.format("deleteBranchAction")}
             autoFocusButton="cancel"
             onPrimaryAction={() => confirmDelete(pendingDelete)}
           >
             <Text>
-              Mọi thay đổi chưa deploy trên{" "}
+              {stringFormatter.format("deleteBranchConfirmBodyPrefix")}{" "}
               <strong>{brandRefDisplayLabel(pendingDelete, branchPrefix)}</strong>{" "}
-              sẽ mất vĩnh viễn.
+              {stringFormatter.format("deleteBranchConfirmBodySuffix")}
             </Text>
           </AlertDialog>
         )}
@@ -274,18 +281,14 @@ export function CurrentBrandChip() {
       <DialogContainer onDismiss={() => setPendingMainSwitch(false)}>
         {pendingMainSwitch && (
           <AlertDialog
-            title="Chuyển sang nhánh main?"
+            title={stringFormatter.format("switchToMainTitle")}
             tone="neutral"
-            cancelLabel="Hủy"
-            primaryActionLabel="Chuyển sang main"
+            cancelLabel={stringFormatter.format("cancel")}
+            primaryActionLabel={stringFormatter.format("switchToMainAction")}
             autoFocusButton="cancel"
             onPrimaryAction={confirmSwitchToMain}
           >
-            <Text>
-              Mọi thay đổi trên main sẽ lưu và deploy trực tiếp lên
-              production, không qua bước gộp nhánh (brand) như thông thường.
-              Bạn có chắc chắn?
-            </Text>
+            <Text>{stringFormatter.format("switchToMainBody")}</Text>
           </AlertDialog>
         )}
       </DialogContainer>

@@ -1,0 +1,6 @@
+{
+  "key": "changeUrlBodyOutro",
+  "value": "- nếu không chuyển hướng, URL cũ sẽ báo lỗi 404.",
+  "notes": "",
+  "type": "global"
+}

@@ -1,0 +1,6 @@
+{
+  "key": "resetEntryDataBody",
+  "value": "Dữ liệu đã lưu của mục này không còn khớp với schema hiện tại nên không thể tải được. Đặt lại sẽ xóa mọi trường về giá trị mặc định để có thể mở và chỉnh sửa lại mục - URL vẫn giữ nguyên, nhưng dữ liệu đã lưu trước đó không thể khôi phục theo cách này. Không thể hoàn tác.",
+  "notes": "",
+  "type": "global"
+}

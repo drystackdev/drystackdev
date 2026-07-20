@@ -1,0 +1,6 @@
+{
+  "key": "resetEntryDataBody",
+  "value": "This entry's saved data no longer matches its current schema and can't be loaded. Resetting clears every field back to its default value so the entry can be opened and edited again - it keeps the same URL, but none of what's already saved in it can be recovered this way. This can't be undone.",
+  "notes": "",
+  "type": "global"
+}

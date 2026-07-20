@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "./l10n";
 
 import { AlertDialog, DialogContainer } from "@keystar/ui/dialog";
 import { Button } from "@keystar/ui/button";
@@ -51,6 +53,7 @@ export function ResetEntryDataButton(props: {
   });
 
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   return (
     <>
@@ -59,7 +62,7 @@ export function ResetEntryDataButton(props: {
         isPending={updateResult.kind === "loading"}
         onPress={() => setConfirmOpen(true)}
       >
-        Reset entry data
+        {stringFormatter.format("resetEntryDataButton")}
       </Button>
       {updateResult.kind === "error" && (
         <Notice tone="critical">{updateResult.error.message}</Notice>
@@ -67,23 +70,17 @@ export function ResetEntryDataButton(props: {
       <DialogContainer onDismiss={() => setConfirmOpen(false)}>
         {confirmOpen && (
           <AlertDialog
-            title="Reset entry data"
+            title={stringFormatter.format("resetEntryDataButton")}
             tone="critical"
-            cancelLabel="Cancel"
-            primaryActionLabel="Reset"
+            cancelLabel={stringFormatter.format("cancel")}
+            primaryActionLabel={stringFormatter.format("resetAction")}
             autoFocusButton="cancel"
             onPrimaryAction={async () => {
               setConfirmOpen(false);
               if (await update()) props.onReset();
             }}
           >
-            <Text>
-              This entry's saved data no longer matches its current schema and
-              can't be loaded. Resetting clears every field back to its default
-              value so the entry can be opened and edited again - it keeps the
-              same URL, but none of what's already saved in it can be recovered
-              this way. This can't be undone.
-            </Text>
+            <Text>{stringFormatter.format("resetEntryDataBody")}</Text>
           </AlertDialog>
         )}
       </DialogContainer>

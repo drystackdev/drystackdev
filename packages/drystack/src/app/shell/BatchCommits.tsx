@@ -1,5 +1,7 @@
 import { LoadingState, Selection } from '@react-types/shared';
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useLocalizedStringFormatter } from '@react-aria/i18n';
+import l10nMessages from '../l10n';
 
 import { Badge } from '@keystar/ui/badge';
 import { ActionButton, Button, ButtonGroup } from '@keystar/ui/button';
@@ -33,7 +35,6 @@ import { Config } from '../../config';
 
 import { BranchPicker } from '../branch-selection';
 import { useRouter } from '../router';
-import { pluralize } from '../pluralize';
 
 import { useAppState, useConfig } from './context';
 import { useChanged, useCurrentBranch, useTree } from './data';
@@ -58,11 +59,12 @@ type Change = { href: string; slug: string; type: ChangeType };
 
 export function BatchCommits() {
   let [isOpen, toggleOpen] = useReducer(bool => !bool, false);
+  let stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   return (
     <>
       <ActionButton onPress={toggleOpen}>
-        <Text>Commit changes…</Text>
+        <Text>{stringFormatter.format('commitChangesButton')}</Text>
       </ActionButton>
       <DialogContainer onDismiss={toggleOpen}>
         {isOpen && <BatchCommitsDialog />}
@@ -81,6 +83,7 @@ function BatchCommitsDialog() {
 
   let dialogRef = useRef<HTMLDivElement>(null);
   let headingRef = useRef<HTMLHeadingElement>(null);
+  let stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   const { items, loadingState } = useChangedItems();
   const selection = useListSelection(items);
@@ -106,10 +109,16 @@ function BatchCommitsDialog() {
   ]);
 
   return (
-    <Dialog size="large" ref={dialogRef} aria-label="Review changes">
+    <Dialog
+      size="large"
+      ref={dialogRef}
+      aria-label={stringFormatter.format('reviewChanges')}
+    >
       {!isBelowTablet && (
         <>
-          <Heading ref={headingRef}>Review changes</Heading>
+          <Heading ref={headingRef}>
+            {stringFormatter.format('reviewChanges')}
+          </Heading>
           <Header>
             <BranchPicker />
           </Header>
@@ -136,12 +145,16 @@ function BatchCommitsDialog() {
           })}
         >
           <Text weight="medium">
-            <Text visuallyHidden>Select </Text>
-            {pluralize(items.length, { singular: 'change', plural: 'changes' })}
+            <Text visuallyHidden>
+              {stringFormatter.format('selectVisuallyHidden')}
+            </Text>
+            {stringFormatter.format('changeCount', { count: items.length })}
           </Text>
         </Checkbox>
         <ListView
-          aria-label={`Changes to "${currentBranch}" branch.`}
+          aria-label={stringFormatter.format('changesToBranch', {
+            branch: currentBranch,
+          })}
           density="compact"
           items={items}
           selectionMode="multiple"
@@ -162,7 +175,7 @@ function BatchCommitsDialog() {
                 strokeScaling={false}
               />
               <Text color="neutralSecondary" size="medium">
-                No changes to commit
+                {stringFormatter.format('noChangesToCommit')}
               </Text>
             </VStack>
           )}
@@ -192,26 +205,29 @@ function BatchCommitsDialog() {
                 <ChangeTypeIndicator type={item.type} />
               </HStack>
               <TooltipTrigger>
-                <ActionButton aria-label="Revert." marginStart="regular">
+                <ActionButton
+                  aria-label={stringFormatter.format('revertAction')}
+                  marginStart="regular"
+                >
                   <Icon src={undoIcon} />
                 </ActionButton>
-                <Tooltip>Revert changes to item</Tooltip>
+                <Tooltip>{stringFormatter.format('revertItemTooltip')}</Tooltip>
               </TooltipTrigger>
             </Item>
           )}
         </ListView>
       </Content>
       <ButtonGroup>
-        <Button onPress={dismiss}>Cancel</Button>
+        <Button onPress={dismiss}>{stringFormatter.format('cancel')}</Button>
         <TooltipTrigger isDisabled={!selection.isEmpty}>
           <Button
             onPress={dismiss}
             prominence="high"
             isDisabled={selection.isEmpty}
           >
-            Commit
+            {stringFormatter.format('commitAction')}
           </Button>
-          <Tooltip>Select files to commit.</Tooltip>
+          <Tooltip>{stringFormatter.format('selectFilesToCommitTooltip')}</Tooltip>
         </TooltipTrigger>
       </ButtonGroup>
     </Dialog>

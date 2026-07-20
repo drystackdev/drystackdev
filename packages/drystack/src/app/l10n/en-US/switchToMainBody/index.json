@@ -1,0 +1,6 @@
+{
+  "key": "switchToMainBody",
+  "value": "Changes on main are saved and deployed straight to production, skipping the usual branch (brand) merge step. Are you sure?",
+  "notes": "",
+  "type": "global"
+}

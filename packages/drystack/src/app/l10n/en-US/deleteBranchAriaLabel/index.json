@@ -1,0 +1,6 @@
+{
+  "key": "deleteBranchAriaLabel",
+  "value": "Delete branch {branch}",
+  "notes": "",
+  "type": "global"
+}

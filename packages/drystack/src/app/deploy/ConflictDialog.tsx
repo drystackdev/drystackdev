@@ -1,5 +1,7 @@
 import { useState } from "react";
 import type { Key } from "@react-types/shared";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "../l10n";
 
 import { ActionGroup } from "@keystar/ui/action-group";
 import { Badge } from "@keystar/ui/badge";
@@ -29,6 +31,7 @@ export function ConflictDialog(props: {
   const [selected, setSelected] = useState<Key | null>(
     props.files[0]?.path ?? null,
   );
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   const totalHunks = props.files.reduce((n, f) => n + f.choices.length, 0);
   const resolvedHunks = props.files.reduce(
@@ -38,12 +41,12 @@ export function ConflictDialog(props: {
   const allResolved = totalHunks > 0 && resolvedHunks === totalHunks;
 
   return (
-    <Dialog aria-label="Giải quyết xung đột trước khi deploy">
-      <Heading>Giải quyết xung đột trước khi deploy</Heading>
+    <Dialog aria-label={stringFormatter.format("conflictResolveTitle")}>
+      <Heading>{stringFormatter.format("conflictResolveTitle")}</Heading>
       <Content>
         <Flex direction="column" height="100%" gap="regular">
           <Tabs
-            aria-label="File xung đột"
+            aria-label={stringFormatter.format("conflictFilesAriaLabel")}
             selectedKey={selected}
             onSelectionChange={setSelected}
             flex
@@ -85,15 +88,18 @@ export function ConflictDialog(props: {
       </Content>
       <ButtonGroup>
         <Text color="neutralSecondary" marginEnd="auto">
-          Đã giải quyết {resolvedHunks}/{totalHunks}
+          {stringFormatter.format("conflictResolvedCount", {
+            resolved: resolvedHunks,
+            total: totalHunks,
+          })}
         </Text>
-        <Button onPress={props.onCancel}>Huỷ</Button>
+        <Button onPress={props.onCancel}>{stringFormatter.format("cancel")}</Button>
         <Button
           prominence="high"
           isDisabled={!allResolved}
           onPress={props.onSubmit}
         >
-          Hoàn tất &amp; Deploy
+          {stringFormatter.format("completeAndDeployAction")}
         </Button>
       </ButtonGroup>
     </Dialog>
@@ -111,6 +117,7 @@ function FileHunks(props: {
   file: ConflictFileState;
   onChoice: (hunkIndex: number, choice: "ours" | "theirs") => void;
 }) {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   let conflictIndex = -1;
   return (
     <Flex direction="column" gap="regular" padding="large">
@@ -138,7 +145,9 @@ function FileHunks(props: {
             padding="regular"
           >
             <ActionGroup
-              aria-label={`Chọn phiên bản cho xung đột #${hunkIndex + 1}`}
+              aria-label={stringFormatter.format("chooseVersionForConflict", {
+                n: hunkIndex + 1,
+              })}
               selectionMode="single"
               selectedKeys={choice ? [choice] : []}
               onSelectionChange={(keys) => {
@@ -148,8 +157,8 @@ function FileHunks(props: {
                 }
               }}
             >
-              <Item key="ours">Brand (của bạn)</Item>
-              <Item key="theirs">Main (hiện tại)</Item>
+              <Item key="ours">{stringFormatter.format("brandYoursLabel")}</Item>
+              <Item key="theirs">{stringFormatter.format("mainCurrentLabel")}</Item>
             </ActionGroup>
             <Grid columns="1fr 1fr" gap="regular">
               <Flex direction="column" gap="xsmall">
@@ -158,10 +167,10 @@ function FileHunks(props: {
                   weight="semibold"
                   color={choice === "ours" ? "positive" : "neutralTertiary"}
                 >
-                  Brand
+                  {stringFormatter.format("brandLabel")}
                 </Text>
                 <Text UNSAFE_className={codeBlock}>
-                  {hunk.ours.join("") || "(trống - file bị xoá)"}
+                  {hunk.ours.join("") || stringFormatter.format("emptyFileDeleted")}
                 </Text>
               </Flex>
               <Flex direction="column" gap="xsmall">
@@ -170,10 +179,10 @@ function FileHunks(props: {
                   weight="semibold"
                   color={choice === "theirs" ? "positive" : "neutralTertiary"}
                 >
-                  Main
+                  {stringFormatter.format("mainLabel")}
                 </Text>
                 <Text UNSAFE_className={codeBlock}>
-                  {hunk.theirs.join("") || "(trống - file bị xoá)"}
+                  {hunk.theirs.join("") || stringFormatter.format("emptyFileDeleted")}
                 </Text>
               </Flex>
             </Grid>

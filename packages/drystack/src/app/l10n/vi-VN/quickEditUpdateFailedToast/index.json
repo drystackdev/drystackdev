@@ -1,0 +1,6 @@
+{
+  "key": "quickEditUpdateFailedToast",
+  "value": "Không thể cập nhật {field} - hãy mở mục để sửa trực tiếp.",
+  "notes": "",
+  "type": "global"
+}

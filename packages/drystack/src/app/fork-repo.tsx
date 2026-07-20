@@ -75,7 +75,7 @@ export function ForkRepoDialog(props: {
         props.onDismiss();
       }}
     >
-      <Heading>Fork Repo</Heading>
+      <Heading>{stringFormatter.format('forkRepoTitle')}</Heading>
       {state.kind === 'error' ? (
         <>
           <Content>
@@ -91,12 +91,9 @@ export function ForkRepoDialog(props: {
         <>
           <Content>
             <Flex gap="large" direction="column" marginBottom="large">
+              <Text>{stringFormatter.format('forkRepoIntro')}</Text>
               <Text>
-                You don't have permission to write to this repo so to save your
-                changes, you need to fork the repo.
-              </Text>
-              <Text>
-                To start,{' '}
+                {stringFormatter.format('forkRepoStepIntro')}{' '}
                 <TextLink
                   href={`https://github.com/${serializeRepoConfig(
                     props.config.storage.repo
@@ -104,15 +101,15 @@ export function ForkRepoDialog(props: {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  fork the repo on GitHub
+                  {stringFormatter.format('forkRepoForkLink')}
                 </TextLink>
-                . Then, come back to this page and{' '}
+                {stringFormatter.format('forkRepoStepMiddle')}{' '}
                 <TextLink
                   href={`https://github.com/apps/${appSlug?.value}/installations/new?state=close`}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  install the drystack GitHub App on your fork.
+                  {stringFormatter.format('forkRepoInstallLink')}
                 </TextLink>
               </Text>
             </Flex>

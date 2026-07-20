@@ -72,34 +72,34 @@ export function ImagePopover(props: {
             <ToggleButton
               prominence="low"
               isSelected={align === "left"}
-              aria-label="Float left"
+              aria-label={stringFormatter.format("imageFloatLeft")}
               onPress={() => toggleAlign("left")}
             >
               <Icon src={alignLeftIcon} />
             </ToggleButton>
-            <Tooltip>Float left</Tooltip>
+            <Tooltip>{stringFormatter.format("imageFloatLeft")}</Tooltip>
           </TooltipTrigger>
           <TooltipTrigger>
             <ToggleButton
               prominence="low"
               isSelected={align === "center"}
-              aria-label="Center"
+              aria-label={stringFormatter.format("imageCenter")}
               onPress={() => toggleAlign("center")}
             >
               <Icon src={alignCenterIcon} />
             </ToggleButton>
-            <Tooltip>Center</Tooltip>
+            <Tooltip>{stringFormatter.format("imageCenter")}</Tooltip>
           </TooltipTrigger>
           <TooltipTrigger>
             <ToggleButton
               prominence="low"
               isSelected={align === "right"}
-              aria-label="Float right"
+              aria-label={stringFormatter.format("imageFloatRight")}
               onPress={() => toggleAlign("right")}
             >
               <Icon src={alignRightIcon} />
             </ToggleButton>
-            <Tooltip>Float right</Tooltip>
+            <Tooltip>{stringFormatter.format("imageFloatRight")}</Tooltip>
           </TooltipTrigger>
         </Flex>
         <Divider orientation="vertical" />
@@ -109,7 +109,7 @@ export function ImagePopover(props: {
               <ToggleButton
                 prominence="low"
                 isSelected={lockAspectRatio}
-                aria-label="Lock aspect ratio"
+                aria-label={stringFormatter.format("imageLockAspectRatio")}
                 onPress={() => {
                   runCommand((state, dispatch) => {
                     if (dispatch) {
@@ -127,7 +127,7 @@ export function ImagePopover(props: {
               >
                 <Icon src={lockAspectRatio ? link2Icon : link2OffIcon} />
               </ToggleButton>
-              <Tooltip>Lock aspect ratio</Tooltip>
+              <Tooltip>{stringFormatter.format("imageLockAspectRatio")}</Tooltip>
             </TooltipTrigger>
           )}
           <TooltipTrigger>
@@ -188,7 +188,7 @@ export function ImagePopover(props: {
             >
               <Icon src={fileUpIcon} />
             </ActionButton>
-            <Tooltip>Choose from library</Tooltip>
+            <Tooltip>{stringFormatter.format("imageChooseFromLibrary")}</Tooltip>
           </TooltipTrigger>
           <CaptionButton
             caption={props.node.attrs.caption}
@@ -219,7 +219,7 @@ export function ImagePopover(props: {
           >
             <Icon src={trash2Icon} />
           </ActionButton>
-          <Tooltip tone="critical">Remove</Tooltip>
+          <Tooltip tone="critical">{stringFormatter.format("remove")}</Tooltip>
         </TooltipTrigger>
       </Flex>
       <DialogContainer
@@ -382,18 +382,18 @@ function ImageDialog(props: {
           }
         }}
       >
-        <Heading>Image details</Heading>
+        <Heading>{stringFormatter.format("imageDetailsTitle")}</Heading>
         <Content>
           <Flex gap="large" direction="column">
             <TextField
-              label="File name"
+              label={stringFormatter.format("imageFileNameLabel")}
               onChange={setFileName}
               onBlur={() => setFileNameTouched(true)}
               value={fileName}
               isRequired
               errorMessage={
                 (fileNameTouched || forceValidation) && !fileName
-                  ? "Please provide a file name."
+                  ? stringFormatter.format("imageFileNameRequired")
                   : undefined
               }
               endElement={
@@ -411,7 +411,7 @@ function ImageDialog(props: {
             {props.showLayoutFields && (
               <Flex gap="regular" alignItems="end">
                 <NumberField
-                  label="Width (px)"
+                  label={stringFormatter.format("imageWidthLabel")}
                   minValue={MIN_SIZE}
                   step={1}
                   hideStepper
@@ -419,7 +419,7 @@ function ImageDialog(props: {
                   onChange={onWidthField}
                 />
                 <NumberField
-                  label="Height (px)"
+                  label={stringFormatter.format("imageHeightLabel")}
                   minValue={MIN_SIZE}
                   step={1}
                   hideStepper
@@ -430,12 +430,12 @@ function ImageDialog(props: {
                   <ToggleButton
                     prominence="low"
                     isSelected={lockAspectRatio}
-                    aria-label="Lock aspect ratio"
+                    aria-label={stringFormatter.format("imageLockAspectRatio")}
                     onPress={onLockToggle}
                   >
                     <Icon src={lockAspectRatio ? link2Icon : link2OffIcon} />
                   </ToggleButton>
-                  <Tooltip>Lock aspect ratio</Tooltip>
+                  <Tooltip>{stringFormatter.format("imageLockAspectRatio")}</Tooltip>
                 </TooltipTrigger>
               </Flex>
             )}

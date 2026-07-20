@@ -62,6 +62,16 @@ export function buildSystemPrompt(args: {
         "Với field cho phép thẻ <svg>: có thể vẽ biểu đồ/sơ đồ minh hoạ đơn giản bằng <svg> tự chứa - khai báo đủ viewBox, width, height, có thể thêm <title> mô tả ngắn; không tham chiếu ảnh/font/script bên ngoài. Chỉ dùng khi thực sự cần minh hoạ dữ liệu, đừng lạm dụng.",
       );
     }
+    // Only stated when a target actually advertises `table` (see
+    // content/index.tsx's allowedHtmlTags, gated on config.table) - a field
+    // with tables turned off never lists the tag and shouldn't be told it can.
+    if (
+      targets.some((t) => t.kind === "content" && t.htmlTags?.includes("table"))
+    ) {
+      rules.push(
+        "Với field cho phép thẻ <table>: chỉ dùng bảng cho dữ liệu thực sự dạng bảng (so sánh, thông số kỹ thuật, bảng giá). Phải đủ cấu trúc: <table> gồm <thead> chứa một <tr> với các ô tiêu đề <th>, rồi <tbody> chứa các <tr> với các ô <td>; mọi hàng phải cùng số cột. Mỗi ô chỉ chứa văn bản ngắn (có thể kèm mark inline được phép như <strong>, <em>, <a>), không lồng bảng hay khối phức tạp bên trong ô. Không dùng bảng để dàn trang, và đừng lạm dụng.",
+      );
+    }
   }
   if (seedKeys.length) {
     rules.push(

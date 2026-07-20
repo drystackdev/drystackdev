@@ -1,0 +1,6 @@
+{
+  "key": "conflictResolvedCount",
+  "value": "Resolved {resolved}/{total}",
+  "notes": "",
+  "type": "global"
+}

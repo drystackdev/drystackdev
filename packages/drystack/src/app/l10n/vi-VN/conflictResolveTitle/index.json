@@ -1,0 +1,6 @@
+{
+  "key": "conflictResolveTitle",
+  "value": "Giải quyết xung đột trước khi deploy",
+  "notes": "",
+  "type": "global"
+}

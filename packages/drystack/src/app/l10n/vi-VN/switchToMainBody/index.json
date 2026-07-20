@@ -1,0 +1,6 @@
+{
+  "key": "switchToMainBody",
+  "value": "Mọi thay đổi trên main sẽ lưu và deploy trực tiếp lên production, không qua bước gộp nhánh (brand) như thông thường. Bạn có chắc chắn?",
+  "notes": "",
+  "type": "global"
+}

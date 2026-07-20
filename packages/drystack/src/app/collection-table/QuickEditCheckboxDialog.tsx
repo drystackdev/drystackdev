@@ -1,4 +1,6 @@
 import { useMemo } from "react";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "../l10n";
 import { AlertDialog } from "@keystar/ui/dialog";
 import { ProgressCircle } from "@keystar/ui/progress";
 import { Flex } from "@keystar/ui/layout";
@@ -31,6 +33,7 @@ export function QuickEditCheckboxDialog(props: {
   onDone: () => void;
 }) {
   const { config, collectionKey, schema, slugField, edit } = props;
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const dirpath = getCollectionItemPath(config, collectionKey, edit.itemSlug);
 
   // `format` and `slug` must keep a stable identity across renders: they feed
@@ -78,18 +81,26 @@ export function QuickEditCheckboxDialog(props: {
 
   return (
     <AlertDialog
-      title={`Update ${edit.fieldLabel}`}
-      cancelLabel="Cancel"
-      primaryActionLabel="Confirm"
+      title={stringFormatter.format("quickEditUpdateTitle", {
+        field: edit.fieldLabel,
+      })}
+      cancelLabel={stringFormatter.format("cancel")}
+      primaryActionLabel={stringFormatter.format("confirm")}
       isPrimaryActionDisabled={!state || updateResult.kind === "loading"}
       onCancel={props.onDone}
       onPrimaryAction={async () => {
         const ok = await onUpdate();
         if (ok) {
-          toastQueue.positive(`${edit.fieldLabel} updated`);
+          toastQueue.positive(
+            stringFormatter.format("quickEditUpdatedToast", {
+              field: edit.fieldLabel,
+            }),
+          );
         } else {
           toastQueue.critical(
-            `Could not update ${edit.fieldLabel} - open the item to edit it directly.`,
+            stringFormatter.format("quickEditUpdateFailedToast", {
+              field: edit.fieldLabel,
+            }),
           );
         }
         props.onDone();
@@ -97,19 +108,29 @@ export function QuickEditCheckboxDialog(props: {
     >
       <Flex direction="column" gap="regular">
         <Text>
-          Set <Text weight="medium">{edit.fieldLabel}</Text> to{" "}
-          <Text weight="medium">{edit.nextValue ? "On" : "Off"}</Text> for “
-          {edit.itemSlug}”?
+          {stringFormatter.format("quickEditBodySet")}{" "}
+          <Text weight="medium">{edit.fieldLabel}</Text>{" "}
+          {stringFormatter.format("quickEditBodyTo")}{" "}
+          <Text weight="medium">
+            {edit.nextValue
+              ? stringFormatter.format("onLabel")
+              : stringFormatter.format("offLabel")}
+          </Text>{" "}
+          {stringFormatter.format("quickEditBodyForSlug", {
+            slug: edit.itemSlug,
+          })}
         </Text>
         {!state && (
           <ProgressCircle
-            aria-label="Loading entry"
+            aria-label={stringFormatter.format("loadingEntry")}
             isIndeterminate
             size="small"
           />
         )}
         {itemData.kind === "loaded" && itemData.data === "not-found" && (
-          <Text color="critical">Entry could not be found.</Text>
+          <Text color="critical">
+            {stringFormatter.format("entryCouldNotBeFound")}
+          </Text>
         )}
       </Flex>
     </AlertDialog>

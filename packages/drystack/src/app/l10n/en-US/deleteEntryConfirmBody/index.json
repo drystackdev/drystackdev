@@ -1,0 +1,6 @@
+{
+  "key": "deleteEntryConfirmBody",
+  "value": "Are you sure? This action cannot be undone.",
+  "notes": "",
+  "type": "global"
+}

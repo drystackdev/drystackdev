@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "../l10n";
 
 import { ActionButton, Button, ButtonGroup } from "@keystar/ui/button";
 import { Dialog, DialogContainer } from "@keystar/ui/dialog";
@@ -35,6 +37,7 @@ import { getBranchPrefix } from "../utils";
 // only the suffix is editable, the branch-prefix stays fixed since
 // CurrentBrandChip/ensureBrand rely on every brand ref starting with it.
 export function NewBranchButton() {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const config = useConfig() as GitHubConfig;
   const repoInfo = useRepoInfo();
   const branches = useBranches();
@@ -74,20 +77,22 @@ export function NewBranchButton() {
     setIsOpen(false);
     setRecord(record);
     push(`${basePath}/branch/${encodeURIComponent(record.ref)}`);
-    toastQueue.positive("Đã tạo branch mới", { timeout: 2000 });
+    toastQueue.positive(stringFormatter.format("branchCreatedToast"), {
+      timeout: 2000,
+    });
   };
 
   return (
     <>
       <TooltipTrigger>
         <ActionButton
-          aria-label="Tạo branch mới"
+          aria-label={stringFormatter.format("createNewBranchAction")}
           isDisabled={!repoInfo || !viewer}
           onPress={openDialog}
         >
           <Icon src={plusIcon} />
         </ActionButton>
-        <Tooltip>Tạo branch mới</Tooltip>
+        <Tooltip>{stringFormatter.format("createNewBranchAction")}</Tooltip>
       </TooltipTrigger>
 
       <DialogContainer onDismiss={() => setIsOpen(false)}>
@@ -101,10 +106,10 @@ export function NewBranchButton() {
                 void onCreate();
               }}
             >
-              <Heading>Tạo branch mới</Heading>
+              <Heading>{stringFormatter.format("createNewBranchAction")}</Heading>
               <Content>
                 <TextField
-                  label="Tên branch"
+                  label={stringFormatter.format("branchNameLabel")}
                   value={suffix}
                   onChange={setSuffix}
                   autoFocus

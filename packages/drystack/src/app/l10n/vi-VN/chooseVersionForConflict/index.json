@@ -1,0 +1,6 @@
+{
+  "key": "chooseVersionForConflict",
+  "value": "Chọn phiên bản cho xung đột #{n}",
+  "notes": "",
+  "type": "global"
+}

@@ -37,6 +37,28 @@ test("states each content field's length on its own line", () => {
   );
 });
 
+test("states the table-structure rule when a content field advertises tables", () => {
+  // `body`/`summary` are plain content fields, so table support is on by
+  // default (see editorOptionsToConfig) and the tags are advertised.
+  const prompt = system({ body: "medium", summary: "short" });
+  expect(prompt).toContain("Với field cho phép thẻ <table>");
+});
+
+test("omits the table rule when every content field turns tables off", () => {
+  const noTableTargets = describeFields({
+    body: fields.content({ label: "Nội dung", options: { table: false } }),
+  });
+  const prompt = buildSystemPrompt({
+    lang: "vi-VN",
+    entryDescription: "bài viết blog",
+    targets: noTableTargets,
+    sizes: { body: "medium" },
+  });
+  expect(prompt).not.toContain("Với field cho phép thẻ <table>");
+  // the field is still a content field - just one whose tag list has no table
+  expect(prompt).toContain("chỉ dùng các thẻ:");
+});
+
 test("does not put a length on a field that is not content", () => {
   const prompt = system({ body: "medium" });
   const titleLine = prompt

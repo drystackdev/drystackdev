@@ -1,0 +1,6 @@
+{
+  "key": "quickEditUpdateFailedToast",
+  "value": "Could not update {field} - open the item to edit it directly.",
+  "notes": "",
+  "type": "global"
+}

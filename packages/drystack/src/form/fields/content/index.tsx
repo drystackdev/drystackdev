@@ -57,6 +57,7 @@ function allowedHtmlTags(config: EditorConfig): string[] {
   if (config.unorderedList) tags.push("ul");
   if (config.orderedList) tags.push("ol");
   if (config.unorderedList || config.orderedList) tags.push("li");
+  if (config.table) tags.push("table", "thead", "tbody", "tr", "th", "td");
   if (config.strikethrough) tags.push("s");
   if (config.code) tags.push("code");
   if (config.fontSize || config.textColor) tags.push("span");
