@@ -125,8 +125,10 @@ const { hero, intro } = gioiThieu;
   }
 
   /* The <strong> arrives via set:html (raw HTML from brand.name), so it
-     carries no Astro scope attribute - hence :global(). */
-  :global(.about__card h3 strong) {
+     carries no Astro scope attribute - which is why this block is is:global.
+     Don't wrap the selector in :global(): inside an is:global block Astro
+     passes it through untransformed and the browser drops the whole rule. */
+  .about__card h3 strong {
     font-style: normal;
     font-weight: inherit;
     color: var(--secondary);

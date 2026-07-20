@@ -254,8 +254,10 @@ const socialIcons = {
   }
 
   /* The <strong> arrives via set:html (raw HTML from brand.name), so it
-     carries no Astro scope attribute - hence :global(). */
-  :global(.brand__name strong) {
+     carries no Astro scope attribute - which is why this block is is:global.
+     Don't wrap the selector in :global(): inside an is:global block Astro
+     passes it through untransformed and the browser drops the whole rule. */
+  .footer-brand .brand__name strong {
     font-style: normal;
     font-weight: inherit;
     color: var(--primary);
@@ -301,7 +303,7 @@ const socialIcons = {
     font-size: 0.9rem;
   }
 
-  .footer-col__contact :global(.icon) {
+  .footer-col__contact .icon {
     color: var(--primary-light);
     flex-shrink: 0;
   }

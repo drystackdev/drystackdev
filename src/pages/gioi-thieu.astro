@@ -251,8 +251,10 @@ const breadcrumbSchema = {
 
   /* Nhãn thương hiệu đè lên góc dưới bên phải của ảnh - the <strong> inside
      arrives via set:html (raw HTML from brand.name), so it carries no Astro
-     scope attribute, hence :global(). */
-  :global(.portrait-badge) {
+     scope attribute - which is why this block is is:global. Don't wrap the
+     selector in :global(): inside an is:global block Astro passes it through
+     untransformed and the browser drops the whole rule. */
+  .portrait-badge {
     position: absolute;
     right: -0.85rem;
     bottom: 2.4rem;
@@ -272,7 +274,7 @@ const breadcrumbSchema = {
     backdrop-filter: blur(6px);
   }
 
-  :global(.portrait-badge strong) {
+  .portrait-badge strong {
     font-style: normal;
     font-weight: inherit;
     color: var(--primary-light);

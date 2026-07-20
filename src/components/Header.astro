@@ -176,8 +176,10 @@ const links = headerNav.map((n, i) => ({
   }
 
   /* The <strong> arrives via set:html (raw HTML from brand.name), so it
-     carries no Astro scope attribute - hence :global(). */
-  :global(.brand__name strong) {
+     carries no Astro scope attribute - which is why this block is is:global.
+     Don't wrap the selector in :global(): inside an is:global block Astro
+     passes it through untransformed and the browser drops the whole rule. */
+  .site-header .brand__name strong {
     font-style: normal;
     font-weight: inherit;
     color: var(--primary);
@@ -316,7 +318,8 @@ const links = headerNav.map((n, i) => ({
       padding-inline: 1.1rem;
     }
 
-    :global(.brand__name) {
+    /* Footer reuses the .brand__name class, so keep this header-only. */
+    .site-header .brand__name {
       font-size: 1.05rem;
     }
   }
