@@ -14,6 +14,7 @@ import { readToDirEntries, getAllowedDirectories } from './read-local';
 import { blobSha } from '../app/trees';
 import { base64UrlDecode } from '#base64';
 import { exchangeGitHubAppManifestCode } from './github-app-manifest';
+import { isDemoConfig } from '../app/storage-mode';
 
 const { randomBytes } = realCrypto;
 
@@ -157,6 +158,15 @@ async function update(
     req.headers.get('content-type') !== 'application/json'
   ) {
     return { status: 400, body: 'Bad Request' };
+  }
+  // Demo mode's only client-side gate is a toast (app/demo-guard.ts) shown
+  // before the fetch is ever issued - it never reaches here through the
+  // admin UI. But this route can still be reachable directly (a raw HTTP
+  // request, or `astro dev` which always keeps the on-demand route live
+  // regardless of storage.demo - see the astro integration's isDemoBuild
+  // comment), so the write itself must refuse here too, not just upstream.
+  if (isDemoConfig(config)) {
+    return { status: 403, body: 'Writes are disabled in demo mode' };
   }
   const isFilepathValid = getIsPathValid(config);
   const filepath = s.refine(s.string(), 'filepath', isFilepathValid);

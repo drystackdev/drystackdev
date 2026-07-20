@@ -250,8 +250,16 @@ const DRYSTACK_CONFIG_CANDIDATES = [
 // the config file directly. That only works when the process running `astro
 // build` can execute the file's extension itself (this repo runs everything
 // through Bun, which transpiles .ts on import; a plain Node run without a
-// loader would throw). Any failure here - file not found, import throws -
-// just falls back to the normal on-demand route, never breaks the build.
+// loader would throw).
+//
+// Any failure here - file not found, import throws - falls back to the
+// normal on-demand route UNLESS PUBLIC_DEMO=true was explicitly passed to
+// this build: that's an operator asking for a locked-down, browser-only
+// public demo (see app/storage-mode.ts's isDemoConfig + app/demo-guard.ts),
+// and silently shipping a real filesystem-writable /api/drystack server
+// instead - because this one detection import happened to throw - would be
+// a fail-open security regression, not a graceful degrade. So that specific
+// combination throws and fails the build instead of swallowing the error.
 async function isDemoBuild(root: URL): Promise<boolean> {
   const rootPath = fileURLToPath(root);
   for (const candidate of DRYSTACK_CONFIG_CANDIDATES) {
@@ -261,7 +269,12 @@ async function isDemoBuild(root: URL): Promise<boolean> {
       const mod = await import(pathToFileURL(full).href);
       const storage = mod.default?.storage;
       return storage?.kind === "local" && storage?.demo === true;
-    } catch {
+    } catch (err) {
+      if (process.env.PUBLIC_DEMO === "true") {
+        throw new Error(
+          `PUBLIC_DEMO=true but ${candidate} could not be evaluated to confirm demo mode, so the build cannot decide between a static demo and a real on-demand server - refusing to silently fall back to a writable API. Original error: ${(err as Error).message}`
+        );
+      }
       return false;
     }
   }
