@@ -7,6 +7,7 @@ import { css, keyframes } from "@keystar/ui/style";
 import type { ReactElement } from "react";
 
 import { useLatestBuildStatus } from "../build-status";
+import { useLocalizedString } from "../shell/i18n";
 
 const spin = keyframes({
   from: { transform: "rotate(0deg)" },
@@ -32,9 +33,7 @@ export const toneColor: Record<
 
 // Shared read of "what's Cloudflare doing right now" - both the admin sidebar
 // row and the VEI pill's compact indicator render off the same event, they
-// just differ in how much of the label they show at once. English labels:
-// this is a system/status string, not site content - see CLAUDE.md language
-// convention (deploy toasts elsewhere stay Vietnamese; this doesn't).
+// just differ in how much of the label they show at once.
 export function useCloudflareStatusView(): {
   icon: ReactElement;
   tone: Tone;
@@ -44,14 +43,15 @@ export function useCloudflareStatusView(): {
   hasEvent: boolean;
 } {
   const { event } = useLatestBuildStatus();
+  const stringFormatter = useLocalizedString();
 
   if (!event) {
     return {
       icon: cloudIcon,
       tone: "neutral",
       spinning: false,
-      shortLabel: "No build",
-      fullLabel: "No build info yet",
+      shortLabel: stringFormatter.format("cfStatusNoBuildShort"),
+      fullLabel: stringFormatter.format("cfStatusNoBuildFull"),
       hasEvent: false,
     };
   }
@@ -63,8 +63,8 @@ export function useCloudflareStatusView(): {
         icon: loader2Icon,
         tone: "notice",
         spinning: true,
-        shortLabel: "Building",
-        fullLabel: "Building on Cloudflare…",
+        shortLabel: stringFormatter.format("cfStatusBuildingShort"),
+        fullLabel: stringFormatter.format("cfStatusBuildingFull"),
       };
     case "succeeded":
       return {
@@ -72,8 +72,8 @@ export function useCloudflareStatusView(): {
         icon: checkCircle2Icon,
         tone: "positive",
         spinning: false,
-        shortLabel: "Success",
-        fullLabel: "Build succeeded",
+        shortLabel: stringFormatter.format("cfStatusSuccessShort"),
+        fullLabel: stringFormatter.format("cfStatusSuccessFull"),
       };
     case "failed":
       return {
@@ -81,8 +81,8 @@ export function useCloudflareStatusView(): {
         icon: alertCircleIcon,
         tone: "critical",
         spinning: false,
-        shortLabel: "Failed",
-        fullLabel: "Build failed",
+        shortLabel: stringFormatter.format("cfStatusFailedShort"),
+        fullLabel: stringFormatter.format("cfStatusFailedFull"),
       };
     case "canceled":
       return {
@@ -90,8 +90,8 @@ export function useCloudflareStatusView(): {
         icon: alertCircleIcon,
         tone: "critical",
         spinning: false,
-        shortLabel: "Canceled",
-        fullLabel: "Build canceled",
+        shortLabel: stringFormatter.format("cfStatusCanceledShort"),
+        fullLabel: stringFormatter.format("cfStatusCanceledFull"),
       };
   }
 }

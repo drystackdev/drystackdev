@@ -1,0 +1,6 @@
+{
+  "key": "veiDeployRepoTooLarge",
+  "value": "Repo quá lớn để deploy từ trình sửa trực tiếp - hãy deploy từ trang admin.",
+  "notes": "",
+  "type": "global"
+}

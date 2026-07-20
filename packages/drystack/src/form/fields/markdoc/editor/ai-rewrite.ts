@@ -14,7 +14,10 @@ type AiRewriteState =
   | { kind: "inactive" }
   | { kind: "active"; decorations: DecorationSet };
 
-type AiRewriteTrMeta = { action: "add"; from: number; to: number } | { action: "remove" };
+type AiRewriteTrMeta =
+  | { action: "add-range"; from: number; to: number }
+  | { action: "add-point"; pos: number }
+  | { action: "remove" };
 
 const key = new PluginKey<AiRewriteState>("ai-rewrite");
 
@@ -31,11 +34,32 @@ export function setAiRewriteRange(
   from: number,
   to: number,
 ): Transaction {
-  return tr.setMeta(key, { action: "add", from, to } satisfies AiRewriteTrMeta);
+  return tr.setMeta(key, {
+    action: "add-range",
+    from,
+    to,
+  } satisfies AiRewriteTrMeta);
 }
 
 export function clearAiRewriteRange(tr: Transaction): Transaction {
   return tr.setMeta(key, { action: "remove" } satisfies AiRewriteTrMeta);
+}
+
+/**
+ * Marks the point where AI-generated content will land once ready - the
+ * magic-write "insert" flow's equivalent of a rewrite range. Tracked through
+ * the same plugin (so it survives whatever the user types while the request
+ * is in flight) but as a widget, not a zero-width inline decoration: inline
+ * decorations require `from < to` (`InlineType.valid`/`.map` both drop
+ * anything narrower, even across a transaction that never touches the doc),
+ * so a point has nothing to be. A widget's `map` only drops on deletion.
+ */
+export function setAiInsertPoint(tr: Transaction, pos: number): Transaction {
+  return tr.setMeta(key, { action: "add-point", pos } satisfies AiRewriteTrMeta);
+}
+
+export function getAiInsertPoint(state: EditorState): number | undefined {
+  return getAiRewriteRange(state)?.from;
 }
 
 /**
@@ -61,7 +85,7 @@ export function aiRewriteDecoration(): Plugin<AiRewriteState> {
       init: () => inactive,
       apply(tr, value): AiRewriteState {
         const meta = tr.getMeta(key) as AiRewriteTrMeta | undefined;
-        if (meta?.action === "add") {
+        if (meta?.action === "add-range") {
           const deco = Decoration.inline(
             meta.from,
             meta.to,
@@ -70,6 +94,16 @@ export function aiRewriteDecoration(): Plugin<AiRewriteState> {
             // passage the user picked - so the range must not swallow it.
             { inclusiveStart: false, inclusiveEnd: false },
           );
+          return { kind: "active", decorations: DecorationSet.create(tr.doc, [deco]) };
+        }
+        if (meta?.action === "add-point") {
+          // No visible marker - a widget with no width renders nothing.
+          // `side: -1` keeps it glued to the content before it, so text typed
+          // right at the point lands after the marker instead of splitting it
+          // off to whichever side the browser's caret happened to bias.
+          const deco = Decoration.widget(meta.pos, () => document.createElement("span"), {
+            side: -1,
+          });
           return { kind: "active", decorations: DecorationSet.create(tr.doc, [deco]) };
         }
         if (value.kind === "inactive") return value;

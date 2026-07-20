@@ -16,6 +16,9 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Config } from "@drystack/core";
 import { toastQueue } from "@keystar/ui/toast";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import type { LocalizedStringFormatter } from "@internationalized/string";
+import l10nMessages from "@drystack/core/l10n";
 import { classifyChanges, merge3Text } from "@drystack/core/deploy-merge";
 import { fetchMergeBase } from "@drystack/core/deploy-merge-base";
 import {
@@ -60,20 +63,19 @@ async function fetchTreeEntries(
   owner: string,
   name: string,
   treeSha: string,
+  sf: LocalizedStringFormatter<string, any>,
 ): Promise<Map<string, TreeEntry>> {
   const res = await ghFetch(
     token,
     `/repos/${owner}/${name}/git/trees/${treeSha}?recursive=1`,
   );
-  if (!res.ok) throw new Error("Không đọc được cây file từ GitHub.");
+  if (!res.ok) throw new Error(sf.format("veiDeployTreeReadFailed"));
   const json = (await res.json()) as {
     truncated?: boolean;
     tree?: Array<{ path: string; mode: string; type: string; sha: string }>;
   };
   if (json.truncated) {
-    throw new Error(
-      "Repo quá lớn để deploy từ trình sửa trực tiếp - hãy deploy từ trang admin.",
-    );
+    throw new Error(sf.format("veiDeployRepoTooLarge"));
   }
   const entries = new Map<string, TreeEntry>();
   for (const it of json.tree ?? []) {
@@ -92,9 +94,10 @@ async function fetchBlobBytes(
   owner: string,
   name: string,
   sha: string,
+  sf: LocalizedStringFormatter<string, any>,
 ): Promise<Uint8Array> {
   const res = await ghFetch(token, `/repos/${owner}/${name}/git/blobs/${sha}`);
-  if (!res.ok) throw new Error("Không đọc được nội dung file từ GitHub.");
+  if (!res.ok) throw new Error(sf.format("veiDeployBlobReadFailed"));
   const json = (await res.json()) as { content: string };
   return decodeBase64ToBytes(json.content);
 }
@@ -104,10 +107,11 @@ async function readTextIfPresent(
   owner: string,
   name: string,
   entry: TreeEntry | undefined,
+  sf: LocalizedStringFormatter<string, any>,
 ): Promise<string> {
   if (!entry) return "";
   return textDecoder.decode(
-    await fetchBlobBytes(token, owner, name, entry.sha),
+    await fetchBlobBytes(token, owner, name, entry.sha, sf),
   );
 }
 
@@ -196,19 +200,19 @@ export type DeployOutcome =
 async function runDeploy(
   config: Config<any, any>,
   setLabel: (label: string) => void,
+  sf: LocalizedStringFormatter<string, any>,
 ): Promise<DeployOutcome> {
   const token = await getGithubTokenWithRefresh(config);
-  if (!token) throw new Error("Chưa đăng nhập GitHub.");
+  if (!token) throw new Error(sf.format("veiDeployNotSignedIn"));
   const storage = config.storage as {
     repo: string | { owner: string; name: string };
   };
   const brand = await readBrandRecord(config as any);
-  if (!brand)
-    throw new Error("Chưa có brand để deploy - mở admin để khởi tạo.");
+  if (!brand) throw new Error(sf.format("veiDeployNoBrand"));
   const { owner, name } = parseRepo(storage.repo);
 
   async function attempt(): Promise<DeployOutcome | "retry"> {
-    setLabel("Đang tải thay đổi…");
+    setLabel(sf.format("veiDeployLoadingChanges"));
     const data = await githubGraphQL(token!, RefsQuery, {
       owner,
       name,
@@ -219,18 +223,16 @@ async function runDeploy(
     const mainRef = repo?.defaultBranchRef;
     const brandRefNode = repo?.brand;
     if (!repo?.id || !mainRef?.target?.oid || !mainRef?.target?.tree?.oid) {
-      throw new Error("Không tìm thấy nhánh mặc định.");
+      throw new Error(sf.format("veiDeployDefaultBranchNotFound"));
     }
     if (
       !brandRefNode?.id ||
       !brandRefNode?.target?.oid ||
       !brandRefNode?.target?.tree?.oid
     ) {
-      throw new Error(
-        "Brand hiện tại không còn tồn tại - vui lòng tải lại trang.",
-      );
+      throw new Error(sf.format("veiDeployBrandGone"));
     }
-    if (!login) throw new Error("Không xác định được người dùng GitHub.");
+    if (!login) throw new Error(sf.format("veiDeployUserUnknown"));
 
     const defaultBranchName: string = mainRef.name;
     const mainCommit: string = mainRef.target.oid;
@@ -259,9 +261,9 @@ async function runDeploy(
     );
 
     const [baseEntries, oursEntries, theirsEntries] = await Promise.all([
-      fetchTreeEntries(token!, owner, name, mergeBase.treeSha),
-      fetchTreeEntries(token!, owner, name, brandTree),
-      fetchTreeEntries(token!, owner, name, mainTree),
+      fetchTreeEntries(token!, owner, name, mergeBase.treeSha, sf),
+      fetchTreeEntries(token!, owner, name, brandTree, sf),
+      fetchTreeEntries(token!, owner, name, mainTree, sf),
     ]);
 
     const cls = classifyChanges(baseEntries, oursEntries, theirsEntries);
@@ -271,24 +273,24 @@ async function runDeploy(
       path,
     }));
 
-    setLabel("Đang tải nội dung thay đổi…");
+    setLabel(sf.format("veiDeployLoadingContent"));
     await Promise.all(
       cls.takeOursAdditions.map(async (path) => {
         const entry = oursEntries.get(path)!;
         additions.push({
           path,
-          contents: await fetchBlobBytes(token!, owner, name, entry.sha),
+          contents: await fetchBlobBytes(token!, owner, name, entry.sha, sf),
         });
       }),
     );
 
     if (cls.conflictEligible.length > 0) {
-      setLabel("Đang kiểm tra xung đột…");
+      setLabel(sf.format("veiDeployCheckingConflicts"));
       for (const path of cls.conflictEligible) {
         const [baseText, oursText, theirsText] = await Promise.all([
-          readTextIfPresent(token!, owner, name, baseEntries.get(path)),
-          readTextIfPresent(token!, owner, name, oursEntries.get(path)),
-          readTextIfPresent(token!, owner, name, theirsEntries.get(path)),
+          readTextIfPresent(token!, owner, name, baseEntries.get(path), sf),
+          readTextIfPresent(token!, owner, name, oursEntries.get(path), sf),
+          readTextIfPresent(token!, owner, name, theirsEntries.get(path), sf),
         ]);
         const merged = merge3Text(oursText, baseText, theirsText);
         if (merged.kind === "conflict") {
@@ -308,7 +310,7 @@ async function runDeploy(
       return { status: "nothing" };
     }
 
-    setLabel("Đang deploy…");
+    setLabel(sf.format("veiDeployInProgress"));
     let commitData;
     try {
       commitData = await githubGraphQL(token!, CreateCommitMutation, {
@@ -338,7 +340,7 @@ async function runDeploy(
     const newCommitOid: string | undefined =
       commitData?.createCommitOnBranch?.ref?.target?.oid;
     if (!newCommitOid) {
-      throw new Error("Deploy thất bại - không nhận được commit mới.");
+      throw new Error(sf.format("veiDeployNoCommitReturned"));
     }
 
     // Clean up the merged brand branch. Best-effort - the deploy commit has
@@ -363,7 +365,7 @@ async function runDeploy(
     const result = await attempt();
     if (result !== "retry") return result;
   }
-  throw new Error("Nhánh mặc định thay đổi liên tục - vui lòng thử lại.");
+  throw new Error(sf.format("veiDeployBranchMoving"));
 }
 
 export type VeiDeployState =
@@ -375,6 +377,7 @@ export type VeiDeployState =
 // covers the merge itself - Cloudflare build progress is a separate concern,
 // shown by the toolbar's own status icon (useLatestBuildStatus).
 export function useVeiDeploy(config: Config<any, any>) {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const isGithub = config.storage.kind === "github";
   const [brand, setBrand] = useState<BrandRecord | null>(null);
   const [state, setState] = useState<VeiDeployState>({ kind: "idle" });
@@ -425,16 +428,23 @@ export function useVeiDeploy(config: Config<any, any>) {
 
   const deploy = useCallback(async () => {
     if (!isGithub || state.kind !== "idle") return;
-    setState({ kind: "loading", label: "Đang tải thay đổi…" });
+    setState({
+      kind: "loading",
+      label: stringFormatter.format("veiDeployLoadingChanges"),
+    });
     let outcome: DeployOutcome;
     try {
-      outcome = await runDeploy(config, (label) =>
-        setState({ kind: "loading", label }),
+      outcome = await runDeploy(
+        config,
+        (label) => setState({ kind: "loading", label }),
+        stringFormatter,
       );
     } catch (err) {
       setState({ kind: "idle" });
       toastQueue.critical(
-        err instanceof Error ? err.message : "Deploy thất bại.",
+        err instanceof Error
+          ? err.message
+          : stringFormatter.format("veiDeployFailed"),
         {
           timeout: 6000,
         },
@@ -444,15 +454,16 @@ export function useVeiDeploy(config: Config<any, any>) {
 
     if (outcome.status === "conflict") {
       setState({ kind: "idle" });
-      toastQueue.info(
-        "Có xung đột giữa brand và nhánh chính - hãy mở admin để xử lý và deploy.",
-        { timeout: 8000 },
-      );
+      toastQueue.info(stringFormatter.format("veiDeployConflictNotice"), {
+        timeout: 8000,
+      });
       return;
     }
     if (outcome.status === "nothing") {
       setState({ kind: "idle" });
-      toastQueue.info("Không có thay đổi nào để deploy.", { timeout: 4000 });
+      toastQueue.info(stringFormatter.format("veiDeployNothingToDeploy"), {
+        timeout: 4000,
+      });
       return;
     }
 
@@ -461,16 +472,16 @@ export function useVeiDeploy(config: Config<any, any>) {
     // takes over showing what Cloudflare does with it.
     setBrand(null);
     setState({ kind: "idle" });
-    toastQueue.positive(
-      "Đã gộp vào main - theo dõi build ở biểu tượng Cloudflare",
-      {
-        timeout: 4000,
-      },
-    );
-  }, [config, isGithub, state.kind]);
+    toastQueue.positive(stringFormatter.format("veiDeployMergedSuccess"), {
+      timeout: 4000,
+    });
+  }, [config, isGithub, state.kind, stringFormatter]);
 
   const isBusy = state.kind !== "idle";
-  const label = state.kind === "idle" ? "Deploy" : state.label;
+  const label =
+    state.kind === "idle"
+      ? stringFormatter.format("veiDeployIdleLabel")
+      : state.label;
 
   return {
     brand,

@@ -1,0 +1,6 @@
+{
+  "key": "veiDeployRepoTooLarge",
+  "value": "Repo is too large to deploy from the live editor - deploy from the admin page instead.",
+  "notes": "",
+  "type": "global"
+}

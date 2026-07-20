@@ -1,0 +1,6 @@
+{
+  "key": "veiReadTreeFailed",
+  "value": "Could not read the current file tree",
+  "notes": "",
+  "type": "global"
+}

@@ -1,0 +1,6 @@
+{
+  "key": "veiBranchProtected",
+  "value": "\"{branch}\" is a protected branch - changes must go through a pull request.",
+  "notes": "",
+  "type": "global"
+}

@@ -20,7 +20,7 @@ import {
   type EditBusMessage,
   type EntryRef,
 } from "./store";
-import { getCurrentBranchName, getLatestFieldValues } from "./save";
+import { getCurrentBranchName, getLatestFieldValues, getStringFormatter } from "./save";
 
 const BUILD_VERSION_KEY = "buildVersion";
 
@@ -1123,8 +1123,9 @@ export async function refreshFromLatestSource(
   // entry shares the same token/branch, one failure means all would have
   // failed anyway, so skipping the whole refresh here is equivalent.
   let branch: string | undefined;
+  const sf = getStringFormatter();
   try {
-    branch = await getCurrentBranchName(config);
+    branch = await getCurrentBranchName(config, sf);
   } catch {
     return;
   }
@@ -1138,6 +1139,7 @@ export async function refreshFromLatestSource(
           ref,
           branch,
           fieldsByEntry.get(key),
+          sf,
         );
       } catch {
         return;

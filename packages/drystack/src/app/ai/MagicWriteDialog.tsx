@@ -52,7 +52,13 @@ export function MagicWriteDialog(props: {
   /** when set, the dialog writes only this field and skips the field table */
   singleFieldKey?: string;
   onDismiss: () => void;
-  onGenerate: (request: MagicWriteRequest) => void;
+  /**
+   * `replaceAll` only means anything for a single content field (see
+   * `showSingleSize` below) - every other caller (the field table, a
+   * non-content single field) gets `true`, matching the only thing they've
+   * ever done: hand the value back for a full field replace.
+   */
+  onGenerate: (request: MagicWriteRequest, replaceAll: boolean) => void;
 }) {
   const { schema, state, singleFieldKey } = props;
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
@@ -67,6 +73,9 @@ export function MagicWriteDialog(props: {
     new Set(),
   );
   const [description, setDescription] = useState("");
+  // Single-field content mode only (see showSingleSize) - whole-entry/table
+  // generation always replaces, the same as this being permanently true.
+  const [replaceAll, setReplaceAll] = useState(false);
 
   const fillSpecs = specs.filter((s) => selection[s.key] === "fill");
 
@@ -97,13 +106,16 @@ export function MagicWriteDialog(props: {
       }
     }
 
-    props.onGenerate({
-      targets: fillSpecs.map((s) => s.key),
-      context,
-      description,
-      sizes: requestSizes,
-      seeds,
-    });
+    props.onGenerate(
+      {
+        targets: fillSpecs.map((s) => s.key),
+        context,
+        description,
+        sizes: requestSizes,
+        seeds,
+      },
+      showSingleSize ? replaceAll : true,
+    );
   };
 
   // Single-field mode has no table, so anything the table would have offered
@@ -112,9 +124,6 @@ export function MagicWriteDialog(props: {
     ? specs.find((s) => s.key === singleFieldKey)
     : undefined;
   const showSingleSize = singleSpec?.kind === "content";
-  const showSingleContinue =
-    !!singleSpec &&
-    canContinue(singleSpec, schema[singleSpec.key], state[singleSpec.key], "fill");
 
   return (
     <Dialog>
@@ -162,6 +171,15 @@ export function MagicWriteDialog(props: {
             />
 
             {showSingleSize && (
+              <Checkbox isSelected={replaceAll} onChange={setReplaceAll}>
+                <Text>{stringFormatter.format("aiReplaceAllLabel")}</Text>
+                <Text slot="description">
+                  {stringFormatter.format("aiReplaceAllHelp")}
+                </Text>
+              </Checkbox>
+            )}
+
+            {showSingleSize && replaceAll && (
               <RadioGroup
                 label={stringFormatter.format("aiContentSize")}
                 value={sizeFor(singleFieldKey!)}
@@ -179,22 +197,6 @@ export function MagicWriteDialog(props: {
                   </Radio>
                 ))}
               </RadioGroup>
-            )}
-
-            {showSingleContinue && (
-              <Checkbox
-                isSelected={continueKeys.has(singleFieldKey!)}
-                onChange={(checked) =>
-                  setContinueKeys(
-                    toggle(continueKeys, singleFieldKey!, checked),
-                  )
-                }
-              >
-                <Text>{stringFormatter.format("aiContinueLabel")}</Text>
-                <Text slot="description">
-                  {stringFormatter.format("aiColContinueHelp")}
-                </Text>
-              </Checkbox>
             )}
 
             <AiModelPicker />

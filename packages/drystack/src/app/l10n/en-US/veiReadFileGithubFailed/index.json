@@ -1,0 +1,6 @@
+{
+  "key": "veiReadFileGithubFailed",
+  "value": "Could not read the current file contents from GitHub",
+  "notes": "",
+  "type": "global"
+}

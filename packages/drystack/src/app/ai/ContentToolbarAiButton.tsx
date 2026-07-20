@@ -22,6 +22,7 @@ import { MagicWriteDialog } from "./MagicWriteDialog";
 import { RewriteSelectionDialog } from "./RewriteSelectionDialog";
 import { useAiStatus } from "./useAiStatus";
 import { useFieldMagicWrite } from "./field-magic-write-context";
+import { useMagicWriteInsert } from "./useMagicWriteInsert";
 import { useRewriteSelection } from "./useRewriteSelection";
 
 /**
@@ -52,6 +53,11 @@ export function ContentToolbarAiButton() {
     schema: ctx?.schema ?? {},
     state: ctx?.state ?? {},
   });
+  const insert = useMagicWriteInsert({
+    entry: ctx?.magicWrite.entry ?? { kind: "collection", key: "" },
+    fieldKey: key ?? "",
+    schema: ctx?.schema ?? {},
+  });
 
   const { error, clearError } = rewrite;
   useEffect(() => {
@@ -59,6 +65,13 @@ export function ContentToolbarAiButton() {
     toastQueue.critical(truncateToastMessage(error), { timeout: 8000 });
     clearError();
   }, [error, clearError]);
+
+  const { error: insertError, clearError: clearInsertError } = insert;
+  useEffect(() => {
+    if (!insertError) return;
+    toastQueue.critical(truncateToastMessage(insertError), { timeout: 8000 });
+    clearInsertError();
+  }, [insertError, clearInsertError]);
 
   const isEligible =
     !!ctx &&
@@ -74,17 +87,19 @@ export function ContentToolbarAiButton() {
   // own independent status and stays available regardless.
   const isGenerateBusy = ctx.magicWrite.status === "streaming";
   const isRewriteBusy = rewrite.status === "streaming";
-  const isBusy = isGenerateBusy || isRewriteBusy;
+  const isInsertBusy = insert.status === "streaming";
+  const isBusy = isGenerateBusy || isRewriteBusy || isInsertBusy;
 
   const passage = viewRef.current
     ? viewRef.current.state.doc.textBetween(selection.from, selection.to, "\n\n")
     : "";
 
-  const label = isRewriteBusy
-    ? "aiStop"
-    : hasSelection
-      ? "aiRewriteSelection"
-      : "aiWriteJustThisField";
+  const label =
+    isRewriteBusy || isInsertBusy
+      ? "aiStop"
+      : hasSelection
+        ? "aiRewriteSelection"
+        : "aiWriteJustThisField";
 
   return (
     <>
@@ -92,10 +107,12 @@ export function ContentToolbarAiButton() {
         <ActionButton
           prominence="low"
           aria-label={stringFormatter.format(label)}
-          isDisabled={isGenerateBusy && !isRewriteBusy}
+          isDisabled={isGenerateBusy && !isRewriteBusy && !isInsertBusy}
           onPress={() => {
             if (isRewriteBusy) {
               rewrite.abort();
+            } else if (isInsertBusy) {
+              insert.abort();
             } else if (hasSelection) {
               setRewriteOpen(true);
             } else {
@@ -123,9 +140,13 @@ export function ContentToolbarAiButton() {
             state={ctx.state}
             singleFieldKey={key}
             onDismiss={() => setMagicOpen(false)}
-            onGenerate={(request) => {
+            onGenerate={(request, replaceAll) => {
               setMagicOpen(false);
-              ctx.magicWrite.start(request);
+              if (replaceAll) {
+                ctx.magicWrite.start(request);
+              } else {
+                insert.start(request.description);
+              }
             }}
           />
         )}

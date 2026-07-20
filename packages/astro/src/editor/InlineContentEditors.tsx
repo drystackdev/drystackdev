@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "@drystack/core/l10n";
 import type { Config, ComponentSchema } from "@drystack/core";
 import {
   InlineDocumentEditor,
@@ -99,6 +101,7 @@ function InlineContentEditor({
   currentBranch: string;
 }) {
   const { el, key, schema, ref, field } = spot;
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   // A stable string proxy for `ref` in dependency arrays below - `spot` (and
   // so `spot.ref`) is frozen for this component's whole lifetime (see
   // InlineContentEditors's `useState(() => readContentSpots(config))`, never
@@ -141,9 +144,13 @@ function InlineContentEditor({
     let cancelled = false;
     const html = el.innerHTML;
     Promise.all([
-      listAssetFiles(config, ref, currentBranch || undefined, field).catch(
-        () => new Map<string, Uint8Array>(),
-      ),
+      listAssetFiles(
+        config,
+        ref,
+        currentBranch || undefined,
+        field,
+        stringFormatter,
+      ).catch(() => new Map<string, Uint8Array>()),
       getPendingBlobsUnder(assetsDir).catch(
         () => new Map<string, Uint8Array>(),
       ),
@@ -157,7 +164,7 @@ function InlineContentEditor({
     return () => {
       cancelled = true;
     };
-  }, [config, el, schema, refKey, field, assetsDir, currentBranch]);
+  }, [config, el, schema, refKey, field, assetsDir, currentBranch, stringFormatter]);
 
   // Cleanup closures capture their variables at effect-setup time, so the
   // repaint below has to read the *latest* state through a ref rather than

@@ -1,0 +1,6 @@
+{
+  "key": "veiReadFileFailed",
+  "value": "Could not read the current file contents",
+  "notes": "",
+  "type": "global"
+}

@@ -1,0 +1,6 @@
+{
+  "key": "aiReplaceAllHelp",
+  "value": "Thay thế toàn bộ nội dung của trường. Nếu bỏ chọn, nội dung mới sẽ được chèn tại vị trí con trỏ hiện tại, hoặc cuối bài viết nếu không có con trỏ.",
+  "notes": "",
+  "type": "global"
+}

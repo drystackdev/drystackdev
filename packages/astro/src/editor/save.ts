@@ -5,6 +5,11 @@ import type {
   ObjectField,
 } from "@drystack/core";
 import {
+  LocalizedStringDictionary,
+  LocalizedStringFormatter,
+} from "@internationalized/string";
+import l10nMessages from "@drystack/core/l10n";
+import {
   entryRefExists,
   getSlugGlobForCollection,
   resolveEntryRef,
@@ -41,6 +46,20 @@ import {
 } from "@drystack/core/brand-store";
 
 const textEncoder = new TextEncoder();
+
+const l10nDictionary = new LocalizedStringDictionary(l10nMessages);
+
+// Non-hook source of a string formatter for plain modules (bind.ts) that
+// call into this file's error-throwing functions outside of a React render -
+// useLocalizedStringFormatter can't be called there. Takes a locale snapshot
+// rather than reacting to changes, which is fine for one-off async errors.
+export function getStringFormatter(): LocalizedStringFormatter<string, any> {
+  const locale =
+    (typeof document !== "undefined" && document.documentElement.lang) ||
+    (typeof navigator !== "undefined" && navigator.language) ||
+    "en-US";
+  return new LocalizedStringFormatter(locale, l10nDictionary);
+}
 
 export function base64Encode(bytes: Uint8Array): string {
   let binary = "";
@@ -145,11 +164,18 @@ const refQuery = `
   }
 `;
 
-async function getDefaultBranch(token: string, owner: string, name: string) {
+async function getDefaultBranch(
+  token: string,
+  owner: string,
+  name: string,
+  sf: LocalizedStringFormatter<string, any>,
+) {
   const data = await githubGraphQL(token, refQuery, { owner, name });
   const ref = data?.repository?.defaultBranchRef;
   if (!ref)
-    throw new Error(`Could not find the default branch of ${owner}/${name}`);
+    throw new Error(
+      sf.format("veiDefaultBranchNotFound", { repo: `${owner}/${name}` }),
+    );
   return { branchName: ref.name as string, oid: ref.target.oid as string };
 }
 
@@ -205,6 +231,7 @@ export async function ensureBrand(
   token: string,
   owner: string,
   name: string,
+  sf: LocalizedStringFormatter<string, any>,
 ): Promise<BrandRecord> {
   const existing = await readBrandRecord(config as any);
   if (existing) {
@@ -221,9 +248,7 @@ export async function ensureBrand(
   const login: string | undefined = data?.viewer?.login;
   const defaultBranchName: string | undefined = repo?.defaultBranchRef?.name;
   if (!repo?.id || !defaultBranchName || !login) {
-    throw new Error(
-      "Could not resolve the repository or GitHub viewer.",
-    );
+    throw new Error(sf.format("veiRepoResolveFailed"));
   }
   const record: BrandRecord = {
     ref: defaultBranchName,
@@ -246,7 +271,8 @@ const createCommitMutation = `
 async function readCurrentFile(
   config: Config<any, any>,
   filepath: string,
-  githubBranchName?: string,
+  githubBranchName: string | undefined,
+  sf: LocalizedStringFormatter<string, any>,
 ): Promise<Uint8Array | null> {
   // Checked ahead of the plain "local" branch below: a demo build has no
   // `/api/*/tree` or `/api/*/blob` routes to call (it's fully static - see
@@ -265,7 +291,7 @@ async function readCurrentFile(
     const treeRes = await fetch(`/api/${apiPath}/tree`, {
       headers: { "no-cors": "1" },
     });
-    if (!treeRes.ok) throw new Error("Could not read the current file tree");
+    if (!treeRes.ok) throw new Error(sf.format("veiReadTreeFailed"));
     const entries: { path: string; sha: string }[] = await treeRes.json();
     const entry = entries.find((e) => e.path === filepath);
     if (!entry) return null;
@@ -275,13 +301,12 @@ async function readCurrentFile(
         headers: { "no-cors": "1" },
       },
     );
-    if (!blobRes.ok)
-      throw new Error("Could not read the current file contents");
+    if (!blobRes.ok) throw new Error(sf.format("veiReadFileFailed"));
     return new Uint8Array(await blobRes.arrayBuffer());
   }
   if (config.storage.kind === "github") {
     const token = await getGithubTokenWithRefresh(config);
-    if (!token) throw new Error("Not signed in to GitHub");
+    if (!token) throw new Error(sf.format("veiNotSignedIn"));
     const { owner, name } = parseRepo((config.storage as any).repo);
     const res = await fetch(
       `https://api.github.com/repos/${owner}/${name}/contents/${filepath}?ref=${githubBranchName}`,
@@ -293,13 +318,14 @@ async function readCurrentFile(
       },
     );
     if (res.status === 404) return null;
-    if (!res.ok)
-      throw new Error("Could not read the current file contents from GitHub");
+    if (!res.ok) throw new Error(sf.format("veiReadFileGithubFailed"));
     const json = await res.json();
     return decodeBase64ToBytes(json.content);
   }
   throw new Error(
-    `dry(): MVP 1 does not support storage.kind "${(config.storage as any).kind}"`,
+    sf.format("veiUnsupportedStorageKind", {
+      kind: (config.storage as any).kind,
+    }),
   );
 }
 
@@ -322,13 +348,14 @@ async function readCurrentFile(
 export async function listAssetFiles(
   config: Config<any, any>,
   ref: EntryRef,
-  githubBranchName?: string,
+  githubBranchName: string | undefined,
   // The content field's own dotted path (e.g. "brand.name") - a nested
   // content field's embedded images live under their own subdirectory
   // (contentAssetsDir) rather than the entry's shared `assets/`, so two
   // content fields never collide on a same-named image. Omitted (or a
   // top-level field with no dots) keeps the flat entry-wide directory.
-  dottedField?: string,
+  dottedField: string | undefined,
+  sf: LocalizedStringFormatter<string, any>,
 ): Promise<Map<string, Uint8Array>> {
   const entryDir = resolveEntryRef(config, ref).dir;
   const dir = dottedField
@@ -355,7 +382,7 @@ export async function listAssetFiles(
     const treeRes = await fetch(`/api/${apiPath}/tree`, {
       headers: { "no-cors": "1" },
     });
-    if (!treeRes.ok) throw new Error("Could not read the current file tree");
+    if (!treeRes.ok) throw new Error(sf.format("veiReadTreeFailed"));
     const entries: { path: string; sha: string }[] = await treeRes.json();
     await Promise.all(
       entries
@@ -375,7 +402,7 @@ export async function listAssetFiles(
   }
   if (config.storage.kind === "github") {
     const token = await getGithubTokenWithRefresh(config);
-    if (!token) throw new Error("Not signed in to GitHub");
+    if (!token) throw new Error(sf.format("veiNotSignedIn"));
     const { owner, name } = parseRepo((config.storage as any).repo);
     const headers = {
       Authorization: `Bearer ${token}`,
@@ -388,7 +415,7 @@ export async function listAssetFiles(
     // A singleton with no embedded images has no assets/ directory at all -
     // an expected state, not a failure.
     if (res.status === 404) return out;
-    if (!res.ok) throw new Error("Could not list assets from GitHub");
+    if (!res.ok) throw new Error(sf.format("veiListAssetsFailed"));
     const listing = await res.json();
     if (!Array.isArray(listing)) return out;
     await Promise.all(
@@ -408,7 +435,9 @@ export async function listAssetFiles(
     return out;
   }
   throw new Error(
-    `dry(): MVP 1 does not support storage.kind "${(config.storage as any).kind}"`,
+    sf.format("veiUnsupportedStorageKind", {
+      kind: (config.storage as any).kind,
+    }),
   );
 }
 
@@ -436,12 +465,13 @@ function validateField(
   schema: Record<string, ComponentSchema>,
   value: unknown,
   messages: string[],
+  sf: LocalizedStringFormatter<string, any>,
 ): void {
   const label = `${entryRefKey(ref)}.${baseField}`;
   const baseSchema = schema[baseField];
   if (baseSchema?.kind === "array" || baseSchema?.kind === "object") {
     if (!clientSideValidateProp(baseSchema, value, undefined)) {
-      messages.push(`${label} is invalid`);
+      messages.push(sf.format("veiFieldInvalid", { label }));
     }
     return;
   }
@@ -481,7 +511,9 @@ function validateField(
         },
       );
     } catch (err) {
-      messages.push(err instanceof Error ? err.message : `${label} is invalid`);
+      messages.push(
+        err instanceof Error ? err.message : sf.format("veiFieldInvalid", { label }),
+      );
     }
     return;
   }
@@ -492,7 +524,9 @@ function validateField(
         | undefined
     )?.validate?.(value, undefined);
   } catch (err) {
-    messages.push(err instanceof Error ? err.message : `${label} is invalid`);
+    messages.push(
+      err instanceof Error ? err.message : sf.format("veiFieldInvalid", { label }),
+    );
   }
 }
 
@@ -655,7 +689,8 @@ async function collectContentFieldDiffs(
   fieldSchema: ContentFieldSchema,
   data: Record<string, unknown>,
   containerSchema: ComponentSchema | undefined,
-  githubBranchName?: string,
+  githubBranchName: string | undefined,
+  sf: LocalizedStringFormatter<string, any>,
 ): Promise<FileDiff[]> {
   const dir = resolveEntryRef(config, ref).dir;
   const entryDir = contentEntryDir(dir, dottedField);
@@ -667,7 +702,7 @@ async function collectContentFieldDiffs(
   // and serialize() then silently repoints it to /media-library/ and drops
   // its bytes instead of writing them beside the entry (see listAssetFiles).
   const [saved, pending] = await Promise.all([
-    listAssetFiles(config, ref, githubBranchName, dottedField),
+    listAssetFiles(config, ref, githubBranchName, dottedField, sf),
     getPendingBlobsUnder(assetsDir).catch(() => new Map<string, Uint8Array>()),
   ]);
   // Pending wins: it's the newer copy of any name present in both.
@@ -708,6 +743,7 @@ async function collectContentFieldDiffs(
       config,
       contentPath,
       githubBranchName,
+      sf,
     );
     diffs.push({
       path: contentPath,
@@ -742,7 +778,8 @@ async function collectContentFieldDiffs(
 // Powers both saving (encode `after`) and the review diff dialog.
 async function collectFileDiffs(
   config: Config<any, any>,
-  githubBranchName?: string,
+  githubBranchName: string | undefined,
+  sf: LocalizedStringFormatter<string, any>,
 ): Promise<FileDiff[]> {
   const edits = await getAllEdits();
   // entryRefKey -> { ref, byBaseField: baseField -> (field -> raw bus value) }
@@ -775,10 +812,10 @@ async function collectFileDiffs(
     const { format, dataFilepath, schema } = resolveEntryRef(config, ref);
     if (format.contentField) {
       throw new Error(
-        `dry(): ${entryRefKey(ref)} has a contentField - not supported in MVP 1.`,
+        sf.format("veiContentFieldUnsupported", { entry: entryRefKey(ref) }),
       );
     }
-    const raw = await readCurrentFile(config, dataFilepath, githubBranchName);
+    const raw = await readCurrentFile(config, dataFilepath, githubBranchName, sf);
     const before = raw ? textDecoder.decode(raw) : "";
     const data = (
       raw ? (loadDataFile(raw, format).loaded ?? {}) : {}
@@ -804,6 +841,7 @@ async function collectFileDiffs(
             data,
             undefined,
             githubBranchName,
+            sf,
           )),
         );
         continue;
@@ -845,7 +883,7 @@ async function collectFileDiffs(
         data[baseField] = merged;
       }
       const validatedValue = isAsset && merged === "" ? null : merged;
-      validateField(config, ref, baseField, schema, validatedValue, messages);
+      validateField(config, ref, baseField, schema, validatedValue, messages, sf);
 
       for (const [dottedField, html] of contentSubEdits) {
         const leafSchema = resolveSchemaAtFieldPath(schema, dottedField);
@@ -860,6 +898,7 @@ async function collectFileDiffs(
             data,
             schema[baseField],
             githubBranchName,
+            sf,
           )),
         );
       }
@@ -875,9 +914,10 @@ async function collectFileDiffs(
 
 async function buildFileChanges(
   config: Config<any, any>,
-  githubBranchName?: string,
+  githubBranchName: string | undefined,
+  sf: LocalizedStringFormatter<string, any>,
 ): Promise<{ additions: FileToWrite[]; deletions: { path: string }[] }> {
-  const diffs = await collectFileDiffs(config, githubBranchName);
+  const diffs = await collectFileDiffs(config, githubBranchName, sf);
   const additions: FileToWrite[] = diffs.map((d) => ({
     path: d.path,
     contents: d.contents ?? textEncoder.encode(d.after),
@@ -889,12 +929,13 @@ async function buildFileChanges(
 // GitHub mode is branch-scoped, local mode has no branch in its URLs.
 export async function getCurrentBranchName(
   config: Config<any, any>,
+  sf: LocalizedStringFormatter<string, any>,
 ): Promise<string | undefined> {
   if (config.storage.kind !== "github") return undefined;
   const token = await getGithubTokenWithRefresh(config);
-  if (!token) throw new Error("Not signed in to GitHub");
+  if (!token) throw new Error(sf.format("veiNotSignedIn"));
   const { owner, name } = parseRepo((config.storage as any).repo);
-  const branch = await getDefaultBranch(token, owner, name);
+  const branch = await getDefaultBranch(token, owner, name, sf);
   return branch.branchName;
 }
 
@@ -921,10 +962,11 @@ export async function getLatestFieldValues(
   config: Config<any, any>,
   ref: EntryRef,
   branch: string | undefined,
-  onlyFields?: Set<string>,
+  onlyFields: Set<string> | undefined,
+  sf: LocalizedStringFormatter<string, any>,
 ): Promise<Record<string, string>> {
   const { dir, format, dataFilepath, schema } = resolveEntryRef(config, ref);
-  const raw = await readCurrentFile(config, dataFilepath, branch);
+  const raw = await readCurrentFile(config, dataFilepath, branch, sf);
   if (!raw) return {};
   const data = (loadDataFile(raw, format).loaded ?? {}) as Record<
     string,
@@ -958,7 +1000,7 @@ export async function getLatestFieldValues(
     Object.entries(schema).map(async ([field, fieldSchema]) => {
       if (onlyFields && !onlyFields.has(field)) return;
       if (getSyncableFieldKind(fieldSchema as any) !== "content") return;
-      const raw = await readCurrentFile(config, `${dir}/${field}.html`, branch);
+      const raw = await readCurrentFile(config, `${dir}/${field}.html`, branch, sf);
       if (raw) result[field] = textDecoder.decode(raw);
     }),
   );
@@ -969,15 +1011,16 @@ export async function getLatestFieldValues(
 // the GitHub default branch first when needed, mirroring the save path.
 export async function getPendingDiffs(
   config: Config<any, any>,
+  sf: LocalizedStringFormatter<string, any>,
 ): Promise<FileDiff[]> {
   if (config.storage.kind === "github") {
     const token = await getGithubTokenWithRefresh(config);
-    if (!token) throw new Error("Not signed in to GitHub");
+    if (!token) throw new Error(sf.format("veiNotSignedIn"));
     const { owner, name } = parseRepo((config.storage as any).repo);
-    const branch = await getDefaultBranch(token, owner, name);
-    return collectFileDiffs(config, branch.branchName);
+    const branch = await getDefaultBranch(token, owner, name, sf);
+    return collectFileDiffs(config, branch.branchName, sf);
   }
-  return collectFileDiffs(config);
+  return collectFileDiffs(config, undefined, sf);
 }
 
 // Returns the new commit's oid, or undefined when there was nothing to
@@ -989,6 +1032,7 @@ export async function getPendingDiffs(
 // are opt-in, the default branch itself, which sees the change immediately.
 export async function saveEdits(
   config: Config<any, any>,
+  sf: LocalizedStringFormatter<string, any>,
 ): Promise<string | undefined> {
   // Single choke point: `saveEdits` is the only place that ever turns pending
   // edits into a real write (github commit or local `/update` call), and
@@ -998,20 +1042,22 @@ export async function saveEdits(
   // routes to call at all - see app/demo-source.ts) never even attempts the
   // fetch that would otherwise 404.
   if (isDemoConfig(config)) {
-    throw new Error("Demo mode: changes are not saved");
+    throw new Error(sf.format("veiDemoModeNotSaved"));
   }
   const isGithub = config.storage.kind === "github";
   let commitOid: string | undefined;
   if (isGithub) {
     const token = await getGithubTokenWithRefresh(config);
-    if (!token) throw new Error("Not signed in to GitHub");
+    if (!token) throw new Error(sf.format("veiNotSignedIn"));
     const { owner, name } = parseRepo((config.storage as any).repo);
-    const brand = await ensureBrand(config, token, owner, name);
+    const brand = await ensureBrand(config, token, owner, name, sf);
     const brandQualifiedName = `refs/heads/${brand.ref}`;
     let branch = await getBranchRef(token, owner, name, brandQualifiedName);
     if (!branch)
-      throw new Error(`Could not find brand branch "${brand.ref}" on GitHub.`);
-    let files = await buildFileChanges(config, branch.branchName);
+      throw new Error(
+        sf.format("veiBrandBranchNotFound", { branch: brand.ref }),
+      );
+    let files = await buildFileChanges(config, branch.branchName, sf);
     if (files.additions.length === 0 && files.deletions.length === 0)
       return undefined;
 
@@ -1043,7 +1089,7 @@ export async function saveEdits(
       if (!(err instanceof GithubGraphQLError)) throw err;
       if (err.type === "BRANCH_PROTECTION_RULE_VIOLATION") {
         throw new Error(
-          `"${branch.branchName}" is a protected branch - changes must go through a pull request.`,
+          sf.format("veiBranchProtected", { branch: branch.branchName }),
         );
       }
       if (err.type !== "STALE_DATA") throw err;
@@ -1055,22 +1101,20 @@ export async function saveEdits(
       branch = await getBranchRef(token, owner, name, brandQualifiedName);
       if (!branch)
         throw new Error(
-          `Could not find brand branch "${brand.ref}" on GitHub.`,
+          sf.format("veiBrandBranchNotFound", { branch: brand.ref }),
         );
-      files = await buildFileChanges(config, branch.branchName);
+      files = await buildFileChanges(config, branch.branchName, sf);
       if (files.additions.length === 0 && files.deletions.length === 0)
         return undefined;
       try {
         data = await commit();
       } catch {
-        throw new Error(
-          "This content changed on GitHub while you were editing. Reload the page and try saving again.",
-        );
+        throw new Error(sf.format("veiStaleContentConflict"));
       }
     }
     commitOid = data?.createCommitOnBranch?.ref?.target?.oid;
   } else if (config.storage.kind === "local") {
-    const files = await buildFileChanges(config);
+    const files = await buildFileChanges(config, undefined, sf);
     if (files.additions.length === 0 && files.deletions.length === 0) return;
     const res = await fetch(`/api/${apiPath}/update`, {
       method: "POST",
@@ -1093,7 +1137,9 @@ export async function saveEdits(
     await clearPendingBlobs();
   } else {
     throw new Error(
-      `dry(): MVP 1 does not support storage.kind "${(config.storage as any).kind}"`,
+      sf.format("veiUnsupportedStorageKind", {
+        kind: (config.storage as any).kind,
+      }),
     );
   }
   await publishClear();

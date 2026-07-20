@@ -1,0 +1,6 @@
+{
+  "key": "veiDefaultBranchNotFound",
+  "value": "Could not find the default branch of {repo}",
+  "notes": "",
+  "type": "global"
+}

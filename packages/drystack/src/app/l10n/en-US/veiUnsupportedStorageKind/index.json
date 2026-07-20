@@ -1,0 +1,6 @@
+{
+  "key": "veiUnsupportedStorageKind",
+  "value": "dry(): MVP 1 does not support storage.kind \"{kind}\"",
+  "notes": "",
+  "type": "global"
+}

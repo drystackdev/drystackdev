@@ -1,0 +1,6 @@
+{
+  "key": "veiContentFieldUnsupported",
+  "value": "dry(): {entry} has a contentField - not supported in MVP 1.",
+  "notes": "",
+  "type": "global"
+}

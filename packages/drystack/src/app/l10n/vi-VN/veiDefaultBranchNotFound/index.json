@@ -1,0 +1,6 @@
+{
+  "key": "veiDefaultBranchNotFound",
+  "value": "Không tìm thấy nhánh mặc định của {repo}.",
+  "notes": "",
+  "type": "global"
+}

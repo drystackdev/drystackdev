@@ -1,0 +1,6 @@
+{
+  "key": "aiReplaceAllHelp",
+  "value": "Replace the entire field. Unchecked, the new text is inserted at the cursor, or at the end if there is none.",
+  "notes": "",
+  "type": "global"
+}

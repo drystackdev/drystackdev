@@ -255,6 +255,7 @@ type ActiveSpot = { key: string; kind: string };
 function formatActiveSpot(
   spot: ActiveSpot | null,
   config: Config<any, any>,
+  singletonPrefix: string,
 ): { kind: string; kindLabel: string; pathLabel: string } | null {
   if (!spot) return null;
   const parsed = parseEditKey(spot.key);
@@ -264,7 +265,7 @@ function formatActiveSpot(
     return {
       kind: spot.kind,
       kindLabel: capitalize(spot.kind),
-      pathLabel: `Singleton: ${parsed.name}.${parsed.field}`,
+      pathLabel: `${singletonPrefix}: ${parsed.name}.${parsed.field}`,
     };
   }
   const collectionLabel =
@@ -494,7 +495,11 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   }, [editing]);
 
   // Focus always wins outright over hover - see the state comment above.
-  const activeSpot = formatActiveSpot(focusSpot ?? hoverSpot, config);
+  const activeSpot = formatActiveSpot(
+    focusSpot ?? hoverSpot,
+    config,
+    stringFormatter.format("veiSingletonPrefix"),
+  );
 
   // The admin provider boundary (VeiAdminProviders + FileManagerHost, lazy -
   // see the lazy() imports above) - mounted whenever edit mode is on, not
@@ -562,11 +567,11 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
         if (!hasToken) {
           setProviderState({
             status: "blocked",
-            message: "Cần đăng nhập admin để đổi ảnh/tệp.",
+            message: stringFormatter.format("veiAdminLoginRequired"),
           });
           return;
         }
-        getCurrentBranchName(config)
+        getCurrentBranchName(config, stringFormatter)
           .then((branch) => {
             if (cancelled) return;
             resolvedProviderRef.current = { currentBranch: branch ?? "" };
@@ -587,7 +592,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     return () => {
       cancelled = true;
     };
-  }, [editing, isGithub, config]);
+  }, [editing, isGithub, config, stringFormatter]);
 
   // Guards an image/file spot click or the array gear button: surfaces a
   // toast and returns false unless the provider boundary is actually mounted
@@ -601,7 +606,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     toastQueue.critical(
       s.status === "blocked"
         ? s.message
-        : "Đang chuẩn bị, thử lại sau giây lát.",
+        : stringFormatter.format("veiProviderNotReady"),
     );
     return false;
   };
@@ -690,12 +695,14 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     // setSaving(true)/(false) spinner flash for a click that was never going
     // to do anything.
     if (isDemoConfig(config)) {
-      toastQueue.info("Demo mode: changes are not saved", { timeout: 4000 });
+      toastQueue.info(stringFormatter.format("veiDemoModeNotSaved"), {
+        timeout: 4000,
+      });
       return;
     }
     setSaving(true);
     try {
-      const commitOid = await saveEdits(config);
+      const commitOid = await saveEdits(config, stringFormatter);
 
       let deployed = false;
       if (isGithub && commitOid && !isOnDefaultBranch) {
@@ -709,9 +716,11 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       // a github save with nothing pending, or a direct save to main).
       if (!deployed) {
         toastQueue.positive(
-          isGithub && commitOid && isOnDefaultBranch
-            ? "Đã lưu trực tiếp vào main"
-            : "Changes saved",
+          stringFormatter.format(
+            isGithub && commitOid && isOnDefaultBranch
+              ? "veiSavedToMainSuccess"
+              : "veiChangesSavedToast",
+          ),
           { timeout: 4000 },
         );
       }
@@ -771,7 +780,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
       const tab = window.open("", "_blank");
       if (tab) tab.opener = null;
       try {
-        const branch = await getCurrentBranchName(config);
+        const branch = await getCurrentBranchName(config, stringFormatter);
         const branchSegment = branch
           ? `branch/${encodeURIComponent(branch)}/`
           : "";
@@ -1040,7 +1049,9 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
               {activeSpot.pathLabel}
             </>
           ) : (
-            <em className="dry-active-spot-empty">No item</em>
+            <em className="dry-active-spot-empty">
+              {stringFormatter.format("veiNoItemSelected")}
+            </em>
           )}
         </div>
       )}

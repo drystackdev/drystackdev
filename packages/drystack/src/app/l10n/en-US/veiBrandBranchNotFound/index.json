@@ -1,0 +1,6 @@
+{
+  "key": "veiBrandBranchNotFound",
+  "value": "Could not find brand branch \"{branch}\" on GitHub.",
+  "notes": "",
+  "type": "global"
+}

@@ -1,0 +1,6 @@
+{
+  "key": "veiBranchProtected",
+  "value": "\"{branch}\" là nhánh được bảo vệ - thay đổi phải qua pull request.",
+  "notes": "",
+  "type": "global"
+}

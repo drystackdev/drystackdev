@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import { Flex } from "@keystar/ui/layout";
 import { Item, Picker } from "@keystar/ui/picker";
 import { toastQueue } from "@keystar/ui/toast";
 import { Text } from "@keystar/ui/typography";
@@ -121,33 +122,44 @@ export function AiModelPicker() {
   if (!state || !state.models.length || !state.serverDefault) return null;
 
   return (
-    <Picker
-      label={stringFormatter.format("aiModel")}
-      items={items}
-      selectedKey={state.selected ?? DEFAULT_KEY}
-      onSelectionChange={(key) => {
-        const model = key === DEFAULT_KEY ? undefined : String(key);
-        state.setSelected(model);
-        // The default needs no check: it's whatever the server settles on, and
-        // it re-settles (skipping known-dead models) on every request anyway.
-        if (model) verify(model);
-      }}
-      isDisabled={isChecking}
-      description={
-        isChecking ? stringFormatter.format("aiModelChecking") : undefined
-      }
-      // Model ids are long, and a picker that truncates the thing it's naming
-      // defeats the point.
-      width="100%"
-    >
-      {(item) => (
-        <Item key={item.key} textValue={item.name}>
-          <Text truncate>{item.name}</Text>
-          {item.description && (
-            <Text slot="description">{item.description}</Text>
-          )}
-        </Item>
-      )}
-    </Picker>
+    <Flex direction="column" gap="small">
+      <Picker
+        label={stringFormatter.format("aiModel")}
+        items={items}
+        selectedKey={state.selected ?? DEFAULT_KEY}
+        onSelectionChange={(key) => {
+          const model = key === DEFAULT_KEY ? undefined : String(key);
+          state.setSelected(model);
+          // The default needs no check: it's whatever the server settles on,
+          // and it re-settles (skipping known-dead models) on every request
+          // anyway.
+          if (model) verify(model);
+        }}
+        isDisabled={isChecking}
+        // Model ids are long, and a picker that truncates the thing it's
+        // naming defeats the point.
+        width="100%"
+      >
+        {(item) => (
+          <Item key={item.key} textValue={item.name}>
+            <Text truncate>{item.name}</Text>
+            {item.description && (
+              <Text slot="description">{item.description}</Text>
+            )}
+          </Item>
+        )}
+      </Picker>
+      {/* Reserves its line always, `visibility` rather than a conditional
+          mount: the checking state flips on every pick, and a description
+          that only exists sometimes pushes the dialog's footer around on
+          every one of them. */}
+      <Text
+        size="small"
+        color="neutralSecondary"
+        UNSAFE_style={{ visibility: isChecking ? "visible" : "hidden" }}
+      >
+        {stringFormatter.format("aiModelChecking")}
+      </Text>
+    </Flex>
   );
 }
