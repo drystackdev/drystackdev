@@ -12,7 +12,7 @@
    portals straight to <body> outside the provider, falls back to a
    prefers-color-scheme media query. */
 
-body.editing [data-dry] {
+body.editing [data-dry]:not([data-dry-readonly]) {
   outline: 2px solid rgba(0, 128, 255, 0.2);
   outline-offset: 0px;
   border-radius: 1px;
@@ -22,16 +22,16 @@ body.editing [data-dry] {
    painted at least one frame (see bind.ts) - starting the transition any
    earlier would animate from the pre-editing (outline-less) paint into blue,
    flashing white/default before settling. */
-body.editing.dry-anim-ready [data-dry] {
+body.editing.dry-anim-ready [data-dry]:not([data-dry-readonly]) {
   transition:
     outline-color 0.2s ease-out,
     outline-offset 0.2s ease-out;
 }
 /* :focus keeps the emphasis outline while a spot is being typed into (it's
    contentEditable), even after the pointer moves off it - otherwise moving
-   the mouse away mid-edit silently drops the highlight. Excludes a .view()
-   readonly spot - it's never contentEditable/clickable, so it never gets the
-   "you can act on this" emphasis, just the faint base outline above. */
+   the mouse away mid-edit silently drops the highlight. A .view() readonly
+   spot never matches the base rule above at all - it's never contentEditable/
+   clickable, so it gets no outline whatsoever, not even the faint base one. */
 body.editing [data-dry]:hover:not([data-dry-readonly]),
 body.editing [data-dry]:focus:not([data-dry-readonly]) {
   outline-color: rgba(0, 128, 255, 0.8);

@@ -287,19 +287,20 @@ export const Toolbar = memo(function Toolbar(
     <ToolbarWrapper {...props}>
       <ToolbarScrollArea>
         {nodes.heading && <HeadingMenu headingType={nodes.heading} />}
-        {marks.fontSize && <FontSizeMenu fontSize={marks.fontSize} />}
         <EditorToolbar aria-label="Formatting options">
           <Separator />
           <InlineMarks />
-          <Separator />
-          <ListButtons />
-          <Separator />
           {config.htmlLayout && (
             <>
               <AlignmentControls />
               <Separator />
             </>
           )}
+          {nodes.image && <ImageToolbarButton />}
+          {marks.fontSize && <FontSizeMenu fontSize={marks.fontSize} />}
+          <Separator />
+          <ListButtons />
+          <Separator />
           <EditorToolbarGroup aria-label="Blocks">
             {nodes.divider && (
               <TooltipTrigger>
@@ -317,9 +318,6 @@ export const Toolbar = memo(function Toolbar(
               </TooltipTrigger>
             )}
             {marks.link && <LinkButton link={marks.link} />}
-            {marks.textColor && (
-              <TextColorButton textColor={marks.textColor} />
-            )}
             {nodes.blockquote && (
               <TooltipTrigger>
                 <ToolbarButton
@@ -394,7 +392,6 @@ export const Toolbar = memo(function Toolbar(
                 </Tooltip>
               </TooltipTrigger>
             )}
-            {nodes.image && <ImageToolbarButton />}
           </EditorToolbarGroup>
         </EditorToolbar>
       </ToolbarScrollArea>
@@ -837,7 +834,7 @@ function InlineMarks() {
   const state = useEditorState();
   const schema = useEditorSchema();
   const runCommand = useEditorDispatchCommand();
-  const inlineMarks = useMemo(() => {
+  const { inlineMarks, textColorInsertIndex } = useMemo(() => {
     const marks: {
       key: string;
       label: string;
@@ -877,6 +874,10 @@ function InlineMarks() {
         isSelected: isMarkActive(schema.marks.underline),
       });
     }
+    // Text color sits between underline and the rest (strikethrough, code,
+    // clear formatting) - it's rendered separately below since it opens a
+    // dialog rather than toggling a simple mark.
+    const textColorInsertIndex = marks.length;
     if (schema.marks.strikethrough) {
       marks.push({
         key: "strikethrough",
@@ -914,7 +915,7 @@ function InlineMarks() {
       command: removeAllMarks(),
       isSelected: () => false,
     });
-    return marks;
+    return { inlineMarks: marks, textColorInsertIndex };
   }, [schema]);
   const selectedKeys = useMemoStringified(
     inlineMarks.filter((val) => val.isSelected(state)).map((val) => val.key),
@@ -937,20 +938,33 @@ function InlineMarks() {
         disabledKeys={disabledKeys}
         selectionMode="multiple"
       >
-        {inlineMarks.map((mark) => (
-          <TooltipTrigger key={mark.key}>
-            <EditorToolbarItem value={mark.key} aria-label={mark.label}>
-              <Icon src={mark.icon} />
-            </EditorToolbarItem>
-            <Tooltip>
-              <Text>{mark.label}</Text>
-              {"shortcut" in mark && <Kbd meta>{mark.shortcut}</Kbd>}
-            </Tooltip>
-          </TooltipTrigger>
-        ))}
+        {inlineMarks.slice(0, textColorInsertIndex).map(renderInlineMark)}
+        {schema.marks.textColor && (
+          <TextColorButton textColor={schema.marks.textColor} />
+        )}
+        {inlineMarks.slice(textColorInsertIndex).map(renderInlineMark)}
       </EditorToolbarGroup>
     );
-  }, [disabledKeys, inlineMarks, runCommand, selectedKeys]);
+  }, [disabledKeys, inlineMarks, runCommand, schema.marks.textColor, selectedKeys, textColorInsertIndex]);
+}
+
+function renderInlineMark(mark: {
+  key: string;
+  label: string;
+  icon: ReactElement;
+  shortcut?: string;
+}) {
+  return (
+    <TooltipTrigger key={mark.key}>
+      <EditorToolbarItem value={mark.key} aria-label={mark.label}>
+        <Icon src={mark.icon} />
+      </EditorToolbarItem>
+      <Tooltip>
+        <Text>{mark.label}</Text>
+        {"shortcut" in mark && <Kbd meta>{mark.shortcut}</Kbd>}
+      </Tooltip>
+    </TooltipTrigger>
+  );
 }
 
 function useMemoStringified<T>(value: T): T {
