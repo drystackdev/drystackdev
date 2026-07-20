@@ -7,6 +7,7 @@ import {
 } from "../schema";
 import { MEDIA_LIBRARY_DIRECTORY } from "../../../../../app/media-library/constants";
 import { imageLayoutFromElement } from "../image-layout";
+import { sanitizeSvgElement, svgLayoutFromElement } from "../svg-markup";
 import {
   parseGridColumnSpan,
   parseGridColumns,
@@ -117,6 +118,33 @@ function imageFromElement(
   });
 }
 
+// Shared by both the plain `<svg>` case (inline, no caption) and the
+// `<figure><svg>...<figcaption>` case (see the "figure" branch in
+// `blocksFromChildNodes`) - the only difference is the caption text.
+//
+// Returning null is meaningful, and both callers rely on it: an `<svg>` this
+// field can't hold has to be *dropped*, not left to the generic element
+// handling below, which would walk into it and emit its `<title>`/`<text>`
+// content as ordinary prose.
+function svgFromElement(
+  el: Element,
+  state: ParseState,
+  caption: string,
+): ProseMirrorNode | null {
+  const { schema } = state;
+  if (!schema.nodes.svg) return null;
+  const markup = sanitizeSvgElement(el);
+  if (!markup) return null;
+  const layout = svgLayoutFromElement(el);
+  return schema.nodes.svg.createChecked({
+    markup,
+    width: layout.width,
+    height: layout.height,
+    align: layout.align,
+    caption,
+  });
+}
+
 function inlineNodeToProseMirror(
   node: ChildNode,
   state: ParseState,
@@ -139,6 +167,10 @@ function inlineNodeToProseMirror(
   if (tag === "img") {
     const image = imageFromElement(el, state, "");
     return image ? [image] : [];
+  }
+  if (tag === "svg") {
+    const svg = svgFromElement(el, state, "");
+    return svg ? [svg] : [];
   }
 
   let markType: MarkType | undefined;
@@ -421,6 +453,9 @@ function blocksFromChildNodes(
           if (contentTag === "img") {
             const image = imageFromElement(contentEl, state, caption);
             if (image) pendingInline.push(image);
+          } else if (contentTag === "svg") {
+            const svg = svgFromElement(contentEl, state, caption);
+            if (svg) pendingInline.push(svg);
           } else if (contentTag === "table") {
             const table = tableFromElement(contentEl, state, caption);
             if (table) result.push(table);

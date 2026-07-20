@@ -69,8 +69,8 @@ export const prosemirrorStyles = css`
   .${classes.nodeSelection} {
     position: relative;
   }
-  /* the image node view draws its own outline + resize handles */
-  .${classes.nodeSelection}:not([data-node-type='image'])::after {
+  /* the image and svg node views draw their own outline + resize handles */
+  .${classes.nodeSelection}:not([data-node-type='image']):not([data-node-type='svg'])::after {
     background-color: ${tokenSchema.color.alias.backgroundSelected};
     border-radius: ${tokenSchema.size.radius.small};
     content: '';

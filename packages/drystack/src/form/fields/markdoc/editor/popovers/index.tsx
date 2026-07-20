@@ -20,6 +20,7 @@ import { EditorSchema, getEditorSchema } from "../schema";
 import { LinkToolbar } from "./link-toolbar";
 import { useEditorReferenceElement } from "./reference";
 import { ImagePopover } from "./images";
+import { SvgPopover } from "./svg";
 import { CellOptionsMenu, isSelectionInTableCell } from "./table";
 import { GridItemControls, GridPopover } from "./grid";
 import { CaptionButton } from "../figcaption";
@@ -166,6 +167,7 @@ const popoverComponents: Record<
     );
   },
   image: ImagePopover,
+  svg: SvgPopover,
   grid: GridPopover,
   table: function TablePopover(props) {
     const dispatchCommand = useEditorDispatchCommand();
@@ -654,10 +656,16 @@ const CustomMarkPopover: MarkPopoverRenderer = (props) => {
 function popoverAdaptToBoundary(
   node: Node,
 ): EditorPopoverProps["adaptToBoundary"] & {} {
-  return node.type.name === "image" || node.type.name === "grid"
+  return FLOATABLE_NODE_TYPES.has(node.type.name) ||
+    node.type.name === "grid"
     ? "flip"
     : "stick";
 }
+
+// Nodes whose view can be floated out of normal flow (`float: left`/`right`),
+// which is what makes both the popover placement and its stacking order
+// special - see `popoverAdaptToBoundary` and the `zIndex` in `PopoverInner`.
+const FLOATABLE_NODE_TYPES = new Set(["image", "svg"]);
 
 function getPopoverDecoration(state: EditorState): PopoverDecoration | null {
   if (state.selection instanceof TextSelection) {
@@ -819,9 +827,9 @@ function PopoverInner(props: {
 
   const reference = useEditorReferenceElement(from, to);
   const editorViewRef = useEditorViewRef();
-  const isImage =
+  const isFloatable =
     props.decoration.kind === "node" &&
-    props.decoration.node.type.name === "image";
+    FLOATABLE_NODE_TYPES.has(props.decoration.node.type.name);
 
   return (
     reference && (
@@ -837,11 +845,11 @@ function PopoverInner(props: {
         placement="bottom"
         portal={false}
         reference={reference}
-        // the image node view's floated container can otherwise stack
+        // the image/svg node view's floated container can otherwise stack
         // in front of the popover (both are positioned, and float order
         // isn't the same as DOM/paint order here), swallowing clicks on
         // the toolbar
-        UNSAFE_style={isImage ? { zIndex: 2 } : undefined}
+        UNSAFE_style={isFloatable ? { zIndex: 2 } : undefined}
       >
         {props.decoration.kind === "table-in-grid" ? (
           <TableInGridPopover

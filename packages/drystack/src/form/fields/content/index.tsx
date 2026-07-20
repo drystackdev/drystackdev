@@ -38,9 +38,10 @@ const defaultHeadingLevels = [2, 3, 4, 5, 6] as const;
 //
 // `<svg>` IS listed when images are enabled - unlike `<img>`, the model can
 // produce a whole `<svg>` itself (it's markup, not bytes it has to invent).
-// The AI codec's apply-value.ts turns each one into a real embedded image
-// (bytes go through the same `other` map an uploaded image's would), so by
-// the time it reaches this field's own parse() it's an `<img>` like any other.
+// It stays markup all the way through: parse() turns each one into a real
+// `svg` node (sanitized on the way in - see markdoc/editor/svg-markup.ts) and
+// the serializer writes it back inline, so the page's own CSS styles it. The
+// gate is `config.image` because that's the option registering the node.
 //
 // Deliberately omits `table` and `grid` even though both default on for the
 // HTML editor: their markup is structural rather than prose, and a model

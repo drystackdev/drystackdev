@@ -48,8 +48,9 @@ const emptyArray: ReadonlyPropPath = [];
 // the editor sizes itself against its parent, so without at least 100% it
 // collapses to the height of the text and stops filling the pane.
 const contentPaneField = css({
-  minHeight: "100%",
+  height: "100%",
 });
+
 const RESPONSIVE_PADDING = {
   mobile: "medium",
   tablet: "xlarge",

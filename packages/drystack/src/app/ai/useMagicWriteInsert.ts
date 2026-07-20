@@ -16,7 +16,7 @@ import { getEditorSchema } from "../../form/fields/markdoc/editor/schema";
 import l10nMessages from "../l10n";
 import { useRouter } from "../router";
 import { useConfig } from "../shell/context";
-import { embedSvgCharts, stripDisallowedTags } from "./apply-value";
+import { stripDisallowedTags } from "./apply-value";
 import { AiStreamParser } from "./stream-parser";
 import { readErrorMessage } from "./useMagicWrite";
 import { useAiModels } from "./useAiModels";
@@ -138,15 +138,14 @@ export function useMagicWriteInsert(args: {
         const insertPos =
           getAiInsertPoint(latest.state) ?? latest.state.doc.content.size;
 
-        const allowSvg = !!spec.htmlTags?.includes("svg");
-        const { html, other } = embedSvgCharts(
-          stripDisallowedTags(raw),
-          allowSvg,
-        );
+        // No `<svg>` handling here: the live editor's own schema decides.
+        // Where it has the `svg` node the parser keeps the drawing as inline,
+        // sanitized markup; where it doesn't, the drawing is dropped. Same as
+        // the fill flow - see apply-value.ts's `content` case.
         const doc = htmlToProseMirror(
-          html,
+          stripDisallowedTags(raw),
           getEditorSchema(latest.state.schema),
-          other,
+          new Map(),
         );
         // `Slice.maxOpen` rather than `insert`: the cursor is often inline
         // inside a paragraph while the model answers with block-level <p>,

@@ -3,6 +3,11 @@ import { NodeType } from "prosemirror-model";
 import { Command, NodeSelection } from "prosemirror-state";
 import { getEditorSchema } from "../schema";
 
+// NB: passed straight into `insertMenu.command` in several node specs, which
+// calls it as `(nodeType, editorSchema)`. Any second parameter added here would
+// silently be handed the whole editor schema, so keep it single-argument - a
+// node needing seeded attrs should write its own command (see `svg` in
+// schema.tsx).
 export function insertNode(nodeType: NodeType): Command {
   return (state, dispatch) => {
     if (

@@ -48,7 +48,11 @@ export function formatNumberValue(value: number): string {
 // instead of raw markup, without pulling in a full HTML parser
 export function stripHtmlForPreview(raw: string): string {
   return raw
-    .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    // `svg` joins script/style in being dropped whole rather than unwrapped:
+    // an inline drawing's axis labels are part of a picture, and counting
+    // "Tháng 1 Tháng 2" towards the entry's word count would overstate how
+    // much prose it actually has.
+    .replace(/<(script|style|svg)[^>]*>[\s\S]*?<\/\1>/gi, " ")
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")

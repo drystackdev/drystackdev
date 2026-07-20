@@ -7,6 +7,7 @@ import { heading4Icon } from "@keystar/ui/icon/icons/heading4Icon";
 import { heading5Icon } from "@keystar/ui/icon/icons/heading5Icon";
 import { heading6Icon } from "@keystar/ui/icon/icons/heading6Icon";
 import { imageIcon } from "#icons/imageIcon";
+import { svgInsertIcon } from "#icons/svgInsertIcon";
 import { listIcon } from "@keystar/ui/icon/icons/listIcon";
 import { listOrderedIcon } from "@keystar/ui/icon/icons/listOrderedIcon";
 import { quoteIcon } from "@keystar/ui/icon/icons/quoteIcon";
@@ -49,6 +50,13 @@ import {
 import { imageAttrsForPick } from "./image-pick";
 import { base64UrlEncode, base64UrlDecode } from "#base64";
 import { ImageNodeView, imageContainerAlignStyle } from "./image-node-view";
+import { SvgNodeView } from "./svg-node-view";
+import {
+  applySvgLayout,
+  PLACEHOLDER_SVG_MARKUP,
+  sanitizeSvgElement,
+  svgLayoutFromElement,
+} from "./svg-markup";
 import { GridNodeView, GridCellView } from "./grid-node-view";
 import {
   insertGrid,
@@ -672,6 +680,95 @@ const nodeSpecs = {
       },
     ],
   },
+  // An inline drawing whose markup lives in the document rather than in a
+  // sibling asset file. Deliberately shaped like `image` - same layout attrs,
+  // same caption, same resize handles, same popover - because to a reader
+  // that's exactly what it is. The one thing it doesn't share is bytes: there
+  // is no `src`, no filename, and nothing lands in `other` on save. See
+  // svg-markup.ts for why inline (theming) and what that costs (sanitizing).
+  svg: {
+    content: "",
+    group: "inline",
+    inline: true,
+    // Nothing inside is addressable by the editor - the markup is one opaque
+    // value - so clicking anywhere in the drawing should select the whole node.
+    atom: true,
+    attrs: {
+      // Always the output of sanitizeSvgElement/sanitizeSvgMarkup. Every path
+      // that builds this node goes through one of them; nothing else may write
+      // here, because this string is injected into the page as HTML.
+      markup: {},
+      width: { default: null },
+      height: { default: null },
+      align: { default: null },
+      // editor-only convenience flag for the width/height fields in the edit
+      // dialog - not serialized to DOM, so it resets to its default (locked)
+      // on reload rather than round-tripping
+      lockAspectRatio: { default: true },
+      // rendered as a `<figcaption>` under the drawing (see html/serialize.ts
+      // and html/parse.ts) - empty means no `<figure>` wrapper at all.
+      caption: { default: "" },
+    },
+    insertMenu: {
+      label: "Drawing",
+      description: "Insert an inline SVG drawing or chart",
+      icon: svgInsertIcon,
+      // Its own command rather than the shared `insertNode`, which fills every
+      // attr from its default - and `markup` has none, since an empty drawing
+      // isn't a thing. Seeds a placeholder for the author to replace via the
+      // node's edit dialog.
+      command: (nodeType) => (state, dispatch) => {
+        if (dispatch) {
+          dispatch(
+            state.tr.replaceSelectionWith(
+              nodeType.createChecked({ markup: PLACEHOLDER_SVG_MARKUP }),
+            ),
+          );
+        }
+        return true;
+      },
+    },
+    reactNodeView: {
+      component: SvgNodeView,
+      rendersOwnContent: true,
+      containerStyle: (node) => imageContainerAlignStyle(node.attrs.align),
+    },
+    toDOM(node) {
+      // Only reached for the clipboard (the react node view owns what's on
+      // screen), so this has to be markup the `parseDOM` rule below can read
+      // back - which is the same shape html/serialize.ts writes to disk.
+      const markup = applySvgLayout(node.attrs.markup, {
+        width: node.attrs.width,
+        height: node.attrs.height,
+        align: node.attrs.align,
+      });
+      const holder = document.createElement("div");
+      holder.innerHTML = markup;
+      const el = holder.firstElementChild;
+      return el ?? (["span", {}] satisfies DOMOutputSpec);
+    },
+    parseDOM: [
+      {
+        tag: "svg",
+        getAttrs(node) {
+          if (typeof node === "string") return false;
+          const markup = sanitizeSvgElement(node);
+          // Nothing salvageable (not really an svg, or everything in it was
+          // outside the allowlist) - refusing the rule drops the element
+          // rather than letting ProseMirror unwrap it and spill its `<text>`
+          // into the surrounding prose as if it were writing.
+          if (!markup) return false;
+          const layout = svgLayoutFromElement(node);
+          return {
+            markup,
+            width: layout.width,
+            height: layout.height,
+            align: layout.align,
+          };
+        },
+      },
+    ],
+  },
   grid: {
     content: "grid_cell+",
     group: "block",
@@ -1115,6 +1212,11 @@ export function createEditorSchema(
   }
   if (config.image) {
     nodeSpecsWithCustomNodes.image = nodeSpecs.image;
+    // Gated on the same option as `image` (and so on the same `svg` entry in
+    // content/index.tsx's allowedHtmlTags, which the AI prompt reads): both are
+    // "this field can hold pictures". A field with images turned off shouldn't
+    // grow a second way to embed one.
+    nodeSpecsWithCustomNodes.svg = nodeSpecs.svg;
   }
 
   const markSpecsWithCustomMarks = {

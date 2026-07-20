@@ -3,6 +3,7 @@ import { EditorSchema, FONT_SIZE_VALUES, FontSizeKey, getEditorSchema } from "..
 import { textblockChildren } from "../serialize-inline";
 import { MEDIA_LIBRARY_DIRECTORY } from "../../../../../app/media-library/constants";
 import { imageLayoutStyleString } from "../image-layout";
+import { applySvgLayout } from "../svg-markup";
 import { getColumnWidthPercents } from "../table-column-resize";
 import {
   cellStyleString,
@@ -20,6 +21,11 @@ type HtmlElementNode = {
 type HtmlNode =
   | { kind: "text"; text: string }
   | { kind: "fragment"; children: HtmlNode[] }
+  // Markup emitted verbatim, no escaping. The one producer is the `svg` node,
+  // whose value *is* markup - see svg-markup.ts. Safe to pass through here only
+  // because nothing reaches a node's `markup` attr without going through
+  // `sanitizeSvgElement` first; this is not a general-purpose escape hatch.
+  | { kind: "raw"; html: string }
   | HtmlElementNode;
 
 const VOID_TAGS = new Set(["br", "hr", "img", "col"]);
@@ -48,6 +54,7 @@ function cellSpanAttrs(
 
 function renderNode(node: HtmlNode): string {
   if (node.kind === "text") return escapeHTML(node.text);
+  if (node.kind === "raw") return node.html;
   if (node.kind === "fragment") return node.children.map(renderNode).join("");
   const attrs = node.attrs
     ? Object.entries(node.attrs)
@@ -176,6 +183,20 @@ function getLeafContent(
     // user content the first time this shipped.
     return node.attrs.caption ? figureWrap(img, node.attrs.caption) : img;
   }
+  if (node.type === schema.nodes.svg) {
+    // Straight back out as markup - no asset file, nothing added to `other`.
+    // Writing the drawing into the page (rather than a `<img src=".svg">`) is
+    // the point of the node: only inline does the site's own CSS reach it.
+    const svg: HtmlNode = {
+      kind: "raw",
+      html: applySvgLayout(node.attrs.markup, {
+        width: node.attrs.width,
+        height: node.attrs.height,
+        align: node.attrs.align,
+      }),
+    };
+    return node.attrs.caption ? figureWrap(svg, node.attrs.caption) : svg;
+  }
   if (node.text !== undefined) {
     return { kind: "text", text: node.text };
   }
@@ -245,11 +266,11 @@ function textAlignAttr(
   return textAlign ? { style: `text-align:${textAlign}` } : undefined;
 }
 
-// Wraps `inner` (an image/table/grid's own markup) in a `<figure>` with a
+// Wraps `inner` (an image/svg/table/grid's own markup) in a `<figure>` with a
 // `<figcaption>` when there's a caption to show - see the `caption` attr on
-// those three node specs in schema.tsx. Returns `inner` unchanged for an
-// empty caption, so a node that never had one round-trips byte-for-byte.
-function figureWrap(inner: HtmlElementNode, caption: string): HtmlNode {
+// those node specs in schema.tsx. Returns `inner` unchanged for an empty
+// caption, so a node that never had one round-trips byte-for-byte.
+function figureWrap(inner: HtmlNode, caption: string): HtmlNode {
   if (!caption) return inner;
   return {
     kind: "element",
@@ -282,18 +303,18 @@ function proseMirrorToHtmlNode(
     };
   }
   if (node.type === schema.nodes.paragraph) {
-    // A captioned image alone in its paragraph skips the `<p>` wrapper
+    // A captioned image/drawing alone in its paragraph skips the `<p>` wrapper
     // entirely - `getLeafContent` below already figure-wraps it (any other
     // shape is handled there too, nested inside the `<p>`; see the comment
     // on the image case in `getLeafContent` for why that's fine even though
     // it's not, strictly, valid HTML).
+    const onlyChild = node.childCount === 1 ? node.firstChild! : null;
     if (
-      node.childCount === 1 &&
-      schema.nodes.image &&
-      node.firstChild!.type === schema.nodes.image &&
-      node.firstChild!.attrs.caption
+      onlyChild?.attrs.caption &&
+      (onlyChild.type === schema.nodes.image ||
+        onlyChild.type === schema.nodes.svg)
     ) {
-      return getLeafContent(node.firstChild!, state)!;
+      return getLeafContent(onlyChild, state)!;
     }
     return {
       kind: "element",

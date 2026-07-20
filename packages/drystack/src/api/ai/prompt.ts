@@ -61,6 +61,14 @@ export function buildSystemPrompt(args: {
       rules.push(
         "Với field cho phép thẻ <svg>: có thể vẽ biểu đồ/sơ đồ minh hoạ đơn giản bằng <svg> tự chứa - khai báo đủ viewBox, width, height, có thể thêm <title> mô tả ngắn; không tham chiếu ảnh/font/script bên ngoài. Chỉ dùng khi thực sự cần minh hoạ dữ liệu, đừng lạm dụng.",
       );
+      // The drawing is inlined into the page (see markdoc/editor/svg-markup.ts),
+      // not linked as an image file, so it inherits the site's own colours and
+      // font the moment it stops hard-coding them. That's the entire reason
+      // this node exists, and the model has to be told - left to itself it
+      // reaches for hex fills and a font-family every time.
+      rules.push(
+        "SVG được nhúng thẳng vào trang nên kế thừa được theme: dùng fill=\"currentColor\"/stroke=\"currentColor\" cho nét, chữ và các phần đơn sắc thay vì mã màu cố định; chỉ dùng màu cụ thể khi thật sự cần phân biệt các chuỗi dữ liệu, và khi đó dùng vài màu tương phản tốt trên cả nền sáng lẫn nền tối. Không đặt font-family, không thêm <style> hay thuộc tính on*; để chữ thừa hưởng font của trang.",
+      );
     }
     // Only stated when a target actually advertises `table` (see
     // content/index.tsx's allowedHtmlTags, gated on config.table) - a field
