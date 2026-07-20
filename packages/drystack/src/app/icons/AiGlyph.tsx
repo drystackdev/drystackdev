@@ -2,7 +2,10 @@ import { useId } from "react";
 
 import { css, keyframes } from "@keystar/ui/style";
 
-import { AI_GRADIENT_DURATION, AI_GRADIENT_STOPS as STOPS } from "./ai-gradient";
+// The AI icons are the one place in the admin that isn't monochrome: the
+// shifting gradient is what marks "this button writes for you" at a glance.
+// Both AI icons share it, so the two buttons read as the same feature.
+const STOPS = ["#8b5cf6", "#ec4899", "#06b6d4"];
 
 // Each stop walks the same colours, offset by one, so the gradient is never
 // flat - the two ends are always a different colour on the way somewhere else.
@@ -19,7 +22,7 @@ const cycle = (offset: number) =>
 
 const stopStyle = (offset: number) =>
   css({
-    animation: `${cycle(offset)} ${AI_GRADIENT_DURATION} ease-in-out infinite`,
+    animation: `${cycle(offset)} 6s ease-in-out infinite`,
     // Decorative motion - it carries no information the colour doesn't.
     "@media (prefers-reduced-motion: reduce)": { animation: "none" },
   });
