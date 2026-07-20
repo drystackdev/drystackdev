@@ -104,46 +104,27 @@ const breadcrumbSchema = {
 	</section>
 
 	<script>
-		// Xây mục lục (Tóm tắt) từ các thẻ h2/h3/h4 bên trong nội dung bài viết.
-		// HTML lưu từ content editor đã kèm sẵn id (slug tiếng Việt + cid, xem
-		// markdoc/editor/html/serialize.ts) - nhánh gán id lúc chạy bên dưới chỉ
-		// còn là fallback cho bài viết lưu từ trước khi serializer sinh id.
-		const combiningMarks = new RegExp("[\\u0300-\\u036f]", "g");
-
-		function slugify(text: string): string {
-			return text
-				.toLowerCase()
-				.normalize("NFD")
-				.replace(combiningMarks, "")
-				.replace(/đ/g, "d")
-				.replace(/[^a-z0-9\s-]/g, "")
-				.trim()
-				.replace(/\s+/g, "-")
-				.replace(/-+/g, "-");
-		}
-
+		// Xây mục lục (Tóm tắt) từ các thẻ h2/h3/h4 bên trong nội dung bài viết,
+		// dựa trên id mà serializer đã gắn sẵn lúc lưu (slug tiếng Việt + cid,
+		// xem markdoc/editor/html/serialize.ts) - không tự sinh id lúc chạy nữa.
+		// Heading thiếu id (chỉ có thể là HTML chèn tay, chưa qua editor) thì
+		// đứng ngoài mục lục thay vì nhận một id chế ra không trỏ đi đâu ổn định.
 		const content = document.getElementById("post-content");
 		const tocWrap = document.getElementById("post-toc-wrap");
 		const tocNav = document.getElementById("post-toc-nav");
 		const headings = content
-			? Array.from(content.querySelectorAll<HTMLElement>("h2, h3, h4"))
+			? Array.from(
+					content.querySelectorAll<HTMLElement>("h2[id], h3[id], h4[id]"),
+				)
 			: [];
 
 		if (!content || !tocWrap || !tocNav || headings.length === 0) {
 			tocWrap?.remove();
 		} else {
-			const usedIds = new Map<string, number>();
 			const list = document.createElement("ul");
 			const linkByHeadingId = new Map<string, HTMLAnchorElement>();
 
-			headings.forEach((heading) => {
-				if (!heading.id) {
-					const base = slugify(heading.textContent || "") || "muc";
-					const count = usedIds.get(base) ?? 0;
-					usedIds.set(base, count + 1);
-					heading.id = count === 0 ? base : `${base}-${count + 1}`;
-				}
-
+			for (const heading of headings) {
 				const link = document.createElement("a");
 				link.href = `#${heading.id}`;
 				link.textContent = heading.textContent;
@@ -153,40 +134,44 @@ const breadcrumbSchema = {
 				item.appendChild(link);
 				list.appendChild(item);
 				linkByHeadingId.set(heading.id, link);
-			});
+			}
 
 			tocNav.appendChild(list);
 
-			// Scrollspy nhẹ: highlight mục đang đọc khi cuộn qua từng heading.
-			// Nhiều heading có thể cùng giao cắt vùng quan sát một lúc (heading
-			// gần nhau) - luôn chọn heading nằm trên cùng trong số đó, thay vì
-			// tin vào thứ tự entries trả về (không đảm bảo theo vị trí).
-			const intersecting = new Set<HTMLElement>();
-			const headingObserver = new IntersectionObserver(
-				(entries) => {
-					for (const entry of entries) {
-						const heading = entry.target as HTMLElement;
-						if (entry.isIntersecting) intersecting.add(heading);
-						else intersecting.delete(heading);
-					}
+			// Scrollspy bám cuộn liên tục: mục active là heading CUỐI CÙNG đã
+			// vượt mốc 112px từ mép trên viewport (112px = 7rem, khớp
+			// scroll-margin-top của heading và top của sidebar sticky ở CSS
+			// bên dưới). Khác với IntersectionObserver theo dải hẹp - vốn bỏ
+			// trống active khi đứng giữa hai heading - cách này luôn giữ đúng
+			// một mục sáng sau khi đã cuộn qua heading đầu tiên.
+			const TRIGGER_LINE = 112;
+			let ticking = false;
 
-					let active: HTMLElement | null = null;
-					for (const heading of intersecting) {
-						if (!active || heading.getBoundingClientRect().top < active.getBoundingClientRect().top) {
-							active = heading;
-						}
+			function updateActive() {
+				ticking = false;
+				let active: HTMLElement | null = null;
+				for (const heading of headings) {
+					if (heading.getBoundingClientRect().top <= TRIGGER_LINE) {
+						active = heading;
+					} else {
+						break;
 					}
+				}
+				list
+					.querySelectorAll("a.is-active")
+					.forEach((el) => el.classList.remove("is-active"));
+				if (active) linkByHeadingId.get(active.id)?.classList.add("is-active");
+			}
 
-					list
-						.querySelectorAll("a.is-active")
-						.forEach((el) => el.classList.remove("is-active"));
-					if (active) linkByHeadingId.get(active.id)?.classList.add("is-active");
-				},
-				// IntersectionObserver chỉ nhận px/%, không nhận rem - 112px ứng
-				// với 7rem (mốc scroll-margin-top/sticky top dùng ở CSS bên dưới).
-				{ rootMargin: "-112px 0px -70% 0px", threshold: 0 },
-			);
-			headings.forEach((heading) => headingObserver.observe(heading));
+			function onScroll() {
+				if (ticking) return;
+				ticking = true;
+				requestAnimationFrame(updateActive);
+			}
+
+			window.addEventListener("scroll", onScroll, { passive: true });
+			window.addEventListener("resize", onScroll, { passive: true });
+			updateActive();
 		}
 	</script>
 
@@ -272,6 +257,16 @@ const breadcrumbSchema = {
 		grid-row: 1;
 	}
 
+	/* Khi nhảy đến #id từ mục lục, chừa chỗ cho header fixed (7rem = mốc
+	   112px của scrollspy trong <script> phía trên) để heading không bị đè. */
+	.post-body__inner h2,
+	.post-body__inner h3,
+	.post-body__inner h4,
+	.post-body__inner h5,
+	.post-body__inner h6 {
+		scroll-margin-top: 7rem;
+	}
+
 	/* reveal/reveal-right và position: sticky phải nằm trên CÙNG một phần tử.
 	   Nếu sticky nằm ở phần tử con còn reveal (transform) nằm ở cha, transform
 	   của cha sẽ tạo containing block mới và làm hỏng sticky của con - đây là
@@ -300,13 +295,13 @@ const breadcrumbSchema = {
 		margin-bottom: 1rem;
 	}
 
-	.post-toc__nav :global(ul) {
+	.post-toc__nav ul {
 		display: flex;
 		flex-direction: column;
 		gap: 0.6rem;
 	}
 
-	.post-toc__nav :global(a) {
+	.post-toc__nav a {
 		display: block;
 		font-size: 0.88rem;
 		line-height: 1.4;
@@ -315,20 +310,20 @@ const breadcrumbSchema = {
 		transition: color 0.2s ease;
 	}
 
-	.post-toc__nav :global(a:hover) {
+	.post-toc__nav a:hover {
 		color: var(--secondary);
 	}
 
-	.post-toc__nav :global(a.is-active) {
+	.post-toc__nav a.is-active {
 		color: var(--secondary);
 		font-weight: 600;
 	}
 
-	.post-toc__nav :global(a.toc-level-h3) {
+	.post-toc__nav a.toc-level-h3 {
 		padding-left: 1rem;
 	}
 
-	.post-toc__nav :global(a.toc-level-h4) {
+	.post-toc__nav a.toc-level-h4 {
 		padding-left: 2rem;
 	}
 
@@ -354,6 +349,7 @@ const breadcrumbSchema = {
 	.post-cover {
 		position: relative;
 		margin-top: -3rem;
+		margin-bottom: 3rem;
 		aspect-ratio: 16 / 9;
 		border-radius: var(--radius-lg);
 		overflow: hidden;
