@@ -256,8 +256,51 @@ export function config<
     [key: string]: Singleton<Record<string, ComponentSchema>>;
   },
 >(userConfig: Config<Collections, Singletons>) {
+  // Env access here is deliberately written the awkward-looking way, because
+  // this function is evaluated in three different module contexts:
+  //   1. Raw Bun import, no Vite  - isDemoBuild() in packages/astro/src/index.ts
+  //   2. Vite SSR bundle          - server pages / API routes
+  //   3. Vite CLIENT bundle       - the VEI toolbar imports
+  //      virtual:drystack-config (-> this file) straight from the browser.
+  // `process` exists in (1) and (2) but NOT (3), so a bare `process.env.X`
+  // throws `process is not defined` in the browser. Vite/esbuild statically
+  // replaces the *exact* text `import.meta.env.PUBLIC_X` with its literal
+  // value for the client bundle - but ONLY that exact form: a computed
+  // `import.meta.env[name]` or an access through an aliased variable is left
+  // untouched and reads back `undefined` in the browser (confirmed with
+  // esbuild `define`). So each var is spelled out inline - never factored
+  // through a helper, a loop, or a `const env = import.meta.env` alias - and
+  // must keep the `PUBLIC_` prefix (Astro's default envPrefix) to reach the
+  // client at all. The `typeof process` guard means `import.meta.env` is only
+  // ever touched in the pure-browser case, where it has already been replaced
+  // by a literal - it is never a real runtime lookup. See the
+  // drystack-demo-env-vars-public-prefix note for the empirical trail.
+  type ViteMeta = { env: Record<string, string | undefined> };
+
+  const isDemoBuild =
+    (typeof process !== "undefined"
+      ? process.env.PUBLIC_DEMO
+      : (import.meta as unknown as ViteMeta).env.PUBLIC_DEMO) === "true";
+
   return {
     ...userConfig,
+    storage: isDemoBuild
+      ? {
+          kind: "local",
+          demo: true,
+          ai: {
+            url:
+              typeof process !== "undefined"
+                ? process.env.PUBLIC_DRYSTACK_AI_URL
+                : (import.meta as unknown as ViteMeta).env
+                    .PUBLIC_DRYSTACK_AI_URL,
+            model:
+              typeof process !== "undefined"
+                ? process.env.PUBLIC_DRY_AI_MODEL
+                : (import.meta as unknown as ViteMeta).env.PUBLIC_DRY_AI_MODEL,
+          },
+        }
+      : userConfig.storage,
     singletons: {
       ...userConfig.singletons,
       [REDIRECTS_SINGLETON_KEY]: redirectsSingleton,
