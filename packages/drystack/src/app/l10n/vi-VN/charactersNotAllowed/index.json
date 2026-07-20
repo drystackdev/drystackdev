@@ -1,0 +1,6 @@
+{
+  "key": "charactersNotAllowed",
+  "value": "Một số ký tự không được phép: {list}",
+  "notes": "",
+  "type": "global"
+}

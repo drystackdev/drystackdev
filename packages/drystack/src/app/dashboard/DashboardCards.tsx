@@ -1,3 +1,4 @@
+import { useLocalizedStringFormatter } from '@react-aria/i18n';
 import { Badge } from '@keystar/ui/badge';
 import { ActionButton } from '@keystar/ui/button';
 import { Icon } from '@keystar/ui/icon';
@@ -5,8 +6,8 @@ import { plusIcon } from '@keystar/ui/icon/icons/plusIcon';
 import { Divider, Flex } from '@keystar/ui/layout';
 import { Text } from '@keystar/ui/typography';
 
+import l10nMessages from '../l10n';
 import { ItemOrGroup, useNavItems } from '../useNavItems';
-import { pluralize } from '../pluralize';
 import {
   DashboardCard,
   DashboardGrid,
@@ -16,20 +17,24 @@ import {
 
 export function DashboardCards() {
   const navItems = useNavItems();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const hasSections = navItems.some(item => 'children' in item);
-  const items = navItems.map(item => renderItemOrGroup(item));
+  const items = navItems.map(item => renderItemOrGroup(item, stringFormatter));
 
   return hasSections ? (
     <>{items}</>
   ) : (
-    <DashboardSection title="Content">
+    <DashboardSection title={stringFormatter.format('contentSectionTitle')}>
       <DashboardGrid>{items}</DashboardGrid>
     </DashboardSection>
   );
 }
 
 let dividerCount = 0;
-function renderItemOrGroup(itemOrGroup: ItemOrGroup) {
+function renderItemOrGroup(
+  itemOrGroup: ItemOrGroup,
+  stringFormatter: ReturnType<typeof useLocalizedStringFormatter>,
+) {
   if (itemOrGroup.isDivider) {
     return (
       <Flex key={dividerCount++} gridColumn={FILL_COLS}>
@@ -46,7 +51,9 @@ function renderItemOrGroup(itemOrGroup: ItemOrGroup) {
     return (
       <DashboardSection key={itemOrGroup.title} title={itemOrGroup.title}>
         <DashboardGrid>
-          {itemOrGroup.children.map(child => renderItemOrGroup(child))}
+          {itemOrGroup.children.map(child =>
+            renderItemOrGroup(child, stringFormatter),
+          )}
         </DashboardGrid>
       </DashboardSection>
     );
@@ -59,13 +66,10 @@ function renderItemOrGroup(itemOrGroup: ItemOrGroup) {
 
     return typeof itemOrGroup.changed === 'number' ? (
       <Badge tone="accent" marginStart="auto">
-        {pluralize(itemOrGroup.changed, {
-          singular: 'change',
-          plural: 'changes',
-        })}
+        {stringFormatter.format('changeCount', { count: itemOrGroup.changed })}
       </Badge>
     ) : (
-      <Badge tone="accent">Changed</Badge>
+      <Badge tone="accent">{stringFormatter.format('changedLabel')}</Badge>
     );
   })();
 
@@ -78,7 +82,10 @@ function renderItemOrGroup(itemOrGroup: ItemOrGroup) {
     return (
       <Flex gap="medium" alignItems="center">
         {changeElement}
-        <ActionButton aria-label="Add" href={`${itemOrGroup.href}/create`}>
+        <ActionButton
+          aria-label={stringFormatter.format('addAriaLabel')}
+          href={`${itemOrGroup.href}/create`}
+        >
           <Icon src={plusIcon} />
         </ActionButton>
       </Flex>
@@ -94,9 +101,8 @@ function renderItemOrGroup(itemOrGroup: ItemOrGroup) {
     >
       {typeof itemOrGroup.entryCount === 'number' ? (
         <Text color="neutralSecondary">
-          {pluralize(itemOrGroup.entryCount, {
-            singular: 'entry',
-            plural: 'entries',
+          {stringFormatter.format('entryCount', {
+            count: itemOrGroup.entryCount,
           })}
         </Text>
       ) : null}

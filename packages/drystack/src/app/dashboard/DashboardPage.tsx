@@ -43,6 +43,7 @@ export function DashboardPage(props: { config: Config; basePath: string }) {
 }
 
 function UserInfo({ user }: { user: { avatarUrl?: string; name: string } }) {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   return (
     <Flex alignItems="center" gap="medium" isHidden={{ below: 'tablet' }}>
       <Avatar src={user.avatarUrl} name={user.name} size="large" />
@@ -54,7 +55,7 @@ function UserInfo({ user }: { user: { avatarUrl?: string; name: string } }) {
             fontWeight: tokenSchema.typography.fontWeight.bold,
           }}
         >
-          Hello, {user.name}!
+          {stringFormatter.format('helloGreeting', { name: user.name })}
         </Heading>
       </VStack>
     </Flex>

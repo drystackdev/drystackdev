@@ -383,6 +383,7 @@ type CollectionPageContentProps = CollectionPageProps & {
 };
 function CollectionPageContent(props: CollectionPageContentProps) {
   const trees = useTree();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   const tree =
     trees.merged.kind === "loaded"
@@ -395,11 +396,11 @@ function CollectionPageContent(props: CollectionPageContentProps) {
     return (
       <EmptyState
         icon={alertCircleIcon}
-        title="Unable to load collection"
+        title={stringFormatter.format("unableToLoadCollectionTitle")}
         message={trees.merged.error.message}
         actions={
           <Button tone="accent" href={props.basePath}>
-            Dashboard
+            {stringFormatter.format("dashboardAction")}
           </Button>
         }
       />
@@ -410,7 +411,7 @@ function CollectionPageContent(props: CollectionPageContentProps) {
     return (
       <EmptyState>
         <ProgressCircle
-          aria-label="Loading Entries"
+          aria-label={stringFormatter.format("loadingEntriesAriaLabel")}
           isIndeterminate
           size="large"
         />
@@ -422,18 +423,18 @@ function CollectionPageContent(props: CollectionPageContentProps) {
     return (
       <EmptyState
         icon={listXIcon}
-        title="Empty collection"
+        title={stringFormatter.format("emptyCollectionTitle")}
         message={
           <>
-            There aren't any entries yet.{" "}
+            {stringFormatter.format("emptyCollectionBodyPrefix")}{" "}
             <TextLink
               href={`${props.basePath}/collection/${encodeURIComponent(
                 props.collection,
               )}/create`}
             >
-              Create the first entry
+              {stringFormatter.format("createFirstEntryLink")}
             </TextLink>{" "}
-            to see it here.
+            {stringFormatter.format("emptyCollectionBodySuffix")}
           </>
         }
       />
@@ -455,6 +456,7 @@ function CollectionTable(
   },
 ) {
   let { searchTerm, columnDescriptors } = props;
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   const client = useClient();
   const repoInfo = useRepoInfo();
@@ -1087,8 +1089,10 @@ function CollectionTable(
           renderEmptyState={() => (
             <EmptyState
               icon={searchXIcon}
-              title="No results"
-              message={`No items matching "${searchTerm}" were found.`}
+              title={stringFormatter.format("noResultsTitle")}
+              message={stringFormatter.format("noResultsMessage", {
+                term: searchTerm,
+              })}
             />
           )}
           flex
@@ -1121,7 +1125,10 @@ function CollectionTable(
             {({ name, key, ...options }) =>
               key === STATUS ? (
                 <Column key={key} isRowHeader allowsSorting {...options}>
-                  <Icon aria-label="Status" src={diffIcon} />
+                  <Icon
+                    aria-label={stringFormatter.format("statusColumnAriaLabel")}
+                    src={diffIcon}
+                  />
                 </Column>
               ) : (
                 <Column key={key} isRowHeader allowsSorting {...options}>
@@ -1133,7 +1140,16 @@ function CollectionTable(
           <TableBody items={tableItems}>
             {(item) => {
               const statusCell = (
-                <Cell key={STATUS + item.name} textValue={item.status}>
+                <Cell
+                  key={STATUS + item.name}
+                  textValue={stringFormatter.format(
+                    item.status === "Added"
+                      ? "statusAdded"
+                      : item.status === "Changed"
+                        ? "statusChanged"
+                        : "statusUnchanged",
+                  )}
+                >
                   {item.status === "Added" ? (
                     <Icon color="positive" src={plusSquareIcon} />
                   ) : item.status === "Changed" ? (

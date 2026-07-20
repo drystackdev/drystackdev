@@ -1,3 +1,4 @@
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
 import { ButtonGroup, ActionButton, Button } from "@keystar/ui/button";
 import { FieldDescription, FieldLabel, FieldMessage } from "@keystar/ui/field";
 import { Icon } from "@keystar/ui/icon";
@@ -11,8 +12,8 @@ import { openMediaLibrary } from "../../../app/media-library/bridge";
 import { useMediaLibraryPreviewURL } from "../../../app/media-library/useMediaLibraryPreviewURL";
 import { useEntryDirectoryContext } from "../../../app/entry-form";
 import { useObjectURL } from "../image/ui";
+import l10nMessages from "../../../app/l10n";
 
-// TODO: button labels ("Choose from library", "Remove", "Download") need i18n support
 export function FileFieldInput(
   props: FormFieldInputProps<string | null> & {
     label: string;
@@ -21,6 +22,7 @@ export function FileFieldInput(
   },
 ) {
   const { value } = props;
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const [blurred, onBlur] = useReducer(() => true, false);
   // caches the bytes for a file picked/uploaded in this session, since a
   // brand new upload isn't in the tree yet - useMediaLibraryPreviewURL
@@ -64,7 +66,10 @@ export function FileFieldInput(
             const picked = await openMediaLibrary({
               accept: "any",
               local: entryDirectory
-                ? { directory: `${entryDirectory}/assets`, label: "This entry" }
+                ? {
+                    directory: `${entryDirectory}/assets`,
+                    label: stringFormatter.format("thisEntryLabel"),
+                  }
                 : undefined,
             });
             onBlur();
@@ -74,7 +79,7 @@ export function FileFieldInput(
             }
           }}
         >
-          Choose from library
+          {stringFormatter.format("chooseFromLibraryAction")}
         </ActionButton>
         {value !== null && (
           <>
@@ -86,7 +91,7 @@ export function FileFieldInput(
                 onBlur();
               }}
             >
-              Remove
+              {stringFormatter.format("remove")}
             </ActionButton>
             {objectUrl && (
               <Button
@@ -94,7 +99,7 @@ export function FileFieldInput(
                 download={value.split("/").pop()}
                 prominence="low"
               >
-                Download
+                {stringFormatter.format("downloadAction")}
               </Button>
             )}
           </>
@@ -119,7 +124,11 @@ export function FileFieldInput(
       {(props.forceValidation || blurred) &&
         props.validation?.isRequired &&
         value === null && (
-          <FieldMessage>{props.label} is required</FieldMessage>
+          <FieldMessage>
+            {stringFormatter.format("fieldRequiredMessage", {
+              label: props.label,
+            })}
+          </FieldMessage>
         )}
     </Flex>
   );

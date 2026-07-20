@@ -1,0 +1,6 @@
+{
+  "key": "entryCount",
+  "value": "{count, plural, one {# entry} other {# entries}}",
+  "notes": "",
+  "type": "global"
+}

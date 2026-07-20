@@ -6,6 +6,7 @@ import {
   useState,
   Fragment,
 } from "react";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
 
 import { Button } from "@keystar/ui/button";
 import { Icon } from "@keystar/ui/icon";
@@ -39,6 +40,7 @@ import { getAuth } from "./auth";
 import { assertValidRepoConfig } from "./repo-config";
 import { NotFoundBoundary, notFound } from "./not-found";
 import { BrandProvider, useEnsureBrandAtRoot } from "./brand";
+import l10nMessages from "./l10n";
 
 function parseParamsWithoutBranch(params: string[]) {
   if (params.length === 0) {
@@ -92,6 +94,7 @@ function RedirectToBranch(props: { config: GitHubConfig }) {
 
 function PageInner({ config }: { config: Config }) {
   const { params, basePath: rootPath } = useRouter();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   let branch = null,
     parsedParams,
     basePath: string;
@@ -119,7 +122,7 @@ function PageInner({ config }: { config: Config }) {
       }
     }
     if (params[0] !== "branch" || params.length < 2) {
-      return <Text>Not found</Text>;
+      return <Text>{stringFormatter.format("notFoundLabel")}</Text>;
     }
     branch = params[1];
     basePath = `${rootPath}/branch/${encodeURIComponent(branch)}`;
@@ -136,8 +139,8 @@ function PageInner({ config }: { config: Config }) {
             <PageBody>
               <EmptyState
                 icon={fileX2Icon}
-                title="Not found"
-                message="This page could not be found."
+                title={stringFormatter.format("notFoundLabel")}
+                message={stringFormatter.format("pageNotFoundMessage")}
               />
             </PageBody>
           </PageRoot>
@@ -197,6 +200,7 @@ function AuthWrapper(props: { config: GitHubConfig; children: ReactElement }) {
     "unknown",
   );
   const router = useRouter();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   useEffect(() => {
     getAuth(props.config, router.basePath).then((auth) => {
       if (auth) {
@@ -225,7 +229,7 @@ function AuthWrapper(props: { config: GitHubConfig; children: ReactElement }) {
           target="_top"
         >
           <Icon src={githubIcon} />
-          <Text>Log in with GitHub</Text>
+          <Text>{stringFormatter.format("loginWithGithubAction")}</Text>
         </Button>
       </Flex>
     );

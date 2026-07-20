@@ -1,0 +1,6 @@
+{
+  "key": "rateLimitReachedWithReset",
+  "value": "GitHub API rate limit reached - try again after {time}",
+  "notes": "",
+  "type": "global"
+}

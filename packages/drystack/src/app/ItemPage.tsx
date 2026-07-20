@@ -280,10 +280,15 @@ function ItemPageInner(
   });
 
   const onPaste = useEventCallback(async () => {
-    const entry = await getPastedEntry(formatInfo, collectionConfig.schema, {
-      field: collectionConfig.slugField,
-      slug: getSlugFromState(collectionConfig, props.state),
-    });
+    const entry = await getPastedEntry(
+      formatInfo,
+      collectionConfig.schema,
+      {
+        field: collectionConfig.slugField,
+        slug: getSlugFromState(collectionConfig, props.state),
+      },
+      stringFormatter,
+    );
     if (entry) {
       setValueToPreviewProps(entry, props.previewProps);
       toastQueue.positive(stringFormatter.format("entryPastedToast"), {
@@ -1113,7 +1118,7 @@ export function CreateBranchDuringUpdateDialog(props: {
               label={stringFormatter.format("branchNameLabel")}
               description={props.reason}
               autoFocus
-              errorMessage={prettyErrorForCreateBranchMutation(error)}
+              errorMessage={prettyErrorForCreateBranchMutation(error, stringFormatter)}
               {...propsForBranchPrefix}
             />
           </Flex>

@@ -14,8 +14,10 @@ import { collectDirectoriesUsedInSchema, getTreeKey } from './tree-key';
 import { getTreeNodeAtPath, TreeNode } from './trees';
 import { object } from '../form/fields/object';
 import { useEffect } from 'react';
+import { useLocalizedStringFormatter } from '@react-aria/i18n';
 import { showDraftRestoredToast } from './persistence';
 import { useEffectEvent } from '@react-aria/utils';
+import l10nMessages from './l10n';
 
 export * from './path-utils';
 
@@ -162,9 +164,14 @@ export function useShowRestoredDraftMessage(
   state: Record<string, unknown>,
   localTreeKey: string | undefined
 ) {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const show = useEffectEvent(() => {
     if (draft && state === draft.state) {
-      showDraftRestoredToast(draft.savedAt, localTreeKey !== draft.treeKey);
+      showDraftRestoredToast(
+        draft.savedAt,
+        localTreeKey !== draft.treeKey,
+        stringFormatter,
+      );
     }
   });
   useEffect(() => {

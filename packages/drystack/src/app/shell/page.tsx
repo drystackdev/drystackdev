@@ -1,5 +1,7 @@
-import { useLocale } from '@react-aria/i18n';
+import { useLocale, useLocalizedStringFormatter } from '@react-aria/i18n';
 import { createContext, PropsWithChildren, useContext, useRef } from 'react';
+
+import l10nMessages from '../l10n';
 
 import { ActionButton } from '@keystar/ui/button';
 import { Icon } from '@keystar/ui/icon';
@@ -47,6 +49,7 @@ export const PageHeader = ({ children }: PropsWithChildren) => {
   const sidebarState = useSidebar();
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const { direction } = useLocale();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   let icon = sidebarState.isOpen ? panelLeftCloseIcon : panelLeftOpenIcon;
   if (direction === 'rtl') {
@@ -63,7 +66,7 @@ export const PageHeader = ({ children }: PropsWithChildren) => {
       >
         <ActionButton
           prominence="low"
-          aria-label="Open app navigation"
+          aria-label={stringFormatter.format('openAppNavigationAriaLabel')}
           aria-pressed={sidebarState.isOpen}
           onPress={sidebarState.toggle}
           ref={menuButtonRef}

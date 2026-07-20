@@ -1,0 +1,6 @@
+{
+  "key": "clipboardAccessDeniedToast",
+  "value": "Failed to paste because clipboard access was denied",
+  "notes": "",
+  "type": "global"
+}

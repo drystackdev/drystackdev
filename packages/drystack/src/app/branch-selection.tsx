@@ -164,7 +164,7 @@ export function CreateBranchDialog(props: {
               label={stringFormatter.format('branchName')}
               // description="Your new branch will be based on the currently checked out branch, which is the default branch for this repository."
               autoFocus
-              errorMessage={prettyErrorForCreateBranchMutation(error)}
+              errorMessage={prettyErrorForCreateBranchMutation(error, stringFormatter)}
               {...propsForBranchPrefix}
             />
           ) : (
@@ -174,7 +174,7 @@ export function CreateBranchDialog(props: {
                 value={branchName}
                 onChange={setBranchName}
                 autoFocus
-                errorMessage={prettyErrorForCreateBranchMutation(error)}
+                errorMessage={prettyErrorForCreateBranchMutation(error, stringFormatter)}
                 {...propsForBranchPrefix}
               />
               <RadioGroup
@@ -231,7 +231,10 @@ const invalidAnywhere = [' ', '~', '^', ':', '*', '?', '[', '..', '@{', '\\'];
 const invalidStart = ['.', '/'];
 const invalidEnd = ['.', '/', '.lock'];
 
-export function prettyErrorForCreateBranchMutation(error?: CombinedError) {
+export function prettyErrorForCreateBranchMutation(
+  error: CombinedError | undefined,
+  stringFormatter: ReturnType<typeof useLocalizedStringFormatter>,
+) {
   if (!error) {
     return undefined;
   }
@@ -245,14 +248,14 @@ export function prettyErrorForCreateBranchMutation(error?: CombinedError) {
     // start rules
     for (let char of invalidStart) {
       if (branchname.startsWith(char)) {
-        return `Cannot start with "${char}"`;
+        return stringFormatter.format('cannotStartWith', { char });
       }
     }
 
     // end rules
     for (let char of invalidEnd) {
       if (branchname.endsWith(char)) {
-        return `Cannot end with "${char}"`;
+        return stringFormatter.format('cannotEndWith', { char });
       }
     }
 
@@ -260,13 +263,15 @@ export function prettyErrorForCreateBranchMutation(error?: CombinedError) {
     let invalidMatches = invalidAnywhere.filter(c => branchname.includes(c));
     if (invalidMatches.length > 0) {
       let options = { style: 'long', type: 'conjunction' } as const;
-      let formatter = new Intl.ListFormat('en-US', options);
+      let formatter = new Intl.ListFormat(undefined, options);
       let list = invalidMatches.map(char => `"${char}"`);
-      return `Some characters are not allowed: ${formatter.format(list)}`;
+      return stringFormatter.format('charactersNotAllowed', {
+        list: formatter.format(list),
+      });
     }
 
     // unknown
-    return 'Invalid branch name';
+    return stringFormatter.format('invalidBranchName');
   }
 
   return error.message;

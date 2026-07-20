@@ -43,13 +43,19 @@ export function BranchSection() {
             onPress={() => {
               if (!brand) return;
               navigator.clipboard.writeText(brand.label);
-              toastQueue.positive("Đã copy tên brand", { timeout: 2000 });
+              toastQueue.positive(
+                localizedString.format("brandNameCopiedToast"),
+                { timeout: 2000 },
+              );
             }}
           >
             <Icon src={copyIcon} />
           </ActionButton>
         </Flex>
-        <DashboardCard label="File management" href={`${basePath}/files`} />
+        <DashboardCard
+          label={localizedString.format("fileManagement")}
+          href={`${basePath}/files`}
+        />
       </DashboardGrid>
     </DashboardSection>
   );

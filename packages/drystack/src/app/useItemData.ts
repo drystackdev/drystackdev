@@ -2,6 +2,11 @@ import { LRUCache } from "lru-cache";
 import type { Client } from "urql";
 import { toastQueue } from "@keystar/ui/toast";
 import { useCallback, useMemo } from "react";
+import {
+  LocalizedStringDictionary,
+  LocalizedStringFormatter,
+} from "@internationalized/string";
+import l10nMessages from "./l10n";
 import { Config } from "../config";
 import {
   AssetsFormField,
@@ -359,6 +364,21 @@ function rateLimitResetFromHeaders(headers: Headers): Date | null {
   return Number.isFinite(seconds) ? new Date(seconds * 1000) : null;
 }
 
+const l10nDictionary = new LocalizedStringDictionary(l10nMessages);
+
+// Non-hook fallback - notifyRateLimit runs deep in a shared blob-fetching
+// path with no render-time hook access. Takes a locale snapshot rather than
+// reacting to changes, fine for a one-off toast.
+function getDefaultFormatter(): {
+  format(key: string, variables?: Record<string, string>): string;
+} {
+  const locale =
+    (typeof document !== "undefined" && document.documentElement.lang) ||
+    (typeof navigator !== "undefined" && navigator.language) ||
+    "en-US";
+  return new LocalizedStringFormatter(locale, l10nDictionary);
+}
+
 // A directory of thumbnails can hit the rate limit dozens of times at once -
 // show one toast per 30s window instead of one per failed blob.
 let lastRateLimitToastAt = 0;
@@ -366,12 +386,15 @@ function notifyRateLimit(resetAt: Date | null) {
   const now = Date.now();
   if (now - lastRateLimitToastAt < 30_000) return;
   lastRateLimitToastAt = now;
-  const resetText = resetAt
-    ? ` - try again after ${resetAt.toLocaleTimeString()}`
-    : "";
-  toastQueue.critical(`GitHub API rate limit reached${resetText}`, {
-    timeout: 8000,
-  });
+  const stringFormatter = getDefaultFormatter();
+  toastQueue.critical(
+    resetAt
+      ? stringFormatter.format("rateLimitReachedWithReset", {
+          time: resetAt.toLocaleTimeString(),
+        })
+      : stringFormatter.format("rateLimitReachedNoReset"),
+    { timeout: 8000 },
+  );
 }
 
 // Raw content is always fetched through an authenticated REST call, even for

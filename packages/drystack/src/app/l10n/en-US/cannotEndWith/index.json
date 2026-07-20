@@ -1,0 +1,6 @@
+{
+  "key": "cannotEndWith",
+  "value": "Cannot end with \"{char}\"",
+  "notes": "",
+  "type": "global"
+}

@@ -66,7 +66,8 @@ function parseEntryFromPlaintext(
 export async function getPastedEntry(
   format: FormatInfo,
   schema: Record<string, ComponentSchema>,
-  slugInfo: { field: string; slug: string } | undefined
+  slugInfo: { field: string; slug: string } | undefined,
+  stringFormatter: { format(key: string): string }
 ) {
   let clipboardItems: ClipboardItem[];
   try {
@@ -76,12 +77,14 @@ export async function getPastedEntry(
   } catch (err) {
     if (err instanceof DOMException && err.name === 'NotAllowedError') {
       toastQueue.critical(
-        'Failed to paste because clipboard access was denied',
+        stringFormatter.format('clipboardAccessDeniedToast'),
         { timeout: 5000 }
       );
       return;
     }
-    toastQueue.critical('Failed to read clipboard', { timeout: 5000 });
+    toastQueue.critical(stringFormatter.format('clipboardReadFailedToast'), {
+      timeout: 5000,
+    });
     return;
   }
   for (const item of clipboardItems) {
@@ -107,7 +110,9 @@ export async function getPastedEntry(
       }
     }
   }
-  toastQueue.critical('Entry not found in clipboard', { timeout: 5000 });
+  toastQueue.critical(stringFormatter.format('entryNotFoundInClipboardToast'), {
+    timeout: 5000,
+  });
 }
 
 function serializeEntryForClipboard(

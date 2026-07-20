@@ -1,6 +1,8 @@
 import { PressProps } from '@react-aria/interactions';
 import { Item } from '@react-stately/collections';
 import { ForwardedRef, ReactElement, forwardRef, useMemo } from 'react';
+import { useLocalizedStringFormatter } from '@react-aria/i18n';
+import l10nMessages from '../../l10n';
 
 import { Avatar } from '@keystar/ui/avatar';
 import { ActionButton } from '@keystar/ui/button';
@@ -39,27 +41,35 @@ type MenuItem = {
 // -----------------------------------------------------------------------------
 
 const THEME_MODE = {
-  light: { icon: sunIcon, label: 'Light' },
-  dark: { icon: moonIcon, label: 'Dark' },
-  auto: { icon: monitorIcon, label: 'System' },
+  light: { icon: sunIcon, labelKey: 'themeLight' },
+  dark: { icon: moonIcon, labelKey: 'themeDark' },
+  auto: { icon: monitorIcon, labelKey: 'themeSystem' },
 } as const;
-const themeItems = Object.entries(THEME_MODE).map(([id, { icon, label }]) => ({
-  id,
-  icon,
-  label,
-}));
 
 export function ThemeMenu() {
   let { theme, setTheme } = useThemeContext();
   let matchesDark = useMediaQuery('(prefers-color-scheme: dark)');
+  let stringFormatter = useLocalizedStringFormatter(l10nMessages);
   let icon = THEME_MODE[theme].icon;
   if (theme === 'auto') {
     icon = matchesDark ? moonIcon : sunIcon;
   }
+  let themeItems = useMemo(
+    () =>
+      Object.entries(THEME_MODE).map(([id, { icon, labelKey }]) => ({
+        id,
+        icon,
+        label: stringFormatter.format(labelKey),
+      })),
+    [stringFormatter],
+  );
 
   return (
     <MenuTrigger align="end">
-      <ActionButton aria-label="theme" prominence="low">
+      <ActionButton
+        aria-label={stringFormatter.format('themeMenuAriaLabel')}
+        prominence="low"
+      >
         <Icon src={icon} />
       </ActionButton>
       <Menu
@@ -106,12 +116,13 @@ export function UserMenu(user: {
 }) {
   let config = useConfig();
   const { basePath } = useRouter();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   const menuItems = useMemo(() => {
     let items: MenuItem[] = [
       {
         key: 'logout',
-        label: 'Log out',
+        label: stringFormatter.format('logOutAction'),
         href:
           config.storage.kind === 'github'
             ? `/api${basePath}/github/logout`
@@ -120,7 +131,7 @@ export function UserMenu(user: {
       },
     ];
     return items;
-  }, [config, basePath]);
+  }, [config, basePath, stringFormatter]);
 
   if (!user) {
     return null;
@@ -160,11 +171,12 @@ const UserDetailsButton = forwardRef(function UserDetailsButton(
   ref: ForwardedRef<HTMLButtonElement>
 ) {
   let { avatarUrl, login, name, ...otherProps } = props;
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   return (
     <ActionButton
       {...otherProps}
       ref={ref}
-      aria-label="User menu"
+      aria-label={stringFormatter.format('userMenuAriaLabel')}
       prominence="low"
       flexGrow={1}
       UNSAFE_className={css({ justifyContent: 'start', textAlign: 'start' })}

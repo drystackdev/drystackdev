@@ -1,0 +1,6 @@
+{
+  "key": "noResultsMessage",
+  "value": "Không tìm thấy mục nào khớp với \"{term}\".",
+  "notes": "",
+  "type": "global"
+}

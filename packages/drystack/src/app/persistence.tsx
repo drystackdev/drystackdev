@@ -47,14 +47,15 @@ function RelativeTime(props: { date: Date }) {
 export function showDraftRestoredToast(
   savedAt: Date,
   hasChangedSince: boolean,
+  stringFormatter: { format(key: string): string },
 ) {
   toastQueue.info(
     <Text>
-      Restored draft from <RelativeTime date={savedAt} />.{" "}
+      {stringFormatter.format("draftRestoredFromPrefix")}{" "}
+      <RelativeTime date={savedAt} />.{" "}
       {hasChangedSince && (
         <Text color="accent">
-          Other changes have been made to this entry since the draft. You may
-          want to discard the draft changes.
+          {stringFormatter.format("draftChangedSinceWarning")}
         </Text>
       )}
     </Text>,

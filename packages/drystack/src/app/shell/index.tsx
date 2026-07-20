@@ -1,8 +1,10 @@
 import { ReactNode, useContext } from "react";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
 
 import { alertCircleIcon } from "@keystar/ui/icon/icons/alertCircleIcon";
 
 import { Config } from "../../config";
+import l10nMessages from "../l10n";
 
 import { isGitHubConfig, isLocalConfig } from "../utils";
 
@@ -54,6 +56,7 @@ export const AppShell = (props: {
   currentBranch: string;
   basePath: string;
 }) => {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const content = (
     <AppShellErrorContext.Consumer>
       {(error) =>
@@ -63,7 +66,7 @@ export const AppShell = (props: {
         ) ? (
           <EmptyState
             icon={alertCircleIcon}
-            title="Failed to load shell"
+            title={stringFormatter.format("failedToLoadShell")}
             message={error.message}
           />
         ) : (

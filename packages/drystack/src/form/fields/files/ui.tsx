@@ -1,3 +1,4 @@
+import { useLocalizedStringFormatter } from '@react-aria/i18n';
 import { ActionButton, Button, ButtonGroup } from '@keystar/ui/button';
 import { FieldDescription, FieldLabel, FieldMessage } from '@keystar/ui/field';
 import { Icon } from '@keystar/ui/icon';
@@ -11,18 +12,20 @@ import { FormFieldInputProps } from '../../api';
 import { openMediaLibraryMulti } from '../../../app/media-library/bridge';
 import { useMediaLibraryPreviewURL } from '../../../app/media-library/useMediaLibraryPreviewURL';
 import { useInView } from '../../../app/file-manager/useInView';
+import l10nMessages from '../../../app/l10n';
 
 function FileRow(props: { path: string; onRemove: () => void }) {
   const [ref, inView] = useInView<HTMLDivElement>();
   const objectUrl = useMediaLibraryPreviewURL(props.path, undefined, inView);
   const filename = props.path.split('/').pop()!;
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   return (
     <Flex ref={ref} alignItems="center" gap="regular">
       <Icon src={fileCodeIcon} />
       <Text UNSAFE_style={{ flex: 1 }}>{filename}</Text>
       {objectUrl && (
         <Button href={objectUrl} download={filename} prominence="low">
-          Download
+          {stringFormatter.format('downloadAction')}
         </Button>
       )}
       <ActionButton prominence="low" onPress={props.onRemove}>
@@ -32,7 +35,6 @@ function FileRow(props: { path: string; onRemove: () => void }) {
   );
 }
 
-// TODO: button labels ("Choose from library", "Remove", "Download") need i18n support
 export function FilesFieldInput(
   props: FormFieldInputProps<string[]> & {
     label: string;
@@ -41,6 +43,7 @@ export function FilesFieldInput(
   }
 ) {
   const { value } = props;
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const [blurred, onBlur] = useReducer(() => true, false);
   const labelId = useId();
   const descriptionId = useId();
@@ -89,13 +92,17 @@ export function FilesFieldInput(
             }
           }}
         >
-          Choose from library
+          {stringFormatter.format('chooseFromLibraryAction')}
         </ActionButton>
       </ButtonGroup>
       {(props.forceValidation || blurred) &&
         props.validation?.isRequired &&
         value.length === 0 && (
-          <FieldMessage>{props.label} is required</FieldMessage>
+          <FieldMessage>
+            {stringFormatter.format('fieldRequiredMessage', {
+              label: props.label,
+            })}
+          </FieldMessage>
         )}
     </Flex>
   );

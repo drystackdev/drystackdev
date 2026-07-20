@@ -1,3 +1,4 @@
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
 import { ButtonGroup, ActionButton } from "@keystar/ui/button";
 import { FieldDescription, FieldLabel, FieldMessage } from "@keystar/ui/field";
 import { Flex, Box } from "@keystar/ui/layout";
@@ -8,6 +9,7 @@ import { FormFieldInputProps } from "../../api";
 import { openMediaLibrary } from "../../../app/media-library/bridge";
 import { useMediaLibraryPreviewURL } from "../../../app/media-library/useMediaLibraryPreviewURL";
 import { useEntryDirectoryContext } from "../../../app/entry-form";
+import l10nMessages from "../../../app/l10n";
 
 export function getUploadedFileObject(
   accept: string,
@@ -64,7 +66,6 @@ export function useObjectURL(
   return url;
 }
 
-// TODO: button labels ("Choose from library", "Remove") need i18n support
 export function ImageFieldInput(
   props: FormFieldInputProps<string | null> & {
     label: string;
@@ -73,6 +74,7 @@ export function ImageFieldInput(
   },
 ) {
   const { value } = props;
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const [blurred, onBlur] = useReducer(() => true, false);
   // caches the bytes for a file picked/uploaded in this session, since a
   // brand new upload isn't in the tree yet - useMediaLibraryPreviewURL
@@ -119,7 +121,7 @@ export function ImageFieldInput(
                 local: entryDirectory
                   ? {
                       directory: `${entryDirectory}/assets`,
-                      label: "This entry",
+                      label: stringFormatter.format("thisEntryLabel"),
                     }
                   : undefined,
               });
@@ -134,7 +136,7 @@ export function ImageFieldInput(
             }
           }}
         >
-          Choose from library
+          {stringFormatter.format("chooseFromLibraryAction")}
         </ActionButton>
         {value !== null && (
           <ActionButton
@@ -145,7 +147,7 @@ export function ImageFieldInput(
               onBlur();
             }}
           >
-            Remove
+            {stringFormatter.format("remove")}
           </ActionButton>
         )}
       </ButtonGroup>
@@ -171,7 +173,11 @@ export function ImageFieldInput(
       {(props.forceValidation || blurred) &&
         props.validation?.isRequired &&
         value === null && (
-          <FieldMessage>{props.label} is required</FieldMessage>
+          <FieldMessage>
+            {stringFormatter.format("fieldRequiredMessage", {
+              label: props.label,
+            })}
+          </FieldMessage>
         )}
     </Flex>
   );

@@ -377,10 +377,15 @@ function CreateItemInner(props: {
   };
 
   const onPaste = async () => {
-    const entry = await getPastedEntry(formatInfo, collectionConfig.schema, {
-      field: collectionConfig.slugField,
-      slug: getSlugFromState(collectionConfig, props.state),
-    });
+    const entry = await getPastedEntry(
+      formatInfo,
+      collectionConfig.schema,
+      {
+        field: collectionConfig.slugField,
+        slug: getSlugFromState(collectionConfig, props.state),
+      },
+      stringFormatter,
+    );
     if (entry) {
       setValueToPreviewProps(entry, props.previewProps);
       toastQueue.positive(stringFormatter.format('entryPastedToast'), {

@@ -1,8 +1,12 @@
+import { useLocalizedStringFormatter } from '@react-aria/i18n';
 import { Flex } from '@keystar/ui/layout';
 import { TextLink } from '@keystar/ui/link';
 import { Heading, Text } from '@keystar/ui/typography';
 
+import l10nMessages from '../l10n';
+
 export function EmptyRepo(props: { repo: string }) {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   return (
     <Flex alignItems="center" justifyContent="center" margin="xxlarge">
       <Flex
@@ -16,15 +20,14 @@ export function EmptyRepo(props: { repo: string }) {
         maxWidth="scale.4600"
       >
         <Flex justifyContent="center">
-          <Heading>Git repo not initialised</Heading>
+          <Heading>{stringFormatter.format('gitRepoNotInitializedTitle')}</Heading>
         </Flex>
         <Text>
-          The drystack GitHub App is installed in the GitHub repository{' '}
+          {stringFormatter.format('emptyRepoPrefix')}{' '}
           <TextLink href={`https://github.com/${props.repo}`}>
             {props.repo}
           </TextLink>{' '}
-          but the Git repo is not initialised. Please initialise the Git repo
-          before using drystack.
+          {stringFormatter.format('emptyRepoSuffix')}
         </Text>
       </Flex>
     </Flex>

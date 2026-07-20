@@ -215,6 +215,7 @@ function SingletonPageInner(
       formatInfo,
       singletonConfig.schema,
       undefined,
+      stringFormatter,
     );
     if (entry) {
       setValueToPreviewProps(entry, props.previewProps);

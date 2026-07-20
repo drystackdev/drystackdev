@@ -1,0 +1,6 @@
+{
+  "key": "clipboardAccessDeniedToast",
+  "value": "Không thể dán vì quyền truy cập clipboard bị từ chối",
+  "notes": "",
+  "type": "global"
+}

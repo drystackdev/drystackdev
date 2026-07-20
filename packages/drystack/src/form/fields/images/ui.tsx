@@ -1,3 +1,4 @@
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
 import { ActionButton, ButtonGroup } from "@keystar/ui/button";
 import { FieldDescription, FieldLabel, FieldMessage } from "@keystar/ui/field";
 import { Icon } from "@keystar/ui/icon";
@@ -11,6 +12,7 @@ import { openMediaLibraryMulti } from "../../../app/media-library/bridge";
 import { useMediaLibraryPreviewURL } from "../../../app/media-library/useMediaLibraryPreviewURL";
 import { useInView } from "../../../app/file-manager/useInView";
 import { useObjectURL } from "../image/ui";
+import l10nMessages from "../../../app/l10n";
 
 function ImageThumbnail(props: {
   path: string;
@@ -62,7 +64,6 @@ function ImageThumbnail(props: {
   );
 }
 
-// TODO: button labels ("Choose from library", "Remove") need i18n support
 export function ImagesFieldInput(
   props: FormFieldInputProps<string[]> & {
     label: string;
@@ -71,6 +72,7 @@ export function ImagesFieldInput(
   },
 ) {
   const { value } = props;
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const [blurred, onBlur] = useReducer(() => true, false);
   // bytes for paths picked/uploaded this session, since a brand new pick
   // isn't in the tree yet - see useMediaLibraryPreviewURL's tree-sha lookup
@@ -130,13 +132,17 @@ export function ImagesFieldInput(
             }
           }}
         >
-          Choose from library
+          {stringFormatter.format("chooseFromLibraryAction")}
         </ActionButton>
       </ButtonGroup>
       {(props.forceValidation || blurred) &&
         props.validation?.isRequired &&
         value.length === 0 && (
-          <FieldMessage>{props.label} is required</FieldMessage>
+          <FieldMessage>
+            {stringFormatter.format("fieldRequiredMessage", {
+              label: props.label,
+            })}
+          </FieldMessage>
         )}
     </Flex>
   );

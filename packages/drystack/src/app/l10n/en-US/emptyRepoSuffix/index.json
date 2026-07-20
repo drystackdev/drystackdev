@@ -1,0 +1,6 @@
+{
+  "key": "emptyRepoSuffix",
+  "value": "but the Git repo is not initialised. Please initialise the Git repo before using drystack.",
+  "notes": "",
+  "type": "global"
+}

@@ -98,7 +98,7 @@ export function useNavItems(): ItemOrGroup[] {
     {
       key: "files",
       href: `${basePath}/files`,
-      label: "File management",
+      label: stringFormatter.format("fileManagement"),
       changed: false,
     },
   ];

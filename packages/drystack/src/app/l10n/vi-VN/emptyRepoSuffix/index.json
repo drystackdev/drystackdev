@@ -1,0 +1,6 @@
+{
+  "key": "emptyRepoSuffix",
+  "value": "nhưng repo Git chưa được khởi tạo. Vui lòng khởi tạo repo Git trước khi dùng drystack.",
+  "notes": "",
+  "type": "global"
+}

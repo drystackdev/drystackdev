@@ -33,7 +33,6 @@ import l10nMessages from "../../l10n";
 import { useRouter } from "../../router";
 import { ItemOrGroup, useNavItems } from "../../useNavItems";
 import { isLocalConfig } from "../../utils";
-import { pluralize } from "../../pluralize";
 
 import { useBrand } from "../common";
 import { SIDE_PANEL_ID } from "../constants";
@@ -284,6 +283,7 @@ function useIsCurrent() {
 // ----------------------------------------------------------------------------
 function NavItemOrGroup({ itemOrGroup }: { itemOrGroup: ItemOrGroup }) {
   const isCurrent = useIsCurrent();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   if (itemOrGroup.isDivider) {
     return <Divider />;
   }
@@ -307,18 +307,14 @@ function NavItemOrGroup({ itemOrGroup }: { itemOrGroup: ItemOrGroup }) {
       <Badge tone="accent" marginStart="auto">
         <Text>{itemOrGroup.changed}</Text>
         <Text visuallyHidden>
-          {pluralize(itemOrGroup.changed, {
-            singular: "change",
-            plural: "changes",
-            inclusive: false,
-          })}
+          {stringFormatter.format("changeWord", { count: itemOrGroup.changed })}
         </Text>
       </Badge>
     ) : (
       <StatusLight
         tone="accent"
         marginStart="auto"
-        aria-label="Changed"
+        aria-label={stringFormatter.format("changedLabel")}
         role="status"
       />
     );

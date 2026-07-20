@@ -113,7 +113,7 @@ export function NewBranchButton() {
                   value={suffix}
                   onChange={setSuffix}
                   autoFocus
-                  errorMessage={prettyErrorForCreateBranchMutation(error)}
+                  errorMessage={prettyErrorForCreateBranchMutation(error, stringFormatter)}
                   UNSAFE_className={css({
                     "& input": {
                       paddingInlineStart: tokenSchema.size.space.xsmall,

@@ -1,0 +1,6 @@
+{
+  "key": "cannotStartWith",
+  "value": "Không được bắt đầu bằng \"{char}\"",
+  "notes": "",
+  "type": "global"
+}

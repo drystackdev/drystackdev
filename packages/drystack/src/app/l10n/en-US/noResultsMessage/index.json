@@ -1,0 +1,6 @@
+{
+  "key": "noResultsMessage",
+  "value": "No items matching \"{term}\" were found.",
+  "notes": "",
+  "type": "global"
+}
