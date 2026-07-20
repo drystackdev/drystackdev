@@ -213,7 +213,10 @@ function annotation(spec: AiFieldSpec, sizeWords?: string): string {
   const parts: string[] = [];
   if (spec.kind === "text" && spec.multiline) parts.push("văn bản nhiều dòng");
   else if (spec.kind === "content") {
-    parts.push(`HTML, chỉ dùng các thẻ: ${(spec.htmlTags ?? []).join(", ")}`);
+    // "được phép", not "phải dùng": the list is the ceiling the editor will
+    // keep, and a model handed a bare list of tags reaches for all of them.
+    // The rule that says so in full lives in buildSystemPrompt.
+    parts.push(`HTML, các thẻ được phép: ${(spec.htmlTags ?? []).join(", ")}`);
     // Stated per field rather than once in the rules: each content target
     // carries its own length, so a single global sentence could only ever be
     // right about one of them.

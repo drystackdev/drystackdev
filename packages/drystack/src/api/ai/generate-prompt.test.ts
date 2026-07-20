@@ -33,7 +33,7 @@ test("states each content field's length on its own line", () => {
   // The skeleton line, not a rule: two content fields at different lengths
   // cannot both be right in one global sentence.
   expect(prompt).toContain(
-    `body (HTML, chỉ dùng các thẻ: ${describeField("body", schema.body)!.htmlTags!.join(", ")}, độ dài: ${SIZE_SPECS.xlong.words}): Nội dung`,
+    `body (HTML, các thẻ được phép: ${describeField("body", schema.body)!.htmlTags!.join(", ")}, độ dài: ${SIZE_SPECS.xlong.words}): Nội dung`,
   );
 });
 
@@ -56,7 +56,14 @@ test("omits the table rule when every content field turns tables off", () => {
   });
   expect(prompt).not.toContain("Với field cho phép thẻ <table>");
   // the field is still a content field - just one whose tag list has no table
-  expect(prompt).toContain("chỉ dùng các thẻ:");
+  expect(prompt).toContain("các thẻ được phép:");
+});
+
+// The tag list is what the editor will keep, not a checklist to exhaust -
+// without this the model salts every generation with one of each tag.
+test("states that the tag list is a ceiling, not a checklist", () => {
+  const prompt = system({ body: "medium", summary: "short" });
+  expect(prompt).toContain("KHÔNG phải danh sách phải dùng cho đủ");
 });
 
 test("does not put a length on a field that is not content", () => {

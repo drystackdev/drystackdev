@@ -19,8 +19,10 @@ function system() {
 
 test("states the tag whitelist the field actually allows", () => {
   const prompt = system();
-  expect(prompt).toContain("Chỉ dùng các thẻ: p, h2, strong, a");
+  expect(prompt).toContain("Các thẻ được phép: p, h2, strong, a");
   expect(prompt).toContain("Không xuất <html>, <body> hay <img>");
+  // A ceiling, not a checklist: a rewrite should keep the passage's own shape.
+  expect(prompt).toContain("không phải danh sách phải dùng hết");
 });
 
 test("carries the language and the entry description", () => {

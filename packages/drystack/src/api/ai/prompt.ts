@@ -53,6 +53,13 @@ export function buildSystemPrompt(args: {
     rules.push(
       "Với field HTML: xuất HTML fragment, không có <html>, <body> hay <img>. Độ dài của từng field ghi ngay tại phần CẦN ĐIỀN.",
     );
+    // The tag list is a whitelist the editor enforces, but a model shown a bare
+    // list of tags treats it as a checklist and salts the output with one of
+    // each - a table with two rows, a list of three fragments, an svg nobody
+    // asked for. Say outright that the list is a ceiling.
+    rules.push(
+      "Danh sách thẻ của mỗi field là giới hạn trên, KHÔNG phải danh sách phải dùng cho đủ. Chỉ dùng thẻ nào nội dung thực sự cần: mặc định là các đoạn <p> cùng tiêu đề để chia phần, còn danh sách, bảng, hình vẽ chỉ dùng khi nội dung tự nó có đúng cấu trúc đó. Đừng chèn một thẻ chỉ để cho đủ loại.",
+    );
     // Only stated when at least one target's own tag list (see the "HTML,
     // chỉ dùng các thẻ" annotation in the skeleton) actually includes `svg` -
     // a field with images turned off never lists it, and shouldn't be told
@@ -228,7 +235,11 @@ export function buildRewriteSystemPrompt(args: {
 
   const rules = [
     "Chỉ xuất HTML fragment đã sửa. Không bọc trong ```html, không thêm lời dẫn, không giải thích trước hay sau.",
-    `Chỉ dùng các thẻ: ${htmlTags.join(", ")}. Không xuất <html>, <body> hay <img>.`,
+    `Các thẻ được phép: ${htmlTags.join(", ")}. Không xuất <html>, <body> hay <img>.`,
+    // Same trap as the generate route: a bare tag list reads as a checklist.
+    // Here the anchor is stronger - the passage already has a shape, and a
+    // rewrite has no business changing it unasked.
+    "Danh sách trên là giới hạn, không phải danh sách phải dùng hết. Giữ đúng loại thẻ đoạn gốc đang dùng, chỉ đổi cấu trúc khi YÊU CẦU đòi vậy.",
     "Chỉ viết lại đúng đoạn được đưa. Không thêm mở bài, không thêm kết luận, không viết nối sang phần nội dung xung quanh.",
     `Giữ nguyên ngôn ngữ: ${lang}.`,
     "Nếu yêu cầu không nói gì về độ dài, giữ độ dài xấp xỉ đoạn gốc.",
