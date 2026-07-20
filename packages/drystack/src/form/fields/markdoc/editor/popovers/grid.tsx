@@ -1,6 +1,8 @@
 import { ReactElement, useState } from "react";
 import { Node } from "prosemirror-model";
 import { EditorState } from "prosemirror-state";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "../../../../../app/l10n";
 
 import { ActionButton } from "@keystar/ui/button";
 import {
@@ -86,12 +88,13 @@ function GridSettingsMenu(props: {
   pos: number;
 }) {
   const runCommand = useEditorDispatchCommand();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const columns = String(props.node.attrs.columns);
   const rows = String(props.node.attrs.rows);
   const gap = props.node.attrs.gap as string;
   return (
     <DialogTrigger type="popover" hideArrow>
-      <ActionButton prominence="low" aria-label="Grid settings">
+      <ActionButton prominence="low" aria-label={stringFormatter.format("gridSettings")}>
         <GridSettingsIcon />
       </ActionButton>
       {(close: () => void) => (
@@ -101,9 +104,9 @@ function GridSettingsMenu(props: {
           padding="large"
           UNSAFE_style={{ minWidth: 200 }}
         >
-          <SettingRow label="Column">
+          <SettingRow label={stringFormatter.format("gridColumn")}>
             <Picker
-              aria-label="Column"
+              aria-label={stringFormatter.format("gridColumn")}
               selectedKey={columns}
               onSelectionChange={(key) => {
                 runCommand(
@@ -118,9 +121,9 @@ function GridSettingsMenu(props: {
               ))}
             </Picker>
           </SettingRow>
-          <SettingRow label="Row">
+          <SettingRow label={stringFormatter.format("gridRow")}>
             <Picker
-              aria-label="Row"
+              aria-label={stringFormatter.format("gridRow")}
               selectedKey={rows}
               onSelectionChange={(key) => {
                 runCommand(setGridRows(props.pos, parseInt(String(key), 10)));
@@ -133,9 +136,9 @@ function GridSettingsMenu(props: {
               ))}
             </Picker>
           </SettingRow>
-          <SettingRow label="Spacing">
+          <SettingRow label={stringFormatter.format("gridSpacing")}>
             <Picker
-              aria-label="Spacing"
+              aria-label={stringFormatter.format("gridSpacing")}
               selectedKey={gap}
               onSelectionChange={(key) => {
                 const value = String(key);
@@ -168,50 +171,50 @@ function GridSettingsMenu(props: {
 // placement is highlighted; clicking it again clears back to the default
 // (top, full width). The popover stays open on click so several alignments
 // can be tried in a row.
-const PLACES: { place: GridPlace; label: string; path: string }[] = [
+const PLACES: { place: GridPlace; labelKey: string; path: string }[] = [
   {
     place: "start start",
-    label: "Top left",
+    labelKey: "gridPlaceTopLeft",
     path: "M11 5v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1m4-1h-.01M20 4h-.01M20 9h-.01m.01 6h-.01M4 15h-.01M20 20h-.01M15 20h-.01M9 20h-.01M4 20h-.01",
   },
   {
     place: "start center",
-    label: "Top center",
+    labelKey: "gridPlaceTopCenter",
     path: "M4 10.005h16v-5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1zm0 5v-.01m0 5.01v-.01m5 .01v-.01m6 .01v-.01m5 .01v-.01m0-4.99v-.01",
   },
   {
     place: "start end",
-    label: "Top right",
+    labelKey: "gridPlaceTopRight",
     path: "M19 11.01h-5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1m1 4V15m0 5.01V20m-5 .01V20m-6 .01V20M9 4.01V4M4 20.01V20m0-4.99V15m0-5.99V9m0-4.99V4",
   },
   {
     place: "center start",
-    label: "Middle left",
+    labelKey: "gridPlaceMiddleLeft",
     path: "M10.002 20.003v-16h-5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1zm5 0h-.01m5.011 0h-.011m.011-5.001h-.011m.011-6h-.011m.011-5h-.011m-4.99 0h-.01",
   },
   {
     place: "center center",
-    label: "Center",
+    labelKey: "gridPlaceCenter",
     path: "m12 3l8 4.5v9L12 21l-8-4.5v-9zm0 9l8-4.5M12 12v9m0-9L4 7.5",
   },
   {
     place: "center end",
-    label: "Middle right",
+    labelKey: "gridPlaceMiddleRight",
     path: "M13.998 20.003v-16h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1zm-5 0h.01m-5.011 0h.011m-.011-5.001h.011m-.011-6h.011m-.011-5h.011m4.99 0h.01",
   },
   {
     place: "end start",
-    label: "Bottom left",
+    labelKey: "gridPlaceBottomLeft",
     path: "M5 13h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1M4 9v.01M4 4v.01M9 4v.01M15 4v.01M15 20v.01M20 4v.01M20 9v.01M20 15v.01M20 20v.01",
   },
   {
     place: "end center",
-    label: "Bottom center",
+    labelKey: "gridPlaceBottomCenter",
     path: "M4 14h16v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zm0-5v.01M4 4v.01M9 4v.01M15 4v.01M20 4v.01M20 9v.01",
   },
   {
     place: "end end",
-    label: "Bottom right",
+    labelKey: "gridPlaceBottomRight",
     path: "M19 13h-5a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1m1-4v.01M20 4v.01M15 4v.01M9 4v.01M9 20v.01M4 4v.01M4 9v.01M4 15v.01M4 20v.01",
   },
 ];
@@ -242,6 +245,7 @@ function PlaceGlyph(props: { place: GridPlace; size?: number }) {
 
 function GridLayoutMenu(props: { state: EditorState }) {
   const runCommand = useEditorDispatchCommand();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const cell = findGridCell(props.state);
   const current: GridPlace = cell?.node.attrs.place ?? null;
   return (
@@ -249,19 +253,23 @@ function GridLayoutMenu(props: { state: EditorState }) {
       <ActionButton
         prominence="low"
         isDisabled={!cell}
-        aria-label="Item layout"
+        aria-label={stringFormatter.format("gridItemLayout")}
       >
         {/* icon mirrors the active item's current placement (top-left if none) */}
         <PlaceGlyph place={current} />
       </ActionButton>
-      <div className={layoutPanelClass} role="group" aria-label="Item layout">
-        {PLACES.map(({ place, label }) => {
+      <div
+        className={layoutPanelClass}
+        role="group"
+        aria-label={stringFormatter.format("gridItemLayout")}
+      >
+        {PLACES.map(({ place, labelKey }) => {
           const active = current === place;
           return (
             <button
               key={place ?? "none"}
               type="button"
-              aria-label={label}
+              aria-label={stringFormatter.format(labelKey)}
               aria-pressed={active}
               className={active ? layoutCellActiveClass : layoutCellClass}
               // keep the editor selection inside the focused cell - otherwise
@@ -325,6 +333,7 @@ export function GridItemControls(props: {
   pos: number;
 }) {
   const runCommand = useEditorDispatchCommand();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   // "delete item" targets the focused cell - disabled until one is focused
   const hasCell = findGridCell(props.state) !== null;
 
@@ -346,23 +355,23 @@ export function GridItemControls(props: {
       <TooltipTrigger>
         <ActionButton
           prominence="low"
-          aria-label="Add item"
+          aria-label={stringFormatter.format("gridAddItem")}
           onPress={() => runCommand(addCell)}
         >
           <Icon src={plusIcon} />
         </ActionButton>
-        <Tooltip>Add item</Tooltip>
+        <Tooltip>{stringFormatter.format("gridAddItem")}</Tooltip>
       </TooltipTrigger>
       <TooltipTrigger>
         <ActionButton
           prominence="low"
-          aria-label="Delete item"
+          aria-label={stringFormatter.format("gridDeleteItem")}
           isDisabled={!hasCell}
           onPress={() => runCommand(deleteFocusedCell)}
         >
           <Icon src={xIcon} />
         </ActionButton>
-        <Tooltip>Delete item</Tooltip>
+        <Tooltip>{stringFormatter.format("gridDeleteItem")}</Tooltip>
       </TooltipTrigger>
     </>
   );
@@ -375,6 +384,7 @@ export function GridPopover(props: {
 }) {
   const runCommand = useEditorDispatchCommand();
   const state = useEditorState();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const deleteGrid = () => {
@@ -403,19 +413,18 @@ export function GridPopover(props: {
         >
           <Icon src={gridDeleteIcon} />
         </ActionButton>
-        <Tooltip tone="critical">Remove grid</Tooltip>
+        <Tooltip tone="critical">{stringFormatter.format("gridRemoveTooltip")}</Tooltip>
       </TooltipTrigger>
       <DialogContainer onDismiss={() => setConfirmOpen(false)}>
         {confirmOpen && (
           <AlertDialog
-            title="Remove grid?"
+            title={stringFormatter.format("gridRemoveConfirmTitle")}
             tone="critical"
-            cancelLabel="Cancel"
-            primaryActionLabel="Remove"
+            cancelLabel={stringFormatter.format("cancel")}
+            primaryActionLabel={stringFormatter.format("remove")}
             onPrimaryAction={deleteGrid}
           >
-            This grid still has content. Removing it will delete everything
-            inside it.
+            {stringFormatter.format("gridRemoveConfirmBody")}
           </AlertDialog>
         )}
       </DialogContainer>

@@ -1,0 +1,6 @@
+{
+  "key": "gridRemoveConfirmBody",
+  "value": "This grid still has content. Removing it will delete everything inside it.",
+  "notes": "",
+  "type": "global"
+}

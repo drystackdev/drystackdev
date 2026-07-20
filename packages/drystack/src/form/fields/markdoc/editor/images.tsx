@@ -6,6 +6,8 @@ import { Icon } from '@keystar/ui/icon';
 import { imageIcon } from '#icons/imageIcon';
 import { Tooltip, TooltipTrigger } from '@keystar/ui/tooltip';
 import { Text } from '@keystar/ui/typography';
+import { useLocalizedStringFormatter } from '@react-aria/i18n';
+import l10nMessages from '../../../../app/l10n';
 
 import { openMediaLibrary } from '../../../../app/media-library/bridge';
 import { EditorSchema, getEditorSchema } from './schema';
@@ -137,10 +139,11 @@ export function imageDropPlugin(schema: EditorSchema) {
 }
 export function ImageToolbarButton() {
   const mediaScope = useMediaScope();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   return (
     <TooltipTrigger>
       <ToolbarButton
-        aria-label="Image"
+        aria-label={stringFormatter.format('image')}
         command={(_, dispatch, view) => {
           if (dispatch && view) {
             (async () => {
@@ -171,7 +174,7 @@ export function ImageToolbarButton() {
         <Icon src={imageIcon} />
       </ToolbarButton>
       <Tooltip>
-        <Text>Image</Text>
+        <Text>{stringFormatter.format('image')}</Text>
       </Tooltip>
     </TooltipTrigger>
   );

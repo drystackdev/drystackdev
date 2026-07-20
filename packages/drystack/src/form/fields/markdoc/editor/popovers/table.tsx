@@ -1,3 +1,5 @@
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "../../../../../app/l10n";
 import { ActionButton } from "@keystar/ui/button";
 import { Icon } from "@keystar/ui/icon";
 import { settingsIcon } from "@keystar/ui/icon/icons/settingsIcon";
@@ -22,16 +24,16 @@ import { useEditorDispatchCommand, useEditorState } from "../editor-view";
 import { Decoration, DecorationSet } from "prosemirror-view";
 import { getEditorSchema } from "../schema";
 
-const cellActions: Record<string, { label: string; command: Command }> = {
-  deleteRow: { label: "Delete row", command: deleteRow },
-  deleteColumn: { label: "Delete column", command: deleteColumn },
-  insertRowBelow: { label: "Insert row below", command: addRowAfter },
+const cellActions: Record<string, { labelKey: string; command: Command }> = {
+  deleteRow: { labelKey: "tableDeleteRow", command: deleteRow },
+  deleteColumn: { labelKey: "tableDeleteColumn", command: deleteColumn },
+  insertRowBelow: { labelKey: "tableInsertRowBelow", command: addRowAfter },
   insertColumnRight: {
-    label: "Insert column right",
+    labelKey: "tableInsertColumnRight",
     command: addColumnAfterWithRebalance,
   },
-  mergeCells: { label: "Merge cells", command: mergeCellsKeepFirst },
-  unmergeCell: { label: "Unmerge cell", command: unmergeCell },
+  mergeCells: { labelKey: "tableMergeCells", command: mergeCellsKeepFirst },
+  unmergeCell: { labelKey: "tableUnmergeCell", command: unmergeCell },
 };
 
 const toggleHeaderRowKey = "toggleHeaderRow";
@@ -43,6 +45,7 @@ const toggleHeaderRowKey = "toggleHeaderRow";
 export function CellOptionsMenu(props: { node: Node }) {
   const state = useEditorState();
   const runCommand = useEditorDispatchCommand();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const schema = getEditorSchema(state.schema);
   const disabledKeys = Object.entries(cellActions)
     .filter(([, action]) => !action.command(state))
@@ -53,7 +56,7 @@ export function CellOptionsMenu(props: { node: Node }) {
   return (
     <TooltipTrigger>
       <MenuTrigger align="end">
-        <ActionButton prominence="low" aria-label="Cell options">
+        <ActionButton prominence="low" aria-label={stringFormatter.format("tableCellOptions")}>
           <Icon src={settingsIcon} />
         </ActionButton>
         <Menu
@@ -69,18 +72,20 @@ export function CellOptionsMenu(props: { node: Node }) {
           {showHeaderRowToggle ? (
             <Section key="header">
               <Item key={toggleHeaderRowKey}>
-                {isHeaderRow ? "Remove header row" : "Make header row"}
+                {stringFormatter.format(
+                  isHeaderRow ? "tableRemoveHeaderRow" : "tableMakeHeaderRow",
+                )}
               </Item>
             </Section>
           ) : null}
           <Section key="cell-actions">
             {Object.entries(cellActions).map(([key, item]) => (
-              <Item key={key}>{item.label}</Item>
+              <Item key={key}>{stringFormatter.format(item.labelKey)}</Item>
             ))}
           </Section>
         </Menu>
       </MenuTrigger>
-      <Tooltip>Cell options</Tooltip>
+      <Tooltip>{stringFormatter.format("tableCellOptions")}</Tooltip>
     </TooltipTrigger>
   );
 }

@@ -3,6 +3,11 @@ import { keymap } from "prosemirror-keymap";
 import { Mark, Node } from "prosemirror-model";
 import { EditorState, Selection } from "prosemirror-state";
 import { tableEditing } from "prosemirror-tables";
+import {
+  LocalizedStringDictionary,
+  LocalizedStringFormatter,
+} from "@internationalized/string";
+import l10nMessages from "../../../../app/l10n";
 
 import { tokenSchema } from "@keystar/ui/style";
 import { SCHEME_AUTO, THEME_DEFAULT } from "@keystar/ui/primitives";
@@ -35,6 +40,21 @@ import { trailingParagraph } from "./trailing-paragraph";
 import { ySyncPlugin, yCursorPlugin, yUndoPlugin } from "y-prosemirror";
 import { Awareness } from "y-protocols/awareness.js";
 import * as Y from "yjs";
+
+const l10nDictionary = new LocalizedStringDictionary(l10nMessages);
+
+// Non-hook source of a string formatter - createEditorState runs outside
+// React render (field parse()/defaultValue(), not a component), so
+// useLocalizedStringFormatter can't be called here. Takes a locale snapshot
+// rather than reacting to changes, which is fine since this runs fresh per
+// document load rather than being cached like createEditorSchema.
+function getStringFormatter(): LocalizedStringFormatter<string, any> {
+  const locale =
+    (typeof document !== "undefined" && document.documentElement.lang) ||
+    (typeof navigator !== "undefined" && navigator.language) ||
+    "en-US";
+  return new LocalizedStringFormatter(locale, l10nDictionary);
+}
 
 const cursorBuilder = (user: any) => {
   const cursor = document.createElement("span");
@@ -104,7 +124,7 @@ export function createEditorState(
       keymap(keymapForSchema(schema, !!(yXmlFragment && awareness))),
       markdocClipboard(),
       nodeInSelectionDecorations(),
-      placeholderPlugin('Start writing or press "/" for commands…'),
+      placeholderPlugin(getStringFormatter().format("editorPlaceholder")),
       reactNodeViews(doc.type.schema),
       autocompleteDecoration(),
       // Inert until an AI rewrite is in flight, so the fields that never

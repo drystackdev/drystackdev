@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "../../../../app/l10n";
 import { ActionButton, Button, ButtonGroup } from "@keystar/ui/button";
 import { Dialog, DialogContainer, useDialogContainer } from "@keystar/ui/dialog";
 import { Content } from "@keystar/ui/slots";
@@ -72,6 +74,7 @@ function CaptionDialog(props: {
 }) {
   const [caption, setCaption] = useState(props.caption);
   const { dismiss } = useDialogContainer();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   return (
     <Dialog size="small">
       <form
@@ -83,19 +86,19 @@ function CaptionDialog(props: {
           props.onSubmit(caption);
         }}
       >
-        <Heading>Caption</Heading>
+        <Heading>{stringFormatter.format("caption")}</Heading>
         <Content>
           <TextField
-            label="Caption"
+            label={stringFormatter.format("caption")}
             autoFocus
             value={caption}
             onChange={setCaption}
           />
         </Content>
         <ButtonGroup>
-          <Button onPress={dismiss}>Cancel</Button>
+          <Button onPress={dismiss}>{stringFormatter.format("cancel")}</Button>
           <Button prominence="high" type="submit">
-            Save
+            {stringFormatter.format("save")}
           </Button>
         </ButtonGroup>
       </form>
@@ -112,17 +115,18 @@ export function CaptionButton(props: {
   onSubmit: (caption: string) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   return (
     <>
       <TooltipTrigger>
         <ActionButton
           prominence="low"
-          aria-label="Caption"
+          aria-label={stringFormatter.format("caption")}
           onPress={() => setIsOpen(true)}
         >
           <CaptionIcon />
         </ActionButton>
-        <Tooltip>Caption</Tooltip>
+        <Tooltip>{stringFormatter.format("caption")}</Tooltip>
       </TooltipTrigger>
       <DialogContainer onDismiss={() => setIsOpen(false)}>
         {isOpen && (

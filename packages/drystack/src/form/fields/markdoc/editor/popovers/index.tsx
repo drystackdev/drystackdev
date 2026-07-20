@@ -1,6 +1,8 @@
 import { Mark, MarkType, Node, ResolvedPos } from "prosemirror-model";
 import { EditorState, NodeSelection, TextSelection } from "prosemirror-state";
 import { ReactElement, useMemo, useState } from "react";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "../../../../../app/l10n";
 
 import { ActionButton } from "@keystar/ui/button";
 import { EditorPopover, EditorPopoverProps } from "@keystar/ui/editor";
@@ -56,6 +58,7 @@ function ExtraAttributesMenuItem(props: {
   );
   const value = useDeserializedValue(props.serialized, props.schema);
   const runCommand = useEditorDispatchCommand();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   return (
     <>
       <TooltipTrigger>
@@ -67,7 +70,7 @@ function ExtraAttributesMenuItem(props: {
         >
           <Icon src={pencilIcon} />
         </ActionButton>
-        <Tooltip>Edit</Tooltip>
+        <Tooltip>{stringFormatter.format("edit")}</Tooltip>
       </TooltipTrigger>
       <DialogContainer
         onDismiss={() => {
@@ -76,7 +79,9 @@ function ExtraAttributesMenuItem(props: {
       >
         {isOpen && (
           <Dialog>
-            <Heading>Edit {props.name}</Heading>
+            <Heading>
+              {stringFormatter.format("editorEditItem", { name: props.name })}
+            </Heading>
             <FormValue
               schema={componentSchema}
               value={value}
@@ -117,10 +122,11 @@ const popoverComponents: Record<
     const dispatchCommand = useEditorDispatchCommand();
     const schema = useEditorSchema();
     const viewRef = useEditorViewRef();
+    const stringFormatter = useLocalizedStringFormatter(l10nMessages);
     return (
       <Flex gap="regular" padding="regular">
         <TextField
-          aria-label="Code block language"
+          aria-label={stringFormatter.format("editorCodeBlockLanguage")}
           value={props.node.attrs.language}
           onChange={(val) => {
             const view = viewRef.current!;
@@ -131,7 +137,7 @@ const popoverComponents: Record<
         />
         {!!Object.keys(schema.config.codeBlock!.schema).length && (
           <ExtraAttributesMenuItem
-            name="Code Block"
+            name={stringFormatter.format("editorCodeBlock")}
             schema={schema.config.codeBlock!.schema}
             pos={props.pos}
             serialized={props.node.attrs.props}
@@ -154,7 +160,7 @@ const popoverComponents: Record<
           >
             <Icon src={trash2Icon} />
           </ActionButton>
-          <Tooltip tone="critical">Remove</Tooltip>
+          <Tooltip tone="critical">{stringFormatter.format("remove")}</Tooltip>
         </TooltipTrigger>
       </Flex>
     );
@@ -163,6 +169,7 @@ const popoverComponents: Record<
   grid: GridPopover,
   table: function TablePopover(props) {
     const dispatchCommand = useEditorDispatchCommand();
+    const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
     return (
       <Flex gap="regular" padding="regular" alignItems="center">
@@ -200,7 +207,7 @@ const popoverComponents: Record<
           >
             <Icon src={tableDeleteIcon} />
           </ActionButton>
-          <Tooltip tone="critical">Remove</Tooltip>
+          <Tooltip tone="critical">{stringFormatter.format("remove")}</Tooltip>
         </TooltipTrigger>
       </Flex>
     );
@@ -209,10 +216,11 @@ const popoverComponents: Record<
     function HeadingPopover(props) {
       const dispatchCommand = useEditorDispatchCommand();
       const schema = useEditorSchema();
+      const stringFormatter = useLocalizedStringFormatter(l10nMessages);
       return (
         <Flex gap="regular" padding="regular">
           <ExtraAttributesMenuItem
-            name="Heading"
+            name={stringFormatter.format("editorHeadingName")}
             schema={schema.config.heading.schema}
             pos={props.pos}
             serialized={props.node.attrs.props}
@@ -237,7 +245,7 @@ const popoverComponents: Record<
             >
               <Icon src={trash2Icon} />
             </ActionButton>
-            <Tooltip tone="critical">Remove</Tooltip>
+            <Tooltip tone="critical">{stringFormatter.format("remove")}</Tooltip>
           </TooltipTrigger>
         </Flex>
       );
@@ -258,6 +266,7 @@ function TableInGridPopover(props: {
   state: EditorState;
 }) {
   const dispatchCommand = useEditorDispatchCommand();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   return (
     <Flex gap="regular" padding="regular" alignItems="center">
       <GridItemControls
@@ -305,7 +314,7 @@ function TableInGridPopover(props: {
         >
           <Icon src={tableDeleteIcon} />
         </ActionButton>
-        <Tooltip tone="critical">Remove table</Tooltip>
+        <Tooltip tone="critical">{stringFormatter.format("editorRemoveTable")}</Tooltip>
       </TooltipTrigger>
     </Flex>
   );
@@ -443,6 +452,7 @@ function InlineComponentPopover(props: {
     componentConfig.schema,
   );
   const editorViewRef = useEditorViewRef();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   if (componentConfig.kind === "inline" && componentConfig.ToolbarView) {
     return (
       <componentConfig.ToolbarView
@@ -482,7 +492,7 @@ function InlineComponentPopover(props: {
           >
             <Icon src={pencilIcon} />
           </ActionButton>
-          <Tooltip>Edit</Tooltip>
+          <Tooltip>{stringFormatter.format("edit")}</Tooltip>
         </TooltipTrigger>
         <TooltipTrigger>
           <ActionButton
@@ -500,7 +510,7 @@ function InlineComponentPopover(props: {
           >
             <Icon src={trash2Icon} />
           </ActionButton>
-          <Tooltip tone="critical">Remove</Tooltip>
+          <Tooltip tone="critical">{stringFormatter.format("remove")}</Tooltip>
         </TooltipTrigger>
       </Flex>
       <DialogContainer
@@ -510,7 +520,11 @@ function InlineComponentPopover(props: {
       >
         {isOpen && (
           <Dialog>
-            <Heading>Edit {componentConfig.label}</Heading>
+            <Heading>
+              {stringFormatter.format("editorEditItem", {
+                name: componentConfig.label,
+              })}
+            </Heading>
             <FormValue
               schema={componentSchema}
               value={value}
@@ -549,6 +563,7 @@ const CustomMarkPopover: MarkPopoverRenderer = (props) => {
     props.mark.attrs.props,
     componentConfig.schema,
   );
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   return (
     <>
       <Flex gap="regular" padding="regular">
@@ -561,7 +576,7 @@ const CustomMarkPopover: MarkPopoverRenderer = (props) => {
           >
             <Icon src={pencilIcon} />
           </ActionButton>
-          <Tooltip>Edit</Tooltip>
+          <Tooltip>{stringFormatter.format("edit")}</Tooltip>
         </TooltipTrigger>
         <TooltipTrigger>
           <ActionButton
@@ -579,7 +594,7 @@ const CustomMarkPopover: MarkPopoverRenderer = (props) => {
           >
             <Icon src={trash2Icon} />
           </ActionButton>
-          <Tooltip tone="critical">Remove</Tooltip>
+          <Tooltip tone="critical">{stringFormatter.format("remove")}</Tooltip>
         </TooltipTrigger>
       </Flex>
       <DialogContainer
@@ -589,7 +604,11 @@ const CustomMarkPopover: MarkPopoverRenderer = (props) => {
       >
         {isOpen && (
           <Dialog>
-            <Heading>Edit {componentConfig.label}</Heading>
+            <Heading>
+              {stringFormatter.format("editorEditItem", {
+                name: componentConfig.label,
+              })}
+            </Heading>
             <FormValue
               schema={componentSchema}
               value={deserialized}

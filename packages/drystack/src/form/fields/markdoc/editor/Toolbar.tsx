@@ -13,6 +13,9 @@ import {
   useState,
 } from "react";
 
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "../../../../app/l10n";
+
 import { ActionButton } from "@keystar/ui/button";
 import {
   EditorToolbar,
@@ -105,6 +108,7 @@ function LinkButton(props: { link: MarkType }) {
   const [text, setText] = useState<null | string>(null);
   const runCommand = useEditorDispatchCommand();
   const viewRef = useEditorViewRef();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   useEditorKeydownListener((event) => {
     if (event.metaKey && (event.key === "k" || event.key === "K")) {
       const { state } = viewRef.current!;
@@ -123,7 +127,7 @@ function LinkButton(props: { link: MarkType }) {
       <>
         <TooltipTrigger>
           <ToolbarButton
-            aria-label="Divider"
+            aria-label={stringFormatter.format("toolbarDivider")}
             command={(state, dispatch) => {
               const aroundFrom = markAround(state.selection.$from, props.link);
               const aroundTo = markAround(state.selection.$to, props.link);
@@ -159,7 +163,7 @@ function LinkButton(props: { link: MarkType }) {
             <Icon src={linkIcon} />
           </ToolbarButton>
           <Tooltip>
-            <Text>Link</Text>
+            <Text>{stringFormatter.format("editorLinkTooltip")}</Text>
             <Kbd meta>K</Kbd>
           </Tooltip>
         </TooltipTrigger>
@@ -181,7 +185,7 @@ function LinkButton(props: { link: MarkType }) {
         </DialogContainer>
       </>
     ),
-    [props.link, runCommand, text],
+    [props.link, runCommand, text, stringFormatter],
   );
 }
 
@@ -239,13 +243,14 @@ function TextColorButton(props: { textColor: MarkType }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const state = useEditorState();
   const runCommand = useEditorDispatchCommand();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const { isDisabled, value, mixed } = getTextColorState(state, props.textColor);
   return useMemo(
     () => (
       <>
         <TooltipTrigger>
           <EditorToolbarButton
-            aria-label="Text color"
+            aria-label={stringFormatter.format("editorTextColor")}
             isDisabled={isDisabled}
             isSelected={!!value}
             onPress={() => setDialogOpen(true)}
@@ -253,7 +258,7 @@ function TextColorButton(props: { textColor: MarkType }) {
             <Icon src={textColorIcon(mixed ? undefined : value)} />
           </EditorToolbarButton>
           <Tooltip>
-            <Text>Text color</Text>
+            <Text>{stringFormatter.format("editorTextColor")}</Text>
           </Tooltip>
         </TooltipTrigger>
         <DialogContainer onDismiss={() => setDialogOpen(false)}>
@@ -269,7 +274,7 @@ function TextColorButton(props: { textColor: MarkType }) {
         </DialogContainer>
       </>
     ),
-    [isDisabled, value, mixed, props.textColor, runCommand, dialogOpen],
+    [isDisabled, value, mixed, props.textColor, runCommand, dialogOpen, stringFormatter],
   );
 }
 
@@ -277,6 +282,7 @@ export const Toolbar = memo(function Toolbar(
   props: HTMLAttributes<HTMLDivElement>,
 ) {
   const schema = useEditorSchema();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const { nodes, marks, config } = schema;
   // An inline-only field (config.inlineOnly, e.g. a bold-only heading) never
   // shows more than one button group - lists/blocks/alignment all disappear
@@ -287,7 +293,7 @@ export const Toolbar = memo(function Toolbar(
     <ToolbarWrapper {...props}>
       <ToolbarScrollArea>
         {nodes.heading && <HeadingMenu headingType={nodes.heading} />}
-        <EditorToolbar aria-label="Formatting options">
+        <EditorToolbar aria-label={stringFormatter.format("editorFormattingOptions")}>
           <Separator />
           <InlineMarks />
           {config.htmlLayout && (
@@ -301,18 +307,18 @@ export const Toolbar = memo(function Toolbar(
           <Separator />
           <ListButtons />
           <Separator />
-          <EditorToolbarGroup aria-label="Blocks">
+          <EditorToolbarGroup aria-label={stringFormatter.format("editorBlocksGroup")}>
             {nodes.divider && (
               <TooltipTrigger>
                 <ToolbarButton
-                  aria-label="Divider"
+                  aria-label={stringFormatter.format("toolbarDivider")}
                   command={insertNode(nodes.divider)}
                   isSelected={typeInSelection(nodes.divider)}
                 >
                   <Icon src={minusIcon} />
                 </ToolbarButton>
                 <Tooltip>
-                  <Text>Divider</Text>
+                  <Text>{stringFormatter.format("toolbarDivider")}</Text>
                   <Kbd>---</Kbd>
                 </Tooltip>
               </TooltipTrigger>
@@ -321,7 +327,7 @@ export const Toolbar = memo(function Toolbar(
             {nodes.blockquote && (
               <TooltipTrigger>
                 <ToolbarButton
-                  aria-label="Quote"
+                  aria-label={stringFormatter.format("editorQuote")}
                   command={(state, dispatch) => {
                     const hasQuote = typeInSelection(nodes.blockquote!)(state);
                     if (hasQuote) {
@@ -346,7 +352,7 @@ export const Toolbar = memo(function Toolbar(
                   <Icon src={quoteIcon} />
                 </ToolbarButton>
                 <Tooltip>
-                  <Text>Quote</Text>
+                  <Text>{stringFormatter.format("editorQuote")}</Text>
                   <Kbd>{">⎵"}</Kbd>
                 </Tooltip>
               </TooltipTrigger>
@@ -354,14 +360,14 @@ export const Toolbar = memo(function Toolbar(
             {nodes.code_block && (
               <TooltipTrigger>
                 <ToolbarButton
-                  aria-label="Code block"
+                  aria-label={stringFormatter.format("editorCodeBlock")}
                   command={toggleCodeBlock(nodes.code_block, nodes.paragraph!)}
                   isSelected={typeInSelection(nodes.code_block)}
                 >
                   <Icon src={codeIcon} />
                 </ToolbarButton>
                 <Tooltip>
-                  <Text>Code block</Text>
+                  <Text>{stringFormatter.format("editorCodeBlock")}</Text>
                   <Kbd>```</Kbd>
                 </Tooltip>
               </TooltipTrigger>
@@ -369,26 +375,26 @@ export const Toolbar = memo(function Toolbar(
             {nodes.table && (
               <TooltipTrigger>
                 <ToolbarButton
-                  aria-label="Table"
+                  aria-label={stringFormatter.format("editorTable")}
                   command={insertTable(nodes.table)}
                 >
                   <Icon src={tableIcon} />
                 </ToolbarButton>
                 <Tooltip>
-                  <Text>Table</Text>
+                  <Text>{stringFormatter.format("editorTable")}</Text>
                 </Tooltip>
               </TooltipTrigger>
             )}
             {nodes.grid && (
               <TooltipTrigger>
                 <ToolbarButton
-                  aria-label="Grid"
+                  aria-label={stringFormatter.format("editorGrid")}
                   command={insertGrid(nodes.grid)}
                 >
                   <Icon src={gridInsertIcon} />
                 </ToolbarButton>
                 <Tooltip>
-                  <Text>Grid</Text>
+                  <Text>{stringFormatter.format("editorGrid")}</Text>
                 </Tooltip>
               </TooltipTrigger>
             )}
@@ -619,13 +625,19 @@ function getHeadingMenuState(
 
 const HeadingMenu = (props: { headingType: NodeType }) => {
   const { nodes, config } = useEditorSchema();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const items = useMemo(() => {
-    let resolvedItems: HeadingItem[] = [{ name: "Paragraph", id: "normal" }];
+    let resolvedItems: HeadingItem[] = [
+      { name: stringFormatter.format("editorParagraph"), id: "normal" },
+    ];
     config.heading.levels.forEach((level) => {
-      resolvedItems.push({ name: `Heading ${level}`, id: level.toString() });
+      resolvedItems.push({
+        name: stringFormatter.format("editorHeadingLevel", { level }),
+        id: level.toString(),
+      });
     });
     return resolvedItems;
-  }, [config.heading.levels]);
+  }, [config.heading.levels, stringFormatter]);
   const state = useEditorState();
   const menuState = getHeadingMenuState(
     state,
@@ -640,7 +652,7 @@ const HeadingMenu = (props: { headingType: NodeType }) => {
         flexShrink={0}
         width="scale.1700"
         prominence="low"
-        aria-label="Text block"
+        aria-label={stringFormatter.format("editorTextBlock")}
         items={items}
         isDisabled={menuState === "disabled"}
         selectedKey={menuState === "disabled" ? "normal" : menuState.toString()}
@@ -666,16 +678,20 @@ const HeadingMenu = (props: { headingType: NodeType }) => {
 
 type FontSizeValue = FontSizeKey | "medium";
 
-const FONT_SIZE_ITEMS: { key: FontSizeValue; label: string }[] = [
-  { key: "xx-small", label: "2X Small" },
-  { key: "x-small", label: "X Small" },
-  { key: "small", label: "Small" },
-  { key: "medium", label: "Medium" },
-  { key: "large", label: "Large" },
-  { key: "x-large", label: "X Large" },
-  { key: "xx-large", label: "2X Large" },
-  { key: "xxx-large", label: "3X Large" },
-];
+function getFontSizeItems(
+  stringFormatter: ReturnType<typeof useLocalizedStringFormatter>,
+): { key: FontSizeValue; label: string }[] {
+  return [
+    { key: "xx-small", label: stringFormatter.format("editorFontSize2XSmall") },
+    { key: "x-small", label: stringFormatter.format("editorFontSizeXSmall") },
+    { key: "small", label: stringFormatter.format("editorFontSizeSmall") },
+    { key: "medium", label: stringFormatter.format("editorFontSizeMedium") },
+    { key: "large", label: stringFormatter.format("editorFontSizeLarge") },
+    { key: "x-large", label: stringFormatter.format("editorFontSizeXLarge") },
+    { key: "xx-large", label: stringFormatter.format("editorFontSize2XLarge") },
+    { key: "xxx-large", label: stringFormatter.format("editorFontSize3XLarge") },
+  ];
+}
 
 // With no selection, font size applies to the whole block the cursor sits
 // in - except inside a table or grid, where it applies to the entire
@@ -743,8 +759,13 @@ function setFontSize(fontSize: MarkType, value: FontSizeValue): Command {
 function FontSizeMenu(props: { fontSize: MarkType }) {
   const state = useEditorState();
   const runCommand = useEditorDispatchCommand();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const { isDisabled, selected } = getFontSizeState(state, props.fontSize);
   const current = selected ?? "medium";
+  const items = useMemo(
+    () => getFontSizeItems(stringFormatter),
+    [stringFormatter],
+  );
 
   return useMemo(
     () => (
@@ -752,8 +773,8 @@ function FontSizeMenu(props: { fontSize: MarkType }) {
         flexShrink={0}
         width="scale.1700"
         prominence="low"
-        aria-label="Font size"
-        items={FONT_SIZE_ITEMS}
+        aria-label={stringFormatter.format("editorFontSize")}
+        items={items}
         isDisabled={isDisabled}
         selectedKey={current}
         onSelectionChange={(key) => {
@@ -763,7 +784,7 @@ function FontSizeMenu(props: { fontSize: MarkType }) {
         {(item) => <Item key={item.key}>{item.label}</Item>}
       </Picker>
     ),
-    [isDisabled, current, props.fontSize, runCommand],
+    [isDisabled, current, props.fontSize, runCommand, items, stringFormatter],
   );
 }
 
@@ -772,6 +793,7 @@ function InsertBlockMenu() {
 
   const commandDispatch = useEditorDispatchCommand();
   const schema = useEditorSchema();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   const items = useMemo(
     () => schema.insertMenuItems.filter((x) => x.forToolbar),
@@ -796,7 +818,7 @@ function InsertBlockMenu() {
           <Icon src={chevronDownIcon} />
         </ActionButton>
         <Tooltip>
-          <Text>Insert</Text>
+          <Text>{stringFormatter.format("editorInsert")}</Text>
           <Kbd>/</Kbd>
         </Tooltip>
       </TooltipTrigger>
@@ -834,6 +856,7 @@ function InlineMarks() {
   const state = useEditorState();
   const schema = useEditorSchema();
   const runCommand = useEditorDispatchCommand();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const { inlineMarks, textColorInsertIndex } = useMemo(() => {
     const marks: {
       key: string;
@@ -846,7 +869,7 @@ function InlineMarks() {
     if (schema.marks.bold) {
       marks.push({
         key: "bold",
-        label: "Bold",
+        label: stringFormatter.format("editorBold"),
         icon: boldIcon,
         shortcut: `B`,
         command: toggleMark(schema.marks.bold),
@@ -857,7 +880,7 @@ function InlineMarks() {
     if (schema.marks.italic) {
       marks.push({
         key: "italic",
-        label: "Italic",
+        label: stringFormatter.format("editorItalic"),
         icon: italicIcon,
         shortcut: `I`,
         command: toggleMark(schema.marks.italic),
@@ -867,7 +890,7 @@ function InlineMarks() {
     if (schema.marks.underline) {
       marks.push({
         key: "underline",
-        label: "Underline",
+        label: stringFormatter.format("editorUnderline"),
         icon: underlineIcon,
         shortcut: `U`,
         command: toggleMark(schema.marks.underline),
@@ -881,7 +904,7 @@ function InlineMarks() {
     if (schema.marks.strikethrough) {
       marks.push({
         key: "strikethrough",
-        label: "Strikethrough",
+        label: stringFormatter.format("editorStrikethrough"),
         icon: strikethroughIcon,
         command: toggleMark(schema.marks.strikethrough),
         isSelected: isMarkActive(schema.marks.strikethrough),
@@ -890,7 +913,7 @@ function InlineMarks() {
     if (schema.marks.code) {
       marks.push({
         key: "code",
-        label: "Code",
+        label: stringFormatter.format("editorCode"),
         icon: codeIcon,
         command: toggleMark(schema.marks.code),
         isSelected: isMarkActive(schema.marks.code),
@@ -910,13 +933,13 @@ function InlineMarks() {
 
     marks.push({
       key: "clearFormatting",
-      label: "Clear formatting",
+      label: stringFormatter.format("editorClearFormatting"),
       icon: removeFormattingIcon,
       command: removeAllMarks(),
       isSelected: () => false,
     });
     return { inlineMarks: marks, textColorInsertIndex };
-  }, [schema]);
+  }, [schema, stringFormatter]);
   const selectedKeys = useMemoStringified(
     inlineMarks.filter((val) => val.isSelected(state)).map((val) => val.key),
   );
@@ -927,7 +950,7 @@ function InlineMarks() {
   return useMemo(() => {
     return (
       <EditorToolbarGroup
-        aria-label="Text formatting"
+        aria-label={stringFormatter.format("editorTextFormatting")}
         value={selectedKeys}
         onChange={(key) => {
           const mark = inlineMarks.find((mark) => mark.key === key);
@@ -945,7 +968,7 @@ function InlineMarks() {
         {inlineMarks.slice(textColorInsertIndex).map(renderInlineMark)}
       </EditorToolbarGroup>
     );
-  }, [disabledKeys, inlineMarks, runCommand, schema.marks.textColor, selectedKeys, textColorInsertIndex]);
+  }, [disabledKeys, inlineMarks, runCommand, schema.marks.textColor, selectedKeys, textColorInsertIndex, stringFormatter]);
 }
 
 function renderInlineMark(mark: {
@@ -989,6 +1012,7 @@ function ListButtons() {
   const state = useEditorState();
   const schema = useEditorSchema();
   const dispatchCommand = useEditorDispatchCommand();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   const canWrapInOrderedList =
     !!schema.nodes.ordered_list && toggleList(schema.nodes.ordered_list)(state);
@@ -1000,19 +1024,19 @@ function ListButtons() {
   const items = useMemo(() => {
     return [
       !!schema.nodes.unordered_list && {
-        label: "Bullet list",
+        label: stringFormatter.format("editorBulletList"),
         key: "unordered_list",
         shortcut: "-",
         icon: listIcon,
       },
       !!schema.nodes.ordered_list && {
-        label: "Numbered list",
+        label: stringFormatter.format("editorNumberedList"),
         key: "ordered_list",
         shortcut: "1.",
         icon: listOrderedIcon,
       },
     ].filter(removeFalse);
-  }, [schema.nodes.unordered_list, schema.nodes.ordered_list]);
+  }, [schema.nodes.unordered_list, schema.nodes.ordered_list, stringFormatter]);
 
   const disabledKeys = useMemo(() => {
     return [
@@ -1028,7 +1052,7 @@ function ListButtons() {
 
     return (
       <EditorToolbarGroup
-        aria-label="Lists"
+        aria-label={stringFormatter.format("editorLists")}
         value={activeListType}
         onChange={(key) => {
           const format = key as "ordered_list" | "unordered_list";
@@ -1053,7 +1077,7 @@ function ListButtons() {
         ))}
       </EditorToolbarGroup>
     );
-  }, [activeListType, disabledKeys, dispatchCommand, items, schema.nodes]);
+  }, [activeListType, disabledKeys, dispatchCommand, items, schema.nodes, stringFormatter]);
 }
 
 function removeFalse<T>(val: T): val is Exclude<T, false> {
@@ -1062,12 +1086,16 @@ function removeFalse<T>(val: T): val is Exclude<T, false> {
 
 type TextAlignValue = "left" | "center" | "right" | "justify";
 
-const TEXT_ALIGN_ITEMS = [
-  { key: "left", label: "Align left", icon: alignLeftIcon },
-  { key: "center", label: "Align center", icon: alignCenterIcon },
-  { key: "right", label: "Align right", icon: alignRightIcon },
-  { key: "justify", label: "Justify", icon: alignJustifyIcon },
-] as const;
+function getTextAlignItems(
+  stringFormatter: ReturnType<typeof useLocalizedStringFormatter>,
+) {
+  return [
+    { key: "left", label: stringFormatter.format("editorAlignLeft"), icon: alignLeftIcon },
+    { key: "center", label: stringFormatter.format("editorAlignCenter"), icon: alignCenterIcon },
+    { key: "right", label: stringFormatter.format("editorAlignRight"), icon: alignRightIcon },
+    { key: "justify", label: stringFormatter.format("editorJustify"), icon: alignJustifyIcon },
+  ] as const;
+}
 
 function nodeSupportsTextAlign(node: { type: NodeType }) {
   const attrs = node.type.spec.attrs;
@@ -1126,11 +1154,15 @@ function getTextAlignState(state: EditorState): {
 function AlignmentControls() {
   const state = useEditorState();
   const runCommand = useEditorDispatchCommand();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const { isDisabled, selected } = getTextAlignState(state);
   const current = selected ?? "left";
+  const items = useMemo(
+    () => getTextAlignItems(stringFormatter),
+    [stringFormatter],
+  );
   const currentItem =
-    TEXT_ALIGN_ITEMS.find((item) => item.key === current) ??
-    TEXT_ALIGN_ITEMS[0];
+    items.find((item) => item.key === current) ?? items[0];
 
   return useMemo(
     () => (
@@ -1139,7 +1171,7 @@ function AlignmentControls() {
           <ActionButton
             prominence="low"
             isDisabled={isDisabled}
-            aria-label="Text alignment"
+            aria-label={stringFormatter.format("editorTextAlignment")}
           >
             <Icon src={currentItem.icon} />
           </ActionButton>
@@ -1153,7 +1185,7 @@ function AlignmentControls() {
               );
             }}
           >
-            {TEXT_ALIGN_ITEMS.map((item) => (
+            {items.map((item) => (
               <Item key={item.key} textValue={item.label}>
                 <Icon src={item.icon} />
                 <Text>{item.label}</Text>
@@ -1166,7 +1198,7 @@ function AlignmentControls() {
         </Tooltip>
       </TooltipTrigger>
     ),
-    [isDisabled, current, currentItem, runCommand],
+    [isDisabled, current, currentItem, runCommand, items, stringFormatter],
   );
 }
 

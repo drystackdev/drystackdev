@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { HexAlphaColorPicker } from "react-colorful";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "../../../../../app/l10n";
 import { Button, ButtonGroup } from "@keystar/ui/button";
 import { Dialog, useDialogContainer } from "@keystar/ui/dialog";
 import { Flex } from "@keystar/ui/layout";
@@ -54,12 +56,13 @@ export function TextColorDialog(props: {
   const { dismiss } = useDialogContainer();
   const [value, setValue] = useState(props.initialValue ?? "#000000ff");
   const [recentColors, pushRecentColor] = useRecentTextColors();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const canRemove = !!props.initialValue || props.mixed;
   const normalized = normalizeHexAlpha(value);
 
   return (
     <Dialog size="small">
-      <Heading>Text color</Heading>
+      <Heading>{stringFormatter.format("editorTextColor")}</Heading>
       <Content>
         <Flex direction="column" gap="large">
           <Flex justifyContent="center">
@@ -70,10 +73,14 @@ export function TextColorDialog(props: {
             />
           </Flex>
           <TextField
-            aria-label="Hex"
+            aria-label={stringFormatter.format("textColorHexLabel")}
             value={value}
             onChange={setValue}
-            placeholder={props.mixed ? "Mixed" : undefined}
+            placeholder={
+              props.mixed
+                ? stringFormatter.format("textColorMixedPlaceholder")
+                : undefined
+            }
           />
           <Flex gap="small" justifyContent="center">
             {Array.from({ length: 6 }).map((_, i) => {
@@ -82,7 +89,13 @@ export function TextColorDialog(props: {
                 <button
                   key={i}
                   type="button"
-                  aria-label={recent ? `Recent color ${recent}` : "Empty"}
+                  aria-label={
+                    recent
+                      ? stringFormatter.format("textColorRecentSwatch", {
+                          color: recent,
+                        })
+                      : stringFormatter.format("textColorEmptySwatch")
+                  }
                   disabled={!recent}
                   className={swatchButtonClass}
                   style={{ background: recent ?? "transparent" }}
@@ -94,7 +107,7 @@ export function TextColorDialog(props: {
         </Flex>
       </Content>
       <ButtonGroup>
-        <Button onPress={dismiss}>Cancel</Button>
+        <Button onPress={dismiss}>{stringFormatter.format("cancel")}</Button>
         <Button
           tone="critical"
           isDisabled={!canRemove}
@@ -103,7 +116,7 @@ export function TextColorDialog(props: {
             props.onSubmit(null);
           }}
         >
-          Remove color
+          {stringFormatter.format("textColorRemove")}
         </Button>
         <Button
           prominence="high"
@@ -115,7 +128,7 @@ export function TextColorDialog(props: {
             props.onSubmit(normalized);
           }}
         >
-          Save
+          {stringFormatter.format("save")}
         </Button>
       </ButtonGroup>
     </Dialog>

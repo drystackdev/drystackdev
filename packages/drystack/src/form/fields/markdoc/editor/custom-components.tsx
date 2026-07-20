@@ -1,3 +1,5 @@
+import { useLocalizedStringFormatter } from '@react-aria/i18n';
+import l10nMessages from '../../../../app/l10n';
 import { Button } from '@keystar/ui/button';
 import { DialogContainer, Dialog } from '@keystar/ui/dialog';
 import { Box, Flex } from '@keystar/ui/layout';
@@ -72,6 +74,7 @@ function BlockWrapper(props: {
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const runCommand = useEditorDispatchCommand();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const schema = useMemo(
     () => ({ kind: 'object' as const, fields: props.component.schema }),
     [props.component.schema]
@@ -157,7 +160,7 @@ function BlockWrapper(props: {
                 borderBottomRightRadius: 0,
               })}
             >
-              Edit
+              {stringFormatter.format('edit')}
             </Button>
           )}
         </Flex>
@@ -170,7 +173,11 @@ function BlockWrapper(props: {
       >
         {isOpen && (
           <Dialog>
-            <Heading>Edit {props.component.label}</Heading>
+            <Heading>
+              {stringFormatter.format('editorEditItem', {
+                name: props.component.label,
+              })}
+            </Heading>
             <FormValue
               schema={schema}
               value={value}
@@ -557,6 +564,7 @@ export function getCustomNodeSpecs(
           reactNodeView: {
             component: function Block(props) {
               const runCommand = useEditorDispatchCommand();
+              const stringFormatter = useLocalizedStringFormatter(l10nMessages);
               const value = useDeserializedValue(
                 props.node.attrs.props,
                 component.schema
@@ -626,11 +634,11 @@ export function getCustomNodeSpecs(
                           });
                         }}
                       >
-                        Insert
+                        {stringFormatter.format('editorInsert')}
                       </Button>
                     ) : (
                       <MenuTrigger>
-                        <Button>Insert</Button>
+                        <Button>{stringFormatter.format('editorInsert')}</Button>
                         <Menu
                           onAction={key => {
                             runCommand((state, dispatch) => {
