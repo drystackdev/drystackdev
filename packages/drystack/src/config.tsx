@@ -262,25 +262,39 @@ export function config<
   //   2. Vite SSR bundle          - server pages / API routes
   //   3. Vite CLIENT bundle       - the VEI toolbar imports
   //      virtual:drystack-config (-> this file) straight from the browser.
-  // `process` exists in (1) and (2) but NOT (3), so a bare `process.env.X`
-  // throws `process is not defined` in the browser. Vite/esbuild statically
-  // replaces the *exact* text `import.meta.env.PUBLIC_X` with its literal
-  // value for the client bundle - but ONLY that exact form: a computed
-  // `import.meta.env[name]` or an access through an aliased variable is left
-  // untouched and reads back `undefined` in the browser (confirmed with
-  // esbuild `define`). So each var is spelled out inline - never factored
-  // through a helper, a loop, or a `const env = import.meta.env` alias - and
-  // must keep the `PUBLIC_` prefix (Astro's default envPrefix) to reach the
-  // client at all. The `typeof process` guard means `import.meta.env` is only
-  // ever touched in the pure-browser case, where it has already been replaced
-  // by a literal - it is never a real runtime lookup. See the
-  // drystack-demo-env-vars-public-prefix note for the empirical trail.
+  // Vite/esbuild statically replaces the *exact* text `import.meta.env.PUBLIC_X`
+  // with its literal value for the client bundle - but ONLY that exact form:
+  // a computed `import.meta.env[name]` or an access through an aliased
+  // variable is left untouched and reads back `undefined` in the browser
+  // (confirmed with esbuild `define`). So each var is spelled out inline -
+  // never factored through a helper, a loop, or a `const env = import.meta.env`
+  // alias - and must keep the `PUBLIC_` prefix (Astro's default envPrefix) to
+  // reach the client at all.
+  //
+  // The discriminator between contexts is `typeof import.meta.env`, NOT
+  // `typeof process` (as an earlier version of this code assumed): `import.meta`
+  // is always a real object per spec, so `.env` is always a safe (non-throwing)
+  // property read, and Vite genuinely provides `import.meta.env` whenever it has
+  // processed the file - contexts (2) and (3) both satisfy this. `process`
+  // looked like the right discriminator for (1) vs (3), but Astro's client
+  // bundle polyfills a bare `globalThis.process = { env: {} }` for other
+  // dependencies' sake (confirmed in the built output), so `typeof process !==
+  // "undefined"` is ALSO true in the pure-browser case - checking it first (as
+  // this code used to) silently reads the empty polyfilled `process.env`
+  // instead of the correctly Vite-inlined literal, so a real `PUBLIC_DEMO=true`
+  // build still shipped `storage:{kind:"github",...}` to the browser. See the
+  // drystack-demo-mode-fail-open-fixed note for the empirical trail.
   type ViteMeta = { env: Record<string, string | undefined> };
 
+  const viteEnvIsDefined =
+    typeof (import.meta as unknown as ViteMeta).env !== "undefined";
+
   const isDemoBuild =
-    (typeof process !== "undefined"
-      ? process.env.PUBLIC_DEMO
-      : (import.meta as unknown as ViteMeta).env.PUBLIC_DEMO) === "true";
+    (viteEnvIsDefined
+      ? (import.meta as unknown as ViteMeta).env.PUBLIC_DEMO
+      : typeof process !== "undefined"
+        ? process.env.PUBLIC_DEMO
+        : undefined) === "true";
 
   return {
     ...userConfig,
@@ -289,15 +303,17 @@ export function config<
           kind: "local",
           demo: true,
           ai: {
-            url:
-              typeof process !== "undefined"
+            url: viteEnvIsDefined
+              ? (import.meta as unknown as ViteMeta).env
+                  .PUBLIC_DRYSTACK_AI_URL
+              : typeof process !== "undefined"
                 ? process.env.PUBLIC_DRYSTACK_AI_URL
-                : (import.meta as unknown as ViteMeta).env
-                    .PUBLIC_DRYSTACK_AI_URL,
-            model:
-              typeof process !== "undefined"
+                : undefined,
+            model: viteEnvIsDefined
+              ? (import.meta as unknown as ViteMeta).env.PUBLIC_DRY_AI_MODEL
+              : typeof process !== "undefined"
                 ? process.env.PUBLIC_DRY_AI_MODEL
-                : (import.meta as unknown as ViteMeta).env.PUBLIC_DRY_AI_MODEL,
+                : undefined,
           },
         }
       : userConfig.storage,
