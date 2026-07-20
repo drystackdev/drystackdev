@@ -155,7 +155,10 @@ export function editorOptionsToConfig(
 ): EditorConfig {
   return {
     supportsMediaLibraryReferences: isHtml,
-    htmlLayout: isHtml,
+    // no paragraph/heading blocks exist when inlineOnly, so there's nothing
+    // for block-level layout (alignment, image width/height/float) to apply
+    // to - forced off regardless of isHtml.
+    htmlLayout: inlineOnly ? false : isHtml,
     inlineOnly,
     bold: options.bold ?? true,
     italic: options.italic ?? true,
@@ -164,7 +167,10 @@ export function editorOptionsToConfig(
     underline: options.underline ?? isHtml,
     strikethrough: options.strikethrough ?? true,
     code: options.code ?? true,
-    fontSize: options.fontSize ?? isHtml,
+    // font size applies per-block (see fontSizeBlockRange in Toolbar.tsx) and
+    // inlineOnly has no blocks, so it's forced off there like the other
+    // block-related flags below.
+    fontSize: inlineOnly ? false : (options.fontSize ?? isHtml),
     textColor: options.textColor ?? isHtml,
     heading: inlineOnly
       ? { levels: [], schema: {} }
