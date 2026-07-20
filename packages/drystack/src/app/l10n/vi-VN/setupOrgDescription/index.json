@@ -1,0 +1,6 @@
+{
+  "key": "setupOrgDescription",
+  "value": "Bạn phải là chủ sở hữu hoặc quản lý GitHub App trong tổ chức để tạo GitHub App. Để trống để tạo app trong tài khoản cá nhân.",
+  "notes": "",
+  "type": "global"
+}

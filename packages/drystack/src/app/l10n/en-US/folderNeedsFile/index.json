@@ -1,0 +1,6 @@
+{
+  "key": "folderNeedsFile",
+  "value": "A folder needs at least one file - GitHub can't store empty folders.",
+  "notes": "",
+  "type": "global"
+}

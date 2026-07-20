@@ -161,6 +161,9 @@ const demo = await dry.singleton("demo");
   </div>
 </main>
 
+<!-- Intentionally NOT is:global (unlike the other components): the block below
+  has bare element selectors (main, section, img) that would leak site-wide.
+  This is the internal /demo route only, so trimming its HTML doesn't matter. -->
 <style>
   .imglist {
     display: flex;

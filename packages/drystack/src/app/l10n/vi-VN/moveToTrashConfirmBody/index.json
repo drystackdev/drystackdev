@@ -1,0 +1,6 @@
+{
+  "key": "moveToTrashConfirmBody",
+  "value": "Chuyển {label} vào thùng rác? Bạn có thể khôi phục sau từ tab Thùng rác.",
+  "notes": "",
+  "type": "global"
+}

@@ -1,0 +1,6 @@
+{
+  "key": "setupMissingConfigNotice",
+  "value": "Drystack doesn't have the required config.",
+  "notes": "",
+  "type": "global"
+}

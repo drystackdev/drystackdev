@@ -1,0 +1,6 @@
+{
+  "key": "filesSelectedLabel",
+  "value": "{count, plural, one {# file} other {# files}} selected:",
+  "notes": "",
+  "type": "global"
+}

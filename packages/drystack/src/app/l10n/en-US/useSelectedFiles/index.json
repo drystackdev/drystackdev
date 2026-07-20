@@ -1,0 +1,6 @@
+{
+  "key": "useSelectedFiles",
+  "value": "{count, plural, one {Use # file} other {Use # files}}",
+  "notes": "",
+  "type": "global"
+}

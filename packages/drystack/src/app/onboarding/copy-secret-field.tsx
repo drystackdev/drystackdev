@@ -1,4 +1,6 @@
 import { useState, ReactNode } from 'react';
+import { useLocalizedStringFormatter } from '@react-aria/i18n';
+import l10nMessages from '../l10n';
 import { ActionButton } from '@keystar/ui/button';
 import { Icon } from '@keystar/ui/icon';
 import { copyIcon } from '@keystar/ui/icon/icons/copyIcon';
@@ -12,6 +14,8 @@ const MASK = '•'.repeat(20);
 
 export function CopySecretField(props: { label: ReactNode; value: string }) {
   const [revealed, setRevealed] = useState(false);
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
+  const revealLabel = stringFormatter.format(revealed ? 'hide' : 'show');
   return (
     <Flex alignItems="end" gap="regular">
       <TextField
@@ -22,21 +26,21 @@ export function CopySecretField(props: { label: ReactNode; value: string }) {
       />
       <TooltipTrigger>
         <ActionButton
-          aria-label={revealed ? 'Hide' : 'Show'}
+          aria-label={revealLabel}
           onPress={() => setRevealed(r => !r)}
         >
           <Icon src={revealed ? eyeOffIcon : eyeIcon} />
         </ActionButton>
-        <Tooltip>{revealed ? 'Hide' : 'Show'}</Tooltip>
+        <Tooltip>{revealLabel}</Tooltip>
       </TooltipTrigger>
       <TooltipTrigger>
         <ActionButton
-          aria-label="Copy"
+          aria-label={stringFormatter.format('copy')}
           onPress={() => navigator.clipboard.writeText(props.value)}
         >
           <Icon src={copyIcon} />
         </ActionButton>
-        <Tooltip>Copy</Tooltip>
+        <Tooltip>{stringFormatter.format('copy')}</Tooltip>
       </TooltipTrigger>
     </Flex>
   );

@@ -1,4 +1,6 @@
 import { ReactNode } from "react";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "../l10n";
 import { Badge } from "@keystar/ui/badge";
 import { Icon } from "@keystar/ui/icon";
 import { externalLinkIcon } from "@keystar/ui/icon/icons/externalLinkIcon";
@@ -302,15 +304,17 @@ export function CheckboxCell(props: {
 }
 
 export function ArrayCell(props: { length: number }) {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   if (!props.length) return <EmptyCell />;
   return (
     <Text {...dimText}>
-      {props.length} item{props.length === 1 ? "" : "s"}
+      {stringFormatter.format("arrayItemCount", { count: props.length })}
     </Text>
   );
 }
 
 export function ObjectCell(props: { value: unknown }) {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const count =
     props.value && typeof props.value === "object"
       ? Object.values(props.value).filter((v) => v != null && v !== "").length
@@ -318,7 +322,7 @@ export function ObjectCell(props: { value: unknown }) {
   if (!count) return <EmptyCell />;
   return (
     <Text {...dimText}>
-      {count} field{count === 1 ? "" : "s"} set
+      {stringFormatter.format("objectFieldsSetCount", { count })}
     </Text>
   );
 }
@@ -334,9 +338,14 @@ export function getOptionLabel(
 }
 
 export function DefaultCell(props: { value: unknown }): ReactNode {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   if (props.value == null || props.value === "") return <EmptyCell />;
   if (typeof props.value === "boolean") {
-    return <Text>{props.value ? "True" : "False"}</Text>;
+    return (
+      <Text>
+        {stringFormatter.format(props.value ? "trueLabel" : "falseLabel")}
+      </Text>
+    );
   }
   return <TextCell value={String(props.value)} />;
 }

@@ -1,0 +1,6 @@
+{
+  "key": "setupExistingAppNotice",
+  "value": "If you've already created your GitHub app, make sure to add the following environment variables:",
+  "notes": "",
+  "type": "global"
+}

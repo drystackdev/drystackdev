@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "../l10n";
 
 import { Button } from "@keystar/ui/button";
 import { Box, Flex } from "@keystar/ui/layout";
@@ -20,6 +22,7 @@ function tryAbsoluteURL(path: string, base: string) {
 
 export function DrystackSetup(props: { config: GitHubConfig }) {
   const { basePath } = useRouter();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const apiBasePath = `/api${basePath}`;
   const [deployedURL, setDeployedURL] = useState("");
   const [organization, setOrganization] = useState("");
@@ -43,11 +46,8 @@ export function DrystackSetup(props: { config: GitHubConfig }) {
         <Flex justifyContent="center">
           <DrystackLogo />
         </Flex>
-        <Text>Drystack doesn't have the required config.</Text>
-        <Text>
-          If you've already created your GitHub app, make sure to add the
-          following environment variables:
-        </Text>
+        <Text>{stringFormatter.format("setupMissingConfigNotice")}</Text>
+        <Text>{stringFormatter.format("setupExistingAppNotice")}</Text>
         <Box elementType="ul">
           <li>
             <code>DRYSTACK_GITHUB_CLIENT_ID</code>
@@ -59,27 +59,20 @@ export function DrystackSetup(props: { config: GitHubConfig }) {
             <code>DRYSTACK_SECRET</code>
           </li>
         </Box>
-        <Text>
-          If you haven't created your GitHub app for drystack, you can create
-          one below.
-        </Text>
+        <Text>{stringFormatter.format("setupCreateAppNotice")}</Text>
         <TextField
-          label="Deployed App URL"
-          description="This should the root of your domain. If you're not sure where drystack will be deployed, leave this blank and you can update the GitHub app later."
+          label={stringFormatter.format("setupDeployedUrlLabel")}
+          description={stringFormatter.format("setupDeployedUrlDescription")}
           value={deployedURL}
           onChange={setDeployedURL}
         />
         <TextField
-          label="GitHub organization (if any)"
-          description="You must be an owner or GitHub App manager in the organization to create the GitHub App. Leave this blank to create the app in your personal account."
+          label={stringFormatter.format("setupOrgLabel")}
+          description={stringFormatter.format("setupOrgDescription")}
           value={organization}
           onChange={setOrganization}
         />
-        <Text>
-          After visiting GitHub to create the GitHub app, you'll be redirected
-          back here and secrets generated from GitHub will be written to your{" "}
-          <code>.env</code> file.
-        </Text>
+        <Text>{stringFormatter.format("setupRedirectNotice")}</Text>
         <input
           type="text"
           name="manifest"
@@ -114,7 +107,7 @@ export function DrystackSetup(props: { config: GitHubConfig }) {
           })}
         />
         <Button prominence="high" type="submit">
-          Create GitHub App
+          {stringFormatter.format("setupCreateAppAction")}
         </Button>
       </Flex>
     </Flex>

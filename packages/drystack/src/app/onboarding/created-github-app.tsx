@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "../l10n";
 import { Flex } from "@keystar/ui/layout";
 import { Notice } from "@keystar/ui/notice";
 import { Heading, Text } from "@keystar/ui/typography";
@@ -29,6 +31,7 @@ function readSecretsFromHash(): Record<string, string> | undefined {
 
 export function CreatedGitHubApp(props: { config: GitHubConfig }) {
   const router = useRouter();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const [secrets, setSecrets] = useState<Record<string, string>>();
   useEffect(() => {
     if (!window.location.hash) return;
@@ -50,16 +53,11 @@ export function CreatedGitHubApp(props: { config: GitHubConfig }) {
         gap="xlarge"
         maxWidth="scale.4600"
       >
-        <Heading>You've installed drystack! 🎉</Heading>
+        <Heading>{stringFormatter.format("installedDrystackHeading")}</Heading>
         {secrets && (
           <>
             <Notice tone="caution">
-              <Text>
-                This server couldn't save these to a <code>.env</code> file (no
-                writable filesystem here). Copy them now and add them as
-                environment variables in your hosting provider - they won't be
-                shown again.
-              </Text>
+              <Text>{stringFormatter.format("secretsNotSavedNotice")}</Text>
             </Notice>
             {SECRET_KEYS.map((key) => (
               <CopySecretField
@@ -70,14 +68,11 @@ export function CreatedGitHubApp(props: { config: GitHubConfig }) {
             ))}
           </>
         )}
+        <Text>{stringFormatter.format("needInstallAppNotice")}</Text>
         <Text>
-          To start using drystack, you need to install the GitHub app you've
-          created.
-        </Text>
-        <Text>
-          Make sure to add the App to the{" "}
+          {stringFormatter.format("addAppToRepoPrefix")}{" "}
           <code>{serializeRepoConfig(props.config.storage.repo)}</code>{" "}
-          repository.
+          {stringFormatter.format("addAppToRepoSuffix")}
         </Text>
         <InstallGitHubApp config={props.config} />
       </Flex>

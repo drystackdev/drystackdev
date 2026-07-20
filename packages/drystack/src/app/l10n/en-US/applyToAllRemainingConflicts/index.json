@@ -1,0 +1,6 @@
+{
+  "key": "applyToAllRemainingConflicts",
+  "value": "{count, plural, one {Apply to the remaining # conflict} other {Apply to all # remaining conflicts}}",
+  "notes": "",
+  "type": "global"
+}

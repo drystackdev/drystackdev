@@ -1,0 +1,6 @@
+{
+  "key": "objectFieldsSetCount",
+  "value": "{count, plural, one {# field set} other {# fields set}}",
+  "notes": "",
+  "type": "global"
+}

@@ -1,0 +1,6 @@
+{
+  "key": "permanentDeleteConfirmBody",
+  "value": "Xóa vĩnh viễn {label}? Không thể hoàn tác.",
+  "notes": "",
+  "type": "global"
+}

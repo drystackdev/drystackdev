@@ -1,0 +1,6 @@
+{
+  "key": "onMainNothingToDeployError",
+  "value": "Đang ở nhánh main - không có gì để deploy.",
+  "notes": "",
+  "type": "global"
+}

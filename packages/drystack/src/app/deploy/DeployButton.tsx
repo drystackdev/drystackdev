@@ -1,4 +1,6 @@
 import { ReactElement, useEffect, useRef } from "react";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "../l10n";
 
 import { ActionButton } from "@keystar/ui/button";
 import { DialogContainer } from "@keystar/ui/dialog";
@@ -59,6 +61,7 @@ function useHasChangesToMerge(changed: ReturnType<typeof useChanged>): boolean {
 // actively building (see isBuilding below), so people can't queue up a
 // second deploy on top of one whose build hasn't finished yet.
 export function DeployButton() {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const brand = useCurrentBrand();
   const repoInfo = useRepoInfo();
   const hasChanges = useHasChangesToMerge(useChanged());
@@ -75,13 +78,13 @@ export function DeployButton() {
   useEffect(() => {
     if (state.kind !== "merged") return;
     toastQueue.positive(
-      "Đã gộp vào main - theo dõi build ở biểu tượng Cloudflare",
+      stringFormatter.format("veiDeployMergedSuccess"),
       {
         timeout: 4000,
       },
     );
     reset();
-  }, [state, reset]);
+  }, [state, reset, stringFormatter]);
 
   useEffect(() => {
     if (state.kind !== "idle" || !state.error) return;
@@ -92,13 +95,13 @@ export function DeployButton() {
       truncateToastMessage(state.error),
       pullRequestURL
         ? {
-            actionLabel: "Mở pull request",
+            actionLabel: stringFormatter.format("openPullRequestAction"),
             onAction: () => window.open(pullRequestURL, "_blank", "noopener"),
             shouldCloseOnAction: true,
           }
         : { timeout: 6000 },
     );
-  }, [state]);
+  }, [state, stringFormatter]);
 
   // Notify once the moment Cloudflare finishes a build that was in progress -
   // the button itself is disabled for the whole `started` phase, so this is
@@ -107,14 +110,14 @@ export function DeployButton() {
   useEffect(() => {
     if (wasBuildingRef.current && cf.tone === "positive") {
       toastQueue.positive(
-        "Build thành công trên Cloudflare - có thể deploy tiếp",
+        stringFormatter.format("cloudflareBuildSucceededToast"),
         {
           timeout: 4000,
         },
       );
     }
     wasBuildingRef.current = cf.spinning;
-  }, [cf.tone, cf.spinning]);
+  }, [cf.tone, cf.spinning, stringFormatter]);
 
   const isBusy = state.kind === "loading" || state.kind === "conflicts";
   const isBuilding = cf.hasEvent && cf.spinning;
@@ -127,10 +130,10 @@ export function DeployButton() {
     state.kind === "loading"
       ? state.label
       : state.kind === "conflicts"
-        ? "Waiting for conflict resolution…"
+        ? stringFormatter.format("waitingForConflictResolution")
         : isBuilding || isOnDefaultBranch
           ? cf.fullLabel
-          : "Deploy";
+          : stringFormatter.format("veiDeployIdleLabel");
 
   const status: DeployStatus =
     state.kind === "loading"

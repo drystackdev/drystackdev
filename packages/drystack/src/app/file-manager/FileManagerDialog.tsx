@@ -1,3 +1,5 @@
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "../l10n";
 import { Button, ButtonGroup } from "@keystar/ui/button";
 import { Dialog, useDialogContainer } from "@keystar/ui/dialog";
 import { Content } from "@keystar/ui/slots";
@@ -16,10 +18,11 @@ export function FileManagerDialog(props: {
   onPick: (picks: MediaLibraryPick[]) => void;
 }) {
   const { dismiss } = useDialogContainer();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   return (
     <Dialog size="large">
-      <Heading>File manager</Heading>
+      <Heading>{stringFormatter.format("fileManagerAriaLabel")}</Heading>
       <Content>
         <FileManagerRoot
           mode={{
@@ -40,7 +43,7 @@ export function FileManagerDialog(props: {
         />
       </Content>
       <ButtonGroup>
-        <Button onPress={dismiss}>Cancel</Button>
+        <Button onPress={dismiss}>{stringFormatter.format("cancel")}</Button>
       </ButtonGroup>
     </Dialog>
   );

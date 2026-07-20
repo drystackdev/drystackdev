@@ -1,0 +1,6 @@
+{
+  "key": "restoreConfirmBody",
+  "value": "Restore {label}?",
+  "notes": "",
+  "type": "global"
+}

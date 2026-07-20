@@ -7,10 +7,14 @@ export function isImagePath(path: string) {
 
 // Human-facing file type derived from the extension, e.g. "photo.png" -> "PNG",
 // "archive.zip" -> "ZIP". Extensionless files ("README") and dotfiles
-// (".gitignore") have no meaningful type, so fall back to "File".
-export function getFileTypeLabel(name: string): string {
+// (".gitignore") have no meaningful type, so fall back to the localized
+// generic "File" label.
+export function getFileTypeLabel(
+  name: string,
+  fileTypeGenericLabel: string,
+): string {
   const dotIndex = name.lastIndexOf('.');
-  if (dotIndex <= 0) return 'File';
+  if (dotIndex <= 0) return fileTypeGenericLabel;
   return name.slice(dotIndex + 1).toUpperCase();
 }
 

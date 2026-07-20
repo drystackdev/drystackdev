@@ -1,0 +1,6 @@
+{
+  "key": "branchProtectedDetailedError",
+  "value": "Nhánh mặc định được bảo vệ - thay đổi phải vào qua pull request. Brand vẫn giữ nguyên các thay đổi, hãy mở pull request để gộp.",
+  "notes": "",
+  "type": "global"
+}

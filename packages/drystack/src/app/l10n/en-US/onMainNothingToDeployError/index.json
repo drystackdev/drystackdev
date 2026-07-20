@@ -1,0 +1,6 @@
+{
+  "key": "onMainNothingToDeployError",
+  "value": "You're on the main branch - nothing to deploy.",
+  "notes": "",
+  "type": "global"
+}

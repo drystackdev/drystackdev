@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "../l10n";
 import { ActionButton, Button } from "@keystar/ui/button";
 import { Icon } from "@keystar/ui/icon";
 import { chevronLeftIcon } from "@keystar/ui/icon/icons/chevronLeftIcon";
@@ -58,6 +60,7 @@ export function AssetPreviewOverlay(props: {
   onClose: () => void;
 }) {
   const { path, siblings, onNavigate, onDelete, onClose } = props;
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const filename = path.split("/").pop()!;
   const isImage = isImagePath(path);
   const highlightLang = getHighlightLanguage(path);
@@ -179,7 +182,7 @@ export function AssetPreviewOverlay(props: {
           gap="regular"
           UNSAFE_style={{ minWidth: 0, maxWidth: "100%" }}
         >
-          <ActionButton aria-label="Close" onPress={onClose}>
+          <ActionButton aria-label={stringFormatter.format("close")} onPress={onClose}>
             <Icon src={xIcon} />
           </ActionButton>
           <Text
@@ -198,7 +201,7 @@ export function AssetPreviewOverlay(props: {
           {isImage && (
             <Flex alignItems="center" gap="small">
               <ActionButton
-                aria-label="Zoom out"
+                aria-label={stringFormatter.format("zoomOutAriaLabel")}
                 isDisabled={zoom <= MIN_ZOOM}
                 onPress={() => setZoom((z) => z - ZOOM_STEP)}
               >
@@ -208,7 +211,7 @@ export function AssetPreviewOverlay(props: {
                 <input
                   type="text"
                   inputMode="numeric"
-                  aria-label="Zoom percentage"
+                  aria-label={stringFormatter.format("zoomPercentageAriaLabel")}
                   value={zoomInput}
                   onChange={(event) =>
                     setZoomInput(event.target.value.replace(/[^\d]/g, ""))
@@ -233,7 +236,7 @@ export function AssetPreviewOverlay(props: {
                 </Text>
               </div>
               <ActionButton
-                aria-label="Zoom in"
+                aria-label={stringFormatter.format("zoomInAriaLabel")}
                 isDisabled={zoom >= MAX_ZOOM}
                 onPress={() => setZoom((z) => z + ZOOM_STEP)}
               >
@@ -244,7 +247,7 @@ export function AssetPreviewOverlay(props: {
           {onDelete && (
             <Button tone="critical" onPress={onDelete}>
               <Icon src={trash2Icon} />
-              <Text>Delete</Text>
+              <Text>{stringFormatter.format("deleteAction")}</Text>
             </Button>
           )}
         </Flex>
@@ -259,7 +262,7 @@ export function AssetPreviewOverlay(props: {
       >
         {canPrev && (
           <ActionButton
-            aria-label="Previous image"
+            aria-label={stringFormatter.format("previousImageAriaLabel")}
             onPress={() => goTo(prevPath())}
             UNSAFE_style={{
               ...navButtonStyle,
@@ -274,7 +277,7 @@ export function AssetPreviewOverlay(props: {
         )}
         {canNext && (
           <ActionButton
-            aria-label="Next image"
+            aria-label={stringFormatter.format("nextImageAriaLabel")}
             onPress={() => goTo(nextPath())}
             UNSAFE_style={{
               ...navButtonStyle,
@@ -362,11 +365,14 @@ function FilmstripThumb(props: {
   const [ref, inView] = useInView<HTMLButtonElement>();
   const url = useMediaLibraryPreviewURL(props.path, undefined, inView, true);
   const name = props.path.split("/").pop();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   return (
     <ActionButton
       ref={ref}
-      aria-label={`Show ${name}`}
+      aria-label={stringFormatter.format("showAssetAriaLabel", {
+        name: name ?? "",
+      })}
       onPress={props.onSelect}
       UNSAFE_style={{
         height: "unset",

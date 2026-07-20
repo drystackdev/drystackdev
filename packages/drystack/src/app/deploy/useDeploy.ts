@@ -7,6 +7,8 @@
 import { useCallback, useRef, useState } from "react";
 import { useMutation } from "urql";
 import { gql } from "@ts-gql/tag/no-transform";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "../l10n";
 
 import { GitHubConfig } from "../../config";
 import { base64Encode } from "#base64";
@@ -109,6 +111,7 @@ async function fetchBlobTextIfPresent(
 }
 
 export function useDeploy() {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const config = useConfig();
   const { push, basePath } = useRouter();
   const repoInfo = useRepoInfo();
@@ -168,7 +171,10 @@ export function useDeploy() {
     if (currentBranch !== brand.ref) {
       // shouldn't normally happen (DeployButton only renders once brand is
       // resolved), but guards against deploying the wrong thing
-      setState({ kind: "idle", error: "Brand chưa sẵn sàng, thử lại sau." });
+      setState({
+        kind: "idle",
+        error: stringFormatter.format("brandNotReadyError"),
+      });
       return;
     }
     if (brand.ref === repoInfo.defaultBranch) {
@@ -177,7 +183,7 @@ export function useDeploy() {
       // racing into a real merge+delete against main itself.
       setState({
         kind: "idle",
-        error: "Đang ở nhánh main - không có gì để deploy.",
+        error: stringFormatter.format("onMainNothingToDeployError"),
       });
       return;
     }
@@ -202,13 +208,16 @@ export function useDeploy() {
         ),
       ]);
       if (!mainRef) {
-        setState({ kind: "idle", error: "Không tìm thấy nhánh mặc định." });
+        setState({
+          kind: "idle",
+          error: stringFormatter.format("veiDeployDefaultBranchNotFound"),
+        });
         return "done";
       }
       if (!brandRef) {
         setState({
           kind: "idle",
-          error: "Brand hiện tại không còn tồn tại - vui lòng tải lại trang.",
+          error: stringFormatter.format("veiDeployBrandGone"),
         });
         return "done";
       }
@@ -221,7 +230,7 @@ export function useDeploy() {
       if (!auth) {
         setState({
           kind: "idle",
-          error: "Phiên GitHub đã hết hạn - đăng nhập lại.",
+          error: stringFormatter.format("githubSessionExpiredError"),
         });
         return "done";
       }
@@ -248,7 +257,10 @@ export function useDeploy() {
       const deletions: { path: string }[] =
         classification.takeOursDeletions.map((path) => ({ path }));
 
-      setState({ kind: "loading", label: "Loading changed files…" });
+      setState({
+        kind: "loading",
+        label: stringFormatter.format("loadingChangedFilesLabel"),
+      });
       await Promise.all(
         classification.takeOursAdditions.map(async (path) => {
           const entry = oursTree.entries.get(path)!;
@@ -265,7 +277,10 @@ export function useDeploy() {
       );
 
       if (classification.conflictEligible.length > 0) {
-        setState({ kind: "loading", label: "Checking for conflicts…" });
+        setState({
+          kind: "loading",
+          label: stringFormatter.format("veiDeployCheckingConflicts"),
+        });
         const conflictFiles: ConflictFileState[] = [];
         for (const path of classification.conflictEligible) {
           const [baseText, oursText, theirsText] = await Promise.all([
@@ -341,11 +356,17 @@ export function useDeploy() {
       }
 
       if (additions.length === 0 && deletions.length === 0) {
-        setState({ kind: "idle", error: "Không có thay đổi nào để deploy." });
+        setState({
+          kind: "idle",
+          error: stringFormatter.format("veiDeployNothingToDeploy"),
+        });
         return "done";
       }
 
-      setState({ kind: "loading", label: "Deploying…" });
+      setState({
+        kind: "loading",
+        label: stringFormatter.format("veiDeployInProgress"),
+      });
       const result = await commit({
         input: {
           branch: {
@@ -378,9 +399,7 @@ export function useDeploy() {
           // committed), so the only way forward is a PR opened by hand.
           setState({
             kind: "idle",
-            error:
-              "Nhánh mặc định được bảo vệ - thay đổi phải vào qua pull request. " +
-              "Brand vẫn giữ nguyên các thay đổi, hãy mở pull request để gộp.",
+            error: stringFormatter.format("branchProtectedDetailedError"),
             pullRequestURL: `https://github.com/${repoInfo!.owner}/${repoInfo!.name}/compare/${encodeURIComponent(
               repoInfo!.defaultBranch,
             )}...${encodeURIComponent(brand!.ref)}?expand=1`,
@@ -395,7 +414,7 @@ export function useDeploy() {
       if (result.error || !target || !("tree" in target)) {
         setState({
           kind: "idle",
-          error: result.error?.message ?? "Deploy thất bại.",
+          error: result.error?.message ?? stringFormatter.format("veiDeployFailed"),
         });
         return "done";
       }
@@ -418,19 +437,23 @@ export function useDeploy() {
       return "done";
     }
 
-    setState({ kind: "loading", label: "Preparing deploy…" });
+    setState({
+      kind: "loading",
+      label: stringFormatter.format("preparingDeployLabel"),
+    });
     try {
       for (let attempt = 0; attempt < MAX_STALE_DATA_RETRIES; attempt++) {
         if ((await runOneAttempt()) === "done") return;
       }
       setState({
         kind: "idle",
-        error: "Nhánh mặc định thay đổi liên tục - vui lòng thử lại.",
+        error: stringFormatter.format("veiDeployBranchMoving"),
       });
     } catch (err) {
       setState({
         kind: "idle",
-        error: err instanceof Error ? err.message : "Deploy thất bại.",
+        error:
+          err instanceof Error ? err.message : stringFormatter.format("veiDeployFailed"),
       });
     }
   }, [
@@ -444,6 +467,7 @@ export function useDeploy() {
     deleteBranch,
     setRecord,
     push,
+    stringFormatter,
   ]);
 
   const reset = useCallback(() => setState({ kind: "idle" }), []);

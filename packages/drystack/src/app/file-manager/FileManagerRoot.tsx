@@ -1,4 +1,6 @@
 import { ReactNode, useState, useEffect } from "react";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "../l10n";
 import { ActionButton, Button, ButtonGroup } from "@keystar/ui/button";
 import { Dialog, DialogContainer } from "@keystar/ui/dialog";
 import { Content } from "@keystar/ui/slots";
@@ -95,6 +97,7 @@ function useAssetActions() {
 
 export function FileManagerRoot(props: { mode: FileManagerMode }) {
   const { mode } = props;
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const config = useConfig();
   const setTreeSha = useSetTreeSha();
   const { readBytes, tree } = useAssetActions();
@@ -534,7 +537,7 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
     const crumbs = [
       {
         key: "entries",
-        label: "Entries",
+        label: stringFormatter.format("entriesTabLabel"),
         onNavigate: () => setEntriesNav({ step: "root" }),
       },
     ];
@@ -614,18 +617,20 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
       return (
         <Flex direction="column" gap="large">
           <FileManagerBreadcrumbs
-            crumbs={[{ key: "entries", label: "Entries" }]}
+            crumbs={[
+              { key: "entries", label: stringFormatter.format("entriesTabLabel") },
+            ]}
             onNavigate={() => {}}
           />
           {viewMode === "grid" ? (
             <AssetGrid
               items={items}
-              emptyMessage="No collections or singletons configured."
+              emptyMessage={stringFormatter.format("noCollectionsConfigured")}
             />
           ) : (
             <AssetList
               items={items as AssetListItemData[]}
-              emptyMessage="No collections or singletons configured."
+              emptyMessage={stringFormatter.format("noCollectionsConfigured")}
             />
           )}
         </Flex>
@@ -661,7 +666,7 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
         <Flex direction="column" gap="large">
           <FileManagerBreadcrumbs
             crumbs={[
-              { key: "root", label: "Entries" },
+              { key: "root", label: stringFormatter.format("entriesTabLabel") },
               { key: "collection", label: entriesNav.label },
             ]}
             onNavigate={(key) => {
@@ -669,11 +674,14 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
             }}
           />
           {viewMode === "grid" ? (
-            <AssetGrid items={items} emptyMessage="No entries yet." />
+            <AssetGrid
+              items={items}
+              emptyMessage={stringFormatter.format("noEntriesYet")}
+            />
           ) : (
             <AssetList
               items={items as AssetListItemData[]}
-              emptyMessage="No entries yet."
+              emptyMessage={stringFormatter.format("noEntriesYet")}
             />
           )}
         </Flex>
@@ -710,10 +718,10 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
   }
   tabs.push({
     key: "library",
-    label: "Library",
+    label: stringFormatter.format("libraryTabLabel"),
     content: renderRealDirectory({
       rootDir: MEDIA_LIBRARY_DIRECTORY,
-      rootLabel: "Library",
+      rootLabel: stringFormatter.format("libraryTabLabel"),
       subPath: libraryPath,
       setSubPath: setLibraryPath,
       canDelete: mode.kind === "page",
@@ -723,15 +731,15 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
   if (mode.kind === "page") {
     tabs.push({
       key: "entries",
-      label: "Entries",
+      label: stringFormatter.format("entriesTabLabel"),
       content: renderEntriesTab(),
     });
     tabs.push({
       key: "trash",
-      label: "Trash",
+      label: stringFormatter.format("trashTabLabel"),
       content: renderRealDirectory({
         rootDir: TRASH_DIRECTORY,
-        rootLabel: "Trash",
+        rootLabel: stringFormatter.format("trashTabLabel"),
         subPath: trashPath,
         setSubPath: setTrashPath,
         canDelete: false,
@@ -743,7 +751,7 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
   return (
     <Flex direction="column" gap="large">
       <Tabs
-        aria-label="File manager"
+        aria-label={stringFormatter.format("fileManagerAriaLabel")}
         selectedKey={tab}
         onSelectionChange={(key) => {
           setTab(String(key));
@@ -771,7 +779,7 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
             {canCreateFolder && (
               <ActionButton onPress={() => setNewFolderDialogOpen(true)}>
                 <Icon src={folderPlusIcon} />
-                <Text>New folder</Text>
+                <Text>{stringFormatter.format("newFolderAction")}</Text>
               </ActionButton>
             )}
             {canUpload && (
@@ -788,21 +796,25 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
               >
                 <ActionButton isDisabled={upload.isUploading}>
                   <Icon src={fileUpIcon} />
-                  <Text>{upload.isUploading ? "Uploading…" : "Upload"}</Text>
+                  <Text>
+                    {upload.isUploading
+                      ? stringFormatter.format("uploadingLabel")
+                      : stringFormatter.format("uploadAction")}
+                  </Text>
                 </ActionButton>
               </FileTrigger>
             )}
             <Flex gap="small">
               <ActionButton
                 isSelected={viewMode === "grid"}
-                aria-label="Grid view"
+                aria-label={stringFormatter.format("gridViewAriaLabel")}
                 onPress={() => setViewMode("grid")}
               >
                 <Icon src={columnsIcon} />
               </ActionButton>
               <ActionButton
                 isSelected={viewMode === "list"}
-                aria-label="List view"
+                aria-label={stringFormatter.format("listViewAriaLabel")}
                 onPress={() => setViewMode("list")}
               >
                 <Icon src={listIcon} />
@@ -810,8 +822,8 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
             </Flex>
           </Flex>
           <SearchField
-            aria-label="Search files"
-            placeholder="Search by name…"
+            aria-label={stringFormatter.format("searchFilesAriaLabel")}
+            placeholder={stringFormatter.format("searchByNamePlaceholder")}
             value={search}
             onChange={setSearch}
           />
@@ -819,44 +831,60 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
 
         {selected.size > 0 && (
           <Flex alignItems="center" gap="regular" wrap marginY="regular">
-            <Text size="small">{selected.size} selected</Text>
+            <Text size="small">
+              {stringFormatter.format("selectedCount", { count: selected.size })}
+            </Text>
             <ActionButton onPress={() => setSelected(new Set())}>
-              <Text>Unselect all</Text>
+              <Text>{stringFormatter.format("unselectAllAction")}</Text>
             </ActionButton>
             {tab === "trash" ? (
               <>
                 <Button
                   onPress={() =>
-                    requestRestore([...selected], `${selected.size} items`)
+                    requestRestore(
+                      [...selected],
+                      stringFormatter.format("itemsCount", {
+                        count: selected.size,
+                      }),
+                    )
                   }
                 >
-                  Restore
+                  {stringFormatter.format("restoreAction")}
                 </Button>
                 <Button
                   tone="critical"
                   onPress={() =>
                     requestPermanentDelete(
                       [...selected],
-                      `${selected.size} items`,
+                      stringFormatter.format("itemsCount", {
+                        count: selected.size,
+                      }),
                     )
                   }
                 >
-                  Delete forever
+                  {stringFormatter.format("deleteForeverAction")}
                 </Button>
               </>
             ) : mode.kind === "page" ? (
               <Button
                 tone="critical"
                 onPress={() =>
-                  requestDelete([...selected], `${selected.size} items`)
+                  requestDelete(
+                    [...selected],
+                    stringFormatter.format("itemsCount", {
+                      count: selected.size,
+                    }),
+                  )
                 }
               >
                 <Icon src={trash2Icon} />
-                <Text>Delete</Text>
+                <Text>{stringFormatter.format("deleteAction")}</Text>
               </Button>
             ) : (
               <Button prominence="high" onPress={pickSelected}>
-                Use {selected.size} file{selected.size === 1 ? "" : "s"}
+                {stringFormatter.format("useSelectedFiles", {
+                  count: selected.size,
+                })}
               </Button>
             )}
           </Flex>
@@ -924,16 +952,22 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
           <Dialog size="small" role="alertdialog">
             <Heading>
               {confirmAction.kind === "restore"
-                ? "Restore files?"
-                : "Delete files?"}
+                ? stringFormatter.format("restoreFilesTitle")
+                : stringFormatter.format("deleteFilesTitle")}
             </Heading>
             <Content>
               <Text>
                 {confirmAction.kind === "restore"
-                  ? `Restore ${confirmAction.label}?`
+                  ? stringFormatter.format("restoreConfirmBody", {
+                      label: confirmAction.label,
+                    })
                   : confirmAction.kind === "permanent"
-                    ? `Permanently delete ${confirmAction.label}? This can't be undone.`
-                    : `Move ${confirmAction.label} to trash? You can restore it later from the Trash tab.`}
+                    ? stringFormatter.format("permanentDeleteConfirmBody", {
+                        label: confirmAction.label,
+                      })
+                    : stringFormatter.format("moveToTrashConfirmBody", {
+                        label: confirmAction.label,
+                      })}
               </Text>
             </Content>
             <ButtonGroup align="end">
@@ -941,7 +975,7 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
                 onPress={() => setConfirmAction(null)}
                 isDisabled={isConfirming}
               >
-                Cancel
+                {stringFormatter.format("cancel")}
               </Button>
               <Button
                 prominence="high"
@@ -951,10 +985,10 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
                 autoFocus
               >
                 {confirmAction.kind === "restore"
-                  ? "Restore"
+                  ? stringFormatter.format("restoreAction")
                   : confirmAction.kind === "permanent"
-                    ? "Delete forever"
-                    : "Move to trash"}
+                    ? stringFormatter.format("deleteForeverAction")
+                    : stringFormatter.format("moveToTrashAction")}
               </Button>
             </ButtonGroup>
           </Dialog>

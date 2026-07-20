@@ -1,3 +1,5 @@
+import { useLocalizedStringFormatter } from '@react-aria/i18n';
+import l10nMessages from '../l10n';
 import { ActionButton, Button } from '@keystar/ui/button';
 import { Flex } from '@keystar/ui/layout';
 import { Notice } from '@keystar/ui/notice';
@@ -16,6 +18,7 @@ export const AppSlugProvider = AppSlugContext.Provider;
 
 export function InstallGitHubApp(props: { config: GitHubConfig }) {
   const router = useRouter();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const appSlugFromContext = useContext(AppSlugContext);
   const appSlug =
     new URL(router.href, 'https://example.com').searchParams.get('slug') ??
@@ -25,7 +28,7 @@ export function InstallGitHubApp(props: { config: GitHubConfig }) {
     <Flex direction="column" gap="regular">
       <Flex alignItems="end" gap="regular">
         <TextField
-          label="Repo Name"
+          label={stringFormatter.format('repoNameLabel')}
           width="100%"
           isReadOnly
           value={parsedRepo.name}
@@ -35,7 +38,7 @@ export function InstallGitHubApp(props: { config: GitHubConfig }) {
             navigator.clipboard.writeText(parsedRepo.name);
           }}
         >
-          Copy Repo Name
+          {stringFormatter.format('copyRepoNameAction')}
         </ActionButton>
       </Flex>
       {appSlug ? (
@@ -43,18 +46,18 @@ export function InstallGitHubApp(props: { config: GitHubConfig }) {
           prominence="high"
           href={`https://github.com/apps/${appSlug}/installations/new`}
         >
-          Install GitHub App
+          {stringFormatter.format('installGitHubAppAction')}
         </Button>
       ) : (
         <Notice tone="caution">
           {appSlugFromContext ? (
             <Text>
-              The <code>{appSlugFromContext.envName}</code> environment variable
-              wasn't provided so we can't link to the GitHub app installation
-              page. You should find the App on GitHub and add the repo yourself.
+              {stringFormatter.format('envVarMissingNotice', {
+                envName: appSlugFromContext.envName,
+              })}
             </Text>
           ) : (
-            <Text>Find the App on GitHub and add the repo.</Text>
+            <Text>{stringFormatter.format('findAppOnGithubNotice')}</Text>
           )}
         </Notice>
       )}

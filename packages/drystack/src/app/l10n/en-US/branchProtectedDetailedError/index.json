@@ -1,0 +1,6 @@
+{
+  "key": "branchProtectedDetailedError",
+  "value": "The default branch is protected - changes must go through a pull request. The brand still has your changes, open a pull request to merge them.",
+  "notes": "",
+  "type": "global"
+}

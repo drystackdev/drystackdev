@@ -1,0 +1,6 @@
+{
+  "key": "cloudflareBuildSucceededToast",
+  "value": "Build thành công trên Cloudflare - có thể deploy tiếp",
+  "notes": "",
+  "type": "global"
+}

@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "../l10n";
 import { ActionButton } from "@keystar/ui/button";
 import { Checkbox } from "@keystar/ui/checkbox";
 import { Icon } from "@keystar/ui/icon";
@@ -57,9 +59,12 @@ export function AssetCard(props: AssetCardProps) {
     true, // grid card - a downscaled thumbnail is plenty
   );
   const [isHovered, setIsHovered] = useState(false);
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   const infoText =
-    props.kind === "folder" ? "Folder" : getFileTypeLabel(props.name);
+    props.kind === "folder"
+      ? stringFormatter.format("folderLabel")
+      : getFileTypeLabel(props.name, stringFormatter.format("fileTypeGeneric"));
   // truncated filename gets an ellipsis - surface the full name + type as a
   // native tooltip so it's still discoverable on hover
   const fullLabel = `${props.name} - ${infoText}`;
@@ -89,25 +94,25 @@ export function AssetCard(props: AssetCardProps) {
           {props.onRestore && (
             <TooltipTrigger>
               <ActionButton
-                aria-label="Restore"
+                aria-label={stringFormatter.format("restoreAction")}
                 onPress={props.onRestore}
                 UNSAFE_style={overlayButtonStyle}
               >
                 <Icon src={rotateCcwIcon} />
               </ActionButton>
-              <Tooltip>Restore</Tooltip>
+              <Tooltip>{stringFormatter.format("restoreAction")}</Tooltip>
             </TooltipTrigger>
           )}
           {props.onDelete && (
             <TooltipTrigger>
               <ActionButton
-                aria-label="Delete"
+                aria-label={stringFormatter.format("deleteAction")}
                 onPress={props.onDelete}
                 UNSAFE_style={overlayButtonStyle}
               >
                 <Icon src={trash2Icon} />
               </ActionButton>
-              <Tooltip tone="critical">Delete</Tooltip>
+              <Tooltip tone="critical">{stringFormatter.format("deleteAction")}</Tooltip>
             </TooltipTrigger>
           )}
         </Flex>
@@ -115,8 +120,8 @@ export function AssetCard(props: AssetCardProps) {
       <ActionButton
         aria-label={
           props.kind === "folder"
-            ? `Open ${props.name}`
-            : `Preview ${props.name}`
+            ? stringFormatter.format("openAssetAriaLabel", { name: props.name })
+            : stringFormatter.format("previewAssetAriaLabel", { name: props.name })
         }
         UNSAFE_style={{ height: "unset", padding: 0 }}
         isDisabled={props.disabled}
@@ -156,7 +161,9 @@ export function AssetCard(props: AssetCardProps) {
       <Flex alignItems="center">
         {!props.disabled && props.selectable && (
           <Checkbox
-            aria-label={`Select ${props.name}`}
+            aria-label={stringFormatter.format("selectAssetAriaLabel", {
+              name: props.name,
+            })}
             isSelected={props.isSelected}
             onChange={props.onToggleSelect}
           />

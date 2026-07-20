@@ -1,0 +1,6 @@
+{
+  "key": "secretsNotSavedNotice",
+  "value": "Máy chủ này không thể lưu vào tệp .env (không có hệ thống tệp ghi được ở đây). Hãy sao chép ngay và thêm chúng làm biến môi trường trong nhà cung cấp hosting của bạn - chúng sẽ không hiện lại nữa.",
+  "notes": "",
+  "type": "global"
+}

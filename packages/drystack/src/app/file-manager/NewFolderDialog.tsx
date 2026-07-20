@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useLocalizedStringFormatter } from "@react-aria/i18n";
+import l10nMessages from "../l10n";
 import { Button, ButtonGroup, ActionButton } from "@keystar/ui/button";
 import { Dialog } from "@keystar/ui/dialog";
 import { FileTrigger } from "@keystar/ui/drag-and-drop";
@@ -9,7 +11,11 @@ import { Content } from "@keystar/ui/slots";
 import { Heading, Text } from "@keystar/ui/typography";
 import { TextField } from "@keystar/ui/text-field";
 
-function validateName(name: string, existingNames: ReadonlySet<string>) {
+function validateName(
+  name: string,
+  existingNames: ReadonlySet<string>,
+  stringFormatter: ReturnType<typeof useLocalizedStringFormatter>,
+) {
   if (!name) return undefined;
   if (
     name === "." ||
@@ -17,10 +23,10 @@ function validateName(name: string, existingNames: ReadonlySet<string>) {
     name.includes("/") ||
     name.includes("\\")
   ) {
-    return "That's not a valid folder name.";
+    return stringFormatter.format("invalidFolderName");
   }
   if (existingNames.has(name)) {
-    return "A file or folder with this name already exists here.";
+    return stringFormatter.format("nameAlreadyExists");
   }
   return undefined;
 }
@@ -35,8 +41,9 @@ export function NewFolderDialog(props: {
   // a folder can't exist empty in this app's git-backed storage, so
   // creating one means seeding it with at least one real file
   const [files, setFiles] = useState<File[]>([]);
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const trimmed = name.trim();
-  const error = validateName(trimmed, props.existingNames);
+  const error = validateName(trimmed, props.existingNames, stringFormatter);
   const canCreate =
     !props.isCreating && !!trimmed && !error && files.length > 0;
 
@@ -51,11 +58,11 @@ export function NewFolderDialog(props: {
           props.onCreate(trimmed, files);
         }}
       >
-        <Heading>New folder</Heading>
+        <Heading>{stringFormatter.format("newFolderAction")}</Heading>
         <Content>
           <Flex direction="column" gap="regular">
             <TextField
-              label="Folder name"
+              label={stringFormatter.format("folderNameLabel")}
               value={name}
               onChange={setName}
               autoFocus
@@ -69,21 +76,21 @@ export function NewFolderDialog(props: {
             >
               <ActionButton>
                 <Icon src={fileUpIcon} />
-                <Text>Choose files…</Text>
+                <Text>{stringFormatter.format("chooseFilesAction")}</Text>
               </ActionButton>
             </FileTrigger>
             <Text size="small" color="neutralSecondary">
               {files.length === 0
-                ? "A folder needs at least one file - GitHub can’t store empty folders."
-                : `${files.length} file${files.length === 1 ? "" : "s"} selected: ${files
-                    .map((f) => f.name)
-                    .join(", ")}`}
+                ? stringFormatter.format("folderNeedsFile")
+                : `${stringFormatter.format("filesSelectedLabel", {
+                    count: files.length,
+                  })} ${files.map((f) => f.name).join(", ")}`}
             </Text>
           </Flex>
         </Content>
         <ButtonGroup>
           <Button onPress={props.onCancel} isDisabled={props.isCreating}>
-            Cancel
+            {stringFormatter.format("cancel")}
           </Button>
           <Button
             type="submit"
@@ -91,7 +98,7 @@ export function NewFolderDialog(props: {
             isDisabled={!canCreate}
             isPending={props.isCreating}
           >
-            Create
+            {stringFormatter.format("create")}
           </Button>
         </ButtonGroup>
       </form>

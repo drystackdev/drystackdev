@@ -133,10 +133,10 @@ export function NewBranchButton() {
               </Content>
               <ButtonGroup>
                 <Button onPress={() => setIsOpen(false)} isDisabled={fetching}>
-                  Hủy
+                  {stringFormatter.format("cancel")}
                 </Button>
                 <Button isPending={fetching} prominence="high" type="submit">
-                  Tạo
+                  {stringFormatter.format("create")}
                 </Button>
               </ButtonGroup>
             </form>

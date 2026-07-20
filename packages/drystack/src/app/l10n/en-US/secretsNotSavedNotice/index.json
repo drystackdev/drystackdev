@@ -1,0 +1,6 @@
+{
+  "key": "secretsNotSavedNotice",
+  "value": "This server couldn't save these to a .env file (no writable filesystem here). Copy them now and add them as environment variables in your hosting provider - they won't be shown again.",
+  "notes": "",
+  "type": "global"
+}

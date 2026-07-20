@@ -102,8 +102,8 @@ const socialIcons = {
 <footer class="site-footer section--dark">
   <div class="container site-footer__grid reveal">
     <div class="footer-col footer-col--brand">
-      <a href="/" class="brand">
-        <span class="brand__mark">{htmlToPlainText(brand.name).charAt(0)}</span>
+      <a href="/" class="footer-brand">
+        <span class="footer-brand__mark">{htmlToPlainText(brand.name).charAt(0)}</span>
         <span
           class:list={["heading-rich", "brand__name"]}
           set:html={brand.name}
@@ -215,7 +215,7 @@ const socialIcons = {
   </div>
 </footer>
 
-<style>
+<style is:global>
   .site-footer {
     position: relative;
     z-index: 1;
@@ -230,7 +230,9 @@ const socialIcons = {
     padding-bottom: 3rem;
   }
 
-  .brand {
+  /* Renamed from .brand/.brand__mark: with is:global these would collide with
+     Header's identically-named (but differently-sized) brand on every page. */
+  .footer-brand {
     display: flex;
     align-items: center;
     gap: 0.6rem;
@@ -239,7 +241,7 @@ const socialIcons = {
     font-size: 1.05rem;
   }
 
-  .brand__mark {
+  .footer-brand__mark {
     display: grid;
     place-items: center;
     width: 30px;

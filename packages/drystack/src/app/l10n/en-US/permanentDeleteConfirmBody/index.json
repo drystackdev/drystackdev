@@ -1,0 +1,6 @@
+{
+  "key": "permanentDeleteConfirmBody",
+  "value": "Permanently delete {label}? This can't be undone.",
+  "notes": "",
+  "type": "global"
+}

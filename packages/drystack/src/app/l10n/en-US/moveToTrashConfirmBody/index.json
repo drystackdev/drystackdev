@@ -1,0 +1,6 @@
+{
+  "key": "moveToTrashConfirmBody",
+  "value": "Move {label} to trash? You can restore it later from the Trash tab.",
+  "notes": "",
+  "type": "global"
+}

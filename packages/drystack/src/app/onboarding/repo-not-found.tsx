@@ -1,12 +1,15 @@
+import { useLocalizedStringFormatter } from '@react-aria/i18n';
 import { Flex } from '@keystar/ui/layout';
 import { Heading, Text } from '@keystar/ui/typography';
 
+import l10nMessages from '../l10n';
 import { GitHubConfig } from '../..';
 import { InstallGitHubApp } from './install-app';
 import { serializeRepoConfig } from '../repo-config';
 
 export function RepoNotFound(props: { config: GitHubConfig }) {
   const repo = serializeRepoConfig(props.config.storage.repo);
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   return (
     <Flex alignItems="center" justifyContent="center" margin="xxlarge">
       <Flex
@@ -20,14 +23,12 @@ export function RepoNotFound(props: { config: GitHubConfig }) {
         maxWidth="scale.4600"
       >
         <Flex justifyContent="center">
-          <Heading>Repo not found</Heading>
+          <Heading>{stringFormatter.format('repoNotFoundTitle')}</Heading>
         </Flex>
         <Text>
-          drystack is configured for the{' '}
-          <a href={`https://github.com/${repo}`}>{repo}</a> GitHub repo but
-          drystack isn't able to access this repo. This is either because you
-          don't have access to this repo or you haven't added the GitHub app to
-          it.
+          {stringFormatter.format('repoNotFoundPrefix')}{' '}
+          <a href={`https://github.com/${repo}`}>{repo}</a>{' '}
+          {stringFormatter.format('repoNotFoundSuffix')}
         </Text>
         <InstallGitHubApp config={props.config} />
       </Flex>

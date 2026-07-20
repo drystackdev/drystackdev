@@ -1,0 +1,6 @@
+{
+  "key": "setupDeployedUrlDescription",
+  "value": "Đây phải là gốc tên miền của bạn. Nếu chưa chắc drystack sẽ triển khai ở đâu, để trống và cập nhật GitHub app sau.",
+  "notes": "",
+  "type": "global"
+}

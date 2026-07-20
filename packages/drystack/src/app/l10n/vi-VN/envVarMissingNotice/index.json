@@ -1,0 +1,6 @@
+{
+  "key": "envVarMissingNotice",
+  "value": "Biến môi trường {envName} chưa được cung cấp nên không thể liên kết đến trang cài đặt GitHub app. Hãy tự tìm App trên GitHub và thêm repo.",
+  "notes": "",
+  "type": "global"
+}

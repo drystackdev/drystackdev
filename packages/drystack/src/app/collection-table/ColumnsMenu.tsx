@@ -1,4 +1,6 @@
 import { Key } from 'react';
+import { useLocalizedStringFormatter } from '@react-aria/i18n';
+import l10nMessages from '../l10n';
 import { ActionButton } from '@keystar/ui/button';
 import { Icon } from '@keystar/ui/icon';
 import { tablePropertiesIcon } from '@keystar/ui/icon/icons/tablePropertiesIcon';
@@ -11,15 +13,16 @@ export function ColumnsMenu(props: {
   onHiddenColumnsChange: (hidden: Set<string>) => void;
 }) {
   const { columns, hiddenColumns, onHiddenColumnsChange } = props;
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const selectedKeys = columns
     .filter(c => !hiddenColumns.has(c.key))
     .map(c => c.key);
 
   return (
     <MenuTrigger>
-      <ActionButton aria-label="Choose columns">
+      <ActionButton aria-label={stringFormatter.format('chooseColumnsAriaLabel')}>
         <Icon src={tablePropertiesIcon} />
-        <Text>Columns</Text>
+        <Text>{stringFormatter.format('columnsLabel')}</Text>
       </ActionButton>
       <Menu
         items={columns}
