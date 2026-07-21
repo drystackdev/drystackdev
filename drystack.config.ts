@@ -59,19 +59,22 @@ function postCollection(label: string, previewUrl: string) {
 }
 
 export default config({
+  // storage: import.meta.env?.DEV
+  //   ? {
+  //       kind: "r2",
+  //     }
+  //   : {
+  //       kind: "github",
+  //       repo: "drystackdev/drystackdev",
+  //     },
   // Dev runs on R2 (miniflare's local simulation - seed it with
   // `bun scripts/r2-seed.ts`, create users with `bun scripts/drystack-auth.ts`).
   // Production stays on github until the real bucket is seeded and has users;
   // flipping it is just `PUBLIC_R2=true` at build time (see config()'s
   // PUBLIC_R2 override in @drystack/core) - no code change needed.
-  storage: import.meta.env?.DEV
-    ? {
-        kind: "r2",
-      }
-    : {
-        kind: "github",
-        repo: "drystackdev/drystackdev",
-      },
+  storage: {
+    kind: "r2",
+  },
   ai: {
     lang: "vi-VN",
     for: {
