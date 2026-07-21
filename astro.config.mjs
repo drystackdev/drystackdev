@@ -39,11 +39,5 @@ export default defineConfig({
   server: {
     port: 4567,
     host: "0.0.0.0",
-  },
-  vite: isDev
-    ? {
-        resolve: { conditions: ["drystack-src"] },
-        ssr: { resolve: { conditions: ["drystack-src"] } },
-      }
-    : {},
+  }
 });

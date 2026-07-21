@@ -19,6 +19,10 @@
       "drystack-src": "./src/api.tsx",
       "default": "./dist/api.js"
     },
+    "./cache-middleware": {
+      "drystack-src": "./src/cache-middleware.ts",
+      "default": "./dist/cache-middleware.js"
+    },
     "./dry": {
       "drystack-src": "./src/dry.ts",
       "default": "./dist/dry.js"

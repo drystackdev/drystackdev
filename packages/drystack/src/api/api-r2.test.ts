@@ -6,6 +6,7 @@ import { base64UrlEncode } from '#base64';
 import { blobSha } from '../app/trees';
 import {
   r2ModeApiHandler,
+  getContentVersion,
   R2BucketLike,
   R2ObjectMetaLike,
 } from './api-r2';
@@ -411,4 +412,53 @@ test('logout revokes the jti - the same still-unexpired token stops working ever
       ])
     ).status
   ).toBe(200);
+});
+
+test('a real write bumps the content version, a no-op write does not', async () => {
+  const bucket = new MemoryBucket();
+  await seedUser(bucket);
+  const handler = r2ModeApiHandler(testConfig, bucket, SECRET);
+  const cookie = await sessionCookie();
+
+  const before = await getContentVersion(bucket);
+  expect(before).toEqual('0');
+
+  // no additions/deletions - the public-page cache has nothing to catch up
+  // to, so this must not bump the version.
+  await handler(
+    request('POST', 'update', {
+      body: { additions: [], deletions: [] },
+      cookie,
+    }),
+    ['update']
+  );
+  expect(await getContentVersion(bucket)).toEqual(before);
+
+  await handler(
+    request('POST', 'update', {
+      body: {
+        additions: [
+          {
+            path: 'blog/hello/index.yaml',
+            contents: base64UrlEncode(encoder.encode('title: hello')),
+          },
+        ],
+        deletions: [],
+      },
+      cookie,
+    }),
+    ['update']
+  );
+  const after = await getContentVersion(bucket);
+  expect(after).not.toEqual(before);
+
+  // deletions alone also count as a real write
+  await handler(
+    request('POST', 'update', {
+      body: { additions: [], deletions: [{ path: 'blog/hello' }] },
+      cookie,
+    }),
+    ['update']
+  );
+  expect(await getContentVersion(bucket)).not.toEqual(after);
 });

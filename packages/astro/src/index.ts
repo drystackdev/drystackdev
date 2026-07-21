@@ -492,10 +492,21 @@ export default function drystack(options?: {
       "astro:config:setup": async ({
         injectRoute,
         injectScript,
+        addMiddleware,
         updateConfig,
         config,
         command,
       }) => {
+        // No-op for every storage kind except `r2` (checked inside the
+        // middleware itself, off the resolved config, since the hook here
+        // only sees `config.integrations`/build settings, not the site's
+        // own drystack.config.ts). Runs `pre` so it can short-circuit
+        // straight to a cached Response before any user middleware/page
+        // rendering happens on a cache hit.
+        addMiddleware({
+          entrypoint: "@drystack/astro/cache-middleware",
+          order: "pre",
+        });
         updateConfig({
           server: config.server.host ? {} : { host: "127.0.0.1" },
           vite: {

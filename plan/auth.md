@@ -91,56 +91,40 @@
 - Admin UI React trong browser **chưa** click-test tay (data path giống hệt local
   mode; cần một vòng browser-test khi tiện).
 
-## 🚨 BLOCKER phát hiện 2026-07-21 (đọc trước khi làm gì tiếp) 🚨
+## ✅ LIVE trên production 2026-07-21 — r2 + SSR + cache đang chạy thật
 
-Trong lúc làm phase 2, phát hiện **tài khoản Cloudflare hiện tại không tạo được
-R2 bucket**: `bunx wrangler r2 bucket create drystack-content` báo lỗi
-`Please enable R2 through the Cloudflare Dashboard [code: 10042]`, và
-`wrangler whoami` xác nhận token OAuth hiện tại **không có scope `r2`** trong
-danh sách quyền (có `workers`, `d1`, `pages`, `ai`... nhưng không có `r2`).
+R2 đã bật trên dashboard, bucket `drystack-content` tạo thật
+(`creation_date: 2026-07-21T17:27:01`). Phát hiện auto-deploy của repo
+**không** tự chạy cho các commit của session này (`wrangler deployments
+list` cho thấy lần deploy gần nhất trước cả khi session bắt đầu sửa code) —
+tự tay chạy `bunx wrangler deploy` sau khi xác nhận với chủ repo.
 
-Nghiêm trọng hơn: `git log` cho thấy **process auto-commit của repo đã tự động
-commit và merge cả session này lên `main`** (commit `5684974` phase 1,
-`9a5fa5d` — chính là bạn sửa tay `drystack.config.ts` bỏ điều kiện
-`import.meta.env?.DEV`, khiến **production giờ cũng chạy
-`storage: { kind: "r2" }` không điều kiện**, không còn giữ `github` như kế
-hoạch ban đầu ở mục "Quyết định đã chốt" phía trên). Đồng thời `wrangler.jsonc`
-đã có sẵn `r2_buckets` trỏ tới bucket `drystack-content` **chưa hề tồn tại**
-trên Cloudflare thật.
+**Bug thật bắt được lúc deploy đầu tiên** (500 trên mọi trang): Cloudflare
+Workers cấm sinh giá trị random ở module scope ("Disallowed operation
+called within global scope... generating random values"). `app/edit-sync.ts`
+có `const origin = crypto.randomUUID()` chạy ngay lúc import (dành cho định
+danh tab trong tính năng đồng bộ VEI qua BroadcastChannel) — vô hại dưới
+`output:"static"` cũ (module này chưa từng lọt vào Worker bundle), nhưng giờ
+site SSR toàn phần nên Footer.astro (chạy trên mọi trang) kéo module này vào
+theo transitively, và code chạy ở module scope thật trong Worker thay vì chỉ
+trong browser. `astro dev`/miniflare không bắt được lỗi này (miniflare không
+strict bằng edge runtime thật) — chỉ lộ ra khi deploy thật. Fix: đổi
+`origin` từ hằng số module-scope sang `getOrigin()` lazy-init (gọi lần đầu
+mới random, y hệt pattern `getChannel()` đã có sẵn trong file). Đã grep toàn
+bộ 2 package tìm thêm `crypto.randomUUID`/`Math.random`/`fetch`/`setTimeout`
+ở module scope — không còn chỗ nào khác.
 
-Hệ quả nếu deploy thật chạy trước khi bucket tồn tại:
-- `wrangler deploy` rất có thể **fail thẳng** vì binding `r2_buckets` không
-  resolve được tài nguyên thật (khác với KV — KV có auto-provision từ
-  wrangler ≥4.45, R2 thì auto-provision chỉ áp dụng khi *không* khai
-  `bucket_name` cụ thể; ở đây có khai tên rõ ràng nên không auto-provision).
-- Kể cả nếu deploy qua được, mọi trang public (SSR toàn bộ từ phase 2 dưới
-  đây) sẽ cố đọc content từ bucket R2 thật — bucket đó **chưa seed gì cả**
-  (chỉ local miniflare có data test) → site production sẽ trắng trơn.
-- `/drystack` sẽ đòi login nhưng **chưa có user nào** trong bucket thật.
-
-Đã kiểm tra `https://quangseo.drystack.dev/` qua curl: `/` trả 200,
-`/drystack` trả 200 (không redirect `/login` — nghi là deploy MỚI *chưa*
-chạy xong, hoặc build cũ vẫn đang serve), `/blog` trả 307 → `/blog/`. Không
-đủ bằng chứng để kết luận chắc production đang chạy code nào — **cần bạn
-tự kiểm tra Cloudflare dashboard (Workers Builds / Deployments log)** để biết
-chắc.
-
-**Việc cần bạn làm để gỡ block** (không cái nào tôi tự làm được):
-1. Bật R2 cho tài khoản Cloudflare qua dashboard (R2 tab, chấp nhận ToS lần
-   đầu), **và/hoặc** cấp lại token/OAuth cho wrangler với quyền R2
-   (`wrangler login` lại, hoặc sửa quyền API token).
-2. Sau đó báo tôi (hoặc tự chạy) `bunx wrangler r2 bucket create
-   drystack-content`, rồi `bun scripts/r2-seed.ts --email <email> --password
-   <pw> --url https://quangseo.drystack.dev` để seed + tạo admin đầu tiên
-   trên bucket thật.
-3. Kiểm tra Cloudflare deployment logs xem build gần nhất pass/fail — nếu
-   fail vì thiếu bucket, tạo xong bucket rồi trigger lại build.
-
-Cho tới khi bucket thật tồn tại, `drystack.config.ts` trên `main` đang khiến
-production ở trạng thái rủi ro — cân nhắc tạm sửa lại thành
-`import.meta.env?.DEV ? {kind:'r2'} : {kind:'github'}` (như kế hoạch gốc) nếu
-muốn an toàn trong lúc chờ gỡ block, hoặc chấp nhận rủi ro tạm thời nếu bạn đã
-kiểm tra dashboard thấy deploy chưa chạy.
+Đã seed xong bucket production thật (`bun scripts/r2-seed.ts --email
+thanhkhan2k@gmail.com --password *** --url https://quangseo.drystack.dev`) —
+30 file content + tạo admin đầu tiên (`thanhkhan2k@gmail.com`). Verify trực
+tiếp trên `quangseo.drystack.dev` thật (không phải miniflare):
+- `/`, `/blog`, `/dich-vu`, `/kien-thuc-seo`, `/gioi-thieu`, `/demo`,
+  `/sitemap.xml`, `/login` → 200.
+- `/drystack` không có session → 302 `/login`; login bằng tài khoản thật →
+  200, session hoạt động.
+- Cache edge thật: request 1 `/blog` → `x-drystack-cache: MISS`, request 2 →
+  `HIT` — xác nhận cơ chế cache-tới-khi-save hoạt động đúng trên Cloudflare
+  edge thật, không chỉ trong miniflare.
 
 ## Đã triển khai (phase 2 — code xong 2026-07-21, verify qua dev/miniflare)
 
@@ -196,7 +180,49 @@ kiểm tra dashboard thấy deploy chưa chạy.
   `/sitemap.xml` — không rebuild. `astro build` thật chạy sạch, log xác nhận
   chỉ `/__data.zip` được prerender.
 
-## Còn lại (chưa làm, ngoài phạm vi blocker ở trên)
+### Edge cache cho trang public (2026-07-21, theo yêu cầu)
+
+Trang public giờ được cache ở Workers Cache API, **cache tới khi có save
+mới** (event-based, không phải TTL cố định):
+
+- `api/api-r2.ts`: object `_meta/content-version` (ngoài allowlist, giống
+  `auth/`) giữ 1 token `<timestamp>-<random>`, bump mỗi khi `update()` ghi
+  thật (có addition/deletion — no-op write không bump). Đọc bằng `head()`
+  (không tốn băng thông body) nên rẻ dù gọi mỗi request.
+- `packages/astro/src/cache-middleware.ts`: middleware Astro
+  (`addMiddleware`, order `pre`, tự inject cho mọi site dùng
+  `@drystack/astro` — no-op nếu `storage.kind !== 'r2'`). Cache key = URL +
+  `?__cv=<version>`; version đổi → cache key đổi → miss tự nhiên, không cần
+  bước "purge" riêng phải nhớ làm. Loại trừ `/drystack`, `/api/drystack`,
+  `/login` (luôn render live). Response trả về `Cache-Control: max-age=0` để
+  browser luôn revalidate — tầng cache "cho tới khi save" chỉ nằm ở Workers
+  Cache API, không phải cache trình duyệt. Header debug
+  `x-drystack-cache: HIT|MISS|SKIP` trên mọi response.
+- **Bug đã bắt và fix lúc test**: response lưu vào cache đã tự mang theo
+  `Cache-Control: max-age=0` (set cho bản trả về client) — Cloudflare Cache
+  API **tôn trọng Cache-Control của chính response được lưu**, nên
+  `max-age=0` khiến nó từ chối lưu/lưu-rồi-coi-như-stale-ngay-lập-tức, gây
+  ra tình trạng "MISS mãi mãi không bao giờ HIT". Sửa bằng cách tách 2 bản
+  response: bản lưu cache có `max-age=31536000, immutable` (không quan
+  trọng vì key theo version rồi), bản trả về client mới có `max-age=0`.
+  Cũng phát hiện dùng `waitUntil` không có fallback thì `cache.put()` có
+  thể bị cắt giữa chừng trước khi request kết thúc — giờ fallback `await`
+  trực tiếp khi không có `context.locals.cfContext`.
+  - Verify qua `astro dev` + miniflare: MISS lần đầu → HIT các lần sau; save
+    (kể cả xoá) → MISS ngay request kế tiếp, HIT lại từ request sau đó; áp
+    dụng cho `/blog`, trang chi tiết, `/sitemap.xml`; `/drystack`/`/login`
+    xác nhận không bao giờ có header cache (luôn render live).
+
+### Status/deploy UI cho r2 (xác nhận, không cần code mới)
+
+Yêu cầu "trang admin r2 không cần hiện status navbar vì save cập nhật ngay"
+đã **thoả sẵn** — `SidebarGitActions`/`DeployButton`/`CurrentBrandChip` (khái
+niệm build/deploy bất đồng bộ của github mode) vẫn dùng nguyên
+`isLocalShapedConfig` (gồm local|demo|r2) nên tự động ẩn cho r2, không đổi gì
+trong session này. Không thêm UI trạng thái mới cho tính năng cache — cache
+là vô hình với người dùng admin (save vẫn thấy live ngay, đúng như trước).
+
+## Còn lại (chưa làm)
 
 - **VEI dry-map/opaque id cho r2 mode**: `astro/src/dry.ts` hiện chỉ ẩn
   field path bằng `data-dry-id` cho `storage.kind === "github"`; r2 (như
@@ -209,4 +235,5 @@ kiểm tra dashboard thấy deploy chưa chạy.
 - Trang setup lần đầu qua `/login` (đã có), nhưng chưa có UI đổi mật khẩu/
   quản lý nhiều user trong app — chỉ có script CLI.
 - Chưa browser-click-test tay giao diện admin React cho r2 mode (chỉ verify
-  qua curl + unit test).
+  qua curl + unit test) — nay production đã live, nên bạn tự đăng nhập thử
+  trên `quangseo.drystack.dev/drystack` khi tiện.

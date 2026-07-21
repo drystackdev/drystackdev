@@ -692,11 +692,26 @@ const FALLBACK_STORAGE_KEY = "__drystack_edits_bus__";
 
 // Identifies this tab so it can ignore its own broadcasts (BroadcastChannel
 // already excludes the sending context, but the localStorage fallback's
-// `storage` event does not carry a sender identity of its own).
-const origin =
-  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+// `storage` event does not carry a sender identity of its own). Lazy, not a
+// module-scope constant: this module is reachable from the SSR import graph
+// now that public pages are `output: "server"` too (VEI/edit-sync code isn't
+// admin-only - Footer.astro etc. pull it in transitively), and generating a
+// random value at module-evaluation time is a hard error in the deployed
+// Cloudflare Workers runtime ("Disallowed operation called within global
+// scope") - it only worked in dev because miniflare doesn't enforce that
+// restriction. Nothing here ever runs outside a real browser tab anyway
+// (BroadcastChannel/localStorage), so computing it on first actual use is
+// behaviorally identical to eager module-scope init.
+let origin: string | undefined;
+function getOrigin(): string {
+  if (!origin) {
+    origin =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+  return origin;
+}
 
 let channel: BroadcastChannel | undefined;
 function getChannel(): BroadcastChannel | undefined {
@@ -722,17 +737,17 @@ function broadcast(msg: EditBusMessage): void {
 
 export async function publishEdit(key: string, value: string): Promise<void> {
   await setEdit(key, value);
-  broadcast({ type: "set", key, value, updatedAt: Date.now(), origin });
+  broadcast({ type: "set", key, value, updatedAt: Date.now(), origin: getOrigin() });
 }
 
 export async function publishDelete(key: string): Promise<void> {
   await deleteEdit(key);
-  broadcast({ type: "delete", key, origin });
+  broadcast({ type: "delete", key, origin: getOrigin() });
 }
 
 export async function publishClear(): Promise<void> {
   await clearEdits();
-  broadcast({ type: "clear", origin });
+  broadcast({ type: "clear", origin: getOrigin() });
 }
 
 // Subscribes to edits published from other tabs (this tab's own publishes
@@ -741,7 +756,7 @@ export function subscribeEdits(cb: (msg: EditBusMessage) => void): () => void {
   const bc = getChannel();
   if (bc) {
     const handler = (e: MessageEvent<EditBusMessage>) => {
-      if (e.data.origin === origin) return;
+      if (e.data.origin === getOrigin()) return;
       cb(e.data);
     };
     bc.addEventListener("message", handler);
@@ -752,7 +767,7 @@ export function subscribeEdits(cb: (msg: EditBusMessage) => void): () => void {
     if (e.key !== FALLBACK_STORAGE_KEY || !e.newValue) return;
     try {
       const msg = JSON.parse(e.newValue) as EditBusMessage;
-      if (msg.origin === origin) return;
+      if (msg.origin === getOrigin()) return;
       cb(msg);
     } catch {
       // ignore malformed payloads written by a mismatched version in another tab

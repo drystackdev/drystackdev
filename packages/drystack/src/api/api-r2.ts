@@ -224,6 +224,32 @@ export function r2ModeApiHandler(
   };
 }
 
+// A single R2 object whose `customMetadata` carries a version token, bumped
+// on every successful write (see `update` below). Public SSR pages (see
+// @drystack/astro's cache-middleware.ts) fold this into their Workers Cache
+// API key, so a rendered page stays cached until the *next* write bumps the
+// version - not for a fixed TTL. One `head()` (metadata only, no body
+// transfer) per page render to read it back; outside the content allowlist
+// like `auth/`, so it's never listed/served by tree/blob/update.
+const CONTENT_VERSION_KEY = '_meta/content-version';
+const CONTENT_VERSION_METADATA_KEY = 'v';
+
+export async function getContentVersion(bucket: R2BucketLike): Promise<string> {
+  const object = await bucket.head(CONTENT_VERSION_KEY);
+  return object?.customMetadata?.[CONTENT_VERSION_METADATA_KEY] ?? '0';
+}
+
+async function bumpContentVersion(bucket: R2BucketLike): Promise<void> {
+  // Timestamp plus a random suffix, not just Date.now(): two writes inside
+  // the same millisecond (realistic under test, and not impossible under
+  // real traffic) would otherwise produce the identical "new" version,
+  // silently keeping stale pages cached through the second write.
+  const version = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  await bucket.put(CONTENT_VERSION_KEY, new Uint8Array(0), {
+    customMetadata: { [CONTENT_VERSION_METADATA_KEY]: version },
+  });
+}
+
 async function blob(
   req: DrystackRequest,
   config: Config,
@@ -295,6 +321,13 @@ async function update(
     if (nested.length) {
       await bucket.delete(nested.map(obj => obj.key));
     }
+  }
+  if (updates.additions.length || updates.deletions.length) {
+    // Public SSR pages are cached until this changes (see the doc comment
+    // above `getContentVersion`) - bump it as part of the same write so a
+    // save takes effect on the very next request, no separate invalidation
+    // step to forget.
+    await bumpContentVersion(bucket);
   }
   return json(await bucketToTreeEntries(bucket, config));
 }
