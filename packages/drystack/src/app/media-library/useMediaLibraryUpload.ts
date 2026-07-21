@@ -11,6 +11,7 @@ import { TreeEntry, updateTreeWithChanges } from "../trees";
 import { trackFreshUpload } from "./upload-session";
 import { isDemoConfig } from "../storage-mode";
 import { blockWriteInDemoWithError } from "../demo-guard";
+import { redirectToNativeLoginIfUnauthorized } from "../auth";
 
 function uniquePath(
   directory: string,
@@ -90,6 +91,7 @@ export function useMediaLibraryUpload() {
         }),
       });
       if (!res.ok) {
+        redirectToNativeLoginIfUnauthorized(res.status);
         throw new Error(await res.text());
       }
       const newTree: TreeEntry[] = await res.json();

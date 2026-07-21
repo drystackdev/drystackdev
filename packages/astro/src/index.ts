@@ -589,6 +589,18 @@ import "@drystack/core/ui";
             pattern: `/api/${path}/[...params]`,
             prerender: false,
           });
+          // Native login page for r2-mode storage. Injected unconditionally
+          // (the integration can't cheaply know the storage kind here - see
+          // isDemoBuild's caveats); the page itself redirects straight home
+          // for every other kind, and a project-defined /login route always
+          // wins over an injected one.
+          injectRoute({
+            // @ts-ignore - kept for Astro 2/3 where the option was named `entryPoint`
+            entryPoint: "@drystack/astro/internal/drystack-login.astro",
+            entrypoint: "@drystack/astro/internal/drystack-login.astro",
+            pattern: `/login`,
+            prerender: false,
+          });
         }
         // Prerendered (unlike the two routes above): it needs no per-request
         // handling, so Astro executes it once during `astro build` and writes
@@ -658,10 +670,13 @@ import "@drystack/core/ui";
         });
 
         // MVP 1 visual DOM editor - stage 1: tiny eligibility check present on
-        // every page (dev, a logged-in-GitHub cookie in prod, or a demo
-        // build). Only when eligible does it dynamically import the real
-        // editor (stage 2), so anonymous visitors on a normal (non-demo)
-        // production site never download the editor chunk.
+        // every page (dev, a logged-in-GitHub cookie in prod, an r2-mode
+        // native-session hint cookie, or a demo build). Only when eligible
+        // does it dynamically import the real editor (stage 2), so anonymous
+        // visitors on a normal (non-demo) production site never download the
+        // editor chunk. The r2 hint cookie is presence-only (see
+        // native-auth.ts): it merely downloads the editor UI - every actual
+        // write is verified server-side against the HttpOnly session JWT.
         //
         // Demo builds are the one case where every visitor is meant to see
         // the toolbar with no login at all - that's the point of the mode
@@ -671,7 +686,7 @@ import "@drystack/core/ui";
         // so this stays in sync with that switch automatically.
         injectScript(
           "page",
-          `const eligible = import.meta.env.DEV || document.cookie.includes('drystack-gh-access-token=') || ${JSON.stringify(demoStaticBuild)};
+          `const eligible = import.meta.env.DEV || document.cookie.includes('drystack-gh-access-token=') || document.cookie.includes('drystack-session-hint=') || ${JSON.stringify(demoStaticBuild)};
 if (eligible) {
   if (import.meta.env.DEV) {
     // The editor is mounted manually (not as an Astro/React island), so

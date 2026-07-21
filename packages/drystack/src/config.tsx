@@ -140,7 +140,7 @@ type LocalStorageConfig = {
 // Read-only public demo. Its own `storage.kind` (not a flag on local
 // storage): still shares local's entire shape otherwise (one tree, no
 // branches, no OAuth), so every call site that wants "local-shaped" behavior
-// for both real local and demo uses `isLocalOrDemoConfig`/`LocalOrDemoConfig`
+// for local, demo and r2 uses `isLocalShapedConfig`/`LocalShapedConfig`
 // (see app/storage-mode.ts) instead of hand-rolling an `||`. Only the handful
 // of places that need demo-specific behavior branch on `isDemoConfig`/`kind
 // === 'demo'` directly.
@@ -156,6 +156,19 @@ type LocalStorageConfig = {
 //   feature is simply off, no fallback to the top-level `ai`/DRY_AI_KEY path.
 type DemoStorageConfig = {
   kind: "demo";
+};
+
+// Content lives in a Cloudflare R2 bucket instead of the filesystem or a
+// GitHub repo. Local-shaped on the client (one tree, no branches, no OAuth):
+// the admin app talks to the exact same `/api/<base>/tree|blob|update` REST
+// routes as local mode - only the server side swaps `fs` for the R2 binding
+// (see api/api-r2.ts). Unlike local mode the deployment is public, so
+// `/drystack`, VEI and every write route are gated behind the native
+// email/password login (JWT signed with DRYSTACK_SECRET - see
+// api/native-auth.ts); reads stay public per the auth plan, except the
+// `auth/` prefix which is never served.
+type R2StorageConfig = {
+  kind: "r2";
 };
 
 export type LocalConfig<
@@ -192,12 +205,7 @@ export type DemoConfig<
   singletons?: Singletons;
 } & CommonConfig<Collections, Singletons>;
 
-// "Local-shaped" configs - real local storage and the read-only public demo,
-// which shares local's entire shape apart from its own `kind`. Used by call
-// sites that want the pre-split `isLocalConfig` behavior (see
-// app/storage-mode.ts's `isLocalOrDemoConfig`) rather than distinguishing the
-// two.
-export type LocalOrDemoConfig<
+export type R2Config<
   Collections extends {
     [key: string]: Collection<Record<string, ComponentSchema>, string>;
   } = {
@@ -208,7 +216,33 @@ export type LocalOrDemoConfig<
   } = {
     [key: string]: Singleton<Record<string, ComponentSchema>>;
   },
-> = LocalConfig<Collections, Singletons> | DemoConfig<Collections, Singletons>;
+> = {
+  storage: R2StorageConfig;
+  collections?: Collections;
+  singletons?: Singletons;
+} & CommonConfig<Collections, Singletons>;
+
+// "Local-shaped" configs - real local storage, the read-only public demo and
+// R2 storage, which all share local's client shape (one tree, no branches, no
+// OAuth; reads/writes over the local REST routes rather than GitHub's
+// GraphQL). Used by call sites that want the pre-split `isLocalConfig`
+// behavior (see app/storage-mode.ts's `isLocalShapedConfig`) rather than
+// distinguishing the three.
+export type LocalShapedConfig<
+  Collections extends {
+    [key: string]: Collection<Record<string, ComponentSchema>, string>;
+  } = {
+    [key: string]: Collection<Record<string, ComponentSchema>, string>;
+  },
+  Singletons extends {
+    [key: string]: Singleton<Record<string, ComponentSchema>>;
+  } = {
+    [key: string]: Singleton<Record<string, ComponentSchema>>;
+  },
+> =
+  | LocalConfig<Collections, Singletons>
+  | DemoConfig<Collections, Singletons>
+  | R2Config<Collections, Singletons>;
 
 export type Config<
   Collections extends {
@@ -222,7 +256,11 @@ export type Config<
     [key: string]: Singleton<Record<string, ComponentSchema>>;
   },
 > = {
-  storage: LocalStorageConfig | DemoStorageConfig | GitHubStorageConfig;
+  storage:
+    | LocalStorageConfig
+    | DemoStorageConfig
+    | GitHubStorageConfig
+    | R2StorageConfig;
   collections?: Collections;
   singletons?: Singletons;
 } & ({} extends Collections ? {} : { collections: Collections }) &
@@ -307,9 +345,25 @@ export function config<
         ? process.env.PUBLIC_DEMO
         : undefined) === "true";
 
+  // Same shape and caveats as PUBLIC_DEMO above (exact-text inline access,
+  // PUBLIC_ prefix so the client bundle sees it). PUBLIC_R2=true flips the
+  // whole deployment to R2 storage without editing the config file; demo wins
+  // if both are somehow set, since demo is the strictly-safer (read-only)
+  // mode.
+  const isR2Build =
+    (viteEnvIsDefined
+      ? (import.meta as unknown as ViteMeta).env.PUBLIC_R2
+      : typeof process !== "undefined"
+        ? process.env.PUBLIC_R2
+        : undefined) === "true";
+
   return {
     ...userConfig,
-    storage: isDemoBuild ? { kind: "demo" } : userConfig.storage,
+    storage: isDemoBuild
+      ? { kind: "demo" }
+      : isR2Build
+        ? { kind: "r2" }
+        : userConfig.storage,
     singletons: {
       ...userConfig.singletons,
       [REDIRECTS_SINGLETON_KEY]: redirectsSingleton,

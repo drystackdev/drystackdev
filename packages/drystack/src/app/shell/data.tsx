@@ -1,7 +1,7 @@
 import { OperationData, OperationVariables, FragmentData } from '@ts-gql/tag';
 import { gql } from '@ts-gql/tag/no-transform';
 import { useRouter } from '../router';
-import { Config, GitHubConfig, LocalOrDemoConfig } from '../../config';
+import { Config, GitHubConfig, LocalShapedConfig } from '../../config';
 import {
   useMemo,
   useEffect,
@@ -47,7 +47,7 @@ import { getDemoTreeEntries } from '../demo-source';
 export function fetchLocalTree(
   sha: string,
   basePath: string,
-  config: LocalOrDemoConfig
+  config: LocalShapedConfig
 ) {
   if (treeCache.has(sha)) {
     return treeCache.get(sha)!;
@@ -74,7 +74,7 @@ export const SetTreeShaContext = createContext<(sha: string) => void>(() => {
 });
 
 export function LocalAppShellProvider(props: {
-  config: LocalOrDemoConfig;
+  config: LocalShapedConfig;
   children: ReactNode;
 }) {
   const [currentTreeSha, setCurrentTreeSha] = useState<string>('initial');

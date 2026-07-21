@@ -6,7 +6,7 @@ import { alertCircleIcon } from "@keystar/ui/icon/icons/alertCircleIcon";
 import { Config } from "../../config";
 import l10nMessages from "../l10n";
 
-import { isGitHubConfig, isLocalOrDemoConfig } from "../utils";
+import { isGitHubConfig, isLocalShapedConfig } from "../utils";
 
 import { AppStateContext, ConfigContext } from "./context";
 import {
@@ -106,7 +106,7 @@ export const AppShell = (props: {
       </GitHubAppShellProvider>
     );
   }
-  if (isLocalOrDemoConfig(props.config)) {
+  if (isLocalShapedConfig(props.config)) {
     return (
       <LocalAppShellProvider config={props.config}>
         {inner}

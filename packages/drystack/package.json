@@ -72,6 +72,10 @@
       "drystack-src": "./src/api/encryption.tsx",
       "default": "./dist/api/encryption.js"
     },
+    "./api/native-auth": {
+      "drystack-src": "./src/api/native-auth.ts",
+      "default": "./dist/api/native-auth.js"
+    },
     "./renderer": {
       "drystack-src": "./src/renderer.tsx",
       "default": "./dist/renderer.js"

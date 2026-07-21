@@ -1,18 +1,11 @@
 import { realFsPromises as fs, realPath as path } from './real-node';
-import {
-  getCollectionPath,
-  getSingletonFormat,
-  getSingletonPath,
-} from '../app/path-utils';
 import { updateTreeWithChanges, blobSha } from '../app/trees';
-import { Config } from '../config';
-import { getDirectoriesForTreeKey } from '../app/tree-key';
-import { fields } from '../form/api';
-import {
-  MEDIA_LIBRARY_DIRECTORY,
-  TRASH_DIRECTORY,
-} from '../app/media-library/constants';
 import ignore from 'ignore';
+
+// Moved to its own fs-free module so the workerd R2 handler can use it; kept
+// re-exported here since api-node.ts and demo-build.ts import it from this
+// path.
+export { getAllowedDirectories } from './allowed-directories';
 
 async function readDirEntries(dir: string) {
   let entries;
@@ -108,38 +101,4 @@ export async function readToDirEntries(baseDir: string) {
     deletions: [],
   });
   return entries;
-}
-
-export function getAllowedDirectories(config: Config) {
-  const allowedDirectories: string[] = [];
-  for (const [collection, collectionConfig] of Object.entries(
-    config.collections ?? {}
-  )) {
-    allowedDirectories.push(
-      ...getDirectoriesForTreeKey(
-        fields.object(collectionConfig.schema),
-        getCollectionPath(config, collection),
-        undefined,
-        { contentField: undefined, dataLocation: 'index' }
-      )
-    );
-    if (collectionConfig.template) {
-      allowedDirectories.push(collectionConfig.template);
-    }
-  }
-  for (const [singleton, singletonConfig] of Object.entries(
-    config.singletons ?? {}
-  )) {
-    allowedDirectories.push(
-      ...getDirectoriesForTreeKey(
-        fields.object(singletonConfig.schema),
-        getSingletonPath(config, singleton),
-        undefined,
-        getSingletonFormat(config, singleton)
-      )
-    );
-  }
-  allowedDirectories.push(MEDIA_LIBRARY_DIRECTORY);
-  allowedDirectories.push(TRASH_DIRECTORY);
-  return [...new Set(allowedDirectories)];
 }

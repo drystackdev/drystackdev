@@ -15,6 +15,7 @@ import { useCommitFileChanges } from "../shell/useCommitFileChanges";
 import { TRASH_DIRECTORY } from "./constants";
 import { isDemoConfig } from "../storage-mode";
 import { blockWriteInDemo } from "../demo-guard";
+import { redirectToNativeLoginIfUnauthorized } from "../auth";
 
 export function trashedPathFor(path: string) {
   return `${TRASH_DIRECTORY}/${path}`;
@@ -53,6 +54,7 @@ async function postUpdate(
     body: JSON.stringify({ additions, deletions }),
   });
   if (!res.ok) {
+    redirectToNativeLoginIfUnauthorized(res.status);
     throw new Error(await res.text());
   }
   const newTree = await res.json();

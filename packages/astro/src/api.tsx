@@ -11,7 +11,9 @@ import { parseString } from "set-cookie-parser";
 // simulation), so this is a dynamic import guarded by try/catch: it silently
 // falls through to the `import.meta.env.*` lookups below on every other
 // adapter (Node, etc.), where env vars come from `.env` files instead.
-async function getCloudflareEnv(): Promise<Record<string, any> | undefined> {
+export async function getCloudflareEnv(): Promise<
+  Record<string, any> | undefined
+> {
   try {
     // @ts-expect-error - only resolves at runtime on Workers; see the comment above.
     const cf: any = await import(/* @vite-ignore */ "cloudflare:workers");
@@ -78,6 +80,10 @@ export function makeHandler(_config: APIRouteConfig) {
         // the global `fetch`. Undefined on adapters with no such binding;
         // the route just 404s rather than ever serving the map.
         assetsFetcher: _config.assetsFetcher ?? envVarsForCf?.ASSETS,
+        // `storage: { kind: 'r2' }` reads/writes through this bucket binding
+        // (declared in wrangler.jsonc). Undefined elsewhere; the r2 handler
+        // 500s loudly rather than pretending to work without it.
+        r2Bucket: _config.r2Bucket ?? envVarsForCf?.DRYSTACK_R2,
       },
       {
         slugEnvName: "PUBLIC_DRYSTACK_GITHUB_APP_SLUG",

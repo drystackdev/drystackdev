@@ -12,6 +12,13 @@
       { "name": "BUILD_STATUS_HUB", "class_name": "BuildStatusHub" }
     ]
   },
+  // Content storage for `storage: { kind: 'r2' }` - the CMS reads/writes
+  // content + assets here, and native-auth user files live under auth/native/
+  // (never served by the content API). Dev uses miniflare's local simulation
+  // of this same binding (.wrangler/state).
+  "r2_buckets": [
+    { "binding": "DRYSTACK_R2", "bucket_name": "drystack-content" }
+  ],
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["BuildStatusHub"] }
   ],

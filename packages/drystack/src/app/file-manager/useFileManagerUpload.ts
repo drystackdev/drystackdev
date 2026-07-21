@@ -10,6 +10,7 @@ import { useCommitFileChanges } from "../shell/useCommitFileChanges";
 import { updateTreeWithChanges } from "../trees";
 import { trackFreshUpload } from "../media-library/upload-session";
 import { isDemoConfig } from "../storage-mode";
+import { redirectToNativeLoginIfUnauthorized } from "../auth";
 import { blockWriteInDemo } from "../demo-guard";
 
 export type ConflictResolution = "skip" | "replace" | "rename";
@@ -124,7 +125,10 @@ export function useFileManagerUpload() {
           headers: { "Content-Type": "application/json", "no-cors": "1" },
           body: JSON.stringify({ additions, deletions: [] }),
         });
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) {
+          redirectToNativeLoginIfUnauthorized(res.status);
+          throw new Error(await res.text());
+        }
         const newTree = await res.json();
         const tree = await hydrateTreeCacheWithEntries(newTree);
         freshPaths.forEach(trackFreshUpload);

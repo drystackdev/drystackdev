@@ -287,7 +287,7 @@ async function readCurrentFile(
     if (!entry) return null;
     return await getDemoBlob(filepath);
   }
-  if (config.storage.kind === "local") {
+  if (config.storage.kind === "local" || config.storage.kind === "r2") {
     const treeRes = await fetch(`/api/${apiPath}/tree`, {
       headers: { "no-cors": "1" },
     });
@@ -378,7 +378,7 @@ export async function listAssetFiles(
     );
     return out;
   }
-  if (config.storage.kind === "local") {
+  if (config.storage.kind === "local" || config.storage.kind === "r2") {
     const treeRes = await fetch(`/api/${apiPath}/tree`, {
       headers: { "no-cors": "1" },
     });
@@ -1113,7 +1113,7 @@ export async function saveEdits(
       }
     }
     commitOid = data?.createCommitOnBranch?.ref?.target?.oid;
-  } else if (config.storage.kind === "local") {
+  } else if (config.storage.kind === "local" || config.storage.kind === "r2") {
     const files = await buildFileChanges(config, undefined, sf);
     if (files.additions.length === 0 && files.deletions.length === 0) return;
     const res = await fetch(`/api/${apiPath}/update`, {
@@ -1127,6 +1127,13 @@ export async function saveEdits(
         deletions: files.deletions,
       }),
     });
+    // In r2 mode a 401 means the session expired mid-edit - bounce through
+    // /login (edits survive in IndexedDB and `from` brings the user back).
+    if (res.status === 401 && config.storage.kind === "r2") {
+      location.assign(
+        `/login?from=${encodeURIComponent(location.pathname + location.search)}`,
+      );
+    }
     if (!res.ok) throw new Error(await res.text());
     // Local writes are immediately real/servable - unlike github mode (which
     // needs a deploy to catch up, see discardEditsIfBuildIsNewer), there's no

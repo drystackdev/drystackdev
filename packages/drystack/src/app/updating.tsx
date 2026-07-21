@@ -15,6 +15,7 @@ import {
   useSetTreeSha,
 } from "./shell/data";
 import { fetchBlob, hydrateBlobCache } from "./useItemData";
+import { redirectToNativeLoginIfUnauthorized } from "./auth";
 import { useConfig } from "./shell/context";
 import { trashedPathFor } from "./file-manager/useTrash";
 import { createCommitMutation } from "./shell/useCommitFileChanges";
@@ -458,6 +459,7 @@ export function useUpsertItem(args: {
             }),
           });
           if (!res.ok) {
+            redirectToNativeLoginIfUnauthorized(res.status);
             throw new Error(await res.text());
           }
           const newTree: TreeEntry[] = await res.json();
@@ -652,6 +654,7 @@ export function useDeleteItem(args: {
             }),
           });
           if (!res.ok) {
+            redirectToNativeLoginIfUnauthorized(res.status);
             throw new Error(await res.text());
           }
           const newTree: TreeEntry[] = await res.json();

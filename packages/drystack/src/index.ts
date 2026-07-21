@@ -14,5 +14,7 @@ export type {
   GitHubConfig,
   Glob,
   LocalConfig,
+  LocalShapedConfig,
+  R2Config,
   Singleton,
 } from './config';

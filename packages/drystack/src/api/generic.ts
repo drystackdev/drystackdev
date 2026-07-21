@@ -3,6 +3,11 @@ import * as s from "superstruct";
 import { Config } from "..";
 import { DrystackResponse, DrystackRequest, redirect } from "./internal-utils";
 import { handleGitHubAppCreation, localModeApiHandler } from "#api-handler";
+import {
+  R2BucketLike,
+  r2ModeApiHandler,
+  requireNativeSession,
+} from "./api-r2";
 import { makeAiRouteHandler } from "./ai";
 import { webcrypto } from "#webcrypto";
 import { bytesToHex } from "../hex";
@@ -45,6 +50,13 @@ export type APIRouteConfig = {
    * just 404s in that case (never returns the map without it).
    */
   assetsFetcher?: { fetch(input: string | URL): Promise<Response> };
+  /**
+   * The R2 bucket backing `storage: { kind: 'r2' }` - on Cloudflare this is
+   * the `DRYSTACK_R2` binding (see @drystack/astro's api.tsx). Required in r2
+   * mode; the handler returns a loud 500 without it rather than silently
+   * degrading.
+   */
+  r2Bucket?: R2BucketLike;
 };
 
 type InnerAPIRouteConfig = {
@@ -160,6 +172,33 @@ export function makeGenericAPIRouteHandler(
       const params = getParams(req);
       return handler(req, params);
     });
+  }
+  if (_config2.config.storage.kind === "r2") {
+    const handler = r2ModeApiHandler(
+      _config2.config,
+      _config.r2Bucket,
+      _config2.secret,
+    );
+    // Not wrapped in `withAi`: that dispatches `ai/*` unauthenticated, which
+    // is fine for local (dev machine) and github (its own token check inside
+    // ai/index.ts's requireSession), but an r2 deployment is public with no
+    // GitHub cookie - so the native session is required here BEFORE the AI
+    // handler can spend the site owner's key. Same money-shaped reasoning as
+    // requireSession's own doc comment.
+    return async (req: DrystackRequest): Promise<DrystackResponse> => {
+      const params = getParams(req);
+      if (params[0] === "ai" && aiHandler) {
+        if (!(await requireNativeSession(req, _config2.secret))) {
+          return {
+            status: 401,
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ error: "Chưa đăng nhập." }),
+          };
+        }
+        return aiHandler(req, params);
+      }
+      return handler(req, params);
+    };
   }
   if (!_config2.clientId || !_config2.clientSecret || !_config2.secret) {
     return withAi(async function drystackAPIRoute(

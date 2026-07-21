@@ -42,6 +42,7 @@
     "./package.json": "./package.json",
     "./internal/drystack-api.js": "./internal/drystack-api.js",
     "./internal/drystack-astro-page.astro": "./internal/drystack-astro-page.astro",
+    "./internal/drystack-login.astro": "./internal/drystack-login.astro",
     "./internal/drystack-astro-page-static.astro": "./internal/drystack-astro-page-static.astro",
     "./internal/drystack-demo-zip.js": "./internal/drystack-demo-zip.js"
   },

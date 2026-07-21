@@ -50,6 +50,17 @@ export async function createConfiguredReader(config: Config<any, any>) {
       token: import.meta.env.DRYSTACK_GITHUB_TOKEN,
     });
   }
+  if (config.storage.kind === "r2") {
+    // Phase 1 of the r2/auth plan (plan/auth.md): the CMS reads/writes R2 but
+    // public pages still read repo content from the build-time filesystem
+    // (the hasBuildTimeFilesystem() branch above covers dev and the CF
+    // build's Node prerender env). Reaching here means an r2 deployment
+    // tried to read content at request time in the Worker - that needs the
+    // phase-2 R2-backed reader, which doesn't exist yet.
+    throw new Error(
+      "createConfiguredReader(): kind 'r2' mới chỉ đọc content từ repo lúc build (phase 1) - reader chạy trong Worker từ R2 là việc của phase 2",
+    );
+  }
   throw new Error(
     `createConfiguredReader(): MVP 1 chưa hỗ trợ storage.kind "${(config.storage as any).kind}"`,
   );

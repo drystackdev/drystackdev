@@ -1,0 +1,91 @@
+/** @jest-environment node */
+import { expect, test } from '@jest/globals';
+import {
+  createUserFile,
+  decryptProfile,
+  hashPassword,
+  normalizeEmail,
+  signSession,
+  userFileKey,
+  verifyPassword,
+  verifySession,
+  getSessionFromCookieHeader,
+  NATIVE_SESSION_COOKIE,
+} from './native-auth';
+
+const SECRET = 'a'.repeat(32);
+
+test('hashPassword/verifyPassword round-trip', async () => {
+  const hash = await hashPassword('correct horse battery staple');
+  expect(hash.startsWith('pbkdf2$sha256$100000$')).toBe(true);
+  expect(await verifyPassword('correct horse battery staple', hash)).toBe(true);
+  expect(await verifyPassword('wrong password', hash)).toBe(false);
+});
+
+test('same password hashes differently per user (random salt)', async () => {
+  const a = await hashPassword('secret-password');
+  const b = await hashPassword('secret-password');
+  expect(a).not.toEqual(b);
+  expect(await verifyPassword('secret-password', a)).toBe(true);
+  expect(await verifyPassword('secret-password', b)).toBe(true);
+});
+
+test('verifyPassword rejects malformed stored hashes', async () => {
+  expect(await verifyPassword('x', 'not-a-hash')).toBe(false);
+  expect(await verifyPassword('x', 'pbkdf2$sha1$1$a$b')).toBe(false);
+  expect(await verifyPassword('x', 'pbkdf2$sha256$NaN$a$b')).toBe(false);
+});
+
+test('session JWT round-trip', async () => {
+  const token = await signSession({ email: 'user@example.com' }, SECRET);
+  const session = await verifySession(token, SECRET);
+  expect(session).toEqual({ email: 'user@example.com' });
+});
+
+test('session JWT rejects tampering, wrong secret, and expiry', async () => {
+  const token = await signSession({ email: 'user@example.com' }, SECRET);
+  const [h, p, s] = token.split('.');
+  // tampered payload
+  expect(await verifySession(`${h}.${p}x.${s}`, SECRET)).toBeNull();
+  // wrong secret
+  expect(await verifySession(token, 'b'.repeat(32))).toBeNull();
+  // expired
+  const expired = await signSession({ email: 'user@example.com' }, SECRET, -10);
+  expect(await verifySession(expired, SECRET)).toBeNull();
+  // garbage
+  expect(await verifySession('nope', SECRET)).toBeNull();
+});
+
+test('getSessionFromCookieHeader reads the session cookie', async () => {
+  const token = await signSession({ email: 'user@example.com' }, SECRET);
+  expect(
+    await getSessionFromCookieHeader(
+      `other=1; ${NATIVE_SESSION_COOKIE}=${token}`,
+      SECRET
+    )
+  ).toEqual({ email: 'user@example.com' });
+  expect(await getSessionFromCookieHeader(null, SECRET)).toBeNull();
+  expect(await getSessionFromCookieHeader('other=1', SECRET)).toBeNull();
+});
+
+test('normalizeEmail lowercases and rejects key-unsafe addresses', () => {
+  expect(normalizeEmail(' User@Example.COM ')).toEqual('user@example.com');
+  expect(normalizeEmail('a/b@example.com')).toBeNull();
+  expect(normalizeEmail('..@example.com')).toBeNull();
+  expect(normalizeEmail('not-an-email')).toBeNull();
+  expect(normalizeEmail('user@example')).toBeNull();
+});
+
+test('userFileKey builds the auth/native path', () => {
+  expect(userFileKey('user@example.com')).toEqual(
+    'auth/native/user@example.com.json'
+  );
+});
+
+test('createUserFile encrypts the profile and decryptProfile restores it', async () => {
+  const file = await createUserFile('secret-password', { name: 'Khan' }, SECRET);
+  expect(file.profile).not.toContain('Khan');
+  expect(await decryptProfile(file, SECRET)).toEqual({ name: 'Khan' });
+  // wrong secret degrades to {} rather than locking the account out
+  expect(await decryptProfile(file, 'b'.repeat(32))).toEqual({});
+});

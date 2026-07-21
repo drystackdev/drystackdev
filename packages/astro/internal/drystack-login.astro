@@ -1,0 +1,278 @@
+---
+import { getNativeSession } from '../src/native-session.ts';
+// eslint-disable-next-line import/no-unresolved
+import config from 'virtual:drystack-config';
+// eslint-disable-next-line import/no-unresolved
+import basePath from 'virtual:drystack-path';
+
+export const prerender = false;
+
+// This route only means something for r2-mode storage (native email/password
+// login - see plan/auth.md). Other kinds bounce home rather than presenting
+// a login form that could never work.
+if (config?.storage?.kind !== 'r2') {
+  return Astro.redirect('/');
+}
+
+// Already signed in - skip the form. The `from` target is re-validated
+// client-side too, but server-side we only ever redirect to a same-origin
+// path.
+const session = await getNativeSession(Astro.request);
+const rawFrom = Astro.url.searchParams.get('from') ?? '';
+const safeFrom = /^\/(?!\/)/.test(rawFrom) ? rawFrom : `/${basePath}`;
+if (session) {
+  return Astro.redirect(safeFrom);
+}
+
+const vi = (config?.locale ?? '').toLowerCase().startsWith('vi');
+const t = vi
+  ? {
+      title: 'Đăng nhập',
+      setupTitle: 'Tạo tài khoản quản trị',
+      setupHint:
+        'Chưa có tài khoản nào. Tạo tài khoản quản trị đầu tiên cho trang này.',
+      email: 'Email',
+      password: 'Mật khẩu',
+      submitLogin: 'Đăng nhập',
+      submitSetup: 'Tạo tài khoản',
+      errorBadCredentials: 'Email hoặc mật khẩu không đúng.',
+      errorPasswordShort: 'Mật khẩu phải có ít nhất 8 ký tự.',
+      errorGeneric: 'Có lỗi xảy ra, thử lại sau.',
+      loading: 'Đang xử lý…',
+    }
+  : {
+      title: 'Sign in',
+      setupTitle: 'Create admin account',
+      setupHint:
+        'No accounts exist yet. Create the first admin account for this site.',
+      email: 'Email',
+      password: 'Password',
+      submitLogin: 'Sign in',
+      submitSetup: 'Create account',
+      errorBadCredentials: 'Incorrect email or password.',
+      errorPasswordShort: 'Password must be at least 8 characters.',
+      errorGeneric: 'Something went wrong, try again later.',
+      loading: 'Working…',
+    };
+
+const apiBase = `/api/${basePath}/auth`;
+---
+
+<!doctype html>
+<html lang={vi ? 'vi' : 'en'}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>{t.title}</title>
+  </head>
+  <body>
+    <main class="card">
+      <h1 id="form-title">{t.title}</h1>
+      <p id="setup-hint" hidden>{t.setupHint}</p>
+      <form id="login-form">
+        <label>
+          <span>{t.email}</span>
+          <input
+            name="email"
+            type="email"
+            required
+            autocomplete="username"
+            autofocus
+          />
+        </label>
+        <label>
+          <span>{t.password}</span>
+          <input
+            name="password"
+            type="password"
+            required
+            autocomplete="current-password"
+            minlength="1"
+          />
+        </label>
+        <p id="error" role="alert" hidden></p>
+        <button type="submit" id="submit">{t.submitLogin}</button>
+      </form>
+    </main>
+
+    <script
+      is:inline
+      define:vars={{
+        apiBase,
+        strings: t,
+        fallbackTarget: `/${basePath}`,
+      }}
+    >
+      const form = document.getElementById('login-form');
+      const errorEl = document.getElementById('error');
+      const submitEl = document.getElementById('submit');
+      const titleEl = document.getElementById('form-title');
+      const hintEl = document.getElementById('setup-hint');
+
+      // `from` comes off the URL client-side and is only ever assigned to
+      // location when it's a same-origin absolute path.
+      const params = new URLSearchParams(location.search);
+      const rawFrom = params.get('from') ?? '';
+      const target = /^\/(?!\/)/.test(rawFrom) ? rawFrom : fallbackTarget;
+
+      let mode = 'login';
+      fetch(`${apiBase}/status`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((status) => {
+          if (status?.authenticated) {
+            location.replace(target);
+            return;
+          }
+          if (status?.needsSetup) {
+            mode = 'setup';
+            titleEl.textContent = strings.setupTitle;
+            document.title = strings.setupTitle;
+            hintEl.hidden = false;
+            submitEl.textContent = strings.submitSetup;
+            form
+              .querySelector('input[name=password]')
+              .setAttribute('autocomplete', 'new-password');
+          }
+        })
+        .catch(() => {});
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        errorEl.hidden = true;
+        submitEl.disabled = true;
+        const original = submitEl.textContent;
+        submitEl.textContent = strings.loading;
+        try {
+          const data = new FormData(form);
+          const res = await fetch(`${apiBase}/${mode}`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              email: data.get('email'),
+              password: data.get('password'),
+            }),
+          });
+          if (res.ok) {
+            location.replace(target);
+            return;
+          }
+          const body = await res.json().catch(() => null);
+          errorEl.textContent =
+            body?.error === 'password-too-short'
+              ? strings.errorPasswordShort
+              : res.status === 401
+                ? strings.errorBadCredentials
+                : strings.errorGeneric;
+          errorEl.hidden = false;
+        } catch {
+          errorEl.textContent = strings.errorGeneric;
+          errorEl.hidden = false;
+        } finally {
+          submitEl.disabled = false;
+          submitEl.textContent = original;
+        }
+      });
+    </script>
+
+    <style is:global>
+      :root {
+        color-scheme: light dark;
+        --bg: #f6f7f9;
+        --card: #ffffff;
+        --text: #1a1d21;
+        --muted: #5c636b;
+        --border: #d7dbe0;
+        --accent: #3b6ef5;
+        --accent-text: #ffffff;
+        --error: #c62f2f;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #15171a;
+          --card: #1e2126;
+          --text: #e8eaed;
+          --muted: #9aa1a9;
+          --border: #34383f;
+          --accent: #5c85f7;
+          --error: #ef6a6a;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+      }
+      .card {
+        width: min(92vw, 22rem);
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 2rem;
+      }
+      h1 {
+        margin: 0 0 1.25rem;
+        font-size: 1.25rem;
+      }
+      #setup-hint {
+        margin: -0.75rem 0 1rem;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+      form {
+        display: grid;
+        gap: 1rem;
+      }
+      label {
+        display: grid;
+        gap: 0.35rem;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+      input {
+        font: inherit;
+        color: inherit;
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.55rem 0.7rem;
+      }
+      input:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+        border-color: transparent;
+      }
+      #error {
+        margin: 0;
+        font-size: 0.85rem;
+        color: var(--error);
+      }
+      button {
+        font: inherit;
+        font-weight: 600;
+        border: 0;
+        border-radius: 8px;
+        padding: 0.6rem;
+        background: var(--accent);
+        color: var(--accent-text);
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+    </style>
+  </body>
+</html>

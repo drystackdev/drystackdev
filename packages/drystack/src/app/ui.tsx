@@ -31,7 +31,7 @@ import { DrystackSetup } from "./onboarding/setup";
 import { RepoNotFound } from "./onboarding/repo-not-found";
 import { AppSlugProvider } from "./onboarding/install-app";
 import { useRouter, RouterProvider } from "./router";
-import { isGitHubConfig, isLocalOrDemoConfig } from "./utils";
+import { isGitHubConfig, isLocalShapedConfig } from "./utils";
 import {
   GitHubAppShellDataContext,
   GitHubAppShellDataProvider,
@@ -266,7 +266,7 @@ export function Drystack(props: {
   }
 
   // The loopback redirect is only needed if the storage uses OAuth callbacks.
-  const Wrapper = isLocalOrDemoConfig(props.config)
+  const Wrapper = isLocalShapedConfig(props.config)
     ? Fragment
     : RedirectToLoopback;
 

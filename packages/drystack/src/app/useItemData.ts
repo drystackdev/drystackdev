@@ -25,7 +25,7 @@ import { LOADING, useData } from "./useData";
 import { FormatInfo, getEntryDataFilepath, MaybePromise } from "./utils";
 import { toFormattedFormDataError } from "../form/error-formatting";
 import { parseRepoConfig, serializeRepoConfig } from "./repo-config";
-import { isDemoConfig, isLocalOrDemoConfig } from "./storage-mode";
+import { isDemoConfig, isLocalShapedConfig } from "./storage-mode";
 import { getDemoBlob } from "./demo-source";
 import {
   getBlobFromPersistedCache,
@@ -470,7 +470,7 @@ export function fetchBlob(
   if (blobCache.has(oid)) return blobCache.get(oid)!;
 
   const promise = (async () => {
-    const isLocalOrDemo = isLocalOrDemoConfig(config);
+    const isLocalOrDemo = isLocalShapedConfig(config);
     if (!isLocalOrDemo) {
       const stored = await getBlobFromPersistedCache(oid);
       if (stored) {
