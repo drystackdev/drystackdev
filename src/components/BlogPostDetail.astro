@@ -89,7 +89,7 @@ const breadcrumbSchema = {
     />
     <meta
       property="article:modified_time"
-      content={new Date(entry.updatedAt).toISOString()}
+      content={new Date(entry.updatedAt!).toISOString()}
     />
   </Fragment>
   <JsonLd schema={[articleSchema, breadcrumbSchema]} />
@@ -112,8 +112,8 @@ const breadcrumbSchema = {
       <div class="post-hero__meta reveal">
         <span><Icon name="calendar" size={14} /> {formatDate(entry.date)}</span>
         {
-          formatDate(entry.updatedAt) !== formatDate(entry.date) && (
-            <span>Cập nhật: {formatDate(entry.updatedAt)}</span>
+          formatDate(entry.updatedAt!) !== formatDate(entry.date) && (
+            <span>Cập nhật: {formatDate(entry.updatedAt!)}</span>
           )
         }
       </div>
@@ -244,7 +244,7 @@ const breadcrumbSchema = {
       // Trên mobile, mục lục ở trên trở thành drawer trượt từ mép phải, mở
       // bằng nút tròn neo sát mép phải màn hình (xem .post-toc-fab trong CSS).
       function setTocOpen(open: boolean) {
-        if (!fab || !backdrop) return;
+        if (!fab || !backdrop || !tocWrap) return;
         tocWrap.classList.toggle("is-open", open);
         backdrop.classList.toggle("is-open", open);
         fab.classList.toggle("is-open", open);
