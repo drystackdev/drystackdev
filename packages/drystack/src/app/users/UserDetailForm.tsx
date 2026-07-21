@@ -1,15 +1,15 @@
 import { useLocalizedStringFormatter } from '@react-aria/i18n';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 
 import { base64UrlEncode } from '#base64';
 import { Avatar } from '@keystar/ui/avatar';
 import { Button, ButtonGroup } from '@keystar/ui/button';
+import { FieldLabel } from '@keystar/ui/field';
 import { Flex } from '@keystar/ui/layout';
 import { Notice } from '@keystar/ui/notice';
 import { ProgressCircle } from '@keystar/ui/progress';
 import { TextField } from '@keystar/ui/text-field';
 import { toastQueue } from '@keystar/ui/toast';
-import { Heading } from '@keystar/ui/typography';
 
 import { ComponentSchema, ObjectField } from '../../form/api';
 import { clientSideValidateProp } from '../../form/errors';
@@ -106,18 +106,27 @@ function profileDisplayName(
   return typeof name === 'string' && name.trim() ? name : fallback;
 }
 
-// Built-in avatar control: an image, but stored/served through the auth API
-// (`auth/avatars/<email>`) rather than the content-tree image pipeline. Two
-// behaviours: `deferUpload` (create form) hands the picked file back to the
-// parent, which uploads it once the invited email exists; otherwise it uploads
-// immediately to the given email (self/edit).
+// Base64url-encode an avatar file's bytes for the JSON avatar route.
+async function encodeAvatar(file: File): Promise<string> {
+  return base64UrlEncode(new Uint8Array(await file.arrayBuffer()));
+}
+
+// Built-in avatar control, rendered as an inline form field (FieldLabel +
+// preview + pick button) so it sits in the same rhythm as the schema fields
+// around it - matching how a collection item's image field looks, but picking
+// a file DIRECTLY from the OS (getUploadedFileObject) rather than opening the
+// media-library dialog the content-tree image field uses. The avatar is
+// stored/served through the auth API (`auth/avatar[/<email>]`), not the
+// content-tree image pipeline. Two behaviours: `deferUpload` (create form)
+// hands the picked file back to the parent, which uploads it once the invited
+// email exists; otherwise it uploads immediately to the given email (self/edit).
 export function AvatarField(props: {
   // Target user; omit for self (server falls back to the caller's own email).
   email?: string;
   name: string;
   initialHasAvatar: boolean;
   deferUpload?: boolean;
-  onFilePicked?: (file: File) => void;
+  onFilePicked?: (file: File | undefined) => void;
   onUploaded?: () => void | Promise<void>;
 }) {
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
@@ -129,6 +138,11 @@ export function AvatarField(props: {
   // avatar until a full navigation (same reasoning as the media library's
   // pending-blob caching).
   const [previewUrl, setPreviewUrl] = useState<string | undefined>(undefined);
+  // whether a file has been picked locally this session but not yet committed
+  // (create/defer flow) - gates the Remove affordance, which only undoes a
+  // pending local pick (there's no server-side avatar-delete route).
+  const [pickedLocally, setPickedLocally] = useState(false);
+  const labelId = useId();
 
   const avatarUrl =
     previewUrl ??
@@ -149,6 +163,7 @@ export function AvatarField(props: {
     }
     if (props.deferUpload) {
       setPreviewUrl(URL.createObjectURL(file));
+      setPickedLocally(true);
       props.onFilePicked?.(file);
       return;
     }
@@ -178,41 +193,55 @@ export function AvatarField(props: {
     }
   }
 
+  function clearPending() {
+    setPreviewUrl(undefined);
+    setPickedLocally(false);
+    props.onFilePicked?.(undefined);
+  }
+
   return (
-    <Flex direction="column" gap="regular">
-      <Heading elementType="h2" size="small">
+    <Flex
+      direction="column"
+      gap="medium"
+      role="group"
+      aria-labelledby={labelId}
+    >
+      <FieldLabel id={labelId} elementType="span">
         {stringFormatter.format('avatarSectionTitle')}
-      </Heading>
+      </FieldLabel>
       <Flex alignItems="center" gap="large">
         <Avatar src={avatarUrl} name={props.name} size="xlarge" />
-        <Button onPress={pick} isPending={isUploading}>
-          {stringFormatter.format('changeAvatarAction')}
-        </Button>
+        <ButtonGroup>
+          <Button onPress={pick} isPending={isUploading}>
+            {stringFormatter.format('changeAvatarAction')}
+          </Button>
+          {props.deferUpload && pickedLocally && (
+            <Button prominence="low" onPress={clearPending}>
+              {stringFormatter.format('remove')}
+            </Button>
+          )}
+        </ButtonGroup>
       </Flex>
     </Flex>
   );
 }
 
-// Base64url-encode an avatar file's bytes for the JSON avatar route.
-async function encodeAvatar(file: File): Promise<string> {
-  return base64UrlEncode(new Uint8Array(await file.arrayBuffer()));
-}
-
-// Shared avatar + schema-driven profile form for an existing user. Used by the
-// admin edit page and (via ProfilePage) the signed-in user's own profile.
-export function UserFields(props: {
-  email: string;
-  initialProfile: unknown;
-  initialHasAvatar: boolean;
-  mode: 'self' | 'edit';
-}) {
+// Shared profile-form state + save wiring for an existing user, so the admin
+// edit page and the signed-in user's own profile page drive the exact same
+// schema-driven form and REST save path (`auth/users/update`) - only the page
+// chrome around them (where the Save button lives) differs.
+function useUserProfileForm(
+  email: string,
+  initialProfile: unknown,
+  mode: 'self' | 'edit'
+) {
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const { basePath } = useRouter();
   const apiBase = `/api${basePath}/auth`;
   const refreshNativeUser = useRefreshNativeUser();
   const schema = useUserSchema();
 
-  const initialState = useInitialState(schema, props.initialProfile);
+  const initialState = useInitialState(schema, initialProfile);
   const [state, setState] = useState(initialState);
   const previewProps = usePreviewProps(schema, setState, state);
   const [forceValidation, setForceValidation] = useState(false);
@@ -228,40 +257,64 @@ export function UserFields(props: {
       const res = await fetch(`${apiBase}/users/update`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email: props.email, profile: state }),
+        body: JSON.stringify({ email, profile: state }),
       });
       if (!res.ok) {
         toastQueue.critical(stringFormatter.format('genericErrorToast'));
         return;
       }
       toastQueue.positive(stringFormatter.format('userUpdatedToast'));
-      if (props.mode === 'self') await refreshNativeUser();
+      if (mode === 'self') await refreshNativeUser();
     } finally {
       setSaving(false);
     }
   }
 
+  return {
+    state,
+    previewProps,
+    forceValidation,
+    isSaving,
+    onSave,
+    refreshNativeUser,
+    displayName: profileDisplayName(state, email),
+  };
+}
+
+// The signed-in user's own profile form (rendered by ProfilePage). Keeps its
+// Save button inline at the bottom, since the profile page's header has no
+// action slot. The admin edit page (EditUserPage below) shares the same form
+// wiring but hoists Save into the header to match the collection item page.
+export function UserFields(props: {
+  email: string;
+  initialProfile: unknown;
+  initialHasAvatar: boolean;
+  mode: 'self' | 'edit';
+}) {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
+  const form = useUserProfileForm(props.email, props.initialProfile, props.mode);
+
   return (
     <Flex direction="column" gap="xxlarge">
-      <AvatarField
-        email={props.email}
-        name={profileDisplayName(state, props.email)}
-        initialHasAvatar={props.initialHasAvatar}
-        onUploaded={props.mode === 'self' ? refreshNativeUser : undefined}
-      />
       <form
         onSubmit={event => {
           event.preventDefault();
-          onSave();
+          form.onSave();
         }}
       >
         <Flex direction="column" gap="xlarge">
+          <AvatarField
+            email={props.email}
+            name={form.displayName}
+            initialHasAvatar={props.initialHasAvatar}
+            onUploaded={props.mode === 'self' ? form.refreshNativeUser : undefined}
+          />
           <FormValueContentFromPreviewProps
-            {...previewProps}
-            forceValidation={forceValidation}
+            {...form.previewProps}
+            forceValidation={form.forceValidation}
           />
           <ButtonGroup>
-            <Button type="submit" prominence="high" isPending={isSaving}>
+            <Button type="submit" prominence="high" isPending={form.isSaving}>
               {stringFormatter.format('save')}
             </Button>
           </ButtonGroup>
@@ -271,10 +324,83 @@ export function UserFields(props: {
   );
 }
 
-// Admin "edit user" page: fetch the user, then reuse the same profile form the
-// signed-in user sees. Password is intentionally absent - an admin doesn't set
+const EDIT_FORM_ID = 'user-edit-form';
+
+// The admin "edit user" form once the user's data has loaded. Mirrors the
+// collection item page's chrome: breadcrumbs + a Save button pinned top-right
+// in the header (submitting the form by id), with the avatar + schema fields in
+// a scrollable body. Password is intentionally absent - an admin doesn't set
 // another user's password (they set their own on /profile; new users set theirs
 // via the invite link).
+function EditUserForm(props: {
+  email: string;
+  initialProfile: unknown;
+  initialHasAvatar: boolean;
+  pending: boolean;
+}) {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
+  const { basePath } = useRouter();
+  const form = useUserProfileForm(props.email, props.initialProfile, 'edit');
+
+  const breadcrumbs = [
+    {
+      key: 'users',
+      label: stringFormatter.format('userManagement'),
+      href: `${basePath}/users`,
+    },
+    { key: 'current', label: props.email },
+  ];
+
+  return (
+    <PageRoot>
+      <PageHeader>
+        <HeaderBreadcrumbs items={breadcrumbs} />
+        <Button
+          form={EDIT_FORM_ID}
+          type="submit"
+          prominence="high"
+          isPending={form.isSaving}
+          marginStart="auto"
+        >
+          {stringFormatter.format('save')}
+        </Button>
+      </PageHeader>
+      <PageBody isScrollable>
+        <Flex
+          id={EDIT_FORM_ID}
+          elementType="form"
+          onSubmit={event => {
+            event.preventDefault();
+            form.onSave();
+          }}
+          direction="column"
+          gap="xlarge"
+          maxWidth="scale.4600"
+        >
+          {props.pending && (
+            <Notice tone="neutral">
+              {stringFormatter.format('pendingInviteEditNotice')}
+            </Notice>
+          )}
+          <AvatarField
+            email={props.email}
+            name={form.displayName}
+            initialHasAvatar={props.initialHasAvatar}
+          />
+          <FormValueContentFromPreviewProps
+            {...form.previewProps}
+            forceValidation={form.forceValidation}
+          />
+        </Flex>
+      </PageBody>
+    </PageRoot>
+  );
+}
+
+// Admin "edit user" page: fetch the user, then hand off to EditUserForm (which
+// owns the item-page-style chrome). Mirrors the collection item page's loading
+// behavior - a centered spinner while fetching, before the header/breadcrumbs
+// appear with the loaded form.
 export function EditUserPage(props: { email: string }) {
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const { basePath } = useRouter();
@@ -311,61 +437,48 @@ export function EditUserPage(props: { email: string }) {
     };
   }, [apiBase, props.email]);
 
-  const breadcrumbs = [
-    {
-      key: 'users',
-      label: stringFormatter.format('userManagement'),
-      href: `${basePath}/users`,
-    },
-    { key: 'current', label: props.email },
-  ];
+  if (data === undefined) {
+    return (
+      <Flex alignItems="center" justifyContent="center" minHeight="scale.3000">
+        <ProgressCircle
+          aria-label={stringFormatter.format('loadingItem')}
+          isIndeterminate
+          size="large"
+        />
+      </Flex>
+    );
+  }
 
-  return (
-    <PageRoot>
-      <PageHeader>
-        <HeaderBreadcrumbs items={breadcrumbs} />
-      </PageHeader>
-      <PageBody isScrollable>
-        {data === undefined ? (
-          <Flex
-            alignItems="center"
-            justifyContent="center"
-            minHeight="scale.3000"
-          >
-            <ProgressCircle
-              aria-label={stringFormatter.format('loadingItem')}
-              isIndeterminate
-              size="large"
-            />
-          </Flex>
-        ) : data === null ? (
+  if (data === null) {
+    return (
+      <PageRoot>
+        <PageBody>
           <Notice tone="caution">
             {stringFormatter.format('userNotFound')}
           </Notice>
-        ) : (
-          <Flex direction="column" gap="large" maxWidth="scale.4600">
-            {data.pending && (
-              <Notice tone="neutral">
-                {stringFormatter.format('pendingInviteEditNotice')}
-              </Notice>
-            )}
-            <UserFields
-              key={props.email}
-              email={props.email}
-              initialProfile={data.profile}
-              initialHasAvatar={data.hasAvatar}
-              mode="edit"
-            />
-          </Flex>
-        )}
-      </PageBody>
-    </PageRoot>
+        </PageBody>
+      </PageRoot>
+    );
+  }
+
+  return (
+    <EditUserForm
+      key={props.email}
+      email={props.email}
+      initialProfile={data.profile}
+      initialHasAvatar={data.hasAvatar}
+      pending={data.pending}
+    />
   );
 }
 
-// Admin "create user" page: the same schema-driven profile form, plus an email
-// field, minus any password input. Submitting sends an invite (see the `users`
-// POST route); the invitee sets their own password from the emailed link.
+const CREATE_FORM_ID = 'user-create-form';
+
+// Admin "create user" page: the same schema-driven profile form the edit page
+// uses, plus an email field, minus any password input. Submitting sends an
+// invite (see the `users` POST route); the invitee sets their own password from
+// the emailed link. Matches the collection create page's chrome (breadcrumbs +
+// a primary action pinned top-right in the header).
 export function CreateUserPage() {
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const router = useRouter();
@@ -457,16 +570,39 @@ export function CreateUserPage() {
       <PageHeader>
         <HeaderBreadcrumbs items={breadcrumbs} />
         <Button
+          form={CREATE_FORM_ID}
+          type="submit"
           marginStart="auto"
           prominence="high"
           isPending={isSubmitting}
-          onPress={onCreate}
         >
           {stringFormatter.format('addUserAction')}
         </Button>
       </PageHeader>
       <PageBody isScrollable>
-        <Flex direction="column" gap="xxlarge" maxWidth="scale.4600">
+        <Flex
+          id={CREATE_FORM_ID}
+          elementType="form"
+          onSubmit={event => {
+            event.preventDefault();
+            onCreate();
+          }}
+          direction="column"
+          gap="xlarge"
+          maxWidth="scale.4600"
+        >
+          <TextField
+            label={stringFormatter.format('emailLabel')}
+            type="email"
+            value={email}
+            onChange={value => {
+              setEmail(value);
+              setEmailError(undefined);
+            }}
+            errorMessage={emailError}
+            autoFocus
+            isRequired
+          />
           <AvatarField
             email={email.trim() || undefined}
             name={profileDisplayName(state, email.trim() || '?')}
@@ -474,31 +610,10 @@ export function CreateUserPage() {
             deferUpload
             onFilePicked={setAvatarFile}
           />
-          <form
-            onSubmit={event => {
-              event.preventDefault();
-              onCreate();
-            }}
-          >
-            <Flex direction="column" gap="xlarge">
-              <TextField
-                label={stringFormatter.format('emailLabel')}
-                type="email"
-                value={email}
-                onChange={value => {
-                  setEmail(value);
-                  setEmailError(undefined);
-                }}
-                errorMessage={emailError}
-                autoFocus
-                isRequired
-              />
-              <FormValueContentFromPreviewProps
-                {...previewProps}
-                forceValidation={forceValidation}
-              />
-            </Flex>
-          </form>
+          <FormValueContentFromPreviewProps
+            {...previewProps}
+            forceValidation={forceValidation}
+          />
         </Flex>
       </PageBody>
     </PageRoot>

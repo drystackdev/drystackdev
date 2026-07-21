@@ -9,20 +9,11 @@ import { Icon } from '@keystar/ui/icon';
 import { trash2Icon } from '@keystar/ui/icon/icons/trash2Icon';
 import { usersIcon } from '@keystar/ui/icon/icons/usersIcon';
 import { Flex } from '@keystar/ui/layout';
-import { SearchField } from '@keystar/ui/search-field';
-import { breakpointQueries, css, tokenSchema } from '@keystar/ui/style';
-import {
-  Cell,
-  Column,
-  Row,
-  SortDescriptor,
-  TableBody,
-  TableHeader,
-  TableView,
-} from '@keystar/ui/table';
+import { SortDescriptor } from '@keystar/ui/table';
 import { toastQueue } from '@keystar/ui/toast';
 import { Heading, Text } from '@keystar/ui/typography';
 
+import * as fields from '../../form/fields';
 import { sortBy } from '../collection-sort';
 import {
   DefaultCell,
@@ -31,8 +22,14 @@ import {
   SelectCell,
 } from '../collection-table/cells';
 import { ColumnDescriptor, getDisplayKind } from '../collection-table/column-model';
-import { ColumnsMenu } from '../collection-table/ColumnsMenu';
+import { CollectionToolbar } from '../collection-table/CollectionToolbar';
+import {
+  DataColumn,
+  EntityTableView,
+  FixtureColumn,
+} from '../collection-table/EntityTableView';
 import { useCollectionViewState } from '../collection-table/useCollectionViewState';
+import { useDebouncedValue } from '../CollectionPage';
 import l10nMessages from '../l10n';
 import { useNativeUser } from '../native-user';
 import { useRouter } from '../router';
@@ -53,34 +50,6 @@ type UserRow = {
   hasAvatar: boolean;
   pending: boolean;
 };
-
-// Same breakpoint-aware horizontal rhythm CollectionToolbar/CollectionPage's
-// TableView use (see CollectionPage.tsx's CollectionToolbar/TableView) -
-// reused as-is so this page's toolbar/table sit at the same margins as every
-// collection list, instead of introducing a second layout language.
-const toolbarMarginStyle = css({
-  marginInline: tokenSchema.size.space.small,
-  [breakpointQueries.above.mobile]: {
-    marginInline: `calc(${tokenSchema.size.space.xlarge} - ${tokenSchema.size.space.medium})`,
-  },
-  [breakpointQueries.above.tablet]: {
-    marginInline: `calc(${tokenSchema.size.space.xxlarge} - ${tokenSchema.size.space.medium})`,
-  },
-});
-const tableMarginStyle = css({
-  minWidth: 0,
-  marginInline: tokenSchema.size.space.regular,
-  [breakpointQueries.above.mobile]: {
-    marginInline: `calc(${tokenSchema.size.space.xlarge} - ${tokenSchema.size.space.medium})`,
-  },
-  [breakpointQueries.above.tablet]: {
-    marginInline: `calc(${tokenSchema.size.space.xxlarge} - ${tokenSchema.size.space.medium})`,
-  },
-  '[role=gridcell], [role=rowheader]': {
-    display: 'flex',
-    alignItems: 'center',
-  },
-});
 
 // A user's schema-declared fields are always JSON-plain (text/select/checkbox/
 // number, ...) - never image/file/content, see UserConfig's doc comment - so a
@@ -112,37 +81,51 @@ function renderUserFieldCell(descriptor: ColumnDescriptor, value: unknown) {
   }
 }
 
-// A table with a variable number of columns goes through TableView's dynamic
-// `columns` prop + render-function API for its TableHeader (same as
-// CollectionPage.tsx) - one unified column list drives both the header and
-// every row's cells so the two can never disagree on count/order.
-type TableColumn =
-  | { kind: 'avatar'; key: 'avatar'; label: string }
-  | {
-      kind: 'schema';
-      key: string;
-      label: string;
-      isRowHeader: boolean;
-      descriptor: ColumnDescriptor;
-    }
-  | { kind: 'email'; key: 'email'; label: string }
-  | { kind: 'createdAt'; key: 'createdAt'; label: string }
-  | { kind: 'actions'; key: 'actions'; label: string };
+// The plain string a user field contributes to a cell's accessible/typeahead
+// value (react-aria wants a string per cell). Mirrors the small read-only
+// subset above - anything non-scalar just stringifies loosely.
+function userFieldTextValue(value: unknown): string {
+  if (value == null) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  if (Array.isArray(value)) return value.join(', ');
+  return '';
+}
 
 export function UsersPage() {
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
-  const { basePath, push } = useRouter();
+  const router = useRouter();
+  const { basePath, push } = router;
   const nativeUser = useNativeUser();
   const apiBase = `/api${basePath}/auth`;
   const userSchema = useUserSchema();
 
   const [users, setUsers] = useState<UserRow[] | undefined>(undefined);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(
+    new URLSearchParams(router.search).get('search') ?? ''
+  );
   const [deleteTarget, setDeleteTarget] = useState<UserRow | null>(null);
   const [isDeleting, setDeleting] = useState(false);
-  const { hiddenColumns, setHiddenColumns } = useCollectionViewState(
-    USERS_VIEW_STATE_KEY
+  const { hiddenColumns, setHiddenColumns, columnWidths, setColumnWidths } =
+    useCollectionViewState(USERS_VIEW_STATE_KEY);
+
+  // search term is mirrored into the URL (?search=) and debounced before it
+  // drives filtering - same behavior as the collection list (see CollectionPage)
+  const setSearchTermFromForm = useCallback(
+    (value: string) => {
+      setSearchTerm(value);
+      const params = new URLSearchParams(router.search);
+      if (value) {
+        params.set('search', value);
+      } else {
+        params.delete('search');
+      }
+      router.replace(router.pathname + '?' + params.toString());
+    },
+    [router]
   );
+  const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
 
   const load = useCallback(() => {
     fetch(`${apiBase}/users`)
@@ -157,22 +140,56 @@ export function UsersPage() {
     load();
   }, [load]);
 
-  // Schema-driven columns: `name` (the conventional profile field, if the
-  // site declares one) leads, then every other field in declaration order.
-  // Never includes a password column - that field doesn't exist in
-  // `config.user.schema` at all (see UserConfig).
-  const columnDescriptors = useMemo<ColumnDescriptor[]>(() => {
+  // Schema-driven data columns: `name` (the conventional profile field, if the
+  // site declares one) leads, then every other declared field, then the
+  // built-in `email` and `createdAt` columns. These built-ins are modeled as
+  // synthetic ColumnDescriptors so they sort / hide / resize exactly like a
+  // schema field does (they're rendered with their own custom cell below, so
+  // their `displayKind`/`schema` are only placeholders). Password/avatar are
+  // never columns - they don't live in `config.user.schema` (see UserConfig).
+  const dataDescriptors = useMemo<ColumnDescriptor[]>(() => {
     const keys = Object.keys(userSchema.fields);
     const ordered = keys.includes('name')
       ? ['name', ...keys.filter(key => key !== 'name')]
       : keys;
-    return ordered.map(key => {
+    const profile = ordered.map(key => {
       const schema = userSchema.fields[key];
       const label = ('label' in schema && schema.label) || key;
       return { key, label, displayKind: getDisplayKind(schema, key, ''), schema };
     });
-  }, [userSchema]);
-  const rowHeaderKey = columnDescriptors[0]?.key;
+    return [
+      ...profile,
+      {
+        key: 'email',
+        label: stringFormatter.format('userEmailColumn'),
+        displayKind: 'text' as const,
+        schema: fields.text({ label: 'email' }),
+      },
+      {
+        key: 'createdAt',
+        label: stringFormatter.format('userCreatedColumn'),
+        displayKind: 'date' as const,
+        schema: fields.text({ label: 'createdAt' }),
+      },
+    ];
+  }, [userSchema, stringFormatter]);
+
+  // The pinned name-like column mirrors a collection's slug column - it always
+  // stays visible (its toggle would be inert) and shows the "pending invite"
+  // note beneath. Everything after it is offered in the columns menu.
+  const rowHeaderKey = dataDescriptors[0]?.key;
+  const columnsMenuItems = useMemo(
+    () => dataDescriptors.slice(1).map(d => ({ key: d.key, label: d.label })),
+    [dataDescriptors]
+  );
+  const visibleDataDescriptors = useMemo(
+    () =>
+      dataDescriptors.filter(
+        (d, i) => i === 0 || !hiddenColumns.has(d.key)
+      ),
+    [dataDescriptors, hiddenColumns]
+  );
+
   // Sorts by the pinned name-like column first, same default a collection's
   // table opens with (sorted by its slug field) - falls back to email only if
   // a site somehow declares an empty user schema.
@@ -180,60 +197,6 @@ export function UsersPage() {
     column: rowHeaderKey ?? 'email',
     direction: 'ascending',
   });
-
-  const tableColumns = useMemo<TableColumn[]>(
-    () => [
-      { kind: 'avatar', key: 'avatar', label: stringFormatter.format('userNameColumn') },
-      ...columnDescriptors.map((descriptor, i) => ({
-        kind: 'schema' as const,
-        key: descriptor.key,
-        label: descriptor.label,
-        isRowHeader: i === 0,
-        descriptor,
-      })),
-      { kind: 'email', key: 'email', label: stringFormatter.format('userEmailColumn') },
-      {
-        kind: 'createdAt',
-        key: 'createdAt',
-        label: stringFormatter.format('userCreatedColumn'),
-      },
-      { kind: 'actions', key: 'actions', label: stringFormatter.format('deleteAction') },
-    ],
-    [columnDescriptors, stringFormatter]
-  );
-
-  // Built-ins (avatar/actions) are structural, not data, so they're never
-  // offered here - same reasoning collections use to leave image-preview
-  // columns' *presence* non-optional while still letting you hide other
-  // fields. The pinned name-like column is excluded too (it can't actually be
-  // hidden - see visibleTableColumns below - so a toggle for it would just be
-  // inert).
-  const columnsMenuItems = useMemo(
-    () =>
-      tableColumns
-        .filter(
-          (col): col is Extract<TableColumn, { kind: 'schema' | 'email' | 'createdAt' }> =>
-            (col.kind === 'schema' && !col.isRowHeader) ||
-            col.kind === 'email' ||
-            col.kind === 'createdAt'
-        )
-        .map(col => ({ key: col.key, label: col.label })),
-    [tableColumns]
-  );
-
-  // The pinned column mirrors a collection's slug/name column, which stays
-  // visible even if somehow present in `hiddenColumns` (see CollectionPage's
-  // visibleColumnDescriptors) - built-ins (avatar/actions) aren't governed by
-  // the hidden set at all.
-  const visibleTableColumns = useMemo(
-    () =>
-      tableColumns.filter(col => {
-        if (col.kind === 'avatar' || col.kind === 'actions') return true;
-        if (col.kind === 'schema' && col.isRowHeader) return true;
-        return !hiddenColumns.has(col.key);
-      }),
-    [tableColumns, hiddenColumns]
-  );
 
   const fuse = useMemo(() => {
     const withSearchText = (users ?? []).map(user => ({
@@ -250,9 +213,9 @@ export function UsersPage() {
   }, [users]);
   const filteredUsers = useMemo(() => {
     if (!users) return [];
-    if (!searchTerm.trim()) return users;
-    return fuse.search(searchTerm).map(result => result.item);
-  }, [users, fuse, searchTerm]);
+    if (!debouncedSearchTerm.trim()) return users;
+    return fuse.search(debouncedSearchTerm).map(result => result.item);
+  }, [users, fuse, debouncedSearchTerm]);
 
   // Same sort-by-clicked-column behavior a collection's table gives you,
   // reusing its exact comparator (locale-aware strings, nulls last).
@@ -272,6 +235,111 @@ export function UsersPage() {
   // here just to disable the button up front rather than round-trip an
   // error for an action that can never succeed.
   const activeCount = users?.filter(u => !u.pending).length ?? 0;
+
+  const leadingColumns = useMemo<FixtureColumn<UserRow>[]>(
+    () => [
+      {
+        key: 'avatar',
+        label: stringFormatter.format('userNameColumn'),
+        width: 56,
+        hideHeader: true,
+        renderCell: row => ({
+          textValue: row.email,
+          node: (
+            <Avatar
+              src={
+                row.hasAvatar
+                  ? `${apiBase}/avatar/${encodeURIComponent(row.email)}`
+                  : undefined
+              }
+              name={
+                typeof row.profile[rowHeaderKey ?? ''] === 'string'
+                  ? (row.profile[rowHeaderKey ?? ''] as string)
+                  : row.email
+              }
+              size="small"
+            />
+          ),
+        }),
+      },
+    ],
+    [apiBase, rowHeaderKey, stringFormatter]
+  );
+
+  const dataColumns = useMemo<DataColumn<UserRow>[]>(
+    () =>
+      visibleDataDescriptors.map(descriptor => ({
+        descriptor,
+        renderCell: row => {
+          if (descriptor.key === 'email') {
+            return { textValue: row.email, node: <Text>{row.email}</Text> };
+          }
+          if (descriptor.key === 'createdAt') {
+            return {
+              textValue: row.createdAt ?? '',
+              node: (
+                <Text>
+                  {row.createdAt
+                    ? new Date(row.createdAt).toLocaleDateString()
+                    : '—'}
+                </Text>
+              ),
+            };
+          }
+          const value = row.profile[descriptor.key];
+          const cell = renderUserFieldCell(descriptor, value);
+          const isPinned = descriptor.key === rowHeaderKey;
+          return {
+            textValue: userFieldTextValue(value),
+            node:
+              isPinned && row.pending ? (
+                <Flex direction="column">
+                  {cell}
+                  <Text size="small" color="neutralTertiary">
+                    {stringFormatter.format('pendingInviteLabel')}
+                  </Text>
+                </Flex>
+              ) : (
+                cell
+              ),
+          };
+        },
+      })),
+    [visibleDataDescriptors, rowHeaderKey, stringFormatter]
+  );
+
+  const trailingColumns = useMemo<FixtureColumn<UserRow>[]>(
+    () => [
+      {
+        key: 'actions',
+        label: stringFormatter.format('deleteAction'),
+        width: 64,
+        hideHeader: true,
+        renderCell: row => ({
+          textValue: stringFormatter.format('deleteAction'),
+          node: (
+            // stopPropagation so pressing delete doesn't also fire the row's
+            // onAction navigation - same guard cells with their own
+            // interactive content use elsewhere (see UrlCell, ContentSizeCell
+            // in collection-table/cells.tsx).
+            <Flex onClick={e => e.stopPropagation()}>
+              <ActionButton
+                aria-label={stringFormatter.format('deleteAction')}
+                isDisabled={
+                  nativeUser?.email === row.email ||
+                  (!row.pending && activeCount <= 1)
+                }
+                onPress={() => setDeleteTarget(row)}
+              >
+                <Icon src={trash2Icon} />
+              </ActionButton>
+            </Flex>
+          ),
+        }),
+      },
+    ],
+    [stringFormatter, nativeUser, activeCount]
+  );
 
   async function handleDelete(target: UserRow) {
     setDeleting(true);
@@ -311,44 +379,27 @@ export function UsersPage() {
         </Button>
       </PageHeader>
 
-      <Flex
-        alignItems="center"
-        justifyContent="flex-end"
-        gap="regular"
-        paddingTop={{ tablet: 'large' }}
-        UNSAFE_className={toolbarMarginStyle}
-      >
-        <Flex role="search" alignItems="center" gap="regular">
-          <SearchField
-            aria-label={stringFormatter.format('search')}
-            placeholder={stringFormatter.format('search')}
-            value={searchTerm}
-            onChange={setSearchTerm}
-            onClear={() => setSearchTerm('')}
-            width="scale.2400"
-          />
-        </Flex>
-        <ColumnsMenu
-          columns={columnsMenuItems}
-          hiddenColumns={hiddenColumns}
-          onHiddenColumnsChange={setHiddenColumns}
-        />
-      </Flex>
+      <CollectionToolbar
+        searchTerm={searchTerm}
+        onSearchTermChange={setSearchTermFromForm}
+        columns={columnsMenuItems}
+        hiddenColumns={hiddenColumns}
+        onHiddenColumnsChange={setHiddenColumns}
+      />
 
-      <TableView
+      <EntityTableView
         aria-labelledby="page-title"
-        selectionMode="none"
-        density="spacious"
-        overflowMode="wrap"
-        prominence="low"
-        flex
+        leadingColumns={leadingColumns}
+        dataColumns={dataColumns}
+        trailingColumns={trailingColumns}
+        items={sortedUsers}
+        getItemKey={row => row.email}
         sortDescriptor={sortDescriptor}
         onSortChange={setSortDescriptor}
-        marginTop={{ tablet: 'large' }}
-        marginBottom={{ mobile: 'regular', tablet: 'xlarge' }}
-        UNSAFE_className={tableMarginStyle}
+        columnWidths={columnWidths}
+        onColumnWidthsChange={setColumnWidths}
         onAction={key =>
-          push(`${basePath}/users/item/${encodeURIComponent(String(key))}`)
+          push(`${basePath}/users/item/${encodeURIComponent(key)}`)
         }
         renderEmptyState={() => (
           <EmptyState
@@ -357,121 +408,7 @@ export function UsersPage() {
             message={stringFormatter.format('emptyListDescription')}
           />
         )}
-      >
-        <TableHeader columns={visibleTableColumns}>
-          {col => (
-            <Column
-              key={col.key}
-              width={
-                col.kind === 'avatar'
-                  ? 56
-                  : col.kind === 'createdAt'
-                    ? 160
-                    : col.kind === 'actions'
-                      ? 64
-                      : undefined
-              }
-              hideHeader={col.kind === 'avatar' || col.kind === 'actions'}
-              isRowHeader={col.kind === 'schema' && col.isRowHeader}
-              allowsSorting={col.kind !== 'avatar' && col.kind !== 'actions'}
-            >
-              {col.label}
-            </Column>
-          )}
-        </TableHeader>
-        <TableBody items={sortedUsers}>
-          {row => (
-            <Row key={row.email}>
-              {visibleTableColumns.map(col => {
-                // Cell keys must be unique across the WHOLE table, not just
-                // within a row - react-stately's Table collection (unlike a
-                // plain React list) uses these keys to index its virtualizer's
-                // view-reuse pool. A bare `col.key` repeats identically on
-                // every row and corrupts that pool, surfacing as a
-                // `getReusableView` crash on the very first paint (caught via
-                // real browser verification) - see CollectionPage.tsx's Row,
-                // which avoids this the same way (`descriptor.key + item.name`).
-                const cellKey = col.key + row.email;
-                if (col.kind === 'avatar') {
-                  return (
-                    <Cell key={cellKey} textValue={row.email}>
-                      <Avatar
-                        src={
-                          row.hasAvatar
-                            ? `${apiBase}/avatar/${encodeURIComponent(row.email)}`
-                            : undefined
-                        }
-                        name={
-                          typeof row.profile[rowHeaderKey ?? ''] === 'string'
-                            ? (row.profile[rowHeaderKey ?? ''] as string)
-                            : row.email
-                        }
-                        size="small"
-                      />
-                    </Cell>
-                  );
-                }
-                if (col.kind === 'schema') {
-                  return (
-                    <Cell key={cellKey}>
-                      {col.isRowHeader ? (
-                        <Flex direction="column">
-                          {renderUserFieldCell(col.descriptor, row.profile[col.key])}
-                          {row.pending && (
-                            <Text size="small" color="neutralTertiary">
-                              {stringFormatter.format('pendingInviteLabel')}
-                            </Text>
-                          )}
-                        </Flex>
-                      ) : (
-                        renderUserFieldCell(col.descriptor, row.profile[col.key])
-                      )}
-                    </Cell>
-                  );
-                }
-                if (col.kind === 'email') {
-                  return (
-                    <Cell key={cellKey}>
-                      <Text>{row.email}</Text>
-                    </Cell>
-                  );
-                }
-                if (col.kind === 'createdAt') {
-                  return (
-                    <Cell key={cellKey}>
-                      <Text>
-                        {row.createdAt
-                          ? new Date(row.createdAt).toLocaleDateString()
-                          : '—'}
-                      </Text>
-                    </Cell>
-                  );
-                }
-                return (
-                  <Cell key={cellKey} textValue={stringFormatter.format('deleteAction')}>
-                    {/* stopPropagation so pressing delete doesn't also fire
-                        the row's onAction navigation - same guard cells with
-                        their own interactive content use elsewhere (see
-                        UrlCell, ContentSizeCell in collection-table/cells.tsx). */}
-                    <Flex onClick={e => e.stopPropagation()}>
-                      <ActionButton
-                        aria-label={stringFormatter.format('deleteAction')}
-                        isDisabled={
-                          nativeUser?.email === row.email ||
-                          (!row.pending && activeCount <= 1)
-                        }
-                        onPress={() => setDeleteTarget(row)}
-                      >
-                        <Icon src={trash2Icon} />
-                      </ActionButton>
-                    </Flex>
-                  </Cell>
-                );
-              })}
-            </Row>
-          )}
-        </TableBody>
-      </TableView>
+      />
 
       <DialogContainer
         onDismiss={() => {
