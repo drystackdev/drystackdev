@@ -1,7 +1,14 @@
-- user là một collection
-- thông tin có thể khai báo dưới dạng 
-user: collection({name: field.string}), tận dụng lại UI của collection (không bao giờ col có cột password)
-- UI profile tận dụng lại ui edit detail collection, tạo ra User cũng là User đó chỉ là ko cho nhập password
-+ avatar chính là image nhưng không gọi qua
-- tên tiến anh là User Managent
-- cần icon cho 3 menu system
+Hiện tại hệ thống user managenet hiện tại đang có nhưng tôi muốn loại bỏ nó và thực hiện yêu cầu sao
+
+- users là 1 collection có sẵn: 
+    - email: string (regex: email),
+    - passord: string (hash khi save)
+    - name: text 
+    - avatar: field.image (chọn file trực tiếp không đi qua dialog nữa)
+
+- ở drystack.config.ts có thể config thêm ví dụ users: {
+    phoneNumber: field.string({...})
+}(có sẵn type của schema) ở top level khi tạo user colleciion thì merge thêm vào user collection
+
+- cơ chế gửi email khi thêm mới,
+- không cho phép chỉnh sửa user khi click vào user vẫn hiện thông tin nhưng disabeld toàn bộ, vẫn có nút deleted ở đây
