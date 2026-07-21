@@ -39,7 +39,18 @@ test('verifyPassword rejects malformed stored hashes', async () => {
 test('session JWT round-trip', async () => {
   const token = await signSession({ email: 'user@example.com' }, SECRET);
   const session = await verifySession(token, SECRET);
-  expect(session).toEqual({ email: 'user@example.com' });
+  expect(session?.email).toEqual('user@example.com');
+  expect(typeof session?.jti).toEqual('string');
+  expect(session?.jti.length).toBeGreaterThan(0);
+  expect(typeof session?.exp).toEqual('number');
+});
+
+test('each signed session gets a distinct jti', async () => {
+  const a = await signSession({ email: 'user@example.com' }, SECRET);
+  const b = await signSession({ email: 'user@example.com' }, SECRET);
+  const sessionA = await verifySession(a, SECRET);
+  const sessionB = await verifySession(b, SECRET);
+  expect(sessionA?.jti).not.toEqual(sessionB?.jti);
 });
 
 test('session JWT rejects tampering, wrong secret, and expiry', async () => {
@@ -58,12 +69,11 @@ test('session JWT rejects tampering, wrong secret, and expiry', async () => {
 
 test('getSessionFromCookieHeader reads the session cookie', async () => {
   const token = await signSession({ email: 'user@example.com' }, SECRET);
-  expect(
-    await getSessionFromCookieHeader(
-      `other=1; ${NATIVE_SESSION_COOKIE}=${token}`,
-      SECRET
-    )
-  ).toEqual({ email: 'user@example.com' });
+  const session = await getSessionFromCookieHeader(
+    `other=1; ${NATIVE_SESSION_COOKIE}=${token}`,
+    SECRET
+  );
+  expect(session?.email).toEqual('user@example.com');
   expect(await getSessionFromCookieHeader(null, SECRET)).toBeNull();
   expect(await getSessionFromCookieHeader('other=1', SECRET)).toBeNull();
 });

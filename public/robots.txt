@@ -2,5 +2,6 @@ User-agent: *
 Allow: /
 Disallow: /drystack
 Disallow: /api/drystack/
+Disallow: /login
 
-Sitemap: https://quangseo.drystack.dev/sitemap-index.xml
+Sitemap: https://quangseo.drystack.dev/sitemap.xml

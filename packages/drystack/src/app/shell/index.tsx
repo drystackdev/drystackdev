@@ -6,7 +6,7 @@ import { alertCircleIcon } from "@keystar/ui/icon/icons/alertCircleIcon";
 import { Config } from "../../config";
 import l10nMessages from "../l10n";
 
-import { isGitHubConfig, isLocalShapedConfig } from "../utils";
+import { isGitHubConfig, isLocalShapedConfig, isR2Config } from "../utils";
 
 import { AppStateContext, ConfigContext } from "./context";
 import {
@@ -17,6 +17,7 @@ import {
   useCurrentBranch,
   GitHubAppShellDataContext,
 } from "./data";
+import { NativeUserProvider } from "../native-user";
 import { SidebarProvider } from "./sidebar";
 import { MainPanelLayout } from "./panels";
 import { EmptyState } from "./empty-state";
@@ -107,10 +108,17 @@ export const AppShell = (props: {
     );
   }
   if (isLocalShapedConfig(props.config)) {
-    return (
+    const provider = (
       <LocalAppShellProvider config={props.config}>
         {inner}
       </LocalAppShellProvider>
+    );
+    // r2 is the one local-shaped kind with a real signed-in identity - see
+    // native-user.tsx.
+    return isR2Config(props.config) ? (
+      <NativeUserProvider config={props.config}>{provider}</NativeUserProvider>
+    ) : (
+      provider
     );
   }
   return null;

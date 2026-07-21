@@ -91,15 +91,122 @@
 - Admin UI React trong browser **chưa** click-test tay (data path giống hệt local
   mode; cần một vòng browser-test khi tiện).
 
-## Phase 2 (chưa làm)
+## 🚨 BLOCKER phát hiện 2026-07-21 (đọc trước khi làm gì tiếp) 🚨
 
-- Reader đọc R2 lúc request trong Worker (trang public SSR lấy content thẳng từ
-  R2 — hết cần rebuild khi save).
-- VEI trên prod r2: dry-map/opaque id như github mode (hiện dry.ts chỉ làm cho
-  github; r2 prod mà bật VEI sẽ lộ field path trong HTML public) + nguồn ghi
-  dry-map khi trang SSR không còn prerender.
-- Logout hiện chỉ xoá cookie — JWT stateless nên token bị lộ vẫn sống tới khi hết
-  hạn (7 ngày); muốn revoke thật cần jti/blacklist trong R2 hoặc rút maxAge.
-- Nút logout + hiển thị profile trong admin UI cho r2 mode.
-- Flip prod: tạo bucket thật (`wrangler r2 bucket create drystack-content`),
-  `drystack-auth.ts add --remote`, `r2-seed.ts --url <prod>`, đặt `PUBLIC_R2=true`.
+Trong lúc làm phase 2, phát hiện **tài khoản Cloudflare hiện tại không tạo được
+R2 bucket**: `bunx wrangler r2 bucket create drystack-content` báo lỗi
+`Please enable R2 through the Cloudflare Dashboard [code: 10042]`, và
+`wrangler whoami` xác nhận token OAuth hiện tại **không có scope `r2`** trong
+danh sách quyền (có `workers`, `d1`, `pages`, `ai`... nhưng không có `r2`).
+
+Nghiêm trọng hơn: `git log` cho thấy **process auto-commit của repo đã tự động
+commit và merge cả session này lên `main`** (commit `5684974` phase 1,
+`9a5fa5d` — chính là bạn sửa tay `drystack.config.ts` bỏ điều kiện
+`import.meta.env?.DEV`, khiến **production giờ cũng chạy
+`storage: { kind: "r2" }` không điều kiện**, không còn giữ `github` như kế
+hoạch ban đầu ở mục "Quyết định đã chốt" phía trên). Đồng thời `wrangler.jsonc`
+đã có sẵn `r2_buckets` trỏ tới bucket `drystack-content` **chưa hề tồn tại**
+trên Cloudflare thật.
+
+Hệ quả nếu deploy thật chạy trước khi bucket tồn tại:
+- `wrangler deploy` rất có thể **fail thẳng** vì binding `r2_buckets` không
+  resolve được tài nguyên thật (khác với KV — KV có auto-provision từ
+  wrangler ≥4.45, R2 thì auto-provision chỉ áp dụng khi *không* khai
+  `bucket_name` cụ thể; ở đây có khai tên rõ ràng nên không auto-provision).
+- Kể cả nếu deploy qua được, mọi trang public (SSR toàn bộ từ phase 2 dưới
+  đây) sẽ cố đọc content từ bucket R2 thật — bucket đó **chưa seed gì cả**
+  (chỉ local miniflare có data test) → site production sẽ trắng trơn.
+- `/drystack` sẽ đòi login nhưng **chưa có user nào** trong bucket thật.
+
+Đã kiểm tra `https://quangseo.drystack.dev/` qua curl: `/` trả 200,
+`/drystack` trả 200 (không redirect `/login` — nghi là deploy MỚI *chưa*
+chạy xong, hoặc build cũ vẫn đang serve), `/blog` trả 307 → `/blog/`. Không
+đủ bằng chứng để kết luận chắc production đang chạy code nào — **cần bạn
+tự kiểm tra Cloudflare dashboard (Workers Builds / Deployments log)** để biết
+chắc.
+
+**Việc cần bạn làm để gỡ block** (không cái nào tôi tự làm được):
+1. Bật R2 cho tài khoản Cloudflare qua dashboard (R2 tab, chấp nhận ToS lần
+   đầu), **và/hoặc** cấp lại token/OAuth cho wrangler với quyền R2
+   (`wrangler login` lại, hoặc sửa quyền API token).
+2. Sau đó báo tôi (hoặc tự chạy) `bunx wrangler r2 bucket create
+   drystack-content`, rồi `bun scripts/r2-seed.ts --email <email> --password
+   <pw> --url https://quangseo.drystack.dev` để seed + tạo admin đầu tiên
+   trên bucket thật.
+3. Kiểm tra Cloudflare deployment logs xem build gần nhất pass/fail — nếu
+   fail vì thiếu bucket, tạo xong bucket rồi trigger lại build.
+
+Cho tới khi bucket thật tồn tại, `drystack.config.ts` trên `main` đang khiến
+production ở trạng thái rủi ro — cân nhắc tạm sửa lại thành
+`import.meta.env?.DEV ? {kind:'r2'} : {kind:'github'}` (như kế hoạch gốc) nếu
+muốn an toàn trong lúc chờ gỡ block, hoặc chấp nhận rủi ro tạm thời nếu bạn đã
+kiểm tra dashboard thấy deploy chưa chạy.
+
+## Đã triển khai (phase 2 — code xong 2026-07-21, verify qua dev/miniflare)
+
+- **`reader/r2.ts`** (`@drystack/core`): đọc content trực tiếp từ R2 tại
+  request time — `readFile`/`fileExists` (qua `head()`, không tốn băng thông
+  body) là single-object call, `readdir` list theo prefix (tái dùng
+  `listAll` export từ `api-r2.ts`). Không cần "load cả tree" như github
+  reader vì R2 key được địa chỉ hoá trực tiếp.
+- **`packages/astro/src/reader.ts`**: thứ tự ưu tiên giữ nguyên logic cũ
+  (local/demo/**có filesystem lúc build** → đọc fs, kể cả r2 và github khi
+  đang prerender trên máy build) — chỉ thêm nhánh: r2 **không có** fs (Worker
+  thật lúc request) → `createR2Reader` với binding `DRYSTACK_R2` qua
+  `cloudflare:workers`.
+- **Toàn bộ site chuyển sang SSR thật** (`astro.config.mjs`:
+  `output: "server"`, không còn `output: "static"`) — không riêng gì
+  `/drystack`, mọi route (`/`, `/blog`, `/dich-vu`, `/kien-thuc-seo`,
+  `/gioi-thieu`, `/demo`) giờ render on-demand, chỉ còn `/__data.zip`
+  (dùng cho demo mode) là prerender. Bỏ `getStaticPaths()` ở 3 trang
+  `[slug].astro` (không cần nữa, param lấy thẳng từ request).
+  - `imageService: { build: 'compile', runtime: 'passthrough' }` thêm vào
+    adapter Cloudflare — mặc định của adapter là `cloudflare-binding` (cần
+    Cloudflare Images binding, dự án chưa có), `passthrough` là lựa chọn an
+    toàn không cần hạ tầng thêm (ảnh runtime phục vụ nguyên bản, không
+    resize; ảnh import tĩnh vẫn tối ưu lúc build nhờ `compile`).
+  - **`@astrojs/sitemap` bị gỡ bỏ** (integration đó chỉ thấy trang đã
+    prerender ra file tĩnh — dưới SSR toàn phần nó sẽ âm thầm mất hết
+    blog/dịch vụ/kiến thức SEO). Thay bằng `src/pages/sitemap.xml.ts` tự
+    build sitemap từ `getBlogPosts`/`getSeoKnowledgePosts`/`getServices` mỗi
+    request — luôn khớp nội dung thật. `robots.txt` cập nhật trỏ
+    `/sitemap.xml` + thêm `Disallow: /login`.
+  - Cloudflare adapter tự thêm binding KV `SESSION` (tính năng session của
+    Astro, tự kích hoạt khi `output:"server"`) — **không dùng tới** trong
+    code (không gọi `Astro.session` ở đâu), và theo tài liệu Cloudflare, KV
+    namespace loại này **tự động provision lúc deploy** (khác R2) nên không
+    phải lo.
+- **jti + blacklist** (`api/native-auth.ts`, `api/api-r2.ts`): JWT giờ có
+  `jti` ngẫu nhiên; logout ghi `auth/revoked/<jti>` (nội dung = `exp` để dọn
+  sau); mọi nơi verify session (route auth, update, ai/*, page gate
+  `/drystack` qua `native-session.ts`) đều tra blacklist qua
+  `verifiedSession()` (export từ `api-r2.ts`) — không chỉ verify chữ ký/hạn.
+  Đăng nhập lại sau logout cấp `jti` mới, hoạt động bình thường.
+- **Nút logout + tên user trong sidebar** (r2 mode): `app/native-user.tsx`
+  (`NativeUserProvider`/`useNativeUser`, fetch `auth/me` một lần lúc mount) +
+  sidebar `UserActions`/`SidebarFooter`/`SidebarHeader` giờ coi r2 giống
+  github (có identity thật) thay vì giống local/demo (ẩn hết) — logout gọi
+  `nativeLogout()` (POST `/auth/logout` rồi redirect `/login`, không dùng
+  `href` GET như github vì route logout của r2 là POST-only).
+- **Test**: +6 unit test (jti/blacklist trong `native-auth.test.ts`,
+  `api-r2.test.ts`), +3 test cho `reader/r2.ts`; toàn bộ core suite
+  **260 pass / 0 fail**, tsc 0 lỗi cả `@drystack/core` và `@drystack/astro`.
+  Test thật qua `astro dev` + miniflare: tạo bài viết mới qua API `/update`
+  → xuất hiện **ngay lập tức** trên `/blog`, trang chi tiết, và
+  `/sitemap.xml` — không rebuild. `astro build` thật chạy sạch, log xác nhận
+  chỉ `/__data.zip` được prerender.
+
+## Còn lại (chưa làm, ngoài phạm vi blocker ở trên)
+
+- **VEI dry-map/opaque id cho r2 mode**: `astro/src/dry.ts` hiện chỉ ẩn
+  field path bằng `data-dry-id` cho `storage.kind === "github"`; r2 (như
+  local) vẫn bake `data-dry`/`data-dry-kind`/`data-dry-value` trực tiếp vào
+  HTML. Với local đây là vô hại (dev-only, không public); với r2 **production
+  thì có** — public HTML lộ cấu trúc field (không lộ secret, nhưng lộ
+  structure) cho MỌI khách ẩn danh, không chỉ riêng admin đã login. Cần làm
+  giống github: opaque id + route `auth/dry-map` phục vụ map thật sau khi
+  verify session, y hệt cách `github/dry-map` đã làm trong `generic.ts`.
+- Trang setup lần đầu qua `/login` (đã có), nhưng chưa có UI đổi mật khẩu/
+  quản lý nhiều user trong app — chỉ có script CLI.
+- Chưa browser-click-test tay giao diện admin React cho r2 mode (chỉ verify
+  qua curl + unit test).

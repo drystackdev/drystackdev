@@ -1,4 +1,5 @@
 import type { Config } from "@drystack/core";
+import { getCloudflareEnv } from "./cloudflare-env";
 
 // `createReader` (node:fs) needs a real filesystem with the repo checked
 // out. That's true in local dev, and also true during `astro build`'s
@@ -26,6 +27,13 @@ async function hasBuildTimeFilesystem(): Promise<boolean> {
 }
 
 export async function createConfiguredReader(config: Config<any, any>) {
+  // Whenever a real filesystem is available - local dev, and the Cloudflare
+  // build's Node prerender env (astro.config.mjs sets
+  // `prerenderEnvironment: 'node'`) - every storage kind prefers it over a
+  // network/R2 round trip: it's the same content, faster, and (for github)
+  // avoids the API rate limit. Only a genuinely live Worker request with no
+  // filesystem - a `prerender: false` route running post-deploy - falls
+  // through to the kind-specific remote reader below.
   if (
     config.storage.kind === "local" ||
     config.storage.kind === "demo" ||
@@ -33,6 +41,16 @@ export async function createConfiguredReader(config: Config<any, any>) {
   ) {
     const { createReader } = await import("@drystack/core/reader");
     return createReader(process.cwd(), config);
+  }
+  if (config.storage.kind === "r2") {
+    const { createR2Reader } = await import("@drystack/core/reader/r2");
+    const bucket = (await getCloudflareEnv())?.DRYSTACK_R2;
+    if (!bucket) {
+      throw new Error(
+        "createConfiguredReader(): storage.kind 'r2' has no DRYSTACK_R2 binding at request time - check wrangler.jsonc's r2_buckets entry",
+      );
+    }
+    return createR2Reader(config, bucket);
   }
   if (config.storage.kind === "github") {
     const { createGitHubReader } = await import("@drystack/core/reader/github");
@@ -49,17 +67,6 @@ export async function createConfiguredReader(config: Config<any, any>) {
       // against the authenticated 5000/hour limit instead.
       token: import.meta.env.DRYSTACK_GITHUB_TOKEN,
     });
-  }
-  if (config.storage.kind === "r2") {
-    // Phase 1 of the r2/auth plan (plan/auth.md): the CMS reads/writes R2 but
-    // public pages still read repo content from the build-time filesystem
-    // (the hasBuildTimeFilesystem() branch above covers dev and the CF
-    // build's Node prerender env). Reaching here means an r2 deployment
-    // tried to read content at request time in the Worker - that needs the
-    // phase-2 R2-backed reader, which doesn't exist yet.
-    throw new Error(
-      "createConfiguredReader(): kind 'r2' mới chỉ đọc content từ repo lúc build (phase 1) - reader chạy trong Worker từ R2 là việc của phase 2",
-    );
   }
   throw new Error(
     `createConfiguredReader(): MVP 1 chưa hỗ trợ storage.kind "${(config.storage as any).kind}"`,

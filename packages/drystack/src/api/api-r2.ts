@@ -1,5 +1,4 @@
 import * as s from 'superstruct';
-import * as cookie from 'cookie';
 import { Config } from '../config';
 import { blobSha, updateTreeWithChanges } from '../app/trees';
 import { base64UrlDecode } from '#base64';
@@ -9,11 +8,13 @@ import {
   AUTH_DIRECTORY,
   AUTH_NATIVE_PREFIX,
   NativeAuthUserFile,
+  NativeSession,
   clearSessionCookieHeaders,
   createUserFile,
   decryptProfile,
   getSessionFromCookieHeader,
   normalizeEmail,
+  revokedKey,
   sessionCookieHeaders,
   signSession,
   userFileKey,
@@ -42,6 +43,11 @@ export type R2BucketLike = {
   get(
     key: string
   ): Promise<(R2ObjectMetaLike & { arrayBuffer(): Promise<ArrayBuffer> }) | null>;
+  // Metadata-only existence check - used by the runtime reader (reader/r2.ts)
+  // for `fileExists`, which is called per collection entry when listing; a
+  // `get()` there would transfer every entry's full body just to answer a
+  // boolean.
+  head(key: string): Promise<R2ObjectMetaLike | null>;
   put(
     key: string,
     value: Uint8Array | ArrayBuffer,
@@ -61,7 +67,10 @@ export type R2BucketLike = {
 
 const SHA_METADATA_KEY = 'drystack-blob-sha';
 
-async function listAll(bucket: R2BucketLike, prefix?: string) {
+// Exported for reader/r2.ts's `readdir`, which needs the same "list every
+// object under a prefix" pagination this module already does for the tree
+// route - no reason to duplicate the cursor loop.
+export async function listAll(bucket: R2BucketLike, prefix?: string) {
   const objects: R2ObjectMetaLike[] = [];
   let cursor: string | undefined;
   do {
@@ -141,6 +150,34 @@ const base64Schema = s.coerce(s.instance(Uint8Array), s.string(), val =>
   base64UrlDecode(val)
 );
 
+// A revoked session is one whose jti has a `auth/revoked/<jti>` object -
+// written by logout (see authRoutes below). Checked on every request that
+// has bucket access, on top of the stateless signature+expiry check
+// `verifySession` already does - a stolen-but-unexpired token stops working
+// the moment its owner logs out, instead of surviving up to 7 days.
+async function isRevoked(bucket: R2BucketLike, jti: string): Promise<boolean> {
+  return !!(await bucket.get(revokedKey(jti)));
+}
+
+// Exported (not just used internally) so page-gating code with its own
+// bucket/request access - e.g. @drystack/astro's native-session.ts, which
+// gates the /drystack page itself - checks the exact same blacklist instead
+// of only the stateless signature+expiry check. A revoked cookie must fail
+// everywhere, not just at the API layer.
+export async function verifiedSession(
+  req: DrystackRequest,
+  bucket: R2BucketLike,
+  secret: string
+): Promise<NativeSession | null> {
+  const session = await getSessionFromCookieHeader(
+    req.headers.get('cookie'),
+    secret
+  );
+  if (!session) return null;
+  if (await isRevoked(bucket, session.jti)) return null;
+  return session;
+}
+
 export function r2ModeApiHandler(
   config: Config,
   bucket: R2BucketLike | undefined,
@@ -162,8 +199,7 @@ export function r2ModeApiHandler(
         body: "storage: { kind: 'r2' } requires DRYSTACK_SECRET to be set - it signs login sessions and encrypts user profiles",
       };
     }
-    const session = () =>
-      getSessionFromCookieHeader(req.headers.get('cookie'), secret);
+    const session = () => verifiedSession(req, bucket, secret);
 
     const joined = params.join('/');
     if (params[0] === 'auth') {
@@ -304,7 +340,7 @@ async function authRoutes(
   params: string[],
   bucket: R2BucketLike,
   secret: string,
-  session: () => Promise<{ email: string } | null>
+  session: () => Promise<NativeSession | null>
 ): Promise<DrystackResponse> {
   const route = params.join('/');
 
@@ -331,6 +367,22 @@ async function authRoutes(
   }
 
   if (req.method === 'POST' && route === 'logout') {
+    // Revoke the *specific* token being logged out of, not "whatever
+    // `session()` resolves to" - a session already revoked (e.g. the second
+    // tab of a two-tab logout) still parses fine statelessly, and
+    // re-writing the same revoked key is a harmless no-op. getSessionFrom-
+    // CookieHeader is the stateless check (no blacklist lookup) precisely so
+    // this works even mid-way through an already-revoked token's lifetime.
+    const raw = await getSessionFromCookieHeader(
+      req.headers.get('cookie'),
+      secret
+    );
+    if (raw) {
+      await bucket.put(
+        revokedKey(raw.jti),
+        new TextEncoder().encode(String(raw.exp))
+      );
+    }
     return {
       status: 200,
       headers: [
@@ -399,15 +451,9 @@ async function authRoutes(
 // to consult before delegating to the AI handler.
 export async function requireNativeSession(
   req: DrystackRequest,
+  bucket: R2BucketLike | undefined,
   secret: string | undefined
 ): Promise<boolean> {
-  if (!secret) return false;
-  return !!(await getSessionFromCookieHeader(req.headers.get('cookie'), secret));
-}
-
-// Small helper for cookie parsing consumers that only need the raw token
-// (e.g. the /drystack page gate in @drystack/astro).
-export function readSessionCookie(cookieHeader: string | null): string | null {
-  if (!cookieHeader) return null;
-  return cookie.parse(cookieHeader)['drystack-session'] ?? null;
+  if (!bucket || !secret) return false;
+  return !!(await verifiedSession(req, bucket, secret));
 }

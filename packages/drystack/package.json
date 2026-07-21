@@ -180,6 +180,14 @@
       "drystack-src": "./src/reader/github.ts",
       "default": "./dist/reader/github.js"
     },
+    "./reader/r2": {
+      "drystack-src": "./src/reader/r2.ts",
+      "default": "./dist/reader/r2.js"
+    },
+    "./api/api-r2": {
+      "drystack-src": "./src/api/api-r2.ts",
+      "default": "./dist/api/api-r2.js"
+    },
     "./content-components": {
       "drystack-src": "./src/content-components.ts",
       "default": "./dist/content-components.js"

@@ -49,6 +49,15 @@ class MemoryBucket implements R2BucketLike {
         ) as ArrayBuffer,
     };
   }
+  async head(key: string) {
+    const entry = this.store.get(key);
+    if (!entry) return null;
+    return {
+      key,
+      size: entry.contents.byteLength,
+      customMetadata: entry.customMetadata,
+    };
+  }
   async put(
     key: string,
     value: Uint8Array | ArrayBuffer,
@@ -105,6 +114,10 @@ async function sessionCookie(email = 'admin@example.com') {
 async function seedUser(bucket: MemoryBucket, email = 'admin@example.com') {
   const file = await createUserFile('hunter2-hunter2', { name: 'Admin' }, SECRET);
   await bucket.put(userFileKey(email), encoder.encode(JSON.stringify(file)));
+}
+
+async function listAllKeys(bucket: MemoryBucket) {
+  return [...bucket.store.keys()];
 }
 
 test('missing bucket or secret is a loud 500', async () => {
@@ -327,10 +340,75 @@ test('auth flow: status → setup → login → me → logout', async () => {
   expect(res.status).toBe(401);
 
   // logout expires both cookies
-  res = await handler(request('POST', 'auth/logout'), ['auth', 'logout']);
+  res = await handler(request('POST', 'auth/logout', { cookie }), [
+    'auth',
+    'logout',
+  ]);
   const cleared = (res.headers as [string, string][])
     .filter(([k]) => k === 'Set-Cookie')
     .map(([, v]) => v);
   expect(cleared.some(v => v.startsWith('drystack-session=;'))).toBe(true);
   expect(cleared.some(v => v.startsWith('drystack-session-hint=;'))).toBe(true);
+});
+
+test('logout revokes the jti - the same still-unexpired token stops working everywhere', async () => {
+  const bucket = new MemoryBucket();
+  await seedUser(bucket);
+  const handler = r2ModeApiHandler(testConfig, bucket, SECRET);
+  const cookie = await sessionCookie();
+
+  // works before logout
+  expect(
+    (await handler(request('GET', 'auth/me', { cookie }), ['auth', 'me']))
+      .status
+  ).toBe(200);
+
+  await handler(request('POST', 'auth/logout', { cookie }), [
+    'auth',
+    'logout',
+  ]);
+  // the revoked object exists under auth/revoked/<jti>
+  expect((await listAllKeys(bucket)).some(k => k.startsWith('auth/revoked/'))).toBe(
+    true
+  );
+
+  // the exact same (still cryptographically valid, unexpired) cookie is now
+  // rejected everywhere a session is required
+  expect(
+    (await handler(request('GET', 'auth/me', { cookie }), ['auth', 'me']))
+      .status
+  ).toBe(401);
+  const body = { additions: [], deletions: [] };
+  expect(
+    (
+      await handler(request('POST', 'update', { body, cookie }), ['update'])
+    ).status
+  ).toBe(401);
+
+  // status still correctly reports "not authenticated" for a revoked cookie
+  const status = await handler(
+    request('GET', 'auth/status', { cookie }),
+    ['auth', 'status']
+  );
+  expect(bodyJson(status).authenticated).toBe(false);
+
+  // logging back in mints a fresh token that works again
+  const relogin = await handler(
+    request('POST', 'auth/login', {
+      body: { email: 'admin@example.com', password: 'hunter2-hunter2' },
+    }),
+    ['auth', 'login']
+  );
+  const freshCookie = (relogin.headers as [string, string][])
+    .filter(([k]) => k === 'Set-Cookie')
+    .map(([, v]) => v.split(';')[0])
+    .join('; ');
+  expect(
+    (
+      await handler(request('GET', 'auth/me', { cookie: freshCookie }), [
+        'auth',
+        'me',
+      ])
+    ).status
+  ).toBe(200);
 });

@@ -188,7 +188,7 @@ export function makeGenericAPIRouteHandler(
     return async (req: DrystackRequest): Promise<DrystackResponse> => {
       const params = getParams(req);
       if (params[0] === "ai" && aiHandler) {
-        if (!(await requireNativeSession(req, _config2.secret))) {
+        if (!(await requireNativeSession(req, _config.r2Bucket, _config2.secret))) {
           return {
             status: 401,
             headers: { "content-type": "application/json" },

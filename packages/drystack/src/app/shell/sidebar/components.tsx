@@ -19,13 +19,14 @@ import { ColorScheme } from '@keystar/ui/types';
 import { Text } from '@keystar/ui/typography';
 
 import { useRouter } from '../../router';
-import { isGitHubConfig } from '../../utils';
+import { isGitHubConfig, isR2Config } from '../../utils';
 
 import { useConfig } from '../context';
 import { useViewer } from '../viewer-data';
 import { useThemeContext } from '../theme';
 import { clearObjectCache } from '../../object-cache';
 import { clearDrafts } from '../../persistence';
+import { nativeLogout, useNativeUser } from '../../native-user';
 
 type MenuItem = {
   icon: ReactElement;
@@ -123,6 +124,10 @@ export function UserMenu(user: {
       {
         key: 'logout',
         label: stringFormatter.format('logOutAction'),
+        // github's logout is a plain GET the browser can navigate to
+        // directly. r2's isn't - it revokes the session's jti (POST-only,
+        // see api-r2.ts) - so that one has no `href` and instead runs
+        // through `nativeLogout` in `onAction` below.
         href:
           config.storage.kind === 'github'
             ? `/api${basePath}/github/logout`
@@ -144,8 +149,11 @@ export function UserMenu(user: {
         <Menu
           items={menuItems}
           minWidth="scale.2400"
-          onAction={async () => {
+          onAction={async key => {
             await Promise.all([clearObjectCache(), clearDrafts()]);
+            if (key === 'logout' && isR2Config(config)) {
+              await nativeLogout(basePath);
+            }
           }}
         >
           {item => (
@@ -206,12 +214,24 @@ const UserDetailsButton = forwardRef(function UserDetailsButton(
 function useUserData(): UserData | undefined {
   const config = useConfig();
   const user = useViewer();
+  const nativeUser = useNativeUser();
 
   if (isGitHubConfig(config) && user) {
     return {
       avatarUrl: user.avatarUrl,
       login: user.login,
       name: user.name ?? user.login,
+    };
+  }
+
+  if (isR2Config(config) && nativeUser) {
+    const profileName =
+      typeof (nativeUser.profile as { name?: unknown })?.name === 'string'
+        ? ((nativeUser.profile as { name: string }).name || undefined)
+        : undefined;
+    return {
+      login: nativeUser.email,
+      name: profileName ?? nativeUser.email,
     };
   }
 

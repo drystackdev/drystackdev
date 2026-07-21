@@ -1,6 +1,7 @@
 import * as cookie from 'cookie';
 import { base64UrlDecode, base64UrlEncode } from '#base64';
 import { webcrypto } from '#webcrypto';
+import { bytesToHex } from '../hex';
 import { encryptValue, decryptValue } from './encryption';
 
 // Native email/password auth for `storage: { kind: 'r2' }` deployments (see
@@ -21,6 +22,19 @@ const encoder = new TextEncoder();
 
 export const AUTH_DIRECTORY = 'auth';
 export const AUTH_NATIVE_PREFIX = 'auth/native/';
+// Revoked session ids (jti) live here, one empty-ish object per revoked
+// token, keyed by jti. A logout writes the current token's jti; every session
+// verification that has bucket access consults it, so a stolen-but-not-yet-
+// expired token stops working the moment its owner logs out. The object body
+// is the token's `exp` (unix seconds) so a future sweep/cron can drop entries
+// once the underlying token would have expired anyway.
+export const AUTH_REVOKED_PREFIX = 'auth/revoked/';
+
+export function revokedKey(jti: string) {
+  return `${AUTH_REVOKED_PREFIX}${jti}`;
+}
+
+export type NativeSession = { email: string; jti: string; exp: number };
 
 // The session JWT. HttpOnly so page scripts can never read it - the server
 // side (API routes and the /drystack page gate) is the only consumer.
@@ -148,10 +162,12 @@ export async function decryptProfile(
 }
 
 // Minimal HS256 JWT - header/payload/signature, base64url, HMAC-SHA-256 with
-// DRYSTACK_SECRET. No library: the token only ever carries {sub, iat, exp}
-// and is both minted and verified by this module, so the general-JWT surface
-// (alg negotiation etc.) is deliberately not implemented - `alg` is checked
-// to be exactly HS256 and anything else is rejected.
+// DRYSTACK_SECRET. No library: the token only ever carries {sub, jti, iat,
+// exp} and is both minted and verified by this module, so the general-JWT
+// surface (alg negotiation etc.) is deliberately not implemented - `alg` is
+// checked to be exactly HS256 and anything else is rejected. `jti` is a
+// per-token random id so a specific token can be revoked (see
+// AUTH_REVOKED_PREFIX) rather than only expiring.
 async function hmacKey(secret: string) {
   return webcrypto.subtle.importKey(
     'raw',
@@ -168,12 +184,18 @@ export async function signSession(
   maxAgeSeconds: number = NATIVE_SESSION_MAX_AGE_SECONDS
 ): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
+  const jti = bytesToHex(webcrypto.getRandomValues(new Uint8Array(16)));
   const header = base64UrlEncode(
     encoder.encode(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
   );
   const payload = base64UrlEncode(
     encoder.encode(
-      JSON.stringify({ sub: session.email, iat: now, exp: now + maxAgeSeconds })
+      JSON.stringify({
+        sub: session.email,
+        jti,
+        iat: now,
+        exp: now + maxAgeSeconds,
+      })
     )
   );
   const signature = await webcrypto.subtle.sign(
@@ -184,10 +206,13 @@ export async function signSession(
   return `${header}.${payload}.${base64UrlEncode(new Uint8Array(signature))}`;
 }
 
+// Pure crypto/expiry check - no revocation. Callers with bucket access layer
+// the blacklist on top (see api-r2.ts's `session()` and native-session.ts);
+// callers without it (unit tests) still get signature + expiry enforcement.
 export async function verifySession(
   token: string,
   secret: string
-): Promise<{ email: string } | null> {
+): Promise<NativeSession | null> {
   const parts = token.split('.');
   if (parts.length !== 3) return null;
   const [header, payload, signature] = parts;
@@ -208,19 +233,20 @@ export async function verifySession(
   );
   if (!timingSafeEqual(new Uint8Array(expected), signatureBytes)) return null;
   if (typeof payloadObj?.sub !== 'string') return null;
+  if (typeof payloadObj?.jti !== 'string') return null;
   if (
     typeof payloadObj?.exp !== 'number' ||
     payloadObj.exp <= Math.floor(Date.now() / 1000)
   ) {
     return null;
   }
-  return { email: payloadObj.sub };
+  return { email: payloadObj.sub, jti: payloadObj.jti, exp: payloadObj.exp };
 }
 
 export async function getSessionFromCookieHeader(
   cookieHeader: string | null,
   secret: string
-): Promise<{ email: string } | null> {
+): Promise<NativeSession | null> {
   if (!cookieHeader) return null;
   const token = cookie.parse(cookieHeader)[NATIVE_SESSION_COOKIE];
   if (!token) return null;

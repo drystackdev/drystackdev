@@ -32,7 +32,7 @@ import { usePrevious } from "@keystar/ui/utils";
 import l10nMessages from "../../l10n";
 import { useRouter } from "../../router";
 import { ItemOrGroup, useNavItems } from "../../useNavItems";
-import { isLocalShapedConfig } from "../../utils";
+import { isLocalShapedConfig, isR2Config } from "../../utils";
 
 import { useBrand } from "../common";
 import { SIDE_PANEL_ID } from "../constants";
@@ -90,7 +90,10 @@ export function SidebarPanel() {
 
 function SidebarHeader() {
   let config = useConfig();
-  let isLocal = isLocalShapedConfig(config);
+  // r2 has a real signed-in identity (email + logout) like github, so it
+  // gets the footer treatment below, not this header shortcut - only local
+  // and demo (no identity at all) move ThemeMenu up here.
+  let isLocal = isLocalShapedConfig(config) && !isR2Config(config);
   let { brandMark } = useBrand();
 
   return (
@@ -122,11 +125,12 @@ function SidebarHeader() {
   );
 }
 
-// in local mode there's no user actions, so we hide the footer and
-// move the theme menu to the header
+// in local/demo mode there's no user identity, so we hide the footer and
+// move the theme menu to the header. r2 has a real signed-in user (like
+// github), so it keeps the footer for UserActions (email + logout).
 function SidebarFooter() {
   let config = useConfig();
-  if (isLocalShapedConfig(config)) {
+  if (isLocalShapedConfig(config) && !isR2Config(config)) {
     return null;
   }
   return (

@@ -3,7 +3,6 @@ import { defineConfig } from "astro/config";
 import cloudflare from "@astrojs/cloudflare";
 import react from "@astrojs/react";
 import drystack from "@drystack/astro";
-import sitemap from "@astrojs/sitemap";
 
 // `astro dev` runs @drystack/core and @drystack/astro straight from their
 // TypeScript source (via the "drystack-src" export condition in their
@@ -17,21 +16,26 @@ const isDev = process.argv.includes("dev");
 // https://astro.build/config
 export default defineConfig({
   site: "https://quangseo.drystack.dev/",
-  integrations: [
-    react(),
-    drystack(),
-    sitemap({
-      filter: (page) =>
-        !page.includes("/drystack") && !page.includes("/api/drystack"),
-    }),
-  ],
-  // The drystack admin (/drystack) and its API (/api/drystack) are on-demand
-  // routes (prerender: false) - they need a server adapter even though the
-  // rest of the site stays statically prerendered.
+  integrations: [react(), drystack()],
+  // Every route is server-rendered on demand (plan/auth.md phase 2) - none
+  // of it is prerendered anymore, `/drystack` and `/api/drystack` included.
+  // This is what makes a CMS save (local, github, or r2) show up on the live
+  // site on the very next request, with no rebuild/redeploy in between.
+  // `src/pages/sitemap.xml.ts` replaces the old @astrojs/sitemap integration
+  // for the same reason - that integration only ever sees pages Astro
+  // actually prerendered to static HTML, so under full SSR it would silently
+  // stop listing every blog/service/knowledge-base page.
   adapter: cloudflare({
     prerenderEnvironment: "node",
+    // No Cloudflare Images binding is configured, so runtime image requests
+    // (any `<Image>`/`getImage()` call on a now-SSR page, e.g. a post's CMS
+    // cover image) use the adapter's no-op passthrough - the original file,
+    // unresized. `compile` still fully optimizes any build-time-known image
+    // (a local `import ... from "../assets/x.png"`) into the deployed
+    // output, exactly like before.
+    imageService: { build: "compile", runtime: "passthrough" },
   }),
-  output: "static",
+  output: "server",
   server: {
     port: 4567,
     host: "0.0.0.0",
