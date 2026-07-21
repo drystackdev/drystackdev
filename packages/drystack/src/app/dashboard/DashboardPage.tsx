@@ -13,7 +13,7 @@ import { useViewer } from '../shell/viewer-data';
 
 import { BranchSection } from './BranchSection';
 import { DashboardCards } from './DashboardCards';
-import { isLocalConfig } from '../utils';
+import { isGitHubConfig } from '../utils';
 
 export function DashboardPage(props: { config: Config; basePath: string }) {
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
@@ -34,7 +34,7 @@ export function DashboardPage(props: { config: Config; basePath: string }) {
         <Flex direction="column" gap="xxlarge">
           {user && <UserInfo user={user} />}
 
-          {!isLocalConfig(props.config) && <BranchSection />}
+          {isGitHubConfig(props.config) && <BranchSection />}
           <DashboardCards />
         </Flex>
       </PageBody>

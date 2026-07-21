@@ -163,8 +163,9 @@ async function update(
   // before the fetch is ever issued - it never reaches here through the
   // admin UI. But this route can still be reachable directly (a raw HTTP
   // request, or `astro dev` which always keeps the on-demand route live
-  // regardless of storage.demo - see the astro integration's isDemoBuild
-  // comment), so the write itself must refuse here too, not just upstream.
+  // regardless of storage.kind === 'demo' - see the astro integration's
+  // isDemoBuild comment), so the write itself must refuse here too, not just
+  // upstream.
   if (isDemoConfig(config)) {
     return { status: 403, body: 'Writes are disabled in demo mode' };
   }

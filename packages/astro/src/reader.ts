@@ -26,7 +26,11 @@ async function hasBuildTimeFilesystem(): Promise<boolean> {
 }
 
 export async function createConfiguredReader(config: Config<any, any>) {
-  if (config.storage.kind === "local" || (await hasBuildTimeFilesystem())) {
+  if (
+    config.storage.kind === "local" ||
+    config.storage.kind === "demo" ||
+    (await hasBuildTimeFilesystem())
+  ) {
     const { createReader } = await import("@drystack/core/reader");
     return createReader(process.cwd(), config);
   }

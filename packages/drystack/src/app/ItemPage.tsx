@@ -302,7 +302,7 @@ function ItemPageInner(
   });
 
   const viewHref =
-    config.storage.kind !== "local" && repoInfo
+    config.storage.kind === "github" && repoInfo
       ? `${getRepoUrl(repoInfo)}${
           formatInfo.dataLocation === "index"
             ? `/tree/${currentBranch}/${

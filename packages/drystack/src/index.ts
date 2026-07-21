@@ -8,6 +8,7 @@ export {
 export type {
   Collection,
   Config,
+  DemoConfig,
   EntryLayout,
   Format,
   GitHubConfig,

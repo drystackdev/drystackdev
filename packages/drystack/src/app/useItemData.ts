@@ -25,7 +25,7 @@ import { LOADING, useData } from "./useData";
 import { FormatInfo, getEntryDataFilepath, MaybePromise } from "./utils";
 import { toFormattedFormDataError } from "../form/error-formatting";
 import { parseRepoConfig, serializeRepoConfig } from "./repo-config";
-import { isDemoConfig } from "./storage-mode";
+import { isDemoConfig, isLocalOrDemoConfig } from "./storage-mode";
 import { getDemoBlob } from "./demo-source";
 import {
   getBlobFromPersistedCache,
@@ -470,8 +470,8 @@ export function fetchBlob(
   if (blobCache.has(oid)) return blobCache.get(oid)!;
 
   const promise = (async () => {
-    const isLocal = config.storage.kind === "local";
-    if (!isLocal) {
+    const isLocalOrDemo = isLocalOrDemoConfig(config);
+    if (!isLocalOrDemo) {
       const stored = await getBlobFromPersistedCache(oid);
       if (stored) {
         blobCache.set(oid, stored);
@@ -492,7 +492,7 @@ export function fetchBlob(
           getDemoBlob(filepath).then(
             (array) => new Response(new Uint8Array(array)),
           )
-        : isLocal
+        : isLocalOrDemo
           ? fetch(`/api${basePath}/blob/${oid}/${filepath}`, {
               headers: { "no-cors": "1" },
             })
@@ -511,7 +511,7 @@ export function fetchBlob(
       .then((x) => {
         const array = new Uint8Array(x);
         blobCache.set(oid, array);
-        if (config.storage.kind !== "local") {
+        if (!isLocalOrDemo) {
           setBlobToPersistedCache(oid, array);
         }
         return array;

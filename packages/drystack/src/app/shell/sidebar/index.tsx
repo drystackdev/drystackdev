@@ -32,7 +32,7 @@ import { usePrevious } from "@keystar/ui/utils";
 import l10nMessages from "../../l10n";
 import { useRouter } from "../../router";
 import { ItemOrGroup, useNavItems } from "../../useNavItems";
-import { isLocalConfig } from "../../utils";
+import { isLocalOrDemoConfig } from "../../utils";
 
 import { useBrand } from "../common";
 import { SIDE_PANEL_ID } from "../constants";
@@ -90,7 +90,7 @@ export function SidebarPanel() {
 
 function SidebarHeader() {
   let config = useConfig();
-  let isLocal = isLocalConfig(config);
+  let isLocal = isLocalOrDemoConfig(config);
   let { brandMark } = useBrand();
 
   return (
@@ -126,7 +126,7 @@ function SidebarHeader() {
 // move the theme menu to the header
 function SidebarFooter() {
   let config = useConfig();
-  if (isLocalConfig(config)) {
+  if (isLocalOrDemoConfig(config)) {
     return null;
   }
   return (
@@ -147,7 +147,7 @@ function SidebarFooter() {
 // below regardless of how long the brand label gets
 function SidebarGitActions() {
   let config = useConfig();
-  if (isLocalConfig(config)) {
+  if (isLocalOrDemoConfig(config)) {
     return null;
   }
   return (

@@ -54,8 +54,10 @@ const resolvedVirtualBuildVersionModuleId = "\0" + virtualBuildVersionModuleId;
 
 // Runs the drystack API handler in the Node dev process (not workerd), so
 // `storage: 'local'` filesystem writes work under `astro dev`. Loaded lazily
-// via Vite's `ssrLoadModule` so it executes in Node with real `fs`. Only local
-// storage is handled here; other modes are passed through to the normal route.
+// via Vite's `ssrLoadModule` so it executes in Node with real `fs`. Only
+// local and demo storage are handled here (demo shares local's read/write
+// routes, minus the write itself - see api-node.ts's isDemoConfig guard);
+// GitHub mode is passed through to the normal route.
 async function handleLocalApiRequest(
   server: ViteDevServer,
   basePath: string,
@@ -75,7 +77,7 @@ async function handleLocalApiRequest(
     env.runner.import("virtual:drystack-config"),
   ]);
   const config = configMod.default;
-  if (config?.storage?.kind !== "local") {
+  if (config?.storage?.kind !== "local" && config?.storage?.kind !== "demo") {
     // Let the workerd-run route handle GitHub mode.
     return next();
   }
@@ -268,7 +270,7 @@ async function isDemoBuild(root: URL): Promise<boolean> {
     try {
       const mod = await import(pathToFileURL(full).href);
       const storage = mod.default?.storage;
-      return storage?.kind === "local" && storage?.demo === true;
+      return storage?.kind === "demo";
     } catch (err) {
       if (process.env.PUBLIC_DEMO === "true") {
         throw new Error(
@@ -540,8 +542,8 @@ import "@drystack/core/ui";
         );
 
         // Only attempted for `astro build` (see isDemoBuild) - dev always
-        // keeps the on-demand route below, regardless of storage.demo, so
-        // dev behavior never changes.
+        // keeps the on-demand route below, regardless of storage.kind ===
+        // 'demo', so dev behavior never changes.
         demoStaticBuild =
           command === "build" && (await isDemoBuild(config.root));
 

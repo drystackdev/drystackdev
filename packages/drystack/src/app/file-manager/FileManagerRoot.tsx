@@ -27,7 +27,7 @@ import { useRouter } from "../router";
 import { fetchBlob } from "../useItemData";
 import { getTreeNodeAtPath, treeSha } from "../trees";
 import { getCollectionItemPath, getSingletonPath } from "../path-utils";
-import { getEntriesInCollectionWithTreeKey } from "../utils";
+import { getEntriesInCollectionWithTreeKey, isLocalOrDemoConfig } from "../utils";
 import {
   MediaLibraryLocalScope,
   MediaLibraryPick,
@@ -224,7 +224,7 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
     // urql's normalized cache, exactly like useUpsertItem's github save path,
     // so calling setTreeSha here would both be wrong and throw - leaving e.g.
     // the New Folder dialog open because the throw skips its close call.
-    if (mode.kind === "page" && result && config.storage.kind === "local") {
+    if (mode.kind === "page" && result && isLocalOrDemoConfig(config)) {
       setTreeSha(await treeSha(result.tree));
     }
   }

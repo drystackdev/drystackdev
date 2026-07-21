@@ -135,32 +135,34 @@ export type GitHubConfig<
 
 type LocalStorageConfig = {
   kind: "local";
+};
+
+// Read-only public demo. Its own `storage.kind` (not a flag on local
+// storage): still shares local's entire shape otherwise (one tree, no
+// branches, no OAuth), so every call site that wants "local-shaped" behavior
+// for both real local and demo uses `isLocalOrDemoConfig`/`LocalOrDemoConfig`
+// (see app/storage-mode.ts) instead of hand-rolling an `||`. Only the handful
+// of places that need demo-specific behavior branch on `isDemoConfig`/`kind
+// === 'demo'` directly.
+//
+// What distinguishes it from plain local:
+// - reads come from a prebuilt `/__data.zip` instead of `/api/<base>/tree`
+//   and `/api/<base>/blob/...` (see app/demo-source.ts)
+// - every write path no-ops with a toast (see app/demo-guard.ts)
+// - AI calls go to `storage.ai.url` on another origin instead of
+//   `/api/<base>/ai/*`, since a demo build is fully static and has no
+//   `/api` routes at all
+type DemoStorageConfig = {
+  kind: "demo";
   /**
-   * Read-only public demo. Deliberately a flag *on* local storage rather than
-   * its own `storage.kind`: demo shares local's entire shape (one tree, no
-   * branches, no OAuth), so every existing `isLocalConfig`/`kind === 'local'`
-   * branch stays correct for it. Only the handful of places listed below rewire
-   * themselves, instead of ~86 call sites having to learn a third kind.
-   *
-   * What the flag changes:
-   * - reads come from a prebuilt `/__data.zip` instead of `/api/<base>/tree`
-   *   and `/api/<base>/blob/...` (see app/demo-source.ts)
-   * - every write path no-ops with a toast (see app/demo-guard.ts)
-   * - AI calls go to `storage.ai.url` on another origin instead of
-   *   `/api/<base>/ai/*`, since a demo build is fully static and has no
-   *   `/api` routes at all
-   */
-  demo?: boolean;
-  /**
-   * Only meaningful alongside `demo: true` - ignored otherwise. Points Magic
-   * write/rewrite at a small proxy the site owner runs on another origin,
-   * instead of this site's own (nonexistent, in a static demo build)
-   * `/api/<base>/ai/*` routes. Deliberately separate from the top-level `ai`
-   * config above: that one drives the real, authenticated github/local
-   * generation path (reading DRY_AI_KEY server-side) and is not consulted at
-   * all in demo mode - this is a different, unauthenticated endpoint with a
-   * different trust model (public internet, no admin login gating it), so
-   * giving it its own key keeps the two from being mixed up.
+   * Points Magic write/rewrite at a small proxy the site owner runs on
+   * another origin, instead of this site's own (nonexistent, in a static
+   * demo build) `/api/<base>/ai/*` routes. Deliberately separate from the
+   * top-level `ai` config above: that one drives the real, authenticated
+   * github/local generation path (reading DRY_AI_KEY server-side) and is not
+   * consulted at all in demo mode - this is a different, unauthenticated
+   * endpoint with a different trust model (public internet, no admin login
+   * gating it), so giving it its own key keeps the two from being mixed up.
    */
   ai?: {
     /**
@@ -199,6 +201,41 @@ export type LocalConfig<
   singletons?: Singletons;
 } & CommonConfig<Collections, Singletons>;
 
+export type DemoConfig<
+  Collections extends {
+    [key: string]: Collection<Record<string, ComponentSchema>, string>;
+  } = {
+    [key: string]: Collection<Record<string, ComponentSchema>, string>;
+  },
+  Singletons extends {
+    [key: string]: Singleton<Record<string, ComponentSchema>>;
+  } = {
+    [key: string]: Singleton<Record<string, ComponentSchema>>;
+  },
+> = {
+  storage: DemoStorageConfig;
+  collections?: Collections;
+  singletons?: Singletons;
+} & CommonConfig<Collections, Singletons>;
+
+// "Local-shaped" configs - real local storage and the read-only public demo,
+// which shares local's entire shape apart from its own `kind`. Used by call
+// sites that want the pre-split `isLocalConfig` behavior (see
+// app/storage-mode.ts's `isLocalOrDemoConfig`) rather than distinguishing the
+// two.
+export type LocalOrDemoConfig<
+  Collections extends {
+    [key: string]: Collection<Record<string, ComponentSchema>, string>;
+  } = {
+    [key: string]: Collection<Record<string, ComponentSchema>, string>;
+  },
+  Singletons extends {
+    [key: string]: Singleton<Record<string, ComponentSchema>>;
+  } = {
+    [key: string]: Singleton<Record<string, ComponentSchema>>;
+  },
+> = LocalConfig<Collections, Singletons> | DemoConfig<Collections, Singletons>;
+
 export type Config<
   Collections extends {
     [key: string]: Collection<Record<string, ComponentSchema>, string>;
@@ -211,7 +248,7 @@ export type Config<
     [key: string]: Singleton<Record<string, ComponentSchema>>;
   },
 > = {
-  storage: LocalStorageConfig | GitHubStorageConfig;
+  storage: LocalStorageConfig | DemoStorageConfig | GitHubStorageConfig;
   collections?: Collections;
   singletons?: Singletons;
 } & ({} extends Collections ? {} : { collections: Collections }) &
@@ -300,8 +337,7 @@ export function config<
     ...userConfig,
     storage: isDemoBuild
       ? {
-          kind: "local",
-          demo: true,
+          kind: "demo",
           ai: {
             url: viteEnvIsDefined
               ? (import.meta as unknown as ViteMeta).env

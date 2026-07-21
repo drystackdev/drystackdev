@@ -148,7 +148,10 @@ export function makeGenericAPIRouteHandler(
     };
   };
 
-  if (_config2.config.storage.kind === "local") {
+  if (
+    _config2.config.storage.kind === "local" ||
+    _config2.config.storage.kind === "demo"
+  ) {
     const handler = localModeApiHandler(
       _config2.config,
       _config.localBaseDirectory,

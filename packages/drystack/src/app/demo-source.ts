@@ -1,7 +1,7 @@
 import { unzipSync, strFromU8 } from 'fflate';
 import { TreeEntry } from './trees';
 
-// Backs `storage: { kind: 'local', demo: true }` (see storage-mode.ts). A demo
+// Backs `storage: { kind: 'demo' }` (see storage-mode.ts). A demo
 // build is fully static - there's no `/api/*` to serve `/tree` or `/blob/...`
 // - so instead every collection/singleton data file the config touches gets
 // bundled at build time (see api/demo-build.ts + the astro integration's
@@ -36,7 +36,7 @@ async function loadDemoDataset(): Promise<DemoDataset> {
   const res = await fetch(DEMO_ZIP_PATH);
   if (!res.ok) {
     throw new Error(
-      `Could not load the demo dataset (${DEMO_ZIP_PATH}, ${res.status}). Was this site built with storage.demo: true?`
+      `Could not load the demo dataset (${DEMO_ZIP_PATH}, ${res.status}). Was this site built with storage.kind: 'demo'?`
     );
   }
   const bytes = new Uint8Array(await res.arrayBuffer());

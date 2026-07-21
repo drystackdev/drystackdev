@@ -9,7 +9,7 @@ import {
   GitHubAppShellProvider,
   LocalAppShellProvider,
 } from "../shell/data";
-import { isGitHubConfig, isLocalConfig } from "../utils";
+import { isGitHubConfig, isLocalOrDemoConfig } from "../utils";
 import { FileManagerHost } from "../file-manager/FileManagerHost";
 
 function ShellProviders({
@@ -30,7 +30,7 @@ function ShellProviders({
       </GitHubAppShellDataProvider>
     );
   }
-  if (isLocalConfig(config)) {
+  if (isLocalOrDemoConfig(config)) {
     return (
       <LocalAppShellProvider config={config}>{children}</LocalAppShellProvider>
     );

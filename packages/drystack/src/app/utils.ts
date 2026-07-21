@@ -26,7 +26,7 @@ export function getCollection(config: Config, collection: string) {
 }
 
 export function getBranchPrefix(config: Config) {
-  return config.storage.kind !== 'local'
+  return config.storage.kind === 'github'
     ? config.storage.branchPrefix
     : undefined;
 }
