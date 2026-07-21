@@ -222,6 +222,24 @@ niệm build/deploy bất đồng bộ của github mode) vẫn dùng nguyên
 trong session này. Không thêm UI trạng thái mới cho tính năng cache — cache
 là vô hình với người dùng admin (save vẫn thấy live ngay, đúng như trước).
 
+### VEI pen/edit button không còn bypass auth trong dev (2026-07-22)
+
+Bug: stage-1 eligibility check của VEI (`packages/astro/src/index.ts`, script
+inject vào mọi trang) có `import.meta.env.DEV ||` — cờ này luôn `true` khi
+chạy `astro dev`, **bất kể storage kind hay đã login hay chưa**. Với
+local/demo/github, đúng ý (dev machine tự nó đã là môi trường tin cậy); với
+`kind: "r2"` (giờ cũng chạy ở local, có auth thật) thì sai — nút edit hiện ra
+dù chưa đăng nhập.
+
+Fix: giữ nguyên stage-1 (chỉ quyết định có tải editor bundle hay không, để
+tối ưu — không đổi, vẫn tải trong mọi trường hợp dev). Thêm gate thứ 2 SAU
+khi `cfg` (config thật, load qua Vite nên `import.meta.env.DEV` được resolve
+đúng) đã sẵn sàng: nếu `cfg.storage.kind === 'r2'` mà không có cookie
+`drystack-session-hint`, bỏ qua `editor.mount()`. Verify: fetch trực tiếp
+bundle `astro:scripts/page.js`, xác nhận logic `r2SignedOut` đúng thứ tự;
+login xong cookie `drystack-session-hint=1` xuất hiện đúng lúc gate cho
+mount chạy. tsc 0 lỗi, test suite 261/0.
+
 ## Còn lại (chưa làm)
 
 - **VEI dry-map/opaque id cho r2 mode**: `astro/src/dry.ts` hiện chỉ ẩn

@@ -720,7 +720,19 @@ if (eligible) {
     import('virtual:drystack-build-version'),
     import('@drystack/astro/editor'),
   ]);
-  editor.mount(cfg, buildVersion);
+  // Stage 1's DEV-mode bypass (above) exists so a local/github/demo site
+  // never needs to log in just to iterate on content - those kinds have no
+  // real auth to check anyway (local/demo) or the dev server IS the trusted
+  // environment (github). r2 is different: it has real login even in dev
+  // (plan/auth.md), so mounting the editor off DEV alone would show the
+  // pen/edit UI to a signed-out visitor. Gate on the actual session-hint
+  // cookie here instead, now that \`cfg\` (loaded live through Vite, unlike
+  // stage 1's synchronous check) can say for certain whether this build is
+  // r2 mode.
+  const r2SignedOut = cfg.storage?.kind === 'r2' && !document.cookie.includes('drystack-session-hint=');
+  if (!r2SignedOut) {
+    editor.mount(cfg, buildVersion);
+  }
 }`,
         );
       },
