@@ -16,419 +16,606 @@ import { dry } from "../lib/dry";
 // src/pages/blog/[slug].astro, which is what produces this prop.
 type BlogCollectionHandle = ReturnType<typeof dry.collection<"blog">>;
 type BlogEntry = NonNullable<
-	Awaited<ReturnType<BlogCollectionHandle["entry"]>>
+  Awaited<ReturnType<BlogCollectionHandle["entry"]>>
 >;
 
 interface Props {
-	entry: BlogEntry;
-	related: BlogPost[];
-	basePath: string;
-	eyebrowLabel: string;
+  entry: BlogEntry;
+  related: BlogPost[];
+  basePath: string;
+  eyebrowLabel: string;
 }
 
 const { entry, related, basePath, eyebrowLabel } = Astro.props;
 
-const { brand } = await getHomepage() as any;
+const { brand } = (await getHomepage()) as any;
 const siteName = htmlToPlainText(brand.name);
 
 function formatDate(d: string) {
-	return new Date(d).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return new Date(d).toLocaleDateString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }
 
 const postUrl = new URL(`${basePath}/${entry.slug}`, Astro.site).toString();
 
 const articleSchema = {
-	"@context": "https://schema.org",
-	"@type": "BlogPosting",
-	headline: entry.title,
-	description: entry.excerpt,
-	image: new URL(entry.cover || "", Astro.site).toString(),
-	datePublished: entry.date,
-	dateModified: entry.updatedAt,
-	mainEntityOfPage: { "@type": "WebPage", "@id": postUrl },
-	author: { "@type": "Organization", name: siteName },
-	publisher: { "@type": "Organization", name: siteName },
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  headline: entry.title,
+  description: entry.excerpt,
+  image: new URL(entry.cover || "", Astro.site).toString(),
+  datePublished: entry.date,
+  dateModified: entry.updatedAt,
+  mainEntityOfPage: { "@type": "WebPage", "@id": postUrl },
+  author: { "@type": "Organization", name: siteName },
+  publisher: { "@type": "Organization", name: siteName },
 };
 
 const breadcrumbSchema = {
-	"@context": "https://schema.org",
-	"@type": "BreadcrumbList",
-	itemListElement: [
-		{ "@type": "ListItem", position: 1, name: "Trang chủ", item: new URL("/", Astro.site).toString() },
-		{ "@type": "ListItem", position: 2, name: eyebrowLabel, item: new URL(basePath, Astro.site).toString() },
-		{ "@type": "ListItem", position: 3, name: entry.title, item: postUrl },
-	],
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    {
+      "@type": "ListItem",
+      position: 1,
+      name: "Trang chủ",
+      item: new URL("/", Astro.site).toString(),
+    },
+    {
+      "@type": "ListItem",
+      position: 2,
+      name: eyebrowLabel,
+      item: new URL(basePath, Astro.site).toString(),
+    },
+    { "@type": "ListItem", position: 3, name: entry.title, item: postUrl },
+  ],
 };
 ---
 
-<Main title={`${entry.title} | ${siteName}`} description={entry.excerpt} keywords={entry.keywords} image={entry.cover || undefined} type="article">
-	<Fragment slot="head">
-		<meta property="article:published_time" content={new Date(entry.date).toISOString()} />
-		<meta property="article:modified_time" content={new Date(entry.updatedAt).toISOString()} />
-	</Fragment>
-	<JsonLd schema={[articleSchema, breadcrumbSchema]} />
-	<Header />
+<Main
+  title={`${entry.title} | ${siteName}`}
+  description={entry.excerpt}
+  keywords={entry.keywords}
+  image={entry.cover || undefined}
+  type="article"
+>
+  <Fragment slot="head">
+    <meta
+      property="article:published_time"
+      content={new Date(entry.date).toISOString()}
+    />
+    <meta
+      property="article:modified_time"
+      content={new Date(entry.updatedAt).toISOString()}
+    />
+  </Fragment>
+  <JsonLd schema={[articleSchema, breadcrumbSchema]} />
+  <Header />
 
-	<section class="post-hero section--dark" id="top">
-		<div class="bg-layer">
-			<div class="orb orb--gold" style="width:380px;height:380px;top:-10%;left:-8%;" data-parallax="0.12"></div>
-		</div>
-		<div class="container post-hero__inner">
-			<p class="eyebrow reveal">{eyebrowLabel}</p>
-			<h1 class="section-title reveal" {...entry.bind("title")}>{entry.title}</h1>
-			<div class="post-hero__meta reveal">
-				<span><Icon name="calendar" size={14} /> {formatDate(entry.date)}</span>
-				{formatDate(entry.updatedAt) !== formatDate(entry.date) && (
-					<span>Cập nhật: {formatDate(entry.updatedAt)}</span>
-				)}
-			</div>
-		</div>
-	</section>
+  <section class="post-hero section--dark" id="top">
+    <div class="bg-layer">
+      <div
+        class="orb orb--gold"
+        style="width:380px;height:380px;top:-10%;left:-8%;"
+        data-parallax="0.12"
+      >
+      </div>
+    </div>
+    <div class="container post-hero__inner">
+      <p class="eyebrow reveal">{eyebrowLabel}</p>
+      <h1 class="section-title reveal" {...entry.bind("title")}>
+        {entry.title}
+      </h1>
+      <div class="post-hero__meta reveal">
+        <span><Icon name="calendar" size={14} /> {formatDate(entry.date)}</span>
+        {
+          formatDate(entry.updatedAt) !== formatDate(entry.date) && (
+            <span>Cập nhật: {formatDate(entry.updatedAt)}</span>
+          )
+        }
+      </div>
+    </div>
+  </section>
 
-	<div class="container" >
-		<div class="post-cover reveal">
-			<Image src={entry.cover || ""} alt={entry.title} width={1200} height={675} {...entry.bind("cover")} />
-		</div>
-	</div>
+  <div class="container">
+    <div class="post-cover reveal">
+      <Image
+        src={entry.cover || ""}
+        alt={entry.title}
+        width={1200}
+        height={675}
+        {...entry.bind("cover")}
+      />
+    </div>
+  </div>
 
-	<section class="post-body section--light">
-		<div class="container post-layout">
-			<div class="post-body__inner rich-content reveal" id="post-content" set:html={entry.body} {...entry.bind("body")} />
-			<aside class="post-toc reveal reveal-right" id="post-toc-wrap" aria-label="Mục lục bài viết">
-				<p class="post-toc__title">Tóm tắt</p>
-				<nav class="post-toc__nav" id="post-toc-nav"></nav>
-			</aside>
-		</div>
-	</section>
+  <section class="post-body section--light">
+    <div class="container post-layout">
+      <div
+        class="post-body__inner rich-content reveal"
+        id="post-content"
+        set:html={entry.body}
+        {...entry.bind("body")}
+      />
+      <aside
+        class="post-toc reveal reveal-right"
+        id="post-toc-wrap"
+        aria-label="Mục lục bài viết"
+      >
+        <p class="post-toc__title">Tóm tắt</p>
+        <nav class="post-toc__nav" id="post-toc-nav"></nav>
+      </aside>
+      <div class="post-toc-backdrop" id="post-toc-backdrop"></div>
+      <button
+        type="button"
+        class="post-toc-fab"
+        id="post-toc-fab"
+        aria-label="Mở tóm tắt"
+        aria-expanded="false"
+        aria-controls="post-toc-wrap"
+      >
+        <span class="post-toc-fab__icon post-toc-fab__icon--open"
+          ><Icon name="menu" size={16} /></span
+        >
+        <span class="post-toc-fab__icon post-toc-fab__icon--close"
+          ><Icon name="x" size={16} /></span
+        >
+      </button>
+    </div>
+  </section>
 
-	<script>
-		// Xây mục lục (Tóm tắt) từ các thẻ h2/h3/h4 bên trong nội dung bài viết,
-		// dựa trên id mà serializer đã gắn sẵn lúc lưu (slug tiếng Việt + cid,
-		// xem markdoc/editor/html/serialize.ts) - không tự sinh id lúc chạy nữa.
-		// Heading thiếu id (chỉ có thể là HTML chèn tay, chưa qua editor) thì
-		// đứng ngoài mục lục thay vì nhận một id chế ra không trỏ đi đâu ổn định.
-		const content = document.getElementById("post-content");
-		const tocWrap = document.getElementById("post-toc-wrap");
-		const tocNav = document.getElementById("post-toc-nav");
-		const headings = content
-			? Array.from(
-					content.querySelectorAll<HTMLElement>("h2[id], h3[id], h4[id]"),
-				)
-			: [];
+  <script>
+    // Xây mục lục (Tóm tắt) từ các thẻ h2/h3/h4 bên trong nội dung bài viết,
+    // dựa trên id mà serializer đã gắn sẵn lúc lưu (slug tiếng Việt + cid,
+    // xem markdoc/editor/html/serialize.ts) - không tự sinh id lúc chạy nữa.
+    // Heading thiếu id (chỉ có thể là HTML chèn tay, chưa qua editor) thì
+    // đứng ngoài mục lục thay vì nhận một id chế ra không trỏ đi đâu ổn định.
+    const content = document.getElementById("post-content");
+    const tocWrap = document.getElementById("post-toc-wrap");
+    const tocNav = document.getElementById("post-toc-nav");
+    const fab = document.getElementById("post-toc-fab");
+    const backdrop = document.getElementById("post-toc-backdrop");
+    const headings = content
+      ? Array.from(
+          content.querySelectorAll<HTMLElement>("h2[id], h3[id], h4[id]"),
+        )
+      : [];
 
-		if (!content || !tocWrap || !tocNav || headings.length === 0) {
-			tocWrap?.remove();
-		} else {
-			const list = document.createElement("ul");
-			const linkByHeadingId = new Map<string, HTMLAnchorElement>();
+    if (!content || !tocWrap || !tocNav || headings.length === 0) {
+      tocWrap?.remove();
+      fab?.remove();
+      backdrop?.remove();
+    } else {
+      const list = document.createElement("ul");
+      const linkByHeadingId = new Map<string, HTMLAnchorElement>();
 
-			for (const heading of headings) {
-				const link = document.createElement("a");
-				link.href = `#${heading.id}`;
-				link.textContent = heading.textContent;
-				link.className = `toc-level-${heading.tagName.toLowerCase()}`;
+      for (const heading of headings) {
+        const link = document.createElement("a");
+        link.href = `#${heading.id}`;
+        link.textContent = heading.textContent;
+        link.className = `toc-level-${heading.tagName.toLowerCase()}`;
 
-				const item = document.createElement("li");
-				item.appendChild(link);
-				list.appendChild(item);
-				linkByHeadingId.set(heading.id, link);
-			}
+        const item = document.createElement("li");
+        item.appendChild(link);
+        list.appendChild(item);
+        linkByHeadingId.set(heading.id, link);
+      }
 
-			tocNav.appendChild(list);
+      tocNav.appendChild(list);
 
-			// Scrollspy bám cuộn liên tục: mục active là heading CUỐI CÙNG đã
-			// vượt mốc 112px từ mép trên viewport (112px = 7rem, khớp
-			// scroll-margin-top của heading và top của sidebar sticky ở CSS
-			// bên dưới). Khác với IntersectionObserver theo dải hẹp - vốn bỏ
-			// trống active khi đứng giữa hai heading - cách này luôn giữ đúng
-			// một mục sáng sau khi đã cuộn qua heading đầu tiên.
-			const TRIGGER_LINE = 112;
-			let ticking = false;
+      // Scrollspy bám cuộn liên tục: mục active là heading CUỐI CÙNG đã
+      // vượt mốc 112px từ mép trên viewport (112px = 7rem, khớp
+      // scroll-margin-top của heading và top của sidebar sticky ở CSS
+      // bên dưới). Khác với IntersectionObserver theo dải hẹp - vốn bỏ
+      // trống active khi đứng giữa hai heading - cách này luôn giữ đúng
+      // một mục sáng sau khi đã cuộn qua heading đầu tiên.
+      const TRIGGER_LINE = 112;
+      let ticking = false;
 
-			function updateActive() {
-				ticking = false;
-				let active: HTMLElement | null = null;
-				for (const heading of headings) {
-					if (heading.getBoundingClientRect().top <= TRIGGER_LINE) {
-						active = heading;
-					} else {
-						break;
-					}
-				}
-				list
-					.querySelectorAll("a.is-active")
-					.forEach((el) => el.classList.remove("is-active"));
-				if (active) linkByHeadingId.get(active.id)?.classList.add("is-active");
-			}
+      function updateActive() {
+        ticking = false;
+        let active: HTMLElement | null = null;
+        for (const heading of headings) {
+          if (heading.getBoundingClientRect().top <= TRIGGER_LINE) {
+            active = heading;
+          } else {
+            break;
+          }
+        }
+        list
+          .querySelectorAll("a.is-active")
+          .forEach((el) => el.classList.remove("is-active"));
+        if (active) linkByHeadingId.get(active.id)?.classList.add("is-active");
+      }
 
-			function onScroll() {
-				if (ticking) return;
-				ticking = true;
-				requestAnimationFrame(updateActive);
-			}
+      function onScroll() {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(updateActive);
+      }
 
-			window.addEventListener("scroll", onScroll, { passive: true });
-			window.addEventListener("resize", onScroll, { passive: true });
-			updateActive();
-		}
-	</script>
+      window.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("resize", onScroll, { passive: true });
+      updateActive();
 
-	{related.length > 0 && (
-		<section class="post-related section--light">
-			<div class="container">
-				<div class="post-related__head reveal">
-					<h2 class="post-related__title">Bài viết liên quan</h2>
-					<a href={basePath} class="btn btn-ghost post-related__all">Xem tất cả <Icon name="arrow-right" size={16} /></a>
-				</div>
-				<div class="post-related__grid" data-stagger>
-					{related.map((p) => (
-						<a href={`${basePath}/${p.slug}`} class="related-card reveal">
-							<div class="related-card__cover">
-								<Image src={p.cover} alt={p.title} loading="lazy" width={640} height={360} />
-							</div>
-							<div class="related-card__body">
-								<h3>{p.title}</h3>
-								<p class="related-card__excerpt">{p.excerpt}</p>
-							</div>
-						</a>
-					))}
-				</div>
-			</div>
-		</section>
-	)}
+      // Trên mobile, mục lục ở trên trở thành drawer trượt từ mép phải, mở
+      // bằng nút tròn neo sát mép phải màn hình (xem .post-toc-fab trong CSS).
+      function setTocOpen(open: boolean) {
+        if (!fab || !backdrop) return;
+        tocWrap.classList.toggle("is-open", open);
+        backdrop.classList.toggle("is-open", open);
+        fab.classList.toggle("is-open", open);
+        fab.setAttribute("aria-expanded", String(open));
+        fab.setAttribute("aria-label", open ? "Đóng tóm tắt" : "Mở tóm tắt");
+        document.body.style.overflow = open ? "hidden" : "";
+      }
 
-	<Footer />
+      fab?.addEventListener("click", () =>
+        setTocOpen(!tocWrap.classList.contains("is-open")),
+      );
+      backdrop?.addEventListener("click", () => setTocOpen(false));
+
+      // Đóng drawer khi bấm vào một mục (điều hướng đến heading tương ứng)
+      list.addEventListener("click", (e) => {
+        if ((e.target as HTMLElement).closest("a")) setTocOpen(false);
+      });
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") setTocOpen(false);
+      });
+
+      // Về desktop thì luôn đóng drawer (tránh kẹt trạng thái khi resize)
+      const tocDesktopQuery = window.matchMedia("(min-width: 861px)");
+      tocDesktopQuery.addEventListener("change", (e) => {
+        if (e.matches) setTocOpen(false);
+      });
+    }
+  </script>
+
+  {
+    related.length > 0 && (
+      <section class="post-related section--light">
+        <div class="container">
+          <div class="post-related__head reveal">
+            <h2 class="post-related__title">Bài viết liên quan</h2>
+            <a href={basePath} class="btn btn-ghost post-related__all">
+              Xem tất cả <Icon name="arrow-right" size={16} />
+            </a>
+          </div>
+          <div class="post-related__grid" data-stagger>
+            {related.map((p) => (
+              <a href={`${basePath}/${p.slug}`} class="related-card reveal">
+                <div class="related-card__cover">
+                  <Image
+                    src={p.cover}
+                    alt={p.title}
+                    loading="lazy"
+                    width={640}
+                    height={360}
+                  />
+                </div>
+                <div class="related-card__body">
+                  <h3>{p.title}</h3>
+                  <p class="related-card__excerpt">{p.excerpt}</p>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  <Footer />
 </Main>
 
 <style is:global>
-	.post-hero {
-		padding-block: 9rem 5rem;
-	}
+  .post-hero {
+    padding-block: 9rem 5rem;
+  }
 
-	.post-hero__inner {
-		position: relative;
-		z-index: 1;
-	}
+  .post-hero__inner {
+    position: relative;
+    z-index: 1;
+  }
 
-	.back-link {
-		display: flex;
-		width: fit-content;
-		align-items: center;
-		gap: 0.4rem;
-		font-size: 0.85rem;
-		color: var(--text-muted);
-		margin-bottom: 1.5rem;
-	}
+  .back-link {
+    display: flex;
+    width: fit-content;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 1.5rem;
+  }
 
-	.back-link:hover {
-		color: var(--primary-light);
-	}
+  .back-link:hover {
+    color: var(--primary-light);
+  }
 
-	.post-hero__meta {
-		display: flex;
-		align-items: center;
-		gap: 1.25rem;
-		margin-top: 1.25rem;
-		font-size: 0.85rem;
-		color: var(--text-muted);
-	}
+  .post-hero__meta {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    margin-top: 1.25rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
 
-	.post-hero__meta span {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.4rem;
-	}
+  .post-hero__meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
 
-	.post-body {
-		padding-block: 5rem 6rem;
-	}
+  .post-body {
+    padding-block: 5rem 6rem;
+  }
 
-	.post-layout {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) 280px;
-		gap: clamp(2rem, 4vw, 3.5rem);
-		align-items: start;
-	}
+  .post-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: clamp(2rem, 4vw, 3.5rem);
+    align-items: start;
+  }
 
-	.post-body__inner {
-		grid-column: 1;
-		grid-row: 1;
-	}
+  .post-body__inner {
+    grid-column: 1;
+    grid-row: 1;
+  }
 
-	/* Khi nhảy đến #id từ mục lục, chừa chỗ cho header fixed (7rem = mốc
+  /* Khi nhảy đến #id từ mục lục, chừa chỗ cho header fixed (7rem = mốc
 	   112px của scrollspy trong <script> phía trên) để heading không bị đè. */
-	.post-body__inner h2,
-	.post-body__inner h3,
-	.post-body__inner h4,
-	.post-body__inner h5,
-	.post-body__inner h6 {
-		scroll-margin-top: 7rem;
-	}
+  .post-body__inner h2,
+  .post-body__inner h3,
+  .post-body__inner h4,
+  .post-body__inner h5,
+  .post-body__inner h6 {
+    scroll-margin-top: 7rem;
+  }
 
-	/* reveal/reveal-right và position: sticky phải nằm trên CÙNG một phần tử.
+  /* reveal/reveal-right và position: sticky phải nằm trên CÙNG một phần tử.
 	   Nếu sticky nằm ở phần tử con còn reveal (transform) nằm ở cha, transform
 	   của cha sẽ tạo containing block mới và làm hỏng sticky của con - đây là
 	   quirk CSS phổ biến (ancestor có transform/filter/will-change phá sticky). */
-	.post-toc {
-		grid-column: 2;
-		grid-row: 1;
-		position: sticky;
-		/* top > 0 để không bị header (position: fixed) đè lên khi cuộn */
-		top: 7rem;
-		max-height: calc(100vh - 9rem);
-		overflow-y: auto;
-		background: var(--surface-light-card);
-		border: 1px solid rgba(161, 127, 32, 0.15);
-		border-radius: var(--radius-lg);
-		padding: 1.5rem;
-	}
+  .post-toc {
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    /* top > 0 để không bị header (position: fixed) đè lên khi cuộn */
+    top: 7rem;
+    max-height: calc(100vh - 9rem);
+    overflow-y: auto;
+    background: var(--surface-light-card);
+    border: 1px solid rgba(161, 127, 32, 0.15);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+  }
 
-	.post-toc__title {
-		font-family: var(--font-display);
-		font-weight: 700;
-		font-size: 0.85rem;
-		letter-spacing: 0.05em;
-		text-transform: uppercase;
-		color: var(--secondary);
-		margin-bottom: 1rem;
-	}
+  .post-toc__title {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--secondary);
+    margin-bottom: 1rem;
+  }
 
-	.post-toc__nav ul {
-		display: flex;
-		flex-direction: column;
-		gap: 0.6rem;
-	}
+  .post-toc__nav ul {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
 
-	.post-toc__nav a {
-		display: block;
-		font-size: 0.88rem;
-		line-height: 1.4;
-		color: var(--text-dark-muted);
-		word-break: break-word;
-		transition: color 0.2s ease;
-	}
+  .post-toc__nav a {
+    display: block;
+    font-size: 0.88rem;
+    line-height: 1.4;
+    color: var(--text-dark-muted);
+    word-break: break-word;
+    transition: color 0.2s ease;
+  }
 
-	.post-toc__nav a:hover {
-		color: var(--secondary);
-	}
+  .post-toc__nav a:hover {
+    color: var(--secondary);
+  }
 
-	.post-toc__nav a.is-active {
-		color: var(--secondary);
-		font-weight: 600;
-	}
+  .post-toc__nav a.is-active {
+    color: var(--secondary);
+    font-weight: 600;
+  }
 
-	.post-toc__nav a.toc-level-h3 {
-		padding-left: 1rem;
-	}
+  .post-toc__nav a.toc-level-h3 {
+    padding-left: 1rem;
+  }
 
-	.post-toc__nav a.toc-level-h4 {
-		padding-left: 2rem;
-	}
+  .post-toc__nav a.toc-level-h4 {
+    padding-left: 2rem;
+  }
 
-	@media (max-width: 860px) {
-		.post-layout {
-			grid-template-columns: 1fr;
-		}
+  .post-toc-fab,
+  .post-toc-backdrop {
+    display: none;
+  }
 
-		/* Trên mobile, mục lục hiện trên cùng của nội dung (không sticky). */
-		.post-toc {
-			grid-column: 1;
-			grid-row: 1;
-			position: static;
-			max-height: none;
-		}
+  .post-toc-fab__icon--close {
+    display: none;
+  }
 
-		.post-body__inner {
-			grid-column: 1;
-			grid-row: 2;
-		}
-	}
+  .post-toc-fab.is-open .post-toc-fab__icon--open {
+    display: none;
+  }
 
-	.post-cover {
-		position: relative;
-		margin-top: -3rem;
-		margin-bottom: 3rem;
-		aspect-ratio: 16 / 9;
-		border-radius: var(--radius-lg);
-		overflow: hidden;
-		box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.5);
-	}
+  .post-toc-fab.is-open .post-toc-fab__icon--close {
+    display: inline-flex;
+  }
 
-	.post-cover img {
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
-	}
+  @media (max-width: 860px) {
+    .post-layout {
+      grid-template-columns: 1fr;
+    }
 
-	.post-related {
-		padding-block: 0 6rem;
-	}
+    .post-body__inner {
+      grid-column: 1;
+      grid-row: 1;
+    }
 
-	.post-related__head {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		flex-wrap: wrap;
-		gap: 1rem;
-		margin-bottom: 1.75rem;
-	}
+    /* Trên mobile, mục lục (Tóm tắt) không còn nằm tĩnh trong luồng nội dung -
+		   nó trở thành drawer trượt từ mép phải, mở bằng nút tròn neo sát mép
+		   phải màn hình (.post-toc-fab). Dùng #post-toc-wrap (id, specificity
+		   cao hơn class) để thắng .reveal.is-visible - class đó cũng set
+		   opacity/transform trên cùng phần tử cho hiệu ứng cuộn-hiện ở desktop
+		   (xem .reveal trong global.css) và sẽ tự thêm bất kể drawer đóng hay mở. */
+    #post-toc-wrap {
+      grid-column: unset;
+      grid-row: unset;
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: min(320px, 85vw);
+      max-height: none;
+      margin: 0;
+      border-radius: 0;
+      border-width: 0 0 0 1px;
+      box-shadow: -16px 0 30px -12px rgba(0, 0, 0, 0.35);
+      opacity: 1;
+      transform: translateX(100%);
+      transition: transform 0.28s ease;
+      z-index: 210;
+    }
 
-	.post-related__title {
-		font-family: var(--font-display);
-		font-size: 1.5rem;
-	}
+    #post-toc-wrap.is-open {
+      transform: none;
+    }
 
-	.post-related__grid {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: 1.25rem;
-	}
+    .post-toc-fab {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: fixed;
+      top: 50%;
+      right: 0;
+      transform: translateY(-50%);
+      z-index: 190;
+      width: 36px;
+      height: 36px;
+      background: var(--secondary);
+      color: var(--canvas-deep);
+      border-radius: var(--radius-md) 0 0 var(--radius-md);
+      box-shadow: -6px 0 18px -8px rgba(0, 0, 0, 0.4);
+    }
 
-	.related-card {
-		display: block;
-		background: var(--surface-light-card);
-		border: 1px solid rgba(161, 127, 32, 0.15);
-		border-radius: var(--radius-lg);
-		overflow: hidden;
-		transition: transform 0.3s ease, border-color 0.3s ease;
-	}
+    .post-toc-backdrop {
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: rgba(15, 15, 17, 0.5);
+      opacity: 0;
+      visibility: hidden;
+      transition:
+        opacity 0.28s ease,
+        visibility 0.28s;
+    }
 
-	.related-card:hover {
-		transform: translateY(-6px);
-		border-color: rgba(161, 127, 32, 0.5);
-	}
+    .post-toc-backdrop.is-open {
+      opacity: 1;
+      visibility: visible;
+    }
+  }
 
-	.related-card__cover {
-		aspect-ratio: 16 / 9;
-		overflow: hidden;
-	}
+  .post-cover {
+    position: relative;
+    margin-top: -3rem;
+    margin-bottom: 3rem;
+    aspect-ratio: 16 / 9;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.5);
+  }
 
-	.related-card__cover img {
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
-	}
+  .post-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
 
-	.related-card__body {
-		padding: 1.1rem 1.25rem 1.4rem;
-	}
+  .post-related {
+    padding-block: 0 6rem;
+  }
 
-	.related-card h3 {
-		font-family: var(--font-display);
-		font-size: 0.95rem;
-		line-height: 1.4;
-	}
+  .post-related__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.75rem;
+  }
 
-	.related-card__excerpt {
-		margin-top: 0.5rem;
-		color: var(--text-dark-muted);
-		font-size: 0.82rem;
-		line-height: 1.5;
-	}
+  .post-related__title {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+  }
 
-	@media (max-width: 720px) {
-		.post-related__grid {
-			grid-template-columns: 1fr;
-		}
-	}
+  .post-related__grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+  }
+
+  .related-card {
+    display: block;
+    background: var(--surface-light-card);
+    border: 1px solid rgba(161, 127, 32, 0.15);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition:
+      transform 0.3s ease,
+      border-color 0.3s ease;
+  }
+
+  .related-card:hover {
+    transform: translateY(-6px);
+    border-color: rgba(161, 127, 32, 0.5);
+  }
+
+  .related-card__cover {
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+  }
+
+  .related-card__cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .related-card__body {
+    padding: 1.1rem 1.25rem 1.4rem;
+  }
+
+  .related-card h3 {
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    line-height: 1.4;
+  }
+
+  .related-card__excerpt {
+    margin-top: 0.5rem;
+    color: var(--text-dark-muted);
+    font-size: 0.82rem;
+    line-height: 1.5;
+  }
+
+  @media (max-width: 720px) {
+    .post-related__grid {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>
