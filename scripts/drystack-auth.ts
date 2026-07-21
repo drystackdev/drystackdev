@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 // Provision native-auth users for `storage: { kind: 'r2' }` (see
-// plan/auth.md). Writes `auth/native/<email>.json` objects - password hashed
-// with PBKDF2, profile encrypted with DRYSTACK_SECRET - through `wrangler r2
-// object`, so the same command targets miniflare's local dev bucket
-// (default) or the real one (--remote).
+// plan/auth.md). Writes `auth/native/<email>.yaml` objects - password hashed
+// with PBKDF2, profile stored as YAML - through `wrangler r2 object`,
+// so the same command targets miniflare's local dev bucket (default) or the
+// real one (--remote).
 //
 //   bun scripts/drystack-auth.ts add    <email> [--profile '{"name":"..."}'] [--password <pw>] [--remote]
 //   bun scripts/drystack-auth.ts passwd <email> [--password <pw>] [--remote]
@@ -18,10 +18,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   createUserFile,
+  legacyUserFileKey,
   normalizeEmail,
+  parseUserFile,
+  serializeUserFile,
   userFileKey,
-  decryptProfile,
-  type NativeAuthUserFile,
 } from '../packages/drystack/src/api/native-auth';
 
 const BUCKET = 'drystack-content';
@@ -31,17 +32,6 @@ function usage(): never {
     'usage: bun scripts/drystack-auth.ts <add|passwd|remove> <email> [--password <pw>] [--profile <json>] [--remote]'
   );
   process.exit(1);
-}
-
-function getSecret(): string {
-  const secret = process.env.DRYSTACK_SECRET;
-  if (!secret || secret.length < 32) {
-    console.error(
-      'DRYSTACK_SECRET (>= 32 chars) must be set in .env - it encrypts profiles and signs sessions.'
-    );
-    process.exit(1);
-  }
-  return secret;
 }
 
 async function promptHidden(label: string): Promise<string> {
@@ -84,7 +74,7 @@ function wrangler(args: string[], opts: { allowFail?: boolean } = {}) {
 
 function putObject(key: string, contents: string, remote: boolean) {
   const dir = mkdtempSync(join(tmpdir(), 'drystack-auth-'));
-  const file = join(dir, 'user.json');
+  const file = join(dir, 'user.yaml');
   try {
     writeFileSync(file, contents);
     wrangler([
@@ -93,7 +83,7 @@ function putObject(key: string, contents: string, remote: boolean) {
       'put',
       `${BUCKET}/${key}`,
       `--file=${file}`,
-      '--content-type=application/json',
+      '--content-type=text/yaml',
       remote ? '--remote' : '--local',
     ]);
   } finally {
@@ -151,11 +141,21 @@ if (command === 'remove') {
     `${BUCKET}/${key}`,
     remote ? '--remote' : '--local',
   ]);
+  // Also drop any pre-YAML `.json` object, so an old account fully clears.
+  wrangler(
+    [
+      'r2',
+      'object',
+      'delete',
+      `${BUCKET}/${legacyUserFileKey(email)}`,
+      remote ? '--remote' : '--local',
+    ],
+    { allowFail: true }
+  );
   console.log(`Removed ${email} from ${where}.`);
   process.exit(0);
 }
 
-const secret = getSecret();
 const password =
   flagValue('--password') ?? (await promptHidden(`Password for ${email}`));
 if (password.length < 8) {
@@ -174,27 +174,24 @@ if (command === 'add') {
       process.exit(1);
     }
   }
-  const file = await createUserFile(password, profile, secret);
-  putObject(key, JSON.stringify(file, null, 2), remote);
+  const file = await createUserFile(password, profile);
+  putObject(key, serializeUserFile(file), remote);
   console.log(`Created/updated ${email} in ${where}.`);
 } else {
-  // passwd: keep the existing (encrypted) profile, replace only the hash.
-  const existing = getObject(key, remote);
+  // passwd: keep the existing profile, replace only the password hash. Read the
+  // current YAML object, falling back to a pre-migration `.json` one.
+  const existing =
+    getObject(key, remote) ?? getObject(legacyUserFileKey(email), remote);
   if (!existing) {
     console.error(`No user file for ${email} in ${where} - use \`add\` first.`);
     process.exit(1);
   }
-  let parsed: NativeAuthUserFile;
-  try {
-    parsed = JSON.parse(existing);
-  } catch {
-    console.error(`Existing file for ${email} is not valid JSON.`);
+  const parsed = parseUserFile(existing);
+  if (!parsed) {
+    console.error(`Existing file for ${email} is not a valid user record.`);
     process.exit(1);
   }
-  // Round-trip the profile so a rotated DRYSTACK_SECRET gets re-encrypted
-  // under the current one (decryptProfile falls back to {} if undecryptable).
-  const profile = await decryptProfile(parsed, secret);
-  const file = await createUserFile(password, profile, secret);
-  putObject(key, JSON.stringify(file, null, 2), remote);
+  const file = await createUserFile(password, parsed.profile ?? {});
+  putObject(key, serializeUserFile(file), remote);
   console.log(`Password updated for ${email} in ${where}.`);
 }

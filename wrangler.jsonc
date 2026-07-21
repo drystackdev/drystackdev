@@ -19,6 +19,10 @@
   "r2_buckets": [
     { "binding": "DRYSTACK_R2", "bucket_name": "drystack-content" }
   ],
+  // Delivers user-management invite emails (Cloudflare Email Sending). The
+  // sending domain (drystack.dev) must be onboarded first via
+  // `wrangler email sending enable drystack.dev`.
+  "send_email": [{ "name": "DRYSTACK_EMAIL" }],
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["BuildStatusHub"] }
   ],

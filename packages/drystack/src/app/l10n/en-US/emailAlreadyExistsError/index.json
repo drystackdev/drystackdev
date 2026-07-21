@@ -1,0 +1,6 @@
+{
+  "key": "emailAlreadyExistsError",
+  "value": "This email already has an account or pending invite.",
+  "notes": "",
+  "type": "global"
+}

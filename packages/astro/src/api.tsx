@@ -67,6 +67,18 @@ export function makeHandler(_config: APIRouteConfig) {
         // (declared in wrangler.jsonc). Undefined elsewhere; the r2 handler
         // 500s loudly rather than pretending to work without it.
         r2Bucket: _config.r2Bucket ?? envVarsForCf?.DRYSTACK_R2,
+        // Cloudflare Email Sending binding, used to deliver user-management
+        // invite emails in r2 mode. Undefined on adapters/deployments with no
+        // such binding (e.g. local `astro dev` unless `wrangler dev` is used
+        // with the binding configured) - the invite route 500s loudly rather
+        // than pretending to work without it.
+        emailSender: _config.emailSender ?? envVarsForCf?.DRYSTACK_EMAIL,
+        inviteFromEmail:
+          _config.inviteFromEmail ??
+          envVarsForCf?.DRYSTACK_INVITE_FROM_EMAIL ??
+          tryOrUndefined(() => {
+            return import.meta.env.DRYSTACK_INVITE_FROM_EMAIL;
+          }),
       },
       {
         slugEnvName: "PUBLIC_DRYSTACK_GITHUB_APP_SLUG",

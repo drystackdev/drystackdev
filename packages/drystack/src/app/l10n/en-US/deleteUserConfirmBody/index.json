@@ -1,0 +1,6 @@
+{
+  "key": "deleteUserConfirmBody",
+  "value": "This will permanently remove {email}'s access. This can't be undone.",
+  "notes": "",
+  "type": "global"
+}

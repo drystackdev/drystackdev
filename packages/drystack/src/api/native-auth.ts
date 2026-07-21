@@ -1,8 +1,8 @@
 import * as cookie from 'cookie';
+import { dump, load } from 'js-yaml';
 import { base64UrlDecode, base64UrlEncode } from '#base64';
 import { webcrypto } from '#webcrypto';
 import { bytesToHex } from '../hex';
-import { encryptValue, decryptValue } from './encryption';
 
 // Native email/password auth for `storage: { kind: 'r2' }` deployments (see
 // R2StorageConfig in config.tsx). Everything here runs on WebCrypto only so
@@ -10,13 +10,20 @@ import { encryptValue, decryptValue } from './encryption';
 // and the bun-run CLI script (scripts/drystack-auth.ts) that provisions
 // users.
 //
-// One JSON object per user at `auth/native/<email>.json` in the R2 bucket:
-//   { "password": "<one-way pbkdf2 hash>", "profile": "<AES-GCM blob>" }
-// The password can only ever be verified, never recovered; the profile is
-// encrypted/decrypted with DRYSTACK_SECRET via api/encryption.tsx. The
-// `auth/` prefix is hard-excluded from the public tree/blob routes and
-// refused by the update route (see api-r2.ts) - these files must never be
-// readable or writable through the content API.
+// One YAML object per user at `auth/native/<email>.yaml` in the R2 bucket:
+//   password: "<one-way pbkdf2 hash>"
+//   profile: { ...display fields }
+//   createdAt: "<ISO>"
+// YAML (not JSON) so the stored profile reads like the rest of the CMS's
+// content and stays hand-editable. `load` still parses any pre-migration
+// `.json` object (JSON is a YAML subset), so legacy users keep working - see
+// legacyUserFileKey and readUserFile's fallback in api-r2.ts. The password can
+// only ever be verified, never recovered. The profile is display data (name,
+// etc.), not a credential. The `auth/` prefix is hard-excluded from the public
+// tree/blob routes and refused by the update route (see api-r2.ts) - these
+// files must never be readable or writable through the content API. Pending
+// invites (user-management feature) live alongside at `auth/invites/<email>.json`
+// until accepted or cancelled; avatar bytes at `auth/avatars/<email>`.
 
 const encoder = new TextEncoder();
 
@@ -29,10 +36,39 @@ export const AUTH_NATIVE_PREFIX = 'auth/native/';
 // is the token's `exp` (unix seconds) so a future sweep/cron can drop entries
 // once the underlying token would have expired anyway.
 export const AUTH_REVOKED_PREFIX = 'auth/revoked/';
+// One record per pending invite (user-management feature), deleted the
+// moment it's accepted (see verifyInviteToken/consumers in api-r2.ts) or
+// cancelled by an admin. Never contains a credential - the actual bearer
+// token handed to the invitee is a signed, stateless JWT-like string (see
+// signInviteToken) that is never itself persisted.
+export const AUTH_INVITES_PREFIX = 'auth/invites/';
+// Raw avatar image bytes, one object per user, content-type in
+// customMetadata. Kept under `auth/` (hard-excluded from tree/blob/update,
+// see api-r2.ts's getIsPathValid) and served through a dedicated
+// session-gated route rather than the generic content API.
+export const AUTH_AVATARS_PREFIX = 'auth/avatars/';
 
 export function revokedKey(jti: string) {
   return `${AUTH_REVOKED_PREFIX}${jti}`;
 }
+
+export function inviteFileKey(email: string) {
+  return `${AUTH_INVITES_PREFIX}${email}.json`;
+}
+
+export function avatarKey(email: string) {
+  return `${AUTH_AVATARS_PREFIX}${email}`;
+}
+
+export type NativeAuthInviteFile = {
+  createdAt: string;
+  expiresAt: string;
+  invitedBy: string;
+  // Profile fields the admin filled in on the "create user" form. Merged into
+  // the real user file when the invite is accepted (see api-r2.ts). Optional
+  // so older invites (email-only) still parse.
+  profile?: unknown;
+};
 
 export type NativeSession = { email: string; jti: string; exp: number };
 
@@ -46,6 +82,7 @@ export const NATIVE_SESSION_COOKIE = 'drystack-session';
 export const NATIVE_SESSION_HINT_COOKIE = 'drystack-session-hint';
 
 export const NATIVE_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
+export const INVITE_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 48;
 
 // Cloudflare Workers hard-caps PBKDF2 at 100k iterations (higher values
 // throw), so this is the strongest setting that runs everywhere the verify
@@ -127,38 +164,53 @@ export function normalizeEmail(email: string): string | null {
 }
 
 export function userFileKey(email: string) {
+  return `${AUTH_NATIVE_PREFIX}${email}.yaml`;
+}
+
+// Where users were stored before the YAML switch. Reads fall back to it and
+// writes delete it, so a live deployment's existing accounts migrate on first
+// touch instead of vanishing (which would make the site look "unset up").
+export function legacyUserFileKey(email: string) {
   return `${AUTH_NATIVE_PREFIX}${email}.json`;
 }
 
 export type NativeAuthUserFile = {
   password: string;
-  profile?: string;
+  profile?: unknown;
+  createdAt?: string;
 };
+
+export function serializeUserFile(file: NativeAuthUserFile): string {
+  return dump(file);
+}
+
+// Parses a stored user file. `load` reads both YAML and legacy JSON (JSON is a
+// YAML subset), so this is safe against either on-disk format. Returns null for
+// anything that isn't a valid user record (no string password), matching the
+// old JSON.parse guard.
+export function parseUserFile(text: string): NativeAuthUserFile | null {
+  let parsed: unknown;
+  try {
+    parsed = load(text);
+  } catch {
+    return null;
+  }
+  if (typeof (parsed as { password?: unknown } | undefined)?.password !== 'string') {
+    return null;
+  }
+  return parsed as NativeAuthUserFile;
+}
 
 export async function createUserFile(
   password: string,
   profile: unknown,
-  secret: string
+  createdAt: string = new Date().toISOString()
 ): Promise<NativeAuthUserFile> {
   return {
     password: await hashPassword(password),
-    profile: await encryptValue(JSON.stringify(profile ?? {}), secret),
+    profile: profile ?? {},
+    createdAt,
   };
-}
-
-export async function decryptProfile(
-  file: NativeAuthUserFile,
-  secret: string
-): Promise<unknown> {
-  if (!file.profile) return {};
-  try {
-    return JSON.parse(await decryptValue(file.profile, secret));
-  } catch {
-    // A profile encrypted under an older DRYSTACK_SECRET (or corrupted by
-    // hand-editing) shouldn't lock the account out - the password check is
-    // the credential, the profile is display data.
-    return {};
-  }
 }
 
 // Minimal HS256 JWT - header/payload/signature, base64url, HMAC-SHA-256 with
@@ -241,6 +293,75 @@ export async function verifySession(
     return null;
   }
   return { email: payloadObj.sub, jti: payloadObj.jti, exp: payloadObj.exp };
+}
+
+export type InviteToken = { email: string; exp: number };
+
+// A signed, stateless invite - same HS256/HMAC construction as signSession,
+// but the payload carries `purpose: 'invite'` so this can never be replayed
+// as a session token (or vice versa). Verification also requires a matching
+// `auth/invites/<email>.json` to still exist (see api-r2.ts), which is what
+// makes accept effectively one-time-use and revocable by an admin cancelling
+// the invite - the token's own signature alone can't be revoked early.
+export async function signInviteToken(
+  email: string,
+  secret: string,
+  maxAgeSeconds: number = INVITE_TOKEN_MAX_AGE_SECONDS
+): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  const header = base64UrlEncode(
+    encoder.encode(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
+  );
+  const payload = base64UrlEncode(
+    encoder.encode(
+      JSON.stringify({
+        sub: email,
+        purpose: 'invite',
+        iat: now,
+        exp: now + maxAgeSeconds,
+      })
+    )
+  );
+  const signature = await webcrypto.subtle.sign(
+    'HMAC',
+    await hmacKey(secret),
+    encoder.encode(`${header}.${payload}`)
+  );
+  return `${header}.${payload}.${base64UrlEncode(new Uint8Array(signature))}`;
+}
+
+export async function verifyInviteToken(
+  token: string,
+  secret: string
+): Promise<InviteToken | null> {
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  const [header, payload, signature] = parts;
+  let headerObj, payloadObj, signatureBytes;
+  const decoder = new TextDecoder();
+  try {
+    headerObj = JSON.parse(decoder.decode(base64UrlDecode(header)));
+    payloadObj = JSON.parse(decoder.decode(base64UrlDecode(payload)));
+    signatureBytes = base64UrlDecode(signature);
+  } catch {
+    return null;
+  }
+  if (headerObj?.alg !== 'HS256' || headerObj?.typ !== 'JWT') return null;
+  const expected = await webcrypto.subtle.sign(
+    'HMAC',
+    await hmacKey(secret),
+    encoder.encode(`${header}.${payload}`)
+  );
+  if (!timingSafeEqual(new Uint8Array(expected), signatureBytes)) return null;
+  if (payloadObj?.purpose !== 'invite') return null;
+  if (typeof payloadObj?.sub !== 'string') return null;
+  if (
+    typeof payloadObj?.exp !== 'number' ||
+    payloadObj.exp <= Math.floor(Date.now() / 1000)
+  ) {
+    return null;
+  }
+  return { email: payloadObj.sub, exp: payloadObj.exp };
 }
 
 export async function getSessionFromCookieHeader(

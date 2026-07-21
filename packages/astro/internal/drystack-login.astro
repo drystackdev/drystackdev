@@ -14,14 +14,26 @@ if (config?.storage?.kind !== 'r2') {
   return Astro.redirect('/');
 }
 
-// Already signed in - skip the form. The `from` target is re-validated
-// client-side too, but server-side we only ever redirect to a same-origin
-// path.
-const session = await getNativeSession(Astro.request);
+// An invite link (`/login?invite=<token>`, sent by the user-management
+// "add user" flow) renders a third mode below instead of login/setup - set a
+// password to activate the invited account. It's handled here rather than as
+// a separate route so it can reuse this page's bilingual copy and styling.
+const inviteToken = Astro.url.searchParams.get('invite') ?? '';
+
 const rawFrom = Astro.url.searchParams.get('from') ?? '';
 const safeFrom = /^\/(?!\/)/.test(rawFrom) ? rawFrom : `/${basePath}`;
-if (session) {
-  return Astro.redirect(safeFrom);
+
+// Already signed in - skip the form. Not applied to the invite flow: the
+// browser accepting an invite may well already have an unrelated session
+// (e.g. an admin inviting a second address in the same browser), and that
+// shouldn't block setting up the new account. The `from` target is
+// re-validated client-side too, but server-side we only ever redirect to a
+// same-origin path.
+if (!inviteToken) {
+  const session = await getNativeSession(Astro.request);
+  if (session) {
+    return Astro.redirect(safeFrom);
+  }
 }
 
 const vi = (config?.locale ?? '').toLowerCase().startsWith('vi');
@@ -31,12 +43,23 @@ const t = vi
       setupTitle: 'Tạo tài khoản quản trị',
       setupHint:
         'Chưa có tài khoản nào. Tạo tài khoản quản trị đầu tiên cho trang này.',
+      inviteTitle: 'Kích hoạt tài khoản',
+      inviteHint: 'Tạo mật khẩu để kích hoạt tài khoản quản trị của bạn.',
       email: 'Email',
+      name: 'Tên hiển thị',
       password: 'Mật khẩu',
+      passwordConfirm: 'Nhập lại mật khẩu',
+      showPassword: 'Hiện mật khẩu',
+      hidePassword: 'Ẩn mật khẩu',
       submitLogin: 'Đăng nhập',
       submitSetup: 'Tạo tài khoản',
+      submitAccept: 'Kích hoạt tài khoản',
       errorBadCredentials: 'Email hoặc mật khẩu không đúng.',
       errorPasswordShort: 'Mật khẩu phải có ít nhất 8 ký tự.',
+      errorPasswordMismatch: 'Mật khẩu nhập lại không khớp.',
+      errorInvalidToken: 'Liên kết không hợp lệ hoặc đã hết hạn.',
+      errorInviteNotFound:
+        'Lời mời này không còn hiệu lực (có thể đã bị huỷ hoặc đã được sử dụng).',
       errorGeneric: 'Có lỗi xảy ra, thử lại sau.',
       loading: 'Đang xử lý…',
     }
@@ -45,12 +68,23 @@ const t = vi
       setupTitle: 'Create admin account',
       setupHint:
         'No accounts exist yet. Create the first admin account for this site.',
+      inviteTitle: 'Activate your account',
+      inviteHint: 'Set a password to activate your admin account.',
       email: 'Email',
+      name: 'Display name',
       password: 'Password',
+      passwordConfirm: 'Confirm password',
+      showPassword: 'Show password',
+      hidePassword: 'Hide password',
       submitLogin: 'Sign in',
       submitSetup: 'Create account',
+      submitAccept: 'Activate account',
       errorBadCredentials: 'Incorrect email or password.',
       errorPasswordShort: 'Password must be at least 8 characters.',
+      errorPasswordMismatch: 'Passwords do not match.',
+      errorInvalidToken: 'This link is invalid or has expired.',
+      errorInviteNotFound:
+        'This invite is no longer valid (it may have been cancelled or already used).',
       errorGeneric: 'Something went wrong, try again later.',
       loading: 'Working…',
     };
@@ -64,114 +98,280 @@ const apiBase = `/api/${basePath}/auth`;
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex" />
-    <title>{t.title}</title>
+    <title>{inviteToken ? t.inviteTitle : t.title}</title>
   </head>
   <body>
-    <main class="card">
-      <h1 id="form-title">{t.title}</h1>
-      <p id="setup-hint" hidden>{t.setupHint}</p>
-      <form id="login-form">
-        <label>
-          <span>{t.email}</span>
-          <input
-            name="email"
-            type="email"
-            required
-            autocomplete="username"
-            autofocus
-          />
-        </label>
-        <label>
-          <span>{t.password}</span>
-          <input
-            name="password"
-            type="password"
-            required
-            autocomplete="current-password"
-            minlength="1"
-          />
-        </label>
-        <p id="error" role="alert" hidden></p>
-        <button type="submit" id="submit">{t.submitLogin}</button>
-      </form>
-    </main>
+    {
+      inviteToken ? (
+        <main class="card">
+          <img class="logo" src="/favicon.svg" alt="" />
+          <h1>{t.inviteTitle}</h1>
+          <p class="hint">{t.inviteHint}</p>
+          <form id="invite-form">
+            <label>
+              <span>{t.name}</span>
+              <input name="name" type="text" autocomplete="name" autofocus />
+            </label>
+            <label>
+              <span>{t.password}</span>
+              <div class="password-field">
+                <input
+                  name="password"
+                  type="password"
+                  required
+                  autocomplete="new-password"
+                  minlength="8"
+                />
+                <button
+                  type="button"
+                  class="password-toggle"
+                  aria-label={t.showPassword}
+                  data-show-label={t.showPassword}
+                  data-hide-label={t.hidePassword}
+                />
+              </div>
+            </label>
+            <label>
+              <span>{t.passwordConfirm}</span>
+              <div class="password-field">
+                <input
+                  name="passwordConfirm"
+                  type="password"
+                  required
+                  autocomplete="new-password"
+                  minlength="8"
+                />
+                <button
+                  type="button"
+                  class="password-toggle"
+                  aria-label={t.showPassword}
+                  data-show-label={t.showPassword}
+                  data-hide-label={t.hidePassword}
+                />
+              </div>
+            </label>
+            <p id="error" role="alert" hidden />
+            <button type="submit" id="submit">
+              {t.submitAccept}
+            </button>
+          </form>
+        </main>
+      ) : (
+        <main class="card">
+          <img class="logo" src="/favicon.svg" alt="" />
+          <h1 id="form-title">{t.title}</h1>
+          <p id="setup-hint" hidden>
+            {t.setupHint}
+          </p>
+          <form id="login-form">
+            <label>
+              <span>{t.email}</span>
+              <input
+                name="email"
+                type="email"
+                required
+                autocomplete="username"
+                autofocus
+              />
+            </label>
+            <label>
+              <span>{t.password}</span>
+              <div class="password-field">
+                <input
+                  name="password"
+                  type="password"
+                  required
+                  autocomplete="current-password"
+                  minlength="1"
+                />
+                <button
+                  type="button"
+                  class="password-toggle"
+                  aria-label={t.showPassword}
+                  data-show-label={t.showPassword}
+                  data-hide-label={t.hidePassword}
+                />
+              </div>
+            </label>
+            <p id="error" role="alert" hidden />
+            <button type="submit" id="submit">
+              {t.submitLogin}
+            </button>
+          </form>
+        </main>
+      )
+    }
 
-    <script
-      is:inline
-      define:vars={{
-        apiBase,
-        strings: t,
-        fallbackTarget: `/${basePath}`,
-      }}
-    >
-      const form = document.getElementById('login-form');
-      const errorEl = document.getElementById('error');
-      const submitEl = document.getElementById('submit');
-      const titleEl = document.getElementById('form-title');
-      const hintEl = document.getElementById('setup-hint');
+    {
+      inviteToken ? (
+        <script
+          is:inline
+          define:vars={{
+            apiBase,
+            strings: t,
+            token: inviteToken,
+            fallbackTarget: `/${basePath}`,
+          }}
+        >
+          const form = document.getElementById('invite-form');
+          const errorEl = document.getElementById('error');
+          const submitEl = document.getElementById('submit');
 
-      // `from` comes off the URL client-side and is only ever assigned to
-      // location when it's a same-origin absolute path.
-      const params = new URLSearchParams(location.search);
-      const rawFrom = params.get('from') ?? '';
-      const target = /^\/(?!\/)/.test(rawFrom) ? rawFrom : fallbackTarget;
-
-      let mode = 'login';
-      fetch(`${apiBase}/status`)
-        .then((res) => (res.ok ? res.json() : null))
-        .then((status) => {
-          if (status?.authenticated) {
-            location.replace(target);
-            return;
-          }
-          if (status?.needsSetup) {
-            mode = 'setup';
-            titleEl.textContent = strings.setupTitle;
-            document.title = strings.setupTitle;
-            hintEl.hidden = false;
-            submitEl.textContent = strings.submitSetup;
-            form
-              .querySelector('input[name=password]')
-              .setAttribute('autocomplete', 'new-password');
-          }
-        })
-        .catch(() => {});
-
-      form.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        errorEl.hidden = true;
-        submitEl.disabled = true;
-        const original = submitEl.textContent;
-        submitEl.textContent = strings.loading;
-        try {
-          const data = new FormData(form);
-          const res = await fetch(`${apiBase}/${mode}`, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-              email: data.get('email'),
-              password: data.get('password'),
-            }),
+          form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            errorEl.hidden = true;
+            const data = new FormData(form);
+            const password = data.get('password');
+            const passwordConfirm = data.get('passwordConfirm');
+            if (password !== passwordConfirm) {
+              errorEl.textContent = strings.errorPasswordMismatch;
+              errorEl.hidden = false;
+              return;
+            }
+            submitEl.disabled = true;
+            const original = submitEl.textContent;
+            submitEl.textContent = strings.loading;
+            try {
+              const res = await fetch(`${apiBase}/invite/accept`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({
+                  token,
+                  name: data.get('name'),
+                  password,
+                  passwordConfirm,
+                }),
+              });
+              if (res.ok) {
+                location.replace(fallbackTarget);
+                return;
+              }
+              const body = await res.json().catch(() => null);
+              errorEl.textContent =
+                body?.error === 'password-too-short'
+                  ? strings.errorPasswordShort
+                  : body?.error === 'password-mismatch'
+                    ? strings.errorPasswordMismatch
+                    : body?.error === 'invite-not-found' ||
+                        body?.error === 'already-accepted'
+                      ? strings.errorInviteNotFound
+                      : body?.error === 'invalid-token'
+                        ? strings.errorInvalidToken
+                        : strings.errorGeneric;
+              errorEl.hidden = false;
+            } catch {
+              errorEl.textContent = strings.errorGeneric;
+              errorEl.hidden = false;
+            } finally {
+              submitEl.disabled = false;
+              submitEl.textContent = original;
+            }
           });
-          if (res.ok) {
-            location.replace(target);
-            return;
-          }
-          const body = await res.json().catch(() => null);
-          errorEl.textContent =
-            body?.error === 'password-too-short'
-              ? strings.errorPasswordShort
-              : res.status === 401
-                ? strings.errorBadCredentials
-                : strings.errorGeneric;
-          errorEl.hidden = false;
-        } catch {
-          errorEl.textContent = strings.errorGeneric;
-          errorEl.hidden = false;
-        } finally {
-          submitEl.disabled = false;
-          submitEl.textContent = original;
-        }
+        </script>
+      ) : (
+        <script
+          is:inline
+          define:vars={{
+            apiBase,
+            strings: t,
+            fallbackTarget: `/${basePath}`,
+          }}
+        >
+          const form = document.getElementById('login-form');
+          const errorEl = document.getElementById('error');
+          const submitEl = document.getElementById('submit');
+          const titleEl = document.getElementById('form-title');
+          const hintEl = document.getElementById('setup-hint');
+
+          // `from` comes off the URL client-side and is only ever assigned to
+          // location when it's a same-origin absolute path.
+          const params = new URLSearchParams(location.search);
+          const rawFrom = params.get('from') ?? '';
+          const target = /^\/(?!\/)/.test(rawFrom) ? rawFrom : fallbackTarget;
+
+          let mode = 'login';
+          fetch(`${apiBase}/status`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((status) => {
+              if (status?.authenticated) {
+                location.replace(target);
+                return;
+              }
+              if (status?.needsSetup) {
+                mode = 'setup';
+                titleEl.textContent = strings.setupTitle;
+                document.title = strings.setupTitle;
+                hintEl.hidden = false;
+                submitEl.textContent = strings.submitSetup;
+                form
+                  .querySelector('input[name=password]')
+                  .setAttribute('autocomplete', 'new-password');
+              }
+            })
+            .catch(() => {});
+
+          form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            errorEl.hidden = true;
+            submitEl.disabled = true;
+            const original = submitEl.textContent;
+            submitEl.textContent = strings.loading;
+            try {
+              const data = new FormData(form);
+              const res = await fetch(`${apiBase}/${mode}`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({
+                  email: data.get('email'),
+                  password: data.get('password'),
+                }),
+              });
+              if (res.ok) {
+                location.replace(target);
+                return;
+              }
+              const body = await res.json().catch(() => null);
+              errorEl.textContent =
+                body?.error === 'password-too-short'
+                  ? strings.errorPasswordShort
+                  : res.status === 401
+                    ? strings.errorBadCredentials
+                    : strings.errorGeneric;
+              errorEl.hidden = false;
+            } catch {
+              errorEl.textContent = strings.errorGeneric;
+              errorEl.hidden = false;
+            } finally {
+              submitEl.disabled = false;
+              submitEl.textContent = original;
+            }
+          });
+        </script>
+      )
+    }
+
+    <script is:inline>
+      // Show/hide toggle for every password field on the page (login form has
+      // one, invite-accept has two) - each button gets its own independent
+      // toggle, wired generically here so the login/setup and invite-accept
+      // scripts above don't need to duplicate this.
+      const eyeIcon =
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+      const eyeOffIcon =
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c6.5 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2 11s3.5 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><path d="M2 2l20 20"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/></svg>';
+
+      document.querySelectorAll('.password-toggle').forEach((button) => {
+        button.innerHTML = eyeIcon;
+        const input = button.previousElementSibling;
+        button.addEventListener('click', () => {
+          const show = input.type === 'password';
+          input.type = show ? 'text' : 'password';
+          button.innerHTML = show ? eyeOffIcon : eyeIcon;
+          button.setAttribute(
+            'aria-label',
+            show ? button.dataset.hideLabel : button.dataset.showLabel
+          );
+        });
       });
     </script>
 
@@ -222,11 +422,19 @@ const apiBase = `/api/${basePath}/auth`;
         border-radius: 12px;
         padding: 2rem;
       }
+      .logo {
+        display: block;
+        width: 40px;
+        height: 40px;
+        margin: 0 auto 1rem;
+      }
       h1 {
         margin: 0 0 1.25rem;
         font-size: 1.25rem;
+        text-align: center;
       }
-      #setup-hint {
+      #setup-hint,
+      .hint {
         margin: -0.75rem 0 1rem;
         font-size: 0.85rem;
         color: var(--muted);
@@ -248,11 +456,41 @@ const apiBase = `/api/${basePath}/auth`;
         border: 1px solid var(--border);
         border-radius: 8px;
         padding: 0.55rem 0.7rem;
+        width: 100%;
       }
       input:focus-visible {
         outline: 2px solid var(--accent);
         outline-offset: 1px;
         border-color: transparent;
+      }
+      .password-field {
+        position: relative;
+        display: flex;
+      }
+      .password-field input {
+        padding-inline-end: 2.5rem;
+      }
+      .password-toggle {
+        position: absolute;
+        inset-inline-end: 0;
+        top: 0;
+        bottom: 0;
+        width: 2.5rem;
+        display: grid;
+        place-items: center;
+        background: transparent;
+        border: 0;
+        border-radius: 0 8px 8px 0;
+        padding: 0;
+        color: var(--muted);
+        cursor: pointer;
+      }
+      .password-toggle:hover {
+        color: var(--text);
+      }
+      .password-toggle svg {
+        width: 18px;
+        height: 18px;
       }
       #error {
         margin: 0;

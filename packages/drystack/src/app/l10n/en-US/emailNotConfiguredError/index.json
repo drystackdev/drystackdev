@@ -1,0 +1,6 @@
+{
+  "key": "emailNotConfiguredError",
+  "value": "Email sending isn't configured for this site.",
+  "notes": "",
+  "type": "global"
+}

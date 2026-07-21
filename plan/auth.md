@@ -49,7 +49,7 @@
   - Password: PBKDF2-SHA256 **100k iterations** (trần cứng của Workers), salt riêng,
     format `pbkdf2$sha256$<iter>$<salt>$<hash>`, so sánh constant-time; số iteration
     lưu trong hash nên nâng sau không vỡ user cũ.
-  - Profile: AES-GCM qua `api/encryption.tsx` (HKDF từ `DRYSTACK_SECRET`).
+  - Profile: JSON thuần, không mã hoá (display data, không phải credential).
   - Session: JWT HS256 tự mint/verify (chỉ chấp nhận alg HS256), 7 ngày.
   - Cookie: `drystack-session` (HttpOnly) + `drystack-session-hint` (không HttpOnly,
     chỉ để VEI/client biết trạng thái — mọi check thật đều verify JWT server-side).
@@ -75,7 +75,7 @@
 ### Scripts
 - `scripts/drystack-auth.ts` — `add|passwd|remove <email>` (+ `--profile`,
   `--password`, `--remote`); ghi `auth/native/<email>.json` qua wrangler
-  (local mặc định). `passwd` giữ nguyên profile, re-encrypt theo secret hiện tại.
+  (local mặc định). `passwd` giữ nguyên profile, chỉ thay hash mật khẩu.
 - `scripts/r2-seed.ts` — seed content qua **chính API `/update`** (không dùng
   `wrangler r2 object put` vì wrangler encodeURI key: file có dấu cách sẽ thành
   `%20` sai lệch). Tự setup admin đầu tiên nếu bucket trống. `--url` để seed prod.

@@ -1,4 +1,4 @@
-import { config, fields, collection, singleton } from "@drystack/core";
+import { config, fields, collection, singleton, user } from "@drystack/core";
 
 const techIconOptions = [
   { label: "Search", value: "search" },
@@ -85,7 +85,7 @@ export default config({
       demo: "Kiến thức ngẫu nhiên liên quan đến công nghệ!",
     },
   },
-  locale: "vi-VN",
+  // locale: "vi-VN",
   collections: {
     blog: postCollection("Bài viết", "/blog/{slug}"),
     seoKnowledge: postCollection("Kiến thức SEO", "/kien-thuc-seo/{slug}"),
@@ -535,4 +535,13 @@ export default config({
       },
     }),
   },
+  // Native-auth user profile fields (r2 mode only, see plan/user-managent.md).
+  // email/avatar/password are built-ins handled outside this schema - see
+  // UserConfig's doc comment in @drystack/core's config.tsx.
+  user: user({
+    label: "User Management",
+    schema: {
+      name: fields.text({ label: "Tên" }),
+    },
+  }),
 });

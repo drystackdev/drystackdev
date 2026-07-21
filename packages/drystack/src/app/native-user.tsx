@@ -1,4 +1,11 @@
-import { ReactNode, createContext, useContext, useEffect, useState } from 'react';
+import {
+  ReactNode,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from 'react';
 import { R2Config } from '../config';
 import { useRouter } from './router';
 
@@ -8,7 +15,7 @@ import { useRouter } from './router';
 // small one-shot fetch of `auth/me` instead, mirrored into a context so the
 // sidebar (UserActions) can render the email/logout without every consumer
 // re-fetching.
-export type NativeUser = { email: string; profile: unknown };
+export type NativeUser = { email: string; profile: unknown; hasAvatar: boolean };
 
 // undefined = still loading, null = fetch failed/unauthenticated (shouldn't
 // normally happen - the page itself is gated server-side before this ever
@@ -16,9 +23,17 @@ export type NativeUser = { email: string; profile: unknown };
 const NativeUserContext = createContext<NativeUser | null | undefined>(
   undefined
 );
+// Separate from NativeUserContext so existing `useNativeUser()` consumers
+// keep getting the plain user value - the profile page (password/avatar
+// changes) is the only one that needs to trigger a re-fetch.
+const NativeUserRefreshContext = createContext<() => void>(() => {});
 
 export function useNativeUser() {
   return useContext(NativeUserContext);
+}
+
+export function useRefreshNativeUser() {
+  return useContext(NativeUserRefreshContext);
 }
 
 export function NativeUserProvider(props: {
@@ -27,6 +42,13 @@ export function NativeUserProvider(props: {
 }) {
   const { basePath } = useRouter();
   const [user, setUser] = useState<NativeUser | null | undefined>(undefined);
+
+  const refresh = useCallback(() => {
+    return fetch(`/api${basePath}/auth/me`)
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => setUser(data))
+      .catch(() => setUser(null));
+  }, [basePath]);
 
   useEffect(() => {
     let active = true;
@@ -45,7 +67,9 @@ export function NativeUserProvider(props: {
 
   return (
     <NativeUserContext.Provider value={user}>
-      {props.children}
+      <NativeUserRefreshContext.Provider value={refresh}>
+        {props.children}
+      </NativeUserRefreshContext.Provider>
     </NativeUserContext.Provider>
   );
 }

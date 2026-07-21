@@ -15,6 +15,7 @@ import {
 } from "react";
 
 import { Badge } from "@keystar/ui/badge";
+import { Icon } from "@keystar/ui/icon";
 import { Divider, ScrollView, HStack, VStack } from "@keystar/ui/layout";
 import { NavList, NavItem, NavGroup } from "@keystar/ui/nav-list";
 import { Blanket } from "@keystar/ui/overlays";
@@ -326,6 +327,7 @@ function NavItemOrGroup({ itemOrGroup }: { itemOrGroup: ItemOrGroup }) {
 
   return (
     <NavItem href={itemOrGroup.href} aria-current={isCurrent(itemOrGroup.href)}>
+      {itemOrGroup.icon && <Icon src={itemOrGroup.icon} />}
       <Text truncate title={itemOrGroup.label}>
         {itemOrGroup.label}
       </Text>

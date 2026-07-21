@@ -4,6 +4,7 @@ import { Config } from "..";
 import { DrystackResponse, DrystackRequest, redirect } from "./internal-utils";
 import { handleGitHubAppCreation, localModeApiHandler } from "#api-handler";
 import {
+  EmailSenderLike,
   R2BucketLike,
   r2ModeApiHandler,
   requireNativeSession,
@@ -57,6 +58,15 @@ export type APIRouteConfig = {
    * degrading.
    */
   r2Bucket?: R2BucketLike;
+  /**
+   * The Cloudflare Email Sending binding used to deliver user-management
+   * invite emails in r2 mode - on Cloudflare this is the `DRYSTACK_EMAIL`
+   * `send_email` binding (see @drystack/astro's api.tsx). Optional; the
+   * invite route 500s loudly without it rather than pretending to work.
+   */
+  emailSender?: EmailSenderLike;
+  /** @default 'no-reply@drystack.dev' */
+  inviteFromEmail?: string;
 };
 
 type InnerAPIRouteConfig = {
@@ -178,6 +188,8 @@ export function makeGenericAPIRouteHandler(
       _config2.config,
       _config.r2Bucket,
       _config2.secret,
+      _config.emailSender,
+      _config.inviteFromEmail,
     );
     // Not wrapped in `withAi`: that dispatches `ai/*` unauthenticated, which
     // is fine for local (dev machine) and github (its own token check inside

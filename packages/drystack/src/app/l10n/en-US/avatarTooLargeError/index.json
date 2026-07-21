@@ -1,0 +1,6 @@
+{
+  "key": "avatarTooLargeError",
+  "value": "Image is too large (max 5 MB).",
+  "notes": "",
+  "type": "global"
+}

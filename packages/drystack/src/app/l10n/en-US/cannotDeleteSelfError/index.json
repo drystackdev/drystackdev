@@ -1,0 +1,6 @@
+{
+  "key": "cannotDeleteSelfError",
+  "value": "You can't remove your own account here.",
+  "notes": "",
+  "type": "global"
+}

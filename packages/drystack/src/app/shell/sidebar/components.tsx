@@ -11,6 +11,7 @@ import { logOutIcon } from '@keystar/ui/icon/icons/logOutIcon';
 import { monitorIcon } from '@keystar/ui/icon/icons/monitorIcon';
 import { moonIcon } from '@keystar/ui/icon/icons/moonIcon';
 import { sunIcon } from '@keystar/ui/icon/icons/sunIcon';
+import { userIcon } from '@keystar/ui/icon/icons/userIcon';
 import { Flex } from '@keystar/ui/layout';
 import { Menu, MenuTrigger } from '@keystar/ui/menu';
 import { ClearSlots } from '@keystar/ui/slots';
@@ -116,25 +117,33 @@ export function UserMenu(user: {
   login: string;
 }) {
   let config = useConfig();
-  const { basePath } = useRouter();
+  const { basePath, push } = useRouter();
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   const menuItems = useMemo(() => {
-    let items: MenuItem[] = [
-      {
-        key: 'logout',
-        label: stringFormatter.format('logOutAction'),
-        // github's logout is a plain GET the browser can navigate to
-        // directly. r2's isn't - it revokes the session's jti (POST-only,
-        // see api-r2.ts) - so that one has no `href` and instead runs
-        // through `nativeLogout` in `onAction` below.
-        href:
-          config.storage.kind === 'github'
-            ? `/api${basePath}/github/logout`
-            : undefined,
-        icon: logOutIcon,
-      },
-    ];
+    let items: MenuItem[] = [];
+    // Profile (password + avatar) is native-auth-only - github identities are
+    // managed on GitHub itself, local/demo have no auth at all.
+    if (isR2Config(config)) {
+      items.push({
+        key: 'profile',
+        label: stringFormatter.format('profileAction'),
+        icon: userIcon,
+      });
+    }
+    items.push({
+      key: 'logout',
+      label: stringFormatter.format('logOutAction'),
+      // github's logout is a plain GET the browser can navigate to
+      // directly. r2's isn't - it revokes the session's jti (POST-only,
+      // see api-r2.ts) - so that one has no `href` and instead runs
+      // through `nativeLogout` in `onAction` below.
+      href:
+        config.storage.kind === 'github'
+          ? `/api${basePath}/github/logout`
+          : undefined,
+      icon: logOutIcon,
+    });
     return items;
   }, [config, basePath, stringFormatter]);
 
@@ -150,6 +159,10 @@ export function UserMenu(user: {
           items={menuItems}
           minWidth="scale.2400"
           onAction={async key => {
+            if (key === 'profile') {
+              push(`${basePath}/profile`);
+              return;
+            }
             await Promise.all([clearObjectCache(), clearDrafts()]);
             if (key === 'logout' && isR2Config(config)) {
               await nativeLogout(basePath);
@@ -215,6 +228,7 @@ function useUserData(): UserData | undefined {
   const config = useConfig();
   const user = useViewer();
   const nativeUser = useNativeUser();
+  const { basePath } = useRouter();
 
   if (isGitHubConfig(config) && user) {
     return {
@@ -232,6 +246,9 @@ function useUserData(): UserData | undefined {
     return {
       login: nativeUser.email,
       name: profileName ?? nativeUser.email,
+      avatarUrl: nativeUser.hasAvatar
+        ? `/api${basePath}/auth/avatar/${encodeURIComponent(nativeUser.email)}`
+        : undefined,
     };
   }
 

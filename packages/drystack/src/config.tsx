@@ -39,10 +39,36 @@ export type Singleton<Schema extends Record<string, ComponentSchema>> = {
   schema: Schema;
 };
 
+// The editable shape of a native-auth user (r2 mode only). Deliberately NOT a
+// `Collection`: there's no `slugField` because the user's identity is its email
+// (a built-in, never a schema field), and no `path` because users don't live in
+// the content tree - they're `auth/native/<email>.json` objects behind the auth
+// API (see api/api-r2.ts). `schema` holds only the *profile* fields the site
+// owner wants to edit (name, role, ...), stored in the user file's `profile`
+// JSON. `avatar` and `password` are built-ins handled outside this schema:
+// avatar bytes go to `auth/avatars/<email>` via the auth API ("an image, but
+// not routed through the normal content-image path"), and a password is never
+// a field at all. Don't key a field `email`/`avatar`/`password`/`createdAt` -
+// those names are reserved for the built-ins above and are silently dropped
+// (see RESERVED_USER_FIELD_KEYS in app/users/UserDetailForm.tsx).
+export type UserConfig<
+  Schema extends Record<string, ComponentSchema> = Record<
+    string,
+    ComponentSchema
+  >,
+> = {
+  label?: string;
+  schema: Schema;
+};
+
 type CommonConfig<Collections, Singletons> = {
   locale?: Locale;
   ui?: UserInterface<Collections, Singletons>;
   ai?: AiConfig<Collections, Singletons>;
+  // Only consumed in r2 mode (native auth) - harmless elsewhere. Erased to the
+  // non-generic `UserConfig` here, the same way `Config` erases collections'
+  // schemas; `user()` below preserves the precise schema for the author.
+  user?: UserConfig;
 };
 
 // AI ("Magic write")
@@ -391,4 +417,16 @@ export function singleton<Schema extends Record<string, ComponentSchema>>(
   collection: Singleton<Schema>,
 ): Singleton<Schema> {
   return collection;
+}
+
+// Declares the editable profile schema for native-auth users (r2 mode). Mirrors
+// `collection()`/`singleton()` ergonomics but has no `slugField` (a user's
+// identity is its email, a built-in) and no `path` (users aren't content-tree
+// entries - they're stored behind the auth API). `schema` should hold only
+// JSON-serializable fields (text, select, checkbox, ...); avatar and password
+// are built-ins handled outside it.
+export function user<Schema extends Record<string, ComponentSchema>>(
+  user: UserConfig<Schema>,
+): UserConfig<Schema> {
+  return user;
 }

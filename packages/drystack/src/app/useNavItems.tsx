@@ -1,5 +1,9 @@
 import { useLocalizedStringFormatter } from "@react-aria/i18n";
-import { useMemo } from "react";
+import { ReactElement, useMemo } from "react";
+
+import { folderIcon } from "@keystar/ui/icon/icons/folderIcon";
+import { signpostIcon } from "@keystar/ui/icon/icons/signpostIcon";
+import { usersIcon } from "@keystar/ui/icon/icons/usersIcon";
 
 import {
   Config,
@@ -11,6 +15,7 @@ import l10nMessages from "./l10n";
 import { useAppState, useConfig } from "./shell/context";
 import { useChanged } from "./shell/data";
 import { useDraftKeys } from "./persistence";
+import { isR2Config } from "./utils";
 
 type ItemData = {
   key: string;
@@ -18,6 +23,10 @@ type ItemData = {
   label: string;
   changed: number | boolean;
   entryCount?: number;
+  // Only ever set for the 3 fixed System items below - a site's own
+  // collections/singletons have no config knob for one (see useNavItems'
+  // System section comment).
+  icon?: ReactElement;
   children?: undefined;
   isDivider?: undefined;
 };
@@ -100,10 +109,29 @@ export function useNavItems(): ItemOrGroup[] {
       href: `${basePath}/files`,
       label: stringFormatter.format("fileManagement"),
       changed: false,
+      icon: folderIcon,
     },
   ];
+  // User management is native-auth-only (see plan for the r2 user-management
+  // feature) - local has no auth at all, and github's identities are GitHub
+  // accounts managed on GitHub itself, not something this app can invite or
+  // delete.
+  if (isR2Config(config)) {
+    systemChildren.push({
+      key: "users",
+      href: `${basePath}/users`,
+      label: stringFormatter.format("userManagement"),
+      changed: false,
+      icon: usersIcon,
+    });
+  }
   if (config.singletons && REDIRECTS_SINGLETON_KEY in config.singletons) {
-    systemChildren.push(populateItemData(REDIRECTS_SINGLETON_KEY, options));
+    const redirectsItem = populateItemData(REDIRECTS_SINGLETON_KEY, options);
+    systemChildren.push(
+      redirectsItem.isDivider
+        ? redirectsItem
+        : { ...redirectsItem, icon: signpostIcon }
+    );
   }
   itemOrGroups.push({
     title: stringFormatter.format("system"),

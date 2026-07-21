@@ -1,0 +1,6 @@
+{
+  "key": "cannotDeleteLastUserError",
+  "value": "Can't remove the last remaining user.",
+  "notes": "",
+  "type": "global"
+}
