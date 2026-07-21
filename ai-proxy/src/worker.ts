@@ -1,5 +1,5 @@
-// Standalone Cloudflare Worker backing `storage.ai.url` (see
-// packages/drystack/src/config.tsx's LocalStorageConfig.ai doc comment and
+// Standalone Cloudflare Worker backing `DRYSTACK_AI_URL` (see
+// packages/drystack/src/app/ai/demo-ai-env.ts and
 // packages/drystack/src/app/ai/ai-fetch.ts). A demo build is fully static -
 // no `/api/*` - so the admin's Magic write / rewrite-selection call out here
 // instead, on a separate origin, with no session in front of it.

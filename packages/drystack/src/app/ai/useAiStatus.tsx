@@ -9,6 +9,7 @@ import {
 import { useConfig } from "../shell/context";
 import { useRouter } from "../router";
 import { isDemoConfig } from "../storage-mode";
+import { getDemoAiModel, getDemoAiUrl } from "./demo-ai-env";
 
 export type AiStatus = {
   configured: boolean;
@@ -44,14 +45,14 @@ export function AiStatusProvider(props: { children: ReactNode }) {
     if (!hasAiConfig) return;
     // A demo build has no `/api/<base>/ai/status` to ask (fully static - see
     // app/demo-source.ts) - synthesize the same shape locally instead, from
-    // whether the site owner set storage.ai.url at all. No round-trip needed:
-    // there's nothing server-side to check (the demo proxy's own state,
-    // rate limit included, isn't this site's to report on).
+    // whether `DRYSTACK_AI_URL` is set at all. No round-trip needed: there's
+    // nothing server-side to check (the demo proxy's own state, rate limit
+    // included, isn't this site's to report on).
     if (isDemoConfig(config)) {
       setStatus({
-        configured: !!config.storage.ai?.url,
+        configured: !!getDemoAiUrl(),
         provider: "demo",
-        model: config.storage.ai?.model,
+        model: getDemoAiModel(),
       });
       return;
     }

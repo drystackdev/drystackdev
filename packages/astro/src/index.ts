@@ -499,6 +499,18 @@ export default function drystack(options?: {
         updateConfig({
           server: config.server.host ? {} : { host: "127.0.0.1" },
           vite: {
+            // Astro's default envPrefix is just "PUBLIC_" (kept here, or every
+            // other PUBLIC_ var in the app stops reaching the client bundle -
+            // see create-vite.js: `settings.config.vite?.envPrefix ?? "PUBLIC_"`
+            // is a straight override, not a merge). The two extra entries are
+            // exact full var names, not broad prefixes: Vite matches with
+            // `key.startsWith(prefix)`, so "DRYSTACK_AI_URL"/"DRY_AI_MODEL"
+            // only ever match themselves - never `DRY_AI_KEY` or
+            // `DRY_AI_PROVIDER`, which must stay server-only. This lets demo
+            // mode's Magic write (see @drystack/core's app/ai/demo-ai-env.ts)
+            // read those two straight off `import.meta.env` with no `PUBLIC_`
+            // alias needed.
+            envPrefix: ["PUBLIC_", "DRYSTACK_AI_URL", "DRY_AI_MODEL"],
             plugins: [
               {
                 name: "drystack",

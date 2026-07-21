@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "description": "Standalone Cloudflare Worker that backs storage.ai.url for a public drystack demo build (see packages/drystack/src/config.tsx's LocalStorageConfig.ai doc comment).",
+  "description": "Standalone Cloudflare Worker that backs DRYSTACK_AI_URL for a public drystack demo build (see packages/drystack/src/app/ai/demo-ai-env.ts).",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",

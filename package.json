@@ -15,6 +15,7 @@
     "dev": "astro dev",
     "prebuild": "bun run --filter '@drystack/core' build && bun run --filter '@drystack/astro' build",
     "build": "astro build",
+    "build:demo": "PUBLIC_DEMO=true astro build && node scripts/flatten-demo-dist.mjs",
     "preview": "wrangler dev",
     "astro": "astro",
     "dev:b": "bun run dev --background",

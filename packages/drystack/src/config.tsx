@@ -149,39 +149,13 @@ type LocalStorageConfig = {
 // - reads come from a prebuilt `/__data.zip` instead of `/api/<base>/tree`
 //   and `/api/<base>/blob/...` (see app/demo-source.ts)
 // - every write path no-ops with a toast (see app/demo-guard.ts)
-// - AI calls go to `storage.ai.url` on another origin instead of
+// - AI calls go to `DRYSTACK_AI_URL` on another origin instead of
 //   `/api/<base>/ai/*`, since a demo build is fully static and has no
-//   `/api` routes at all
+//   `/api` routes at all. No config here for that: the site owner sets the
+//   env var (see app/ai/demo-ai-env.ts) and nothing else - unset means the
+//   feature is simply off, no fallback to the top-level `ai`/DRY_AI_KEY path.
 type DemoStorageConfig = {
   kind: "demo";
-  /**
-   * Points Magic write/rewrite at a small proxy the site owner runs on
-   * another origin, instead of this site's own (nonexistent, in a static
-   * demo build) `/api/<base>/ai/*` routes. Deliberately separate from the
-   * top-level `ai` config above: that one drives the real, authenticated
-   * github/local generation path (reading DRY_AI_KEY server-side) and is not
-   * consulted at all in demo mode - this is a different, unauthenticated
-   * endpoint with a different trust model (public internet, no admin login
-   * gating it), so giving it its own key keeps the two from being mixed up.
-   */
-  ai?: {
-    /**
-     * Absolute base URL of the proxy. Only `POST <url>/generate` and
-     * `POST <url>/rewrite` are ever called (status is synthesized
-     * client-side and the model picker is hidden in demo mode, so the
-     * proxy needs no counterpart for the other three admin AI routes). Must
-     * respond with a streamed body, not a buffered one - the client reads it
-     * chunk by chunk - and must rate-limit per IP: this endpoint has no
-     * login in front of it, so anyone can call it.
-     */
-    url: string;
-    /**
-     * Model name sent to the proxy with every request, and shown as-is in
-     * the synthesized AI status - purely what the client asks for and
-     * displays; the proxy itself decides what actually runs.
-     */
-    model?: string;
-  };
 };
 
 export type LocalConfig<
@@ -335,24 +309,7 @@ export function config<
 
   return {
     ...userConfig,
-    storage: isDemoBuild
-      ? {
-          kind: "demo",
-          ai: {
-            url: viteEnvIsDefined
-              ? (import.meta as unknown as ViteMeta).env
-                  .PUBLIC_DRYSTACK_AI_URL
-              : typeof process !== "undefined"
-                ? process.env.PUBLIC_DRYSTACK_AI_URL
-                : undefined,
-            model: viteEnvIsDefined
-              ? (import.meta as unknown as ViteMeta).env.PUBLIC_DRY_AI_MODEL
-              : typeof process !== "undefined"
-                ? process.env.PUBLIC_DRY_AI_MODEL
-                : undefined,
-          },
-        }
-      : userConfig.storage,
+    storage: isDemoBuild ? { kind: "demo" } : userConfig.storage,
     singletons: {
       ...userConfig.singletons,
       [REDIRECTS_SINGLETON_KEY]: redirectsSingleton,
