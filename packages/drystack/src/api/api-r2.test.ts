@@ -5,7 +5,6 @@ import { Config } from '../config';
 import { base64UrlEncode } from '#base64';
 import { blobSha } from '../app/trees';
 import {
-  EmailSenderLike,
   r2ModeApiHandler,
   getContentVersion,
   R2BucketLike,
@@ -125,31 +124,6 @@ async function seedUser(bucket: MemoryBucket, email = 'admin@example.com') {
 
 async function listAllKeys(bucket: MemoryBucket) {
   return [...bucket.store.keys()];
-}
-
-type SentEmail = {
-  to: string;
-  from: { email: string; name?: string };
-  subject: string;
-  text?: string;
-  html?: string;
-};
-
-function makeEmailSender(options: { fail?: boolean } = {}) {
-  const sent: SentEmail[] = [];
-  const sender: EmailSenderLike = {
-    send: async message => {
-      if (options.fail) throw new Error('send failed');
-      sent.push(message as SentEmail);
-    },
-  };
-  return { sender, sent };
-}
-
-function inviteTokenFromEmail(email: SentEmail): string {
-  const match = (email.text ?? '').match(/invite=([^\s<]+)/);
-  if (!match) throw new Error('no invite link found in email body');
-  return decodeURIComponent(match[1]);
 }
 
 test('missing bucket or secret is a loud 500', async () => {
@@ -296,19 +270,12 @@ test('auth flow: status → setup → login → me → logout', async () => {
   // first admin created, session cookies set
   res = await handler(
     request('POST', 'auth/setup', {
-      body: {
-        email: 'Admin@Example.com',
-        password: 'hunter2-hunter2',
-        profile: { name: 'Admin' },
-      },
+      body: { email: 'Admin@Example.com', password: 'hunter2-hunter2' },
     }),
     ['auth', 'setup']
   );
   expect(res.status).toBe(200);
-  expect(bodyJson(res)).toEqual({
-    email: 'admin@example.com',
-    profile: { name: 'Admin' },
-  });
+  expect(bodyJson(res)).toEqual({ email: 'admin@example.com' });
   const setCookies = (res.headers as [string, string][])
     .filter(([k]) => k === 'Set-Cookie')
     .map(([, v]) => v);
@@ -346,7 +313,7 @@ test('auth flow: status → setup → login → me → logout', async () => {
   expect(unknown.status).toBe(401);
   expect(bodyJson(unknown)).toEqual(bodyJson(res));
 
-  // correct login returns the profile
+  // correct login
   res = await handler(
     request('POST', 'auth/login', {
       body: { email: 'admin@example.com', password: 'hunter2-hunter2' },
@@ -354,20 +321,13 @@ test('auth flow: status → setup → login → me → logout', async () => {
     ['auth', 'login']
   );
   expect(res.status).toBe(200);
-  expect(bodyJson(res)).toEqual({
-    email: 'admin@example.com',
-    profile: { name: 'Admin' },
-  });
+  expect(bodyJson(res)).toEqual({ email: 'admin@example.com' });
 
   // me with a valid cookie
   const cookie = await sessionCookie();
   res = await handler(request('GET', 'auth/me', { cookie }), ['auth', 'me']);
   expect(res.status).toBe(200);
-  expect(bodyJson(res)).toEqual({
-    email: 'admin@example.com',
-    profile: { name: 'Admin' },
-    hasAvatar: false,
-  });
+  expect(bodyJson(res)).toEqual({ email: 'admin@example.com' });
   // me without → 401
   res = await handler(request('GET', 'auth/me'), ['auth', 'me']);
   expect(res.status).toBe(401);
@@ -495,311 +455,7 @@ test('a real write bumps the content version, a no-op write does not', async () 
   expect(await getContentVersion(bucket)).not.toEqual(after);
 });
 
-test('user management: listing includes the seeded admin', async () => {
-  const bucket = new MemoryBucket();
-  await seedUser(bucket);
-  const handler = r2ModeApiHandler(testConfig, bucket, SECRET);
-  const cookie = await sessionCookie();
-
-  // anonymous is refused
-  expect(
-    (await handler(request('GET', 'auth/users'), ['auth', 'users'])).status
-  ).toBe(401);
-
-  const res = await handler(request('GET', 'auth/users', { cookie }), [
-    'auth',
-    'users',
-  ]);
-  expect(res.status).toBe(200);
-  const { users } = bodyJson(res);
-  expect(users).toEqual([
-    expect.objectContaining({
-      email: 'admin@example.com',
-      name: 'Admin',
-      hasAvatar: false,
-      pending: false,
-    }),
-  ]);
-  expect(typeof users[0].createdAt).toEqual('string');
-});
-
-test('invite: sends an email, shows up as pending, rejects duplicates, needs the binding configured', async () => {
-  const bucket = new MemoryBucket();
-  await seedUser(bucket);
-  const cookie = await sessionCookie();
-
-  // no emailSender configured at all - loud failure, no invite left behind
-  const noEmailHandler = r2ModeApiHandler(testConfig, bucket, SECRET);
-  const noEmailRes = await noEmailHandler(
-    request('POST', 'auth/users', {
-      body: { email: 'new@example.com' },
-      cookie,
-    }),
-    ['auth', 'users']
-  );
-  expect(noEmailRes.status).toBe(500);
-  expect(bodyJson(noEmailRes).error).toEqual('email-not-configured');
-  expect(await listAllKeys(bucket)).not.toContain(
-    'auth/invites/new@example.com.json'
-  );
-
-  const { sender, sent } = makeEmailSender();
-  const handler = r2ModeApiHandler(
-    testConfig,
-    bucket,
-    SECRET,
-    sender,
-    'no-reply@drystack.dev'
-  );
-
-  const res = await handler(
-    request('POST', 'auth/users', {
-      body: { email: 'New@Example.com' },
-      cookie,
-    }),
-    ['auth', 'users']
-  );
-  expect(res.status).toBe(200);
-  expect(sent).toHaveLength(1);
-  expect(sent[0].to).toEqual('new@example.com');
-  expect(sent[0].from).toEqual({
-    email: 'no-reply@drystack.dev',
-    name: 'Drystack',
-  });
-  expect(sent[0].text).toContain('/login?invite=');
-  expect(sent[0].html).toContain('/login?invite=');
-
-  const list = bodyJson(
-    await handler(request('GET', 'auth/users', { cookie }), [
-      'auth',
-      'users',
-    ])
-  ).users;
-  expect(list).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({
-        email: 'new@example.com',
-        pending: true,
-        hasAvatar: false,
-      }),
-    ])
-  );
-
-  // duplicate invite of an already-pending email
-  const dup = await handler(
-    request('POST', 'auth/users', {
-      body: { email: 'new@example.com' },
-      cookie,
-    }),
-    ['auth', 'users']
-  );
-  expect(dup.status).toBe(409);
-  expect(bodyJson(dup).error).toEqual('already-exists');
-
-  // duplicate invite of an already-active user (the seeded admin)
-  const dupActive = await handler(
-    request('POST', 'auth/users', {
-      body: { email: 'admin@example.com' },
-      cookie,
-    }),
-    ['auth', 'users']
-  );
-  expect(dupActive.status).toBe(409);
-});
-
-test('invite: a failed send cleans up the pending invite record', async () => {
-  const bucket = new MemoryBucket();
-  await seedUser(bucket);
-  const cookie = await sessionCookie();
-  const { sender } = makeEmailSender({ fail: true });
-  const handler = r2ModeApiHandler(testConfig, bucket, SECRET, sender);
-
-  const res = await handler(
-    request('POST', 'auth/users', {
-      body: { email: 'new@example.com' },
-      cookie,
-    }),
-    ['auth', 'users']
-  );
-  expect(res.status).toBe(502);
-  expect(bodyJson(res).error).toEqual('email-failed');
-  expect(await listAllKeys(bucket)).not.toContain(
-    'auth/invites/new@example.com.json'
-  );
-});
-
-test('invite accept: validates inputs, creates the account, logs in, and is one-time-use', async () => {
-  const bucket = new MemoryBucket();
-  await seedUser(bucket);
-  const cookie = await sessionCookie();
-  const { sender, sent } = makeEmailSender();
-  const handler = r2ModeApiHandler(testConfig, bucket, SECRET, sender);
-
-  await handler(
-    request('POST', 'auth/users', {
-      body: { email: 'new@example.com' },
-      cookie,
-    }),
-    ['auth', 'users']
-  );
-  const token = inviteTokenFromEmail(sent[0]);
-
-  // mismatched confirmation
-  let res = await handler(
-    request('POST', 'auth/invite/accept', {
-      body: {
-        token,
-        name: 'New Person',
-        password: 'hunter2-hunter2',
-        passwordConfirm: 'different',
-      },
-    }),
-    ['auth', 'invite', 'accept']
-  );
-  expect(res.status).toBe(400);
-  expect(bodyJson(res).error).toEqual('password-mismatch');
-
-  // too short
-  res = await handler(
-    request('POST', 'auth/invite/accept', {
-      body: {
-        token,
-        name: 'New Person',
-        password: 'short',
-        passwordConfirm: 'short',
-      },
-    }),
-    ['auth', 'invite', 'accept']
-  );
-  expect(res.status).toBe(400);
-  expect(bodyJson(res).error).toEqual('password-too-short');
-
-  // garbage token
-  res = await handler(
-    request('POST', 'auth/invite/accept', {
-      body: {
-        token: 'not-a-real-token',
-        name: 'New Person',
-        password: 'hunter2-hunter2',
-        passwordConfirm: 'hunter2-hunter2',
-      },
-    }),
-    ['auth', 'invite', 'accept']
-  );
-  expect(res.status).toBe(400);
-  expect(bodyJson(res).error).toEqual('invalid-token');
-
-  // the real accept
-  res = await handler(
-    request('POST', 'auth/invite/accept', {
-      body: {
-        token,
-        name: 'New Person',
-        password: 'hunter2-hunter2',
-        passwordConfirm: 'hunter2-hunter2',
-      },
-    }),
-    ['auth', 'invite', 'accept']
-  );
-  expect(res.status).toBe(200);
-  expect(bodyJson(res)).toEqual({
-    email: 'new@example.com',
-    profile: { name: 'New Person' },
-  });
-  const setCookies = (res.headers as [string, string][])
-    .filter(([k]) => k === 'Set-Cookie')
-    .map(([, v]) => v);
-  expect(setCookies.some(v => v.startsWith('drystack-session='))).toBe(true);
-  expect(await listAllKeys(bucket)).not.toContain(
-    'auth/invites/new@example.com.json'
-  );
-  expect(await listAllKeys(bucket)).toContain(
-    'auth/native/new@example.com.yaml'
-  );
-
-  // the invite is gone - the same token can't be used again
-  const reuse = await handler(
-    request('POST', 'auth/invite/accept', {
-      body: {
-        token,
-        name: 'Someone Else',
-        password: 'hunter2-hunter2',
-        passwordConfirm: 'hunter2-hunter2',
-      },
-    }),
-    ['auth', 'invite', 'accept']
-  );
-  expect(reuse.status).toBe(410);
-  expect(bodyJson(reuse).error).toEqual('invite-not-found');
-});
-
-test('delete: guards against self-delete and 404s unknown users, cancels pending invites, removes active users', async () => {
-  const bucket = new MemoryBucket();
-  await seedUser(bucket, 'admin@example.com');
-  await seedUser(bucket, 'second@example.com');
-  const adminCookie = await sessionCookie('admin@example.com');
-  const { sender } = makeEmailSender();
-  const handler = r2ModeApiHandler(testConfig, bucket, SECRET, sender);
-
-  // can't delete yourself
-  const self = await handler(
-    request('POST', 'auth/users/delete', {
-      body: { email: 'admin@example.com' },
-      cookie: adminCookie,
-    }),
-    ['auth', 'users', 'delete']
-  );
-  expect(self.status).toBe(400);
-  expect(bodyJson(self).error).toEqual('cannot-delete-self');
-
-  // unknown email
-  const unknown = await handler(
-    request('POST', 'auth/users/delete', {
-      body: { email: 'ghost@example.com' },
-      cookie: adminCookie,
-    }),
-    ['auth', 'users', 'delete']
-  );
-  expect(unknown.status).toBe(404);
-
-  // cancel a pending invite
-  await handler(
-    request('POST', 'auth/users', {
-      body: { email: 'pending@example.com' },
-      cookie: adminCookie,
-    }),
-    ['auth', 'users']
-  );
-  expect(await listAllKeys(bucket)).toContain(
-    'auth/invites/pending@example.com.json'
-  );
-  const cancelled = await handler(
-    request('POST', 'auth/users/delete', {
-      body: { email: 'pending@example.com' },
-      cookie: adminCookie,
-    }),
-    ['auth', 'users', 'delete']
-  );
-  expect(cancelled.status).toBe(200);
-  expect(await listAllKeys(bucket)).not.toContain(
-    'auth/invites/pending@example.com.json'
-  );
-
-  // removes an active user (two active users → one remains, allowed)
-  const removed = await handler(
-    request('POST', 'auth/users/delete', {
-      body: { email: 'second@example.com' },
-      cookie: adminCookie,
-    }),
-    ['auth', 'users', 'delete']
-  );
-  expect(removed.status).toBe(200);
-  expect(await listAllKeys(bucket)).not.toContain(
-    'auth/native/second@example.com.yaml'
-  );
-});
-
-test('delete immediately invalidates the removed user\'s existing session - not just via jti revocation', async () => {
+test('a removed user file immediately invalidates their existing session - not just via jti revocation', async () => {
   const bucket = new MemoryBucket();
   await seedUser(bucket, 'admin@example.com');
   await seedUser(bucket, 'second@example.com');
@@ -817,13 +473,8 @@ test('delete immediately invalidates the removed user\'s existing session - not 
     ).status
   ).toBe(200);
 
-  await handler(
-    request('POST', 'auth/users/delete', {
-      body: { email: 'second@example.com' },
-      cookie: adminCookie,
-    }),
-    ['auth', 'users', 'delete']
-  );
+  // simulate the account being removed (e.g. via scripts/drystack-auth.ts)
+  await bucket.delete(userFileKey('second@example.com'));
 
   // the exact same cookie - still cryptographically valid, unexpired, and
   // never explicitly logged out (no revoked/<jti> entry) - is now rejected,
@@ -859,159 +510,7 @@ test('delete immediately invalidates the removed user\'s existing session - not 
   ).toBe(200);
 });
 
-test('password change: requires the current password, enforces confirmation+length, preserves profile', async () => {
-  const bucket = new MemoryBucket();
-  await seedUser(bucket);
-  const cookie = await sessionCookie();
-  const handler = r2ModeApiHandler(testConfig, bucket, SECRET);
-
-  const wrongOld = await handler(
-    request('POST', 'auth/password', {
-      body: {
-        oldPassword: 'nope',
-        newPassword: 'new-password-1',
-        newPasswordConfirm: 'new-password-1',
-      },
-      cookie,
-    }),
-    ['auth', 'password']
-  );
-  expect(wrongOld.status).toBe(401);
-  expect(bodyJson(wrongOld).error).toEqual('invalid-current-password');
-
-  const mismatch = await handler(
-    request('POST', 'auth/password', {
-      body: {
-        oldPassword: 'hunter2-hunter2',
-        newPassword: 'new-password-1',
-        newPasswordConfirm: 'different',
-      },
-      cookie,
-    }),
-    ['auth', 'password']
-  );
-  expect(mismatch.status).toBe(400);
-  expect(bodyJson(mismatch).error).toEqual('password-mismatch');
-
-  const tooShort = await handler(
-    request('POST', 'auth/password', {
-      body: {
-        oldPassword: 'hunter2-hunter2',
-        newPassword: 'short',
-        newPasswordConfirm: 'short',
-      },
-      cookie,
-    }),
-    ['auth', 'password']
-  );
-  expect(tooShort.status).toBe(400);
-  expect(bodyJson(tooShort).error).toEqual('password-too-short');
-
-  const ok = await handler(
-    request('POST', 'auth/password', {
-      body: {
-        oldPassword: 'hunter2-hunter2',
-        newPassword: 'new-password-1',
-        newPasswordConfirm: 'new-password-1',
-      },
-      cookie,
-    }),
-    ['auth', 'password']
-  );
-  expect(ok.status).toBe(200);
-
-  // old password no longer works, new one does, profile survived
-  const oldLogin = await handler(
-    request('POST', 'auth/login', {
-      body: { email: 'admin@example.com', password: 'hunter2-hunter2' },
-    }),
-    ['auth', 'login']
-  );
-  expect(oldLogin.status).toBe(401);
-  const newLogin = await handler(
-    request('POST', 'auth/login', {
-      body: { email: 'admin@example.com', password: 'new-password-1' },
-    }),
-    ['auth', 'login']
-  );
-  expect(newLogin.status).toBe(200);
-  expect(bodyJson(newLogin).profile).toEqual({ name: 'Admin' });
-});
-
-test('avatar: validates type/size, requires session, round-trips bytes+content-type', async () => {
-  const bucket = new MemoryBucket();
-  await seedUser(bucket);
-  const cookie = await sessionCookie();
-  const handler = r2ModeApiHandler(testConfig, bucket, SECRET);
-  const pngBytes = encoder.encode('fake-png-bytes');
-
-  const wrongType = await handler(
-    request('POST', 'auth/avatar', {
-      body: {
-        contents: base64UrlEncode(pngBytes),
-        contentType: 'text/plain',
-      },
-      cookie,
-    }),
-    ['auth', 'avatar']
-  );
-  expect(wrongType.status).toBe(400);
-  expect(bodyJson(wrongType).error).toEqual('invalid-content-type');
-
-  const tooBig = await handler(
-    request('POST', 'auth/avatar', {
-      body: {
-        contents: base64UrlEncode(new Uint8Array(5 * 1024 * 1024 + 1)),
-        contentType: 'image/png',
-      },
-      cookie,
-    }),
-    ['auth', 'avatar']
-  );
-  expect(tooBig.status).toBe(413);
-
-  const ok = await handler(
-    request('POST', 'auth/avatar', {
-      body: { contents: base64UrlEncode(pngBytes), contentType: 'image/png' },
-      cookie,
-    }),
-    ['auth', 'avatar']
-  );
-  expect(ok.status).toBe(200);
-
-  // me/users now report hasAvatar: true
-  expect(
-    bodyJson(
-      await handler(request('GET', 'auth/me', { cookie }), ['auth', 'me'])
-    ).hasAvatar
-  ).toBe(true);
-
-  // fetching requires a session
-  const anonFetch = await handler(
-    request('GET', 'auth/avatar/admin@example.com'),
-    ['auth', 'avatar', 'admin@example.com']
-  );
-  expect(anonFetch.status).toBe(401);
-
-  // round-trips the exact bytes and content-type
-  const fetched = await handler(
-    request('GET', 'auth/avatar/admin@example.com', { cookie }),
-    ['auth', 'avatar', 'admin@example.com']
-  );
-  expect(fetched.status).toBe(200);
-  expect(new Uint8Array(fetched.body as Uint8Array)).toEqual(pngBytes);
-  const headerEntries = fetched.headers as Record<string, string>;
-  expect(headerEntries['content-type']).toEqual('image/png');
-
-  // unknown user's avatar 404s
-  const missing = await handler(
-    request('GET', 'auth/avatar/ghost@example.com', { cookie }),
-    ['auth', 'avatar', 'ghost@example.com']
-  );
-  expect(missing.status).toBe(404);
-});
-
-test('legacy .json user files: read via fallback, migrated to .yaml on next write', async () => {
+test('legacy .json user files still authenticate via the read fallback', async () => {
   const bucket = new MemoryBucket();
   const file = await createUserFile('hunter2-hunter2', { name: 'Legacy Admin' });
   await bucket.put(
@@ -1022,267 +521,19 @@ test('legacy .json user files: read via fallback, migrated to .yaml on next writ
   const handler = r2ModeApiHandler(testConfig, bucket, SECRET);
 
   // reads (here, `me`) fall back to the legacy key
-  const me = bodyJson(
-    await handler(request('GET', 'auth/me', { cookie }), ['auth', 'me'])
-  );
-  expect(me.profile).toEqual({ name: 'Legacy Admin' });
+  const me = await handler(request('GET', 'auth/me', { cookie }), ['auth', 'me']);
+  expect(me.status).toBe(200);
+  expect(bodyJson(me)).toEqual({ email: 'admin@example.com' });
   expect(await listAllKeys(bucket)).toContain(
     'auth/native/admin@example.com.json'
   );
-  expect(await listAllKeys(bucket)).not.toContain(
-    'auth/native/admin@example.com.yaml'
-  );
 
-  // any write (a profile update here) migrates: .yaml appears, legacy .json is gone
-  const updated = await handler(
-    request('POST', 'auth/users/update', {
-      body: { email: 'admin@example.com', profile: { name: 'Migrated Admin' } },
-      cookie,
-    }),
-    ['auth', 'users', 'update']
-  );
-  expect(updated.status).toBe(200);
-  expect(await listAllKeys(bucket)).toContain(
-    'auth/native/admin@example.com.yaml'
-  );
-  expect(await listAllKeys(bucket)).not.toContain(
-    'auth/native/admin@example.com.json'
-  );
-  expect(
-    bodyJson(await handler(request('GET', 'auth/me', { cookie }), ['auth', 'me']))
-      .profile
-  ).toEqual({ name: 'Migrated Admin' });
-});
-
-test('GET users/<email>: existing user, 404 for unknown, pending invite exposes its own profile', async () => {
-  const bucket = new MemoryBucket();
-  await seedUser(bucket);
-  const cookie = await sessionCookie();
-  const { sender } = makeEmailSender();
-  const handler = r2ModeApiHandler(testConfig, bucket, SECRET, sender);
-
-  const anon = await handler(
-    request('GET', 'auth/users/admin@example.com'),
-    ['auth', 'users', 'admin@example.com']
-  );
-  expect(anon.status).toBe(401);
-
-  const existing = await handler(
-    request('GET', 'auth/users/admin@example.com', { cookie }),
-    ['auth', 'users', 'admin@example.com']
-  );
-  expect(existing.status).toBe(200);
-  expect(bodyJson(existing)).toEqual({
-    email: 'admin@example.com',
-    profile: { name: 'Admin' },
-    hasAvatar: false,
-  });
-
-  const missing = await handler(
-    request('GET', 'auth/users/ghost@example.com', { cookie }),
-    ['auth', 'users', 'ghost@example.com']
-  );
-  expect(missing.status).toBe(404);
-
-  await handler(
-    request('POST', 'auth/users', {
-      body: { email: 'invitee@example.com', profile: { name: 'Invitee' } },
-      cookie,
-    }),
-    ['auth', 'users']
-  );
-  const pending = await handler(
-    request('GET', 'auth/users/invitee@example.com', { cookie }),
-    ['auth', 'users', 'invitee@example.com']
-  );
-  expect(pending.status).toBe(200);
-  expect(bodyJson(pending)).toEqual({
-    email: 'invitee@example.com',
-    profile: { name: 'Invitee' },
-    hasAvatar: false,
-    pending: true,
-  });
-});
-
-test('users/update: edits an existing users profile (password/createdAt untouched) and a pending invites profile', async () => {
-  const bucket = new MemoryBucket();
-  await seedUser(bucket);
-  const cookie = await sessionCookie();
-  const { sender } = makeEmailSender();
-  const handler = r2ModeApiHandler(testConfig, bucket, SECRET, sender);
-
-  const updated = await handler(
-    request('POST', 'auth/users/update', {
-      body: { email: 'admin@example.com', profile: { name: 'Renamed Admin' } },
-      cookie,
-    }),
-    ['auth', 'users', 'update']
-  );
-  expect(updated.status).toBe(200);
-  expect(
-    bodyJson(await handler(request('GET', 'auth/me', { cookie }), ['auth', 'me']))
-      .profile
-  ).toEqual({ name: 'Renamed Admin' });
-  // the password hash was never touched by the profile update
-  const relogin = await handler(
+  // login against the legacy file also works
+  const login = await handler(
     request('POST', 'auth/login', {
       body: { email: 'admin@example.com', password: 'hunter2-hunter2' },
     }),
     ['auth', 'login']
   );
-  expect(relogin.status).toBe(200);
-
-  await handler(
-    request('POST', 'auth/users', {
-      body: { email: 'invitee@example.com', profile: { name: 'Original' } },
-      cookie,
-    }),
-    ['auth', 'users']
-  );
-  const invitedUpdate = await handler(
-    request('POST', 'auth/users/update', {
-      body: {
-        email: 'invitee@example.com',
-        profile: { name: 'Edited Before Accept' },
-      },
-      cookie,
-    }),
-    ['auth', 'users', 'update']
-  );
-  expect(invitedUpdate.status).toBe(200);
-  const pendingAfter = bodyJson(
-    await handler(
-      request('GET', 'auth/users/invitee@example.com', { cookie }),
-      ['auth', 'users', 'invitee@example.com']
-    )
-  );
-  expect(pendingAfter.profile).toEqual({ name: 'Edited Before Accept' });
-
-  const missing = await handler(
-    request('POST', 'auth/users/update', {
-      body: { email: 'ghost@example.com', profile: { name: 'Nope' } },
-      cookie,
-    }),
-    ['auth', 'users', 'update']
-  );
-  expect(missing.status).toBe(404);
-});
-
-test('invite with a profile: accept merges the invitees own name into the admins profile', async () => {
-  const bucket = new MemoryBucket();
-  await seedUser(bucket);
-  const cookie = await sessionCookie();
-  const { sender, sent } = makeEmailSender();
-  const handler = r2ModeApiHandler(testConfig, bucket, SECRET, sender);
-
-  await handler(
-    request('POST', 'auth/users', {
-      body: {
-        email: 'new@example.com',
-        profile: { name: 'Placeholder', role: 'editor' },
-      },
-      cookie,
-    }),
-    ['auth', 'users']
-  );
-  const token = inviteTokenFromEmail(sent[0]);
-
-  const accepted = await handler(
-    request('POST', 'auth/invite/accept', {
-      body: {
-        token,
-        name: 'Real Name',
-        password: 'hunter2-hunter2',
-        passwordConfirm: 'hunter2-hunter2',
-      },
-    }),
-    ['auth', 'invite', 'accept']
-  );
-  expect(accepted.status).toBe(200);
-  // the invitee's typed name overrides the admin's placeholder, but other
-  // admin-set fields (role) survive
-  expect(bodyJson(accepted).profile).toEqual({
-    name: 'Real Name',
-    role: 'editor',
-  });
-});
-
-test('avatar: an admin can set another users avatar via an explicit email, including a not-yet-accepted invite', async () => {
-  const bucket = new MemoryBucket();
-  await seedUser(bucket);
-  const cookie = await sessionCookie();
-  const { sender } = makeEmailSender();
-  const handler = r2ModeApiHandler(testConfig, bucket, SECRET, sender);
-  const pngBytes = encoder.encode('fake-png-bytes');
-
-  await handler(
-    request('POST', 'auth/users', {
-      body: { email: 'invitee@example.com' },
-      cookie,
-    }),
-    ['auth', 'users']
-  );
-
-  const res = await handler(
-    request('POST', 'auth/avatar', {
-      body: {
-        contents: base64UrlEncode(pngBytes),
-        contentType: 'image/png',
-        email: 'invitee@example.com',
-      },
-      cookie,
-    }),
-    ['auth', 'avatar']
-  );
-  expect(res.status).toBe(200);
-
-  // it did not set the admin's own avatar
-  expect(
-    bodyJson(await handler(request('GET', 'auth/me', { cookie }), ['auth', 'me']))
-      .hasAvatar
-  ).toBe(false);
-
-  const fetched = await handler(
-    request('GET', 'auth/avatar/invitee@example.com', { cookie }),
-    ['auth', 'avatar', 'invitee@example.com']
-  );
-  expect(fetched.status).toBe(200);
-  expect(new Uint8Array(fetched.body as Uint8Array)).toEqual(pngBytes);
-
-  expect(
-    bodyJson(
-      await handler(
-        request('GET', 'auth/users/invitee@example.com', { cookie }),
-        ['auth', 'users', 'invitee@example.com']
-      )
-    ).hasAvatar
-  ).toBe(true);
-});
-
-test('GET users: each row includes its full profile, for both active and pending users', async () => {
-  const bucket = new MemoryBucket();
-  await seedUser(bucket);
-  const cookie = await sessionCookie();
-  const { sender } = makeEmailSender();
-  const handler = r2ModeApiHandler(testConfig, bucket, SECRET, sender);
-
-  await handler(
-    request('POST', 'auth/users', {
-      body: {
-        email: 'invitee@example.com',
-        profile: { name: 'Invitee', role: 'editor' },
-      },
-      cookie,
-    }),
-    ['auth', 'users']
-  );
-
-  const list = bodyJson(
-    await handler(request('GET', 'auth/users', { cookie }), ['auth', 'users'])
-  ).users as { email: string; profile: unknown; pending: boolean }[];
-  const admin = list.find(u => u.email === 'admin@example.com');
-  const invitee = list.find(u => u.email === 'invitee@example.com');
-  expect(admin?.profile).toEqual({ name: 'Admin' });
-  expect(invitee?.profile).toEqual({ name: 'Invitee', role: 'editor' });
-  expect(invitee?.pending).toBe(true);
+  expect(login.status).toBe(200);
 });

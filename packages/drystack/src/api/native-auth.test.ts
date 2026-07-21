@@ -3,12 +3,9 @@ import { expect, test } from '@jest/globals';
 import {
   createUserFile,
   hashPassword,
-  inviteFileKey,
   normalizeEmail,
-  signInviteToken,
   signSession,
   userFileKey,
-  verifyInviteToken,
   verifyPassword,
   verifySession,
   getSessionFromCookieHeader,
@@ -111,36 +108,4 @@ test('createUserFile stamps createdAt (overridable)', async () => {
 
   const stamped = await createUserFile('secret-password', {}, '2020-01-01T00:00:00.000Z');
   expect(stamped.createdAt).toEqual('2020-01-01T00:00:00.000Z');
-});
-
-test('inviteFileKey builds the auth/invites path', () => {
-  expect(inviteFileKey('user@example.com')).toEqual(
-    'auth/invites/user@example.com.json'
-  );
-});
-
-test('invite token round-trip', async () => {
-  const token = await signInviteToken('user@example.com', SECRET);
-  const invite = await verifyInviteToken(token, SECRET);
-  expect(invite?.email).toEqual('user@example.com');
-  expect(typeof invite?.exp).toEqual('number');
-});
-
-test('invite token rejects tampering, wrong secret, and expiry', async () => {
-  const token = await signInviteToken('user@example.com', SECRET);
-  const [h, p, s] = token.split('.');
-  expect(await verifyInviteToken(`${h}.${p}x.${s}`, SECRET)).toBeNull();
-  expect(await verifyInviteToken(token, 'b'.repeat(32))).toBeNull();
-  const expired = await signInviteToken('user@example.com', SECRET, -10);
-  expect(await verifyInviteToken(expired, SECRET)).toBeNull();
-  expect(await verifyInviteToken('nope', SECRET)).toBeNull();
-});
-
-test('invite tokens and session tokens are not interchangeable', async () => {
-  const sessionToken = await signSession({ email: 'user@example.com' }, SECRET);
-  const inviteToken = await signInviteToken('user@example.com', SECRET);
-  // a session token should never verify as an invite (missing `purpose`)
-  expect(await verifyInviteToken(sessionToken, SECRET)).toBeNull();
-  // and an invite token should never verify as a session (missing `jti`)
-  expect(await verifySession(inviteToken, SECRET)).toBeNull();
 });

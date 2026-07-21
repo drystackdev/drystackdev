@@ -3,7 +3,6 @@ import { ReactElement, useMemo } from "react";
 
 import { folderIcon } from "@keystar/ui/icon/icons/folderIcon";
 import { signpostIcon } from "@keystar/ui/icon/icons/signpostIcon";
-import { usersIcon } from "@keystar/ui/icon/icons/usersIcon";
 
 import {
   Config,
@@ -15,7 +14,6 @@ import l10nMessages from "./l10n";
 import { useAppState, useConfig } from "./shell/context";
 import { useChanged } from "./shell/data";
 import { useDraftKeys } from "./persistence";
-import { isR2Config } from "./utils";
 
 type ItemData = {
   key: string;
@@ -112,19 +110,6 @@ export function useNavItems(): ItemOrGroup[] {
       icon: folderIcon,
     },
   ];
-  // User management is native-auth-only (see plan for the r2 user-management
-  // feature) - local has no auth at all, and github's identities are GitHub
-  // accounts managed on GitHub itself, not something this app can invite or
-  // delete.
-  if (isR2Config(config)) {
-    systemChildren.push({
-      key: "users",
-      href: `${basePath}/users`,
-      label: stringFormatter.format("userManagement"),
-      changed: false,
-      icon: usersIcon,
-    });
-  }
   if (config.singletons && REDIRECTS_SINGLETON_KEY in config.singletons) {
     const redirectsItem = populateItemData(REDIRECTS_SINGLETON_KEY, options);
     systemChildren.push(

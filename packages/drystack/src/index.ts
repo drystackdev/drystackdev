@@ -1,4 +1,4 @@
-export { config, collection, singleton, user, REDIRECTS_SINGLETON_KEY } from './config';
+export { config, collection, singleton, REDIRECTS_SINGLETON_KEY } from './config';
 export * from './form/api';
 export {
   BlockWrapper,
@@ -17,5 +17,4 @@ export type {
   LocalShapedConfig,
   R2Config,
   Singleton,
-  UserConfig,
 } from './config';

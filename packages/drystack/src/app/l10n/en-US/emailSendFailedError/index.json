@@ -1,6 +1,0 @@
-{
-  "key": "emailSendFailedError",
-  "value": "Couldn't send the invite email. Try again.",
-  "notes": "",
-  "type": "global"
-}

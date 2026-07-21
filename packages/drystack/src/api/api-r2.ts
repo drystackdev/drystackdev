@@ -7,28 +7,19 @@ import { getAllowedDirectories } from './allowed-directories';
 import {
   AUTH_DIRECTORY,
   AUTH_NATIVE_PREFIX,
-  AUTH_INVITES_PREFIX,
-  AUTH_AVATARS_PREFIX,
-  INVITE_TOKEN_MAX_AGE_SECONDS,
-  NativeAuthInviteFile,
   NativeAuthUserFile,
   NativeSession,
-  avatarKey,
   clearSessionCookieHeaders,
   createUserFile,
   getSessionFromCookieHeader,
-  hashPassword,
-  inviteFileKey,
   legacyUserFileKey,
   normalizeEmail,
   parseUserFile,
   revokedKey,
   serializeUserFile,
   sessionCookieHeaders,
-  signInviteToken,
   signSession,
   userFileKey,
-  verifyInviteToken,
   verifyPassword,
 } from './native-auth';
 
@@ -197,26 +188,10 @@ export async function verifiedSession(
   return session;
 }
 
-// Structural subset of Cloudflare's Email Sending Workers binding, typed
-// locally so @drystack/core doesn't depend on @cloudflare/workers-types (same
-// reasoning as R2BucketLike above). Only the shape actually used - see the
-// binding's own docs for the rest (attachments, etc).
-export type EmailSenderLike = {
-  send(message: {
-    to: string;
-    from: { email: string; name?: string };
-    subject: string;
-    html?: string;
-    text?: string;
-  }): Promise<unknown>;
-};
-
 export function r2ModeApiHandler(
   config: Config,
   bucket: R2BucketLike | undefined,
-  secret: string | undefined,
-  emailSender?: EmailSenderLike,
-  inviteFromEmail?: string
+  secret: string | undefined
 ) {
   return async (
     req: DrystackRequest,
@@ -238,16 +213,7 @@ export function r2ModeApiHandler(
 
     const joined = params.join('/');
     if (params[0] === 'auth') {
-      return authRoutes(
-        req,
-        params.slice(1),
-        bucket,
-        secret,
-        session,
-        config,
-        emailSender,
-        inviteFromEmail ?? 'no-reply@drystack.dev'
-      );
+      return authRoutes(req, params.slice(1), bucket, secret, session);
     }
     if (req.method === 'GET' && joined === 'tree') {
       if (req.headers.get('no-cors') !== '1') {
@@ -383,7 +349,6 @@ async function update(
 const credentialsSchema = s.object({
   email: s.string(),
   password: s.string(),
-  profile: s.optional(s.record(s.string(), s.unknown())),
 });
 
 // One shared failure body for "no such user" and "wrong password" so the
@@ -417,79 +382,17 @@ async function writeUserFile(
   await bucket.delete(legacyUserFileKey(email));
 }
 
-// Public shape of a user for the profile/edit UI: identity + editable profile
-// fields + whether an avatar exists (its bytes are served by the separate
-// avatar route). Never includes the password hash. Returns null when the user
-// doesn't exist. Shared by `me` and `GET users/<email>`.
-async function userProfileResponse(
-  bucket: R2BucketLike,
-  email: string
-): Promise<{ email: string; profile: unknown; hasAvatar: boolean } | null> {
-  const [file, avatar] = await Promise.all([
-    readUserFile(bucket, email),
-    bucket.head(avatarKey(email)),
-  ]);
-  if (!file) return null;
-  return { email, profile: file.profile ?? {}, hasAvatar: !!avatar };
-}
-
-async function readInviteFile(
-  bucket: R2BucketLike,
-  email: string
-): Promise<NativeAuthInviteFile | null> {
-  const object = await bucket.get(inviteFileKey(email));
-  if (!object) return null;
-  try {
-    return JSON.parse(
-      new TextDecoder().decode(await object.arrayBuffer())
-    ) as NativeAuthInviteFile;
-  } catch {
-    return null;
-  }
-}
-
-function emailFromKey(key: string, prefix: string): string {
-  // Strip the prefix and the file extension only - emails contain dots (in the
-  // domain/TLD), so anchor the removal to a trailing `.yaml`/`.json`.
-  return key.slice(prefix.length).replace(/\.(ya?ml|json)$/, '');
-}
-
 async function hasAnyUser(bucket: R2BucketLike) {
   const page = await bucket.list({ prefix: AUTH_NATIVE_PREFIX });
   return page.objects.length > 0;
 }
-
-function profileName(profile: unknown): string | undefined {
-  const name = (profile as { name?: unknown } | undefined)?.name;
-  return typeof name === 'string' && name ? name : undefined;
-}
-
-// Bilingual invite email copy, matching the dictionary pattern already used
-// by drystack-login.astro. Both html and text bodies are sent (deliverability
-// best practice - some clients only render one).
-function inviteEmailContent(locale: string | undefined, link: string) {
-  const vi = (locale ?? '').toLowerCase().startsWith('vi');
-  const subject = vi
-    ? 'Lời mời quản trị trang web'
-    : 'You have been invited to manage this site';
-  const text = vi
-    ? `Bạn được mời tham gia quản trị trang web.\n\nNhấn vào liên kết bên dưới để tạo mật khẩu và kích hoạt tài khoản (liên kết hết hạn sau 48 giờ):\n${link}\n\nNếu bạn không yêu cầu lời mời này, có thể bỏ qua email này.`
-    : `You've been invited to manage this site.\n\nClick the link below to set a password and activate your account (expires in 48 hours):\n${link}\n\nIf you didn't expect this invite, you can ignore this email.`;
-  const html = `<p>${text.replace(/\n/g, '<br/>')}</p>`;
-  return { subject, text, html };
-}
-
-const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 
 async function authRoutes(
   req: DrystackRequest,
   params: string[],
   bucket: R2BucketLike,
   secret: string,
-  session: () => Promise<NativeSession | null>,
-  config: Config,
-  emailSender: EmailSenderLike | undefined,
-  inviteFromEmail: string
+  session: () => Promise<NativeSession | null>
 ): Promise<DrystackResponse> {
   const route = params.join('/');
 
@@ -507,9 +410,7 @@ async function authRoutes(
   if (req.method === 'GET' && route === 'me') {
     const current = await session();
     if (!current) return { status: 401, body: 'Not authorized' };
-    const me = await userProfileResponse(bucket, current.email);
-    if (!me) return { status: 401, body: 'Not authorized' };
-    return json(me);
+    return json({ email: current.email });
   }
 
   if (req.method === 'POST' && route === 'logout') {
@@ -561,7 +462,7 @@ async function authRoutes(
       if (credentials.password.length < 8) {
         return json({ error: 'password-too-short' }, 400);
       }
-      file = await createUserFile(credentials.password, credentials.profile ?? {});
+      file = await createUserFile(credentials.password, {});
       await writeUserFile(bucket, email, file);
     } else {
       file = await readUserFile(bucket, email);
@@ -574,366 +475,7 @@ async function authRoutes(
     return {
       status: 200,
       headers: [...sessionCookieHeaders(token), ['content-type', 'application/json']],
-      body: JSON.stringify({
-        email,
-        profile: file.profile ?? {},
-      }),
-    };
-  }
-
-  // -------------------------------------------------------------------------
-  // User management (list/invite/delete/accept/self-service password+avatar)
-  // -------------------------------------------------------------------------
-
-  if (req.method === 'GET' && route === 'users') {
-    if (!(await session())) return { status: 401, body: 'Not authorized' };
-    const [activeObjects, inviteObjects] = await Promise.all([
-      listAll(bucket, AUTH_NATIVE_PREFIX),
-      listAll(bucket, AUTH_INVITES_PREFIX),
-    ]);
-    // Dedupe by email: a user mid-migration could momentarily have both a
-    // `.yaml` and a legacy `.json` object under the native prefix.
-    const activeEmails = [
-      ...new Set(
-        activeObjects.map(obj => emailFromKey(obj.key, AUTH_NATIVE_PREFIX))
-      ),
-    ];
-    const activeUsers = await Promise.all(
-      activeEmails.map(async email => {
-        const [file, avatar] = await Promise.all([
-          readUserFile(bucket, email),
-          bucket.head(avatarKey(email)),
-        ]);
-        return {
-          email,
-          name: profileName(file?.profile),
-          // Full profile so the list can render columns from the user schema
-          // (config.user). Never carries a credential - readUserFile's result
-          // omits nothing, but the file's only secret (password) isn't spread
-          // here.
-          profile: file?.profile ?? {},
-          createdAt: file?.createdAt ?? null,
-          hasAvatar: !!avatar,
-          pending: false as const,
-        };
-      })
-    );
-    const pendingUsers = await Promise.all(
-      inviteObjects.map(async obj => {
-        const email = emailFromKey(obj.key, AUTH_INVITES_PREFIX);
-        const [invite, avatar] = await Promise.all([
-          readInviteFile(bucket, email),
-          bucket.head(avatarKey(email)),
-        ]);
-        return {
-          email,
-          name: profileName(invite?.profile),
-          // Admin-provided profile carried on the invite, so a pending row shows
-          // the same schema columns a real user does.
-          profile: invite?.profile ?? {},
-          createdAt: invite?.createdAt ?? null,
-          expiresAt: invite?.expiresAt ?? null,
-          // An admin can set an avatar at invite time (bytes keyed by email,
-          // written before the account exists).
-          hasAvatar: !!avatar,
-          pending: true as const,
-        };
-      })
-    );
-    const users = [...activeUsers, ...pendingUsers].sort((a, b) =>
-      (a.createdAt ?? '').localeCompare(b.createdAt ?? '')
-    );
-    return json({ users });
-  }
-
-  // Single user, for the admin edit form. GET-only, so it never collides with
-  // the POST `users/delete` / `users/update` sub-routes below (and `delete`/
-  // `update` aren't valid emails anyway).
-  if (req.method === 'GET' && params[0] === 'users' && params.length === 2) {
-    if (!(await session())) return { status: 401, body: 'Not authorized' };
-    const email = normalizeEmail(params[1]);
-    if (!email) return json({ error: 'invalid-email' }, 400);
-    const user = await userProfileResponse(bucket, email);
-    if (!user) {
-      // A pending (not-yet-accepted) invite is still editable by an admin - its
-      // profile lives on the invite record.
-      const invite = await readInviteFile(bucket, email);
-      if (!invite) return json({ error: 'not-found' }, 404);
-      const avatar = await bucket.head(avatarKey(email));
-      return json({
-        email,
-        profile: invite.profile ?? {},
-        hasAvatar: !!avatar,
-        pending: true,
-      });
-    }
-    return json(user);
-  }
-
-  if (req.method === 'POST' && route === 'users') {
-    const current = await session();
-    if (!current) return { status: 401, body: 'Not authorized' };
-    let body;
-    try {
-      body = s.create(
-        await req.json(),
-        s.object({
-          email: s.string(),
-          profile: s.optional(s.record(s.string(), s.unknown())),
-        })
-      );
-    } catch {
-      return json({ error: 'bad-request' }, 400);
-    }
-    const email = normalizeEmail(body.email);
-    if (!email) return json({ error: 'invalid-email' }, 400);
-    if ((await readUserFile(bucket, email)) || (await readInviteFile(bucket, email))) {
-      return json({ error: 'already-exists' }, 409);
-    }
-    const now = Date.now();
-    const invite: NativeAuthInviteFile = {
-      createdAt: new Date(now).toISOString(),
-      expiresAt: new Date(now + INVITE_TOKEN_MAX_AGE_SECONDS * 1000).toISOString(),
-      invitedBy: current.email,
-      // Admin-filled profile from the "create user" form. Applied when the
-      // invitee accepts (see invite/accept below).
-      ...(body.profile ? { profile: body.profile } : {}),
-    };
-    await bucket.put(
-      inviteFileKey(email),
-      new TextEncoder().encode(JSON.stringify(invite, null, 2))
-    );
-    if (!emailSender) {
-      await bucket.delete(inviteFileKey(email));
-      return json({ error: 'email-not-configured' }, 500);
-    }
-    const token = await signInviteToken(email, secret);
-    const origin = new URL(req.url).origin;
-    const link = `${origin}/login?invite=${encodeURIComponent(token)}`;
-    const { subject, text, html } = inviteEmailContent(config.locale, link);
-    try {
-      await emailSender.send({
-        to: email,
-        from: { email: inviteFromEmail, name: 'Drystack' },
-        subject,
-        text,
-        html,
-      });
-    } catch {
-      await bucket.delete(inviteFileKey(email));
-      return json({ error: 'email-failed' }, 502);
-    }
-    return json({ ok: true });
-  }
-
-  if (req.method === 'POST' && route === 'users/delete') {
-    const current = await session();
-    if (!current) return { status: 401, body: 'Not authorized' };
-    let body;
-    try {
-      body = s.create(await req.json(), s.object({ email: s.string() }));
-    } catch {
-      return json({ error: 'bad-request' }, 400);
-    }
-    const email = normalizeEmail(body.email);
-    if (!email) return json({ error: 'invalid-email' }, 400);
-    if (email === current.email) {
-      return json({ error: 'cannot-delete-self' }, 400);
-    }
-    if (await readInviteFile(bucket, email)) {
-      await bucket.delete(inviteFileKey(email));
-      return json({ ok: true });
-    }
-    if (!(await readUserFile(bucket, email))) {
-      return json({ error: 'not-found' }, 404);
-    }
-    const activeCount = (await listAll(bucket, AUTH_NATIVE_PREFIX)).length;
-    if (activeCount <= 1) {
-      return json({ error: 'cannot-delete-last-user' }, 400);
-    }
-    // Delete both the current YAML object and any legacy JSON twin so a
-    // half-migrated user can't linger.
-    await bucket.delete(userFileKey(email));
-    await bucket.delete(legacyUserFileKey(email));
-    await bucket.delete(avatarKey(email));
-    return json({ ok: true });
-  }
-
-  // Update a user's editable profile fields (not password, not email). Any
-  // signed-in user may edit any user - the native-auth model has no non-admin
-  // role (mirrors the invite/delete routes above). Self-service profile edits
-  // on the /profile page hit this same route with their own email.
-  if (req.method === 'POST' && route === 'users/update') {
-    const current = await session();
-    if (!current) return { status: 401, body: 'Not authorized' };
-    let body;
-    try {
-      body = s.create(
-        await req.json(),
-        s.object({
-          email: s.string(),
-          profile: s.record(s.string(), s.unknown()),
-        })
-      );
-    } catch {
-      return json({ error: 'bad-request' }, 400);
-    }
-    const email = normalizeEmail(body.email);
-    if (!email) return json({ error: 'invalid-email' }, 400);
-    const file = await readUserFile(bucket, email);
-    if (file) {
-      // Replace the whole profile object with what the form submitted; keep
-      // password/createdAt untouched.
-      await writeUserFile(bucket, email, { ...file, profile: body.profile });
-      return json({ ok: true });
-    }
-    // Editing a still-pending invite: persist the profile back onto the invite
-    // record so it's applied when the invitee accepts.
-    const invite = await readInviteFile(bucket, email);
-    if (!invite) return json({ error: 'not-found' }, 404);
-    await bucket.put(
-      inviteFileKey(email),
-      new TextEncoder().encode(
-        JSON.stringify({ ...invite, profile: body.profile }, null, 2)
-      )
-    );
-    return json({ ok: true });
-  }
-
-  if (req.method === 'POST' && route === 'invite/accept') {
-    let body;
-    try {
-      body = s.create(
-        await req.json(),
-        s.object({
-          token: s.string(),
-          name: s.string(),
-          password: s.string(),
-          passwordConfirm: s.string(),
-        })
-      );
-    } catch {
-      return json({ error: 'bad-request' }, 400);
-    }
-    if (body.password !== body.passwordConfirm) {
-      return json({ error: 'password-mismatch' }, 400);
-    }
-    if (body.password.length < 8) {
-      return json({ error: 'password-too-short' }, 400);
-    }
-    const invite = await verifyInviteToken(body.token, secret);
-    if (!invite) return json({ error: 'invalid-token' }, 400);
-    const inviteRecord = await readInviteFile(bucket, invite.email);
-    if (!inviteRecord) {
-      return json({ error: 'invite-not-found' }, 410);
-    }
-    if (await readUserFile(bucket, invite.email)) {
-      // Already accepted (race / double-submit) - the stale invite record
-      // shouldn't linger since it can no longer ever be accepted again.
-      await bucket.delete(inviteFileKey(invite.email));
-      return json({ error: 'already-accepted' }, 409);
-    }
-    // Start from whatever profile the admin filled in when inviting, then let
-    // the invitee's own typed name override it.
-    const baseProfile =
-      (inviteRecord.profile as Record<string, unknown> | undefined) ?? {};
-    const name = body.name.trim();
-    const profile = name ? { ...baseProfile, name } : baseProfile;
-    const file = await createUserFile(body.password, profile);
-    await writeUserFile(bucket, invite.email, file);
-    await bucket.delete(inviteFileKey(invite.email));
-    const token = await signSession({ email: invite.email }, secret);
-    return {
-      status: 200,
-      headers: [...sessionCookieHeaders(token), ['content-type', 'application/json']],
-      body: JSON.stringify({ email: invite.email, profile: file.profile ?? {} }),
-    };
-  }
-
-  if (req.method === 'POST' && route === 'password') {
-    const current = await session();
-    if (!current) return { status: 401, body: 'Not authorized' };
-    let body;
-    try {
-      body = s.create(
-        await req.json(),
-        s.object({
-          oldPassword: s.string(),
-          newPassword: s.string(),
-          newPasswordConfirm: s.string(),
-        })
-      );
-    } catch {
-      return json({ error: 'bad-request' }, 400);
-    }
-    if (body.newPassword !== body.newPasswordConfirm) {
-      return json({ error: 'password-mismatch' }, 400);
-    }
-    if (body.newPassword.length < 8) {
-      return json({ error: 'password-too-short' }, 400);
-    }
-    const file = await readUserFile(bucket, current.email);
-    if (!file || !(await verifyPassword(body.oldPassword, file.password))) {
-      return json({ error: 'invalid-current-password' }, 401);
-    }
-    await writeUserFile(bucket, current.email, {
-      ...file,
-      password: await hashPassword(body.newPassword),
-    });
-    return json({ ok: true });
-  }
-
-  if (req.method === 'POST' && route === 'avatar') {
-    const current = await session();
-    if (!current) return { status: 401, body: 'Not authorized' };
-    let body;
-    try {
-      body = s.create(
-        await req.json(),
-        s.object({
-          contents: base64Schema,
-          contentType: s.string(),
-          // Which user's avatar. Omitted = the caller's own (profile page).
-          // An admin sets someone else's (or a pending invite's) by passing it,
-          // same open permission model as invite/delete/update above.
-          email: s.optional(s.string()),
-        })
-      );
-    } catch {
-      return json({ error: 'bad-request' }, 400);
-    }
-    if (!body.contentType.startsWith('image/')) {
-      return json({ error: 'invalid-content-type' }, 400);
-    }
-    if (body.contents.byteLength > MAX_AVATAR_BYTES) {
-      return json({ error: 'avatar-too-large' }, 413);
-    }
-    const targetEmail = body.email
-      ? normalizeEmail(body.email)
-      : current.email;
-    if (!targetEmail) return json({ error: 'invalid-email' }, 400);
-    await bucket.put(avatarKey(targetEmail), body.contents, {
-      customMetadata: { contentType: body.contentType },
-    });
-    return json({ ok: true });
-  }
-
-  if (req.method === 'GET' && params[0] === 'avatar' && params.length === 2) {
-    if (!(await session())) return { status: 401, body: 'Not authorized' };
-    const email = normalizeEmail(params[1]);
-    if (!email) return { status: 404, body: 'Not Found' };
-    const object = await bucket.get(avatarKey(email));
-    if (!object) return { status: 404, body: 'Not Found' };
-    const contents = new Uint8Array(await object.arrayBuffer());
-    return {
-      status: 200,
-      headers: {
-        'content-type': object.customMetadata?.contentType ?? 'application/octet-stream',
-        // Avatars can be replaced at the same URL (no version in the path) -
-        // don't let the browser serve a stale one across page loads.
-        'cache-control': 'private, no-cache',
-      },
-      body: contents,
+      body: JSON.stringify({ email }),
     };
   }
 

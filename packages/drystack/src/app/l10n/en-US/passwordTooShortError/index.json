@@ -1,6 +1,0 @@
-{
-  "key": "passwordTooShortError",
-  "value": "Password must be at least 8 characters.",
-  "notes": "",
-  "type": "global"
-}

@@ -26,9 +26,6 @@ import { PageBody, PageRoot } from "./shell/page";
 import { EmptyState } from "./shell/empty-state";
 import { SingletonPage } from "./SingletonPage";
 import { FileManagerPage } from "./file-manager/FileManagerPage";
-import { UsersPage } from "./users/UsersPage";
-import { ProfilePage } from "./users/ProfilePage";
-import { CreateUserPage, EditUserPage } from "./users/UserDetailForm";
 import { CreatedGitHubApp } from "./onboarding/created-github-app";
 import { DrystackSetup } from "./onboarding/setup";
 import { RepoNotFound } from "./onboarding/repo-not-found";
@@ -51,18 +48,6 @@ function parseParamsWithoutBranch(params: string[]) {
   }
   if (params.length === 1 && params[0] === "files") {
     return { page: "files" as const };
-  }
-  if (params.length === 1 && params[0] === "users") {
-    return { page: "users" as const };
-  }
-  if (params.length === 2 && params[0] === "users" && params[1] === "create") {
-    return { page: "users-create" as const };
-  }
-  if (params.length === 3 && params[0] === "users" && params[1] === "item") {
-    return { page: "users-edit" as const, email: params[2] };
-  }
-  if (params.length === 1 && params[0] === "profile") {
-    return { page: "profile" as const };
   }
   if (params.length === 2 && params[0] === "singleton") {
     return { singleton: params[1] };
@@ -195,14 +180,6 @@ function PageInner({ config }: { config: Config }) {
           />
         ) : parsedParams.page === "files" ? (
           <FileManagerPage />
-        ) : parsedParams.page === "users" ? (
-          <UsersPage />
-        ) : parsedParams.page === "users-create" ? (
-          <CreateUserPage />
-        ) : parsedParams.page === "users-edit" ? (
-          <EditUserPage key={parsedParams.email} email={parsedParams.email} />
-        ) : parsedParams.page === "profile" ? (
-          <ProfilePage />
         ) : (
           <DashboardPage
             config={config as unknown as Config}

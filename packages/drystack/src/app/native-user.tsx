@@ -15,7 +15,7 @@ import { useRouter } from './router';
 // small one-shot fetch of `auth/me` instead, mirrored into a context so the
 // sidebar (UserActions) can render the email/logout without every consumer
 // re-fetching.
-export type NativeUser = { email: string; profile: unknown; hasAvatar: boolean };
+export type NativeUser = { email: string };
 
 // undefined = still loading, null = fetch failed/unauthenticated (shouldn't
 // normally happen - the page itself is gated server-side before this ever

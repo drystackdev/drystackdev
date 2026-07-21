@@ -1,4 +1,4 @@
-import { config, fields, collection, singleton, user } from "@drystack/core";
+import { config, fields, collection, singleton } from "@drystack/core";
 
 const techIconOptions = [
   { label: "Search", value: "search" },
@@ -535,13 +535,4 @@ export default config({
       },
     }),
   },
-  // Native-auth user profile fields (r2 mode only, see plan/user-managent.md).
-  // email/avatar/password are built-ins handled outside this schema - see
-  // UserConfig's doc comment in @drystack/core's config.tsx.
-  user: user({
-    label: "User Management",
-    schema: {
-      name: fields.text({ label: "Tên" }),
-    },
-  }),
 });

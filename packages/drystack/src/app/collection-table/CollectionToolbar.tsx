@@ -60,11 +60,10 @@ const contentSearchToggleStyle = css({
   },
 });
 
-// The search + column-visibility toolbar shared by the collection list
-// (CollectionPage) and the user-management list (UsersPage). The "search
-// inside content" toggle is opt-in via `onSearchContentChange` - lists whose
-// data model has no fields.content() body (e.g. users) simply omit it and the
-// toggle isn't rendered.
+// The search + column-visibility toolbar used by the collection list
+// (CollectionPage). The "search inside content" toggle is opt-in via
+// `onSearchContentChange` - lists whose data model has no fields.content()
+// body simply omit it and the toggle isn't rendered.
 export function CollectionToolbar(props: {
   searchTerm: string;
   onSearchTermChange: (value: string) => void;

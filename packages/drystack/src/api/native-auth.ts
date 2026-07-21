@@ -21,9 +21,7 @@ import { bytesToHex } from '../hex';
 // only ever be verified, never recovered. The profile is display data (name,
 // etc.), not a credential. The `auth/` prefix is hard-excluded from the public
 // tree/blob routes and refused by the update route (see api-r2.ts) - these
-// files must never be readable or writable through the content API. Pending
-// invites (user-management feature) live alongside at `auth/invites/<email>.json`
-// until accepted or cancelled; avatar bytes at `auth/avatars/<email>`.
+// files must never be readable or writable through the content API.
 
 const encoder = new TextEncoder();
 
@@ -36,39 +34,10 @@ export const AUTH_NATIVE_PREFIX = 'auth/native/';
 // is the token's `exp` (unix seconds) so a future sweep/cron can drop entries
 // once the underlying token would have expired anyway.
 export const AUTH_REVOKED_PREFIX = 'auth/revoked/';
-// One record per pending invite (user-management feature), deleted the
-// moment it's accepted (see verifyInviteToken/consumers in api-r2.ts) or
-// cancelled by an admin. Never contains a credential - the actual bearer
-// token handed to the invitee is a signed, stateless JWT-like string (see
-// signInviteToken) that is never itself persisted.
-export const AUTH_INVITES_PREFIX = 'auth/invites/';
-// Raw avatar image bytes, one object per user, content-type in
-// customMetadata. Kept under `auth/` (hard-excluded from tree/blob/update,
-// see api-r2.ts's getIsPathValid) and served through a dedicated
-// session-gated route rather than the generic content API.
-export const AUTH_AVATARS_PREFIX = 'auth/avatars/';
 
 export function revokedKey(jti: string) {
   return `${AUTH_REVOKED_PREFIX}${jti}`;
 }
-
-export function inviteFileKey(email: string) {
-  return `${AUTH_INVITES_PREFIX}${email}.json`;
-}
-
-export function avatarKey(email: string) {
-  return `${AUTH_AVATARS_PREFIX}${email}`;
-}
-
-export type NativeAuthInviteFile = {
-  createdAt: string;
-  expiresAt: string;
-  invitedBy: string;
-  // Profile fields the admin filled in on the "create user" form. Merged into
-  // the real user file when the invite is accepted (see api-r2.ts). Optional
-  // so older invites (email-only) still parse.
-  profile?: unknown;
-};
 
 export type NativeSession = { email: string; jti: string; exp: number };
 
@@ -82,7 +51,6 @@ export const NATIVE_SESSION_COOKIE = 'drystack-session';
 export const NATIVE_SESSION_HINT_COOKIE = 'drystack-session-hint';
 
 export const NATIVE_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
-export const INVITE_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 48;
 
 // Cloudflare Workers hard-caps PBKDF2 at 100k iterations (higher values
 // throw), so this is the strongest setting that runs everywhere the verify
@@ -293,75 +261,6 @@ export async function verifySession(
     return null;
   }
   return { email: payloadObj.sub, jti: payloadObj.jti, exp: payloadObj.exp };
-}
-
-export type InviteToken = { email: string; exp: number };
-
-// A signed, stateless invite - same HS256/HMAC construction as signSession,
-// but the payload carries `purpose: 'invite'` so this can never be replayed
-// as a session token (or vice versa). Verification also requires a matching
-// `auth/invites/<email>.json` to still exist (see api-r2.ts), which is what
-// makes accept effectively one-time-use and revocable by an admin cancelling
-// the invite - the token's own signature alone can't be revoked early.
-export async function signInviteToken(
-  email: string,
-  secret: string,
-  maxAgeSeconds: number = INVITE_TOKEN_MAX_AGE_SECONDS
-): Promise<string> {
-  const now = Math.floor(Date.now() / 1000);
-  const header = base64UrlEncode(
-    encoder.encode(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
-  );
-  const payload = base64UrlEncode(
-    encoder.encode(
-      JSON.stringify({
-        sub: email,
-        purpose: 'invite',
-        iat: now,
-        exp: now + maxAgeSeconds,
-      })
-    )
-  );
-  const signature = await webcrypto.subtle.sign(
-    'HMAC',
-    await hmacKey(secret),
-    encoder.encode(`${header}.${payload}`)
-  );
-  return `${header}.${payload}.${base64UrlEncode(new Uint8Array(signature))}`;
-}
-
-export async function verifyInviteToken(
-  token: string,
-  secret: string
-): Promise<InviteToken | null> {
-  const parts = token.split('.');
-  if (parts.length !== 3) return null;
-  const [header, payload, signature] = parts;
-  let headerObj, payloadObj, signatureBytes;
-  const decoder = new TextDecoder();
-  try {
-    headerObj = JSON.parse(decoder.decode(base64UrlDecode(header)));
-    payloadObj = JSON.parse(decoder.decode(base64UrlDecode(payload)));
-    signatureBytes = base64UrlDecode(signature);
-  } catch {
-    return null;
-  }
-  if (headerObj?.alg !== 'HS256' || headerObj?.typ !== 'JWT') return null;
-  const expected = await webcrypto.subtle.sign(
-    'HMAC',
-    await hmacKey(secret),
-    encoder.encode(`${header}.${payload}`)
-  );
-  if (!timingSafeEqual(new Uint8Array(expected), signatureBytes)) return null;
-  if (payloadObj?.purpose !== 'invite') return null;
-  if (typeof payloadObj?.sub !== 'string') return null;
-  if (
-    typeof payloadObj?.exp !== 'number' ||
-    payloadObj.exp <= Math.floor(Date.now() / 1000)
-  ) {
-    return null;
-  }
-  return { email: payloadObj.sub, exp: payloadObj.exp };
 }
 
 export async function getSessionFromCookieHeader(

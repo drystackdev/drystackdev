@@ -78,11 +78,11 @@ export type EntityTableViewProps<Item> = {
   "aria-labelledby"?: string;
 };
 
-// The shared, data-source-agnostic table shell used by both the collection list
-// (CollectionPage) and the user-management list (UsersPage). Owns the
-// virtualized TableView, the header/row scaffolding, and the drag-to-resize
-// engine (persisted column widths). Callers supply the columns and per-cell
-// renderers; where the rows come from (git tree vs. REST) is none of its
+// The shared, data-source-agnostic table shell used by the collection list
+// (CollectionPage). Owns the virtualized TableView, the header/row
+// scaffolding, and the drag-to-resize engine (persisted column widths).
+// Callers supply the columns and per-cell renderers; where the rows come
+// from (git tree vs. REST) is none of its
 // business.
 export function EntityTableView<Item>(props: EntityTableViewProps<Item>) {
   const {
