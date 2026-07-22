@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useLocalizedStringFormatter } from '@react-aria/i18n';
 
+import { Button } from '@keystar/ui/button';
 import { Checkbox } from '@keystar/ui/checkbox';
 import { Flex } from '@keystar/ui/layout';
 import { ProgressCircle } from '@keystar/ui/progress';
@@ -20,7 +21,7 @@ import {
   collectionPermission,
   singletonPermission,
 } from '../../api/permissions';
-import { makeUserManagementApi } from './api';
+import { makeUserManagementApi, PublicRole } from './api';
 
 const ACTIONS: PermissionAction[] = ['view', 'created', 'updated', 'magicWriter', 'deleted'];
 
@@ -51,12 +52,63 @@ export function RolePermissionsPage(props: { roleId: string }) {
   // them (see RolesPage, which doesn't even link here for a locked role).
   if (role.isLocked) notFound();
 
+  // Keyed by role.id so navigating between roles' permission pages remounts
+  // this editor with a fresh, correctly-initialized permission set.
+  return <RolePermissionsEditor key={role.id} role={role} api={api} />;
+}
+
+function RolePermissionsEditor(props: {
+  role: PublicRole;
+  api: ReturnType<typeof makeUserManagementApi>;
+}) {
+  const config = useConfig();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
+  const initial = useMemo(
+    () => new Set(props.role.permissions),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+  const [enabled, setEnabled] = useState(initial);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const isDirty = useMemo(() => !setsEqual(enabled, initial), [enabled, initial]);
+
+  const toggle = useCallback((permission: string) => {
+    setEnabled(prev => {
+      const next = new Set(prev);
+      if (next.has(permission)) next.delete(permission);
+      else next.add(permission);
+      return next;
+    });
+  }, []);
+
+  const save = async () => {
+    setIsSaving(true);
+    try {
+      await props.api.updateRolePermissions(props.role.id, [...enabled]);
+      toastQueue.positive(stringFormatter.format('rolePermissionsSavedToast'));
+    } catch {
+      toastQueue.critical(stringFormatter.format('genericErrorToast'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <PageRoot containerWidth="medium">
       <PageHeader>
-        <Heading elementType="h1" size="small">
-          {stringFormatter.format('rolePermissionsPageTitle', { role: role.name })}
+        <Heading elementType="h1" size="small" flex minWidth={0}>
+          {stringFormatter.format('rolePermissionsPageTitle', { role: props.role.name })}
         </Heading>
+        <Button
+          marginStart="auto"
+          prominence="high"
+          onPress={save}
+          isPending={isSaving}
+          isDisabled={!isDirty}
+        >
+          {stringFormatter.format('save')}
+        </Button>
       </PageHeader>
       <PageBody isScrollable>
         <Flex direction="column" gap="xlarge" marginTop="large">
@@ -67,9 +119,8 @@ export function RolePermissionsPage(props: { roleId: string }) {
                 name: config.collections![key].label,
               })}
               permissionFor={action => collectionPermission(key, action)}
-              roleId={role.id}
-              initialPermissions={role.permissions}
-              api={api}
+              enabled={enabled}
+              onToggle={toggle}
             />
           ))}
           {Object.keys(config.singletons ?? {}).map(key => (
@@ -79,9 +130,8 @@ export function RolePermissionsPage(props: { roleId: string }) {
                 name: config.singletons![key].label,
               })}
               permissionFor={action => singletonPermission(key, action)}
-              roleId={role.id}
-              initialPermissions={role.permissions}
-              api={api}
+              enabled={enabled}
+              onToggle={toggle}
             />
           ))}
         </Flex>
@@ -93,53 +143,12 @@ export function RolePermissionsPage(props: { roleId: string }) {
 function PermissionBlock(props: {
   title: string;
   permissionFor: (action: PermissionAction) => string;
-  roleId: number;
-  initialPermissions: string[];
-  api: ReturnType<typeof makeUserManagementApi>;
+  enabled: Set<string>;
+  onToggle: (permission: string) => void;
 }) {
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
-  const initial = useMemo(
-    () => new Set(props.initialPermissions),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
-  const [enabled, setEnabled] = useState(initial);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latestRef = useRef(enabled);
-  latestRef.current = enabled;
-
-  // Auto-saves the *entire* role's permission set 1s after the last change,
-  // debounced (plan mục 6: "lưu tự động không cần nút save, debounce 1s") -
-  // not just this block's actions, since PATCH roles/:id/permissions
-  // replaces the whole list.
-  const scheduleSave = useCallback(() => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      props.api.updateRolePermissions(props.roleId, [...latestRef.current]).catch(() => {
-        toastQueue.critical(stringFormatter.format('genericErrorToast'));
-      });
-    }, 1000);
-  }, [props.api, props.roleId, stringFormatter]);
-
-  useEffect(() => {
-    return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-    };
-  }, []);
-
   const viewPermission = props.permissionFor('view');
-  const hasView = enabled.has(viewPermission);
-
-  const toggle = (action: PermissionAction) => {
-    const permission = props.permissionFor(action);
-    setEnabled(prev => {
-      const next = new Set(prev);
-      if (next.has(permission)) next.delete(permission);
-      else next.add(permission);
-      return next;
-    });
-    scheduleSave();
-  };
+  const hasView = props.enabled.has(viewPermission);
 
   return (
     <Flex direction="column" gap="regular">
@@ -148,12 +157,12 @@ function PermissionBlock(props: {
         {ACTIONS.map(action => (
           <Checkbox
             key={action}
-            isSelected={enabled.has(props.permissionFor(action))}
+            isSelected={props.enabled.has(props.permissionFor(action))}
             // view gates the other 4 (plan mục 6) - disabled, but the saved
             // state underneath is untouched, so re-enabling view brings
             // back whatever was chosen before.
             isDisabled={action !== 'view' && !hasView}
-            onChange={() => toggle(action)}
+            onChange={() => props.onToggle(props.permissionFor(action))}
           >
             <Text>{stringFormatter.format(`permissionAction${capitalize(action)}`)}</Text>
           </Checkbox>
@@ -161,6 +170,14 @@ function PermissionBlock(props: {
       </Flex>
     </Flex>
   );
+}
+
+function setsEqual(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const value of a) {
+    if (!b.has(value)) return false;
+  }
+  return true;
 }
 
 function capitalize(value: string): string {
