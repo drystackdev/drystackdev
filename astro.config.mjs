@@ -39,5 +39,14 @@ export default defineConfig({
   server: {
     port: 4567,
     host: "0.0.0.0",
-  }
+  },
+  vite: {
+    resolve: {
+      // Actually activates the "drystack-src" export condition described
+      // above - without this, `isDev` was computed but never consumed, so
+      // Vite always fell back to the "default" condition (dist) even in
+      // `astro dev`, silently defeating the HMR-from-source setup.
+      conditions: isDev ? ["drystack-src"] : [],
+    },
+  },
 });
