@@ -40,6 +40,9 @@ export default defineConfig({
     port: 4567,
     host: "0.0.0.0",
   },
+  devToolbar: {
+    enabled: false
+  },
   vite: {
     resolve: {
       // Actually activates the "drystack-src" export condition described
