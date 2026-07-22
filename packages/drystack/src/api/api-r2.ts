@@ -36,7 +36,7 @@ import {
 } from './permissions';
 import { getPathOwners, ownerForPath, permissionForPath } from './permission-paths';
 import { AVATAR_DIRECTORY, userManagementRoutes } from './user-management';
-import { EmailSenderBinding, makeCloudflareEmailSender } from './email';
+import { EmailSenderBinding, makeCloudflareEmailSender, makeResendEmailSender } from './email';
 
 // R2-backed twin of api-node.ts: same routes, same request/response shapes,
 // with the filesystem swapped for an R2 bucket and the whole thing runnable
@@ -243,9 +243,16 @@ export function r2ModeApiHandler(
   db: D1DatabaseLike | undefined,
   secret: string | undefined,
   emailSender?: EmailSenderBinding,
-  emailFrom?: string
+  emailFrom?: string,
+  resendApiKey?: string,
+  resendFrom?: string
 ) {
-  const sendEmail = makeCloudflareEmailSender(emailSender, emailFrom);
+  // Resend takes priority - it works on the Workers Free plan, unlike
+  // Cloudflare's own Email Sending (Workers Paid only, see
+  // plan/user-managent.md mục 7).
+  const sendEmail =
+    makeResendEmailSender(resendApiKey, resendFrom) ??
+    makeCloudflareEmailSender(emailSender, emailFrom);
   return async (
     req: DrystackRequest,
     params: string[]

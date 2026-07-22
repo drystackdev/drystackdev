@@ -51,3 +51,36 @@ export function makeCloudflareEmailSender(
     }
   };
 }
+
+// Alternative to makeCloudflareEmailSender for accounts without the Workers
+// Paid plan (Cloudflare Email Sending requires it for arbitrary recipients -
+// see plan/user-managent.md mục 7). Same undefined-when-unconfigured
+// contract as above.
+export function makeResendEmailSender(
+  apiKey: string | undefined,
+  fromAddress: string | undefined,
+  fromName = 'drystack'
+): SendEmail | undefined {
+  if (!apiKey || !fromAddress) return undefined;
+  return async ({ to, subject, html }) => {
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: `${fromName} <${fromAddress}>`,
+          to,
+          subject,
+          html,
+          text: htmlToPlainText(html),
+        }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  };
+}

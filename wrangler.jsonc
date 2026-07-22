@@ -36,12 +36,16 @@
       "migrations_dir": "migrations"
     }
   ],
-  // Invite/forgot-password emails (plan/user-managent.md mục 7) - the `from`
-  // domain must be onboarded first: `bunx wrangler email sending enable
-  // yourdomain.com`, then set DRYSTACK_EMAIL_FROM to an address on that
-  // domain. Without either, user-management.ts's sendEmail is simply
-  // undefined - add/resend-invite/forgot-password still work, the admin UI
-  // just shows a copyable link instead of "email sent" (see AddUserPage.tsx).
+  // Invite/forgot-password emails (plan/user-managent.md mục 7). Prefer
+  // Resend (works on Workers Free plan): set RESEND_API_KEY as a secret
+  // (`bunx wrangler secret put RESEND_API_KEY`) and RESEND_FROM as a
+  // verified address. This `send_email` binding is the Cloudflare-native
+  // fallback - requires the Workers Paid plan; the `from` domain must be
+  // onboarded first via `bunx wrangler email sending enable yourdomain.com`,
+  // then set DRYSTACK_EMAIL_FROM. Without any of the above,
+  // user-management.ts's sendEmail is simply undefined -
+  // add/resend-invite/forgot-password still work, the admin UI just shows a
+  // copyable link instead of "email sent" (see AddUserPage.tsx).
   "send_email": [{ "name": "DRYSTACK_EMAIL" }],
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["BuildStatusHub"] }

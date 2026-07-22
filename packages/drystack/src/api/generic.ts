@@ -73,6 +73,15 @@ export type APIRouteConfig = {
   emailSender?: EmailSenderBinding;
   /** The verified `from` address for emails sent via `emailSender`. */
   emailFrom?: string;
+  /**
+   * Resend API key - alternative to `emailSender` that works on the
+   * Workers Free plan (Cloudflare's own Email Sending requires Workers
+   * Paid for arbitrary recipients). Takes priority over `emailSender` when
+   * both are set - see api-r2.ts's r2ModeApiHandler.
+   */
+  resendApiKey?: string;
+  /** The verified `from` address for emails sent via `resendApiKey`. */
+  resendFrom?: string;
 };
 
 type InnerAPIRouteConfig = {
@@ -202,6 +211,8 @@ export function makeGenericAPIRouteHandler(
       _config2.secret,
       _config.emailSender,
       _config.emailFrom,
+      _config.resendApiKey,
+      _config.resendFrom,
     );
     // Not wrapped in `withAi`: that dispatches `ai/*` unauthenticated, which
     // is fine for local (dev machine) and github (its own token check inside

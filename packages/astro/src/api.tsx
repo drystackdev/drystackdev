@@ -83,6 +83,20 @@ export function makeHandler(_config: APIRouteConfig) {
           tryOrUndefined(() => {
             return import.meta.env.DRYSTACK_EMAIL_FROM;
           }),
+        // Alternative to emailSender/emailFrom above - works on the
+        // Workers Free plan (see email.ts's makeResendEmailSender).
+        resendApiKey:
+          _config.resendApiKey ??
+          envVarsForCf?.RESEND_API_KEY ??
+          tryOrUndefined(() => {
+            return import.meta.env.RESEND_API_KEY;
+          }),
+        resendFrom:
+          _config.resendFrom ??
+          envVarsForCf?.RESEND_FROM ??
+          tryOrUndefined(() => {
+            return import.meta.env.RESEND_FROM;
+          }),
       },
       {
         slugEnvName: "PUBLIC_DRYSTACK_GITHUB_APP_SLUG",
