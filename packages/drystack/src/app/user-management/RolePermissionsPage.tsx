@@ -4,6 +4,7 @@ import { useLocalizedStringFormatter } from '@react-aria/i18n';
 import { Checkbox } from '@keystar/ui/checkbox';
 import { Flex } from '@keystar/ui/layout';
 import { ProgressCircle } from '@keystar/ui/progress';
+import { toastQueue } from '@keystar/ui/toast';
 import { Heading, Text } from '@keystar/ui/typography';
 
 import l10nMessages from '../l10n';
@@ -114,9 +115,11 @@ function PermissionBlock(props: {
   const scheduleSave = useCallback(() => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      props.api.updateRolePermissions(props.roleId, [...latestRef.current]).catch(() => {});
+      props.api.updateRolePermissions(props.roleId, [...latestRef.current]).catch(() => {
+        toastQueue.critical(stringFormatter.format('genericErrorToast'));
+      });
     }, 1000);
-  }, [props.api, props.roleId]);
+  }, [props.api, props.roleId, stringFormatter]);
 
   useEffect(() => {
     return () => {
