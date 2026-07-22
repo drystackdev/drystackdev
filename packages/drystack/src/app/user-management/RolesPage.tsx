@@ -117,9 +117,7 @@ export function RolesPage() {
           textValue: stringFormatter.format('roleUserCountLabel', { count: role.userCount }),
           node: (
             <ActionButton onPress={() => setMembersRole(role)}>
-              <Badge>
-                <Text>{stringFormatter.format('roleUserCountLabel', { count: role.userCount })}</Text>
-              </Badge>
+              {stringFormatter.format('roleUserCountLabel', { count: role.userCount })}
             </ActionButton>
           ),
         }),
@@ -138,13 +136,9 @@ export function RolesPage() {
             <ActionButton
               onPress={() => router.push(`${router.basePath}/roles/${role.id}/permissions`)}
             >
-              <Badge>
-                <Text>
-                  {stringFormatter.format('rolePermissionCountLabel', {
-                    count: role.permissions.length,
-                  })}
-                </Text>
-              </Badge>
+              {stringFormatter.format('rolePermissionCountLabel', {
+                count: role.permissions.length,
+              })}
             </ActionButton>
           ),
         }),
