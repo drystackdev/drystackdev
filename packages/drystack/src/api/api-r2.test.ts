@@ -388,6 +388,8 @@ test('auth flow: status → setup (assigns SuperAdmin) → login → me → logo
   // permission strings individually (see permissions.ts's hardcode).
   expect(bodyJson(res)).toEqual({
     email: 'admin@example.com',
+    name: 'Khan',
+    avatar: null,
     permissions: [],
     fullAccess: true,
     isSuperAdmin: true,

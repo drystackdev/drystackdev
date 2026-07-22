@@ -17,6 +17,8 @@ import { useRouter } from './router';
 // re-fetching.
 export type NativeUser = {
   email: string;
+  name: string;
+  avatar: string | null;
   // `permissions` is the union across every role the user holds; `fullAccess`
   // mirrors the server's SuperAdmin/Admin hardcode (see api-r2.ts's `me`
   // route and permissions.ts). Used to gate nav items (useNavItems.tsx) and

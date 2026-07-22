@@ -28,6 +28,7 @@ import { useThemeContext } from '../theme';
 import { clearObjectCache } from '../../object-cache';
 import { clearDrafts } from '../../persistence';
 import { nativeLogout, useNativeUser } from '../../native-user';
+import { avatarUrl } from '../../user-management/format';
 
 type MenuItem = {
   icon: ReactElement;
@@ -223,6 +224,7 @@ function useUserData(): UserData | undefined {
   const config = useConfig();
   const user = useViewer();
   const nativeUser = useNativeUser();
+  const { basePath } = useRouter();
 
   if (isGitHubConfig(config) && user) {
     return {
@@ -235,7 +237,8 @@ function useUserData(): UserData | undefined {
   if (isR2Config(config) && nativeUser) {
     return {
       login: nativeUser.email,
-      name: nativeUser.email,
+      name: nativeUser.name || nativeUser.email,
+      avatarUrl: nativeUser.avatar ? avatarUrl(basePath, nativeUser.avatar) : undefined,
     };
   }
 

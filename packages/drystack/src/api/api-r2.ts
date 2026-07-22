@@ -196,7 +196,11 @@ async function isRevoked(bucket: R2BucketLike, jti: string): Promise<boolean> {
   return !!(await bucket.get(revokedKey(jti)));
 }
 
-export type VerifiedSession = NativeSession & { roles: RoleRow[] };
+export type VerifiedSession = NativeSession & {
+  roles: RoleRow[];
+  name: string;
+  avatar: string | null;
+};
 
 // Exported (not just used internally) so page-gating code with its own
 // bucket/db/request access - e.g. @drystack/astro's native-session.ts, which
@@ -225,7 +229,12 @@ export async function verifiedSession(
   if (await isRevoked(bucket, session.jti)) return null;
   const sessionUser = await getActiveSessionUser(db, session.email);
   if (!sessionUser) return null;
-  return { ...session, roles: sessionUser.roles };
+  return {
+    ...session,
+    roles: sessionUser.roles,
+    name: sessionUser.user.name,
+    avatar: sessionUser.user.avatar,
+  };
 }
 
 export function r2ModeApiHandler(
@@ -540,6 +549,8 @@ async function authRoutes(
     // is UX only; the server checks above are the real boundary.
     return json({
       email: current.email,
+      name: current.name,
+      avatar: current.avatar,
       permissions: [...effectivePermissions(current.roles)],
       fullAccess: isSuperAdmin(current.roles) || isAdmin(current.roles),
       // Only SuperAdmin can delete users / grant-or-revoke Admin (mục 4) -
