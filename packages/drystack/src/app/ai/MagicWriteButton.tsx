@@ -14,6 +14,8 @@ import type { Config } from "../../config";
 import type { ComponentSchema } from "../../form/api";
 import { magicWriteIcon } from "../icons/magicWriteIcon";
 import l10nMessages from "../l10n";
+import { hasNativePermission, useNativeUser } from "../native-user";
+import { isR2Config } from "../storage-mode";
 import { localizeAiConfigError } from "./ai-config-error-message";
 import { MagicWriteDialog } from "./MagicWriteDialog";
 import type { useMagicWrite } from "./useMagicWrite";
@@ -29,13 +31,30 @@ const iconOnlyStyle = css({ paddingInline: 0 });
  * Whether this entry is opted into AI generation. A key absent from
  * `ai.for` has no button at all - the route enforces the same rule, so this
  * is only about not offering what won't work.
+ *
+ * In r2 mode, also hides the button (not just disables it) when the
+ * session's role(s) lack `magicWriter` on this collection/singleton
+ * (plan/user-managent.md mục 5/6) - mirrors, but doesn't replace, the real
+ * 403 `ai/generate`/`ai/rewrite` already enforce
+ * (ai/index.ts's requireMagicWriterPermission). `useNativeUser()` is always
+ * called (Rules of Hooks) but its value only matters when `isR2Config` -
+ * other storage kinds have no NativeUserProvider mounted, so it's always
+ * null/undefined there and the branch below is skipped.
  */
 export function useAiEntryDescription(
   config: Config,
+  entryKind: "collection" | "singleton",
   entryKey: string,
 ): string | undefined {
   const forMap = config.ai?.for as Record<string, string> | undefined;
-  return forMap?.[entryKey];
+  const description = forMap?.[entryKey];
+  const nativeUser = useNativeUser();
+  if (!description) return undefined;
+  if (isR2Config(config)) {
+    const permission = `${entryKind}:${entryKey}.magicWriter`;
+    if (!hasNativePermission(nativeUser, permission)) return undefined;
+  }
+  return description;
 }
 
 export function MagicWriteButton(props: {

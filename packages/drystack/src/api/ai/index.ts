@@ -4,6 +4,14 @@ import type { Config } from "../..";
 import type { ComponentSchema } from "../../form/api";
 import type { DrystackRequest, DrystackResponse } from "../internal-utils";
 import { verifyGitHubAccess } from "../github-access";
+import type { D1DatabaseLike } from "../d1";
+import type { R2BucketLike } from "../api-r2";
+import { verifiedSession } from "../api-r2";
+import {
+  collectionPermission,
+  hasPermission,
+  singletonPermission,
+} from "../permissions";
 import {
   AiConfigError,
   AiEnv,
@@ -48,6 +56,12 @@ const PROVIDERS: Record<string, AiProvider> = {
 export type AiRouteConfig = {
   config: Config<any, any>;
   env: AiEnv;
+  // Only consulted when config.storage.kind === 'r2' (see
+  // requireMagicWriterPermission below) - undefined for local/github, which
+  // have their own session shapes and no per-collection permission model.
+  r2Bucket?: R2BucketLike;
+  d1Database?: D1DatabaseLike;
+  secret?: string;
 };
 
 function json(body: unknown, status = 200): DrystackResponse {
@@ -105,10 +119,10 @@ export function makeAiRouteHandler(routeConfig: AiRouteConfig) {
       return handleVerifyModel(req, config, resolved);
     }
     if (joined === "ai/generate" && req.method === "POST") {
-      return handleGenerate(req, config, resolved);
+      return handleGenerate(req, config, resolved, routeConfig);
     }
     if (joined === "ai/rewrite" && req.method === "POST") {
-      return handleRewrite(req, config, resolved);
+      return handleRewrite(req, config, resolved, routeConfig);
     }
     return { status: 404, body: "Not Found" };
   };
@@ -158,6 +172,39 @@ async function requireSession(
   const token = cookies["drystack-gh-access-token"];
   if (!token || !(await verifyGitHubAccess(config, token))) {
     return json({ error: "Chưa đăng nhập." }, 401);
+  }
+  return undefined;
+}
+
+/**
+ * r2 mode's per-collection `magicWriter` permission (plan/user-managent.md
+ * mục 5) - separate from `requireSession` above, which only ever handles
+ * github mode's cookie check (r2 mode's "is there any session at all" gate
+ * already ran in generic.ts, before this handler was even reached; this is
+ * the finer-grained "does *this* collection/singleton allow AI generation
+ * for *this* session's roles" check on top of that). No-op for local/github,
+ * which have no permission model to consult.
+ */
+async function requireMagicWriterPermission(
+  req: DrystackRequest,
+  config: Config<any, any>,
+  routeConfig: AiRouteConfig,
+  entryKind: "collection" | "singleton",
+  entryKey: string,
+): Promise<DrystackResponse | undefined> {
+  if (config.storage.kind !== "r2") return undefined;
+  const { r2Bucket, d1Database, secret } = routeConfig;
+  if (!r2Bucket || !d1Database || !secret) {
+    return json({ error: "Thiếu cấu hình R2/D1 cho storage kind r2." }, 500);
+  }
+  const session = await verifiedSession(req, r2Bucket, d1Database, secret);
+  if (!session) return json({ error: "Chưa đăng nhập." }, 401);
+  const permission =
+    entryKind === "collection"
+      ? collectionPermission(entryKey, "magicWriter")
+      : singletonPermission(entryKey, "magicWriter");
+  if (!hasPermission(session.roles, permission)) {
+    return json({ error: "Không đủ quyền Magic Write cho mục này." }, 403);
   }
   return undefined;
 }
@@ -280,6 +327,7 @@ async function preflight(
   req: DrystackRequest,
   config: Config<any, any>,
   resolved: AiRuntimeConfig | AiConfigError,
+  routeConfig: AiRouteConfig,
 ): Promise<DrystackResponse | Preflight> {
   // Authentication is checked before anything else, config included:
   // answering config questions first would tell an anonymous caller whether a
@@ -322,6 +370,15 @@ async function preflight(
   if (!schema) {
     return json({ error: `Không tìm thấy "${entry.key}".` }, 404);
   }
+
+  const permissionDenied = await requireMagicWriterPermission(
+    req,
+    config,
+    routeConfig,
+    entry.kind,
+    entry.key,
+  );
+  if (permissionDenied) return permissionDenied;
 
   const provider = PROVIDERS[resolved.provider];
   if (!provider) {
@@ -444,8 +501,9 @@ async function handleGenerate(
   req: DrystackRequest,
   config: Config<any, any>,
   resolved: AiRuntimeConfig | AiConfigError,
+  routeConfig: AiRouteConfig,
 ): Promise<DrystackResponse> {
-  const pre = await preflight(req, config, resolved);
+  const pre = await preflight(req, config, resolved, routeConfig);
   if (isPreflightResponse(pre)) return pre;
   const { body, entryDescription, schema, provider, runtime, lang } = pre;
 
@@ -555,8 +613,9 @@ async function handleRewrite(
   req: DrystackRequest,
   config: Config<any, any>,
   resolved: AiRuntimeConfig | AiConfigError,
+  routeConfig: AiRouteConfig,
 ): Promise<DrystackResponse> {
-  const pre = await preflight(req, config, resolved);
+  const pre = await preflight(req, config, resolved, routeConfig);
   if (isPreflightResponse(pre)) return pre;
   const { body, entryDescription, schema, provider, runtime, lang } = pre;
 

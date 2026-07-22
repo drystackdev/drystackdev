@@ -107,6 +107,7 @@ function SingletonPageInner(
   const { schema, singletonConfig } = useSingleton(props.singleton);
   const aiEntryDescription = useAiEntryDescription(
     useConfig(),
+    "singleton",
     props.singleton,
   );
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);

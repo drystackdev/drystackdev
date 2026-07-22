@@ -6,31 +6,51 @@ import { DrystackRequest, DrystackResponse } from './internal-utils';
 import { getAllowedDirectories } from './allowed-directories';
 import {
   AUTH_DIRECTORY,
-  AUTH_NATIVE_PREFIX,
-  NativeAuthUserFile,
   NativeSession,
   clearSessionCookieHeaders,
-  createUserFile,
   getSessionFromCookieHeader,
-  legacyUserFileKey,
+  hashPassword,
   normalizeEmail,
-  parseUserFile,
   revokedKey,
-  serializeUserFile,
   sessionCookieHeaders,
   signSession,
-  userFileKey,
   verifyPassword,
 } from './native-auth';
+import {
+  D1DatabaseLike,
+  RoleRow,
+  assignRole,
+  countUsers,
+  createUser,
+  getActiveSessionUser,
+  getRoleByName,
+  getUserByEmail,
+} from './d1';
+import {
+  SUPER_ADMIN_ROLE,
+  effectivePermissions,
+  hasPermission,
+  isAdmin,
+  isSuperAdmin,
+} from './permissions';
+import { getPathOwners, ownerForPath, permissionForPath } from './permission-paths';
+import { AVATAR_DIRECTORY, userManagementRoutes } from './user-management';
 
 // R2-backed twin of api-node.ts: same routes, same request/response shapes,
 // with the filesystem swapped for an R2 bucket and the whole thing runnable
-// in workerd (WebCrypto only, no node builtins). Two deliberate differences
-// from local mode, both from the auth plan (plan/auth.md):
-//   - `update` requires a valid native session (the deployment is public,
-//     unlike a dev machine), as do the `auth/me`-style routes below.
+// in workerd (WebCrypto only, no node builtins). Deliberate differences from
+// local mode, from the auth plan (plan/auth.md) and the user/role plan
+// (plan/user-managent.md):
+//   - `tree`/`blob`/`update` all require a valid native session (the
+//     deployment is public, unlike a dev machine), as do the `auth/me`-style
+//     routes below.
+//   - on top of that, each requires the session's role(s) to grant the
+//     relevant `collection:<key>.<action>`/`singleton:<key>.<action>`
+//     permission for whichever collection/singleton a path belongs to.
 //   - the `auth/` prefix is invisible: never listed by `tree`, never served
-//     by `blob`, never writable via `update`. Password hashes live there.
+//     by `blob`, never writable via `update`. It holds only the R2-resident
+//     session-revocation list now (see native-auth.ts) - user accounts
+//     themselves live in D1 (see d1.ts).
 
 // Structural subset of Cloudflare's R2Bucket - typed locally so @drystack/core
 // doesn't depend on workers-types. The real binding satisfies this as-is; the
@@ -111,10 +131,23 @@ async function shaForObject(
 // blob/update routes enforce (collection/singleton paths from the config,
 // plus the media library and trash), applied to the listing too. Anything
 // else in the bucket - `auth/` above all, but also any unrelated objects -
-// simply doesn't exist as far as the content API is concerned.
-async function bucketToTreeEntries(bucket: R2BucketLike, config: Config) {
+// simply doesn't exist as far as the content API is concerned. On top of
+// that, entries belonging to a collection/singleton the session lacks `view`
+// on are dropped too (plan/user-managent.md mục 5/6) - unowned paths (media
+// library, trash, templates) have no single collection to gate, so they pass
+// through once the caller has any valid session at all (checked by callers).
+async function bucketToTreeEntries(
+  bucket: R2BucketLike,
+  config: Config,
+  roles: RoleRow[]
+) {
   const isPathValid = getIsPathValid(config);
-  const objects = (await listAll(bucket)).filter(obj => isPathValid(obj.key));
+  const owners = getPathOwners(config);
+  const objects = (await listAll(bucket)).filter(obj => {
+    if (!isPathValid(obj.key)) return false;
+    const permission = permissionForPath(owners, obj.key, 'view');
+    return !permission || hasPermission(roles, permission);
+  });
   const additions = [];
   for (const obj of objects) {
     const hashed = await shaForObject(bucket, obj);
@@ -161,36 +194,42 @@ async function isRevoked(bucket: R2BucketLike, jti: string): Promise<boolean> {
   return !!(await bucket.get(revokedKey(jti)));
 }
 
+export type VerifiedSession = NativeSession & { roles: RoleRow[] };
+
 // Exported (not just used internally) so page-gating code with its own
-// bucket/request access - e.g. @drystack/astro's native-session.ts, which
+// bucket/db/request access - e.g. @drystack/astro's native-session.ts, which
 // gates the /drystack page itself - checks the exact same blacklist instead
 // of only the stateless signature+expiry check. A revoked cookie must fail
 // everywhere, not just at the API layer.
 //
-// Also re-checks that the user file itself still exists. Without this, a
-// deleted user's existing (unexpired, unrevoked) session cookie would keep
-// working for up to NATIVE_SESSION_MAX_AGE_SECONDS after deletion - the
-// jti blacklist only covers logout, not account removal. One extra
-// `bucket.get()` per gated request in r2 mode; the correctness this buys
-// (a removed user loses access immediately) is worth it.
+// Also re-checks the D1 user row: gone or `active = 0` invalidates the
+// session immediately (plan/user-managent.md mục 3), not just at next
+// expiry/logout - the jti blacklist only covers logout, not account removal
+// or deactivation. One extra D1 lookup per gated request in r2 mode; the
+// correctness this buys (a removed/deactivated user loses access
+// immediately) is worth it. Returns the session's roles alongside the usual
+// email/jti/exp so callers can permission-check without a second lookup.
 export async function verifiedSession(
   req: DrystackRequest,
   bucket: R2BucketLike,
+  db: D1DatabaseLike,
   secret: string
-): Promise<NativeSession | null> {
+): Promise<VerifiedSession | null> {
   const session = await getSessionFromCookieHeader(
     req.headers.get('cookie'),
     secret
   );
   if (!session) return null;
   if (await isRevoked(bucket, session.jti)) return null;
-  if (!(await readUserFile(bucket, session.email))) return null;
-  return session;
+  const sessionUser = await getActiveSessionUser(db, session.email);
+  if (!sessionUser) return null;
+  return { ...session, roles: sessionUser.roles };
 }
 
 export function r2ModeApiHandler(
   config: Config,
   bucket: R2BucketLike | undefined,
+  db: D1DatabaseLike | undefined,
   secret: string | undefined
 ) {
   return async (
@@ -203,32 +242,56 @@ export function r2ModeApiHandler(
         body: "storage: { kind: 'r2' } requires an R2 bucket binding named DRYSTACK_R2 (add an `r2_buckets` entry to wrangler.jsonc)",
       };
     }
+    if (!db) {
+      return {
+        status: 500,
+        body: "storage: { kind: 'r2' } requires a D1 database binding named DRYSTACK_DB (add a `d1_databases` entry to wrangler.jsonc)",
+      };
+    }
     if (!secret) {
       return {
         status: 500,
         body: "storage: { kind: 'r2' } requires DRYSTACK_SECRET to be set - it signs login sessions",
       };
     }
-    const session = () => verifiedSession(req, bucket, secret);
+    const session = () => verifiedSession(req, bucket, db, secret);
 
     const joined = params.join('/');
     if (params[0] === 'auth') {
-      return authRoutes(req, params.slice(1), bucket, secret, session);
+      return authRoutes(req, params.slice(1), bucket, db, secret, session);
+    }
+    if (
+      params[0] === 'users' ||
+      params[0] === 'roles' ||
+      params[0] === 'profile' ||
+      joined === 'password-setting' ||
+      joined === 'forgot-password'
+    ) {
+      return userManagementRoutes(req, params, {
+        db,
+        session,
+        putAvatarObject: async (path, contents) => {
+          await bucket.put(path, contents);
+        },
+      });
     }
     if (req.method === 'GET' && joined === 'tree') {
       if (req.headers.get('no-cors') !== '1') {
         return { status: 400, body: 'Bad Request' };
       }
-      return json(await bucketToTreeEntries(bucket, config));
+      const current = await session();
+      if (!current) return { status: 401, body: 'Not authorized' };
+      return json(await bucketToTreeEntries(bucket, config, current.roles));
     }
     if (req.method === 'GET' && params[0] === 'blob') {
-      return blob(req, config, params, bucket);
+      return blob(req, config, params, bucket, session);
     }
     if (req.method === 'POST' && joined === 'update') {
-      if (!(await session())) {
+      const current = await session();
+      if (!current) {
         return { status: 401, body: 'Not authorized' };
       }
-      return update(req, config, bucket);
+      return update(req, config, bucket, current.roles);
     }
     return { status: 404, body: 'Not Found' };
   };
@@ -264,15 +327,29 @@ async function blob(
   req: DrystackRequest,
   config: Config,
   params: string[],
-  bucket: R2BucketLike
+  bucket: R2BucketLike,
+  session: () => Promise<VerifiedSession | null>
 ): Promise<DrystackResponse> {
   if (req.headers.get('no-cors') !== '1') {
     return { status: 400, body: 'Bad Request' };
   }
   const expectedSha = params[1];
   const filepath = params.slice(2).join('/');
-  if (!getIsPathValid(config)(filepath)) {
+  // Avatars (`_system/avatars/`) aren't part of any collection/singleton, so
+  // they're outside getIsPathValid's normal allowlist - allowed here
+  // specifically for reads (see user-management.ts's uploadAvatar for the
+  // write side, which never goes through the generic `update` route).
+  if (
+    !getIsPathValid(config)(filepath) &&
+    !filepath.startsWith(`${AVATAR_DIRECTORY}/`)
+  ) {
     return { status: 400, body: 'Bad Request' };
+  }
+  const current = await session();
+  if (!current) return { status: 401, body: 'Not authorized' };
+  const permission = permissionForPath(getPathOwners(config), filepath, 'view');
+  if (permission && !hasPermission(current.roles, permission)) {
+    return { status: 403, body: 'Forbidden' };
   }
   const object = await bucket.get(filepath);
   if (!object) {
@@ -289,7 +366,8 @@ async function blob(
 async function update(
   req: DrystackRequest,
   config: Config,
-  bucket: R2BucketLike
+  bucket: R2BucketLike,
+  roles: RoleRow[]
 ): Promise<DrystackResponse> {
   if (
     req.headers.get('no-cors') !== '1' ||
@@ -316,6 +394,34 @@ async function update(
   } catch {
     return { status: 400, body: 'Bad data' };
   }
+
+  // SuperAdmin/Admin always pass (hardcoded full access, see permissions.ts)
+  // - skip the per-path resolution/head() calls entirely for them. Everyone
+  // else needs `created`/`updated`/`deleted` on whichever collection/
+  // singleton each path belongs to; unowned paths (media library, trash,
+  // templates) aren't gated per-path, same as the tree/blob read side.
+  if (!isSuperAdmin(roles) && !isAdmin(roles)) {
+    const owners = getPathOwners(config);
+    for (const addition of updates.additions) {
+      if (!ownerForPath(owners, addition.path)) continue;
+      const existed = !!(await bucket.head(addition.path));
+      const permission = permissionForPath(
+        owners,
+        addition.path,
+        existed ? 'updated' : 'created'
+      )!;
+      if (!hasPermission(roles, permission)) {
+        return { status: 403, body: 'Forbidden' };
+      }
+    }
+    for (const deletion of updates.deletions) {
+      const permission = permissionForPath(owners, deletion.path, 'deleted');
+      if (permission && !hasPermission(roles, permission)) {
+        return { status: 403, body: 'Forbidden' };
+      }
+    }
+  }
+
   for (const addition of updates.additions) {
     const sha = await blobSha(addition.contents);
     await bucket.put(addition.path, addition.contents, {
@@ -339,70 +445,44 @@ async function update(
     // step to forget.
     await bumpContentVersion(bucket);
   }
-  return json(await bucketToTreeEntries(bucket, config));
+  return json(await bucketToTreeEntries(bucket, config, roles));
 }
 
 // ---------------------------------------------------------------------------
 // auth/* routes
 // ---------------------------------------------------------------------------
 
+// `name` is optional so the minimal /login setup form and scripts/r2-seed.ts
+// (both send only email+password) keep working - falls back to the email
+// itself. The full /register-first page sends a real name once it lands (see
+// plan/user-managent.md mục 6) and this same route honors it.
 const credentialsSchema = s.object({
   email: s.string(),
   password: s.string(),
+  name: s.optional(s.string()),
 });
 
 // One shared failure body for "no such user" and "wrong password" so the
 // route can't be used to enumerate which emails have accounts.
 const badCredentials = () => json({ error: 'invalid-credentials' }, 401);
 
-async function readUserFile(
-  bucket: R2BucketLike,
-  email: string
-): Promise<NativeAuthUserFile | null> {
-  // Prefer the current YAML object; fall back to a pre-migration `.json` one so
-  // accounts created before the format switch keep authenticating.
-  const object =
-    (await bucket.get(userFileKey(email))) ??
-    (await bucket.get(legacyUserFileKey(email)));
-  if (!object) return null;
-  return parseUserFile(new TextDecoder().decode(await object.arrayBuffer()));
-}
-
-async function writeUserFile(
-  bucket: R2BucketLike,
-  email: string,
-  file: NativeAuthUserFile
-): Promise<void> {
-  await bucket.put(
-    userFileKey(email),
-    new TextEncoder().encode(serializeUserFile(file))
-  );
-  // Migrate: once the YAML object exists, drop any legacy JSON twin so listings
-  // and reads never see both. No-op when there was never a legacy file.
-  await bucket.delete(legacyUserFileKey(email));
-}
-
-async function hasAnyUser(bucket: R2BucketLike) {
-  const page = await bucket.list({ prefix: AUTH_NATIVE_PREFIX });
-  return page.objects.length > 0;
-}
-
 async function authRoutes(
   req: DrystackRequest,
   params: string[],
   bucket: R2BucketLike,
+  db: D1DatabaseLike,
   secret: string,
-  session: () => Promise<NativeSession | null>
+  session: () => Promise<VerifiedSession | null>
 ): Promise<DrystackResponse> {
   const route = params.join('/');
 
   if (req.method === 'GET' && route === 'status') {
-    // Drives the /login page: an empty auth/native/ directory means this is a
-    // fresh deployment and the page shows the create-first-admin form
-    // instead. `authenticated` is verified server-side, not read off the hint
-    // cookie.
+    // Drives the /login page: an empty `user` table means this is a fresh
+    // deployment (or one that just cut over to D1 - see plan/user-managent.md
+    // mục 8) and the page shows the create-first-admin form instead.
+    // `authenticated` is verified server-side, not read off the hint cookie.
     return json({
-      needsSetup: !(await hasAnyUser(bucket)),
+      needsSetup: (await countUsers(db)) === 0,
       authenticated: !!(await session()),
     });
   }
@@ -410,7 +490,16 @@ async function authRoutes(
   if (req.method === 'GET' && route === 'me') {
     const current = await session();
     if (!current) return { status: 401, body: 'Not authorized' };
-    return json({ email: current.email });
+    // The client (useNavItems.tsx, MagicWriteButton.tsx) gates nav items and
+    // the AI button on this - fullAccess mirrors the server's SuperAdmin/Admin
+    // hardcode (permissions.ts's hasPermission), permissions is the union
+    // across every role (plan/user-managent.md mục 5/6). Client-side gating
+    // is UX only; the server checks above are the real boundary.
+    return json({
+      email: current.email,
+      permissions: [...effectivePermissions(current.roles)],
+      fullAccess: isSuperAdmin(current.roles) || isAdmin(current.roles),
+    });
   }
 
   if (req.method === 'POST' && route === 'logout') {
@@ -450,23 +539,41 @@ async function authRoutes(
     const email = normalizeEmail(credentials.email);
     if (!email) return badCredentials();
 
-    let file: NativeAuthUserFile | null;
     if (route === 'setup') {
-      // First-run bootstrap: only ever works while auth/native/ is empty, so
-      // a deployed site with any user at all exposes nothing here. Races
-      // between two concurrent setups are harmless - last write wins on a
-      // bucket that by definition has no real users yet.
-      if (await hasAnyUser(bucket)) {
+      // First-run bootstrap: only ever works while the `user` table is
+      // empty, so a deployed site with any user at all exposes nothing here.
+      // Races between two concurrent setups can both pass this check before
+      // either inserts - harmless for the D1 row itself (both would just
+      // create a user), but only the FIRST insert should become SuperAdmin;
+      // acceptable at this scale (a brand-new deployment, one operator).
+      if ((await countUsers(db)) > 0) {
         return json({ error: 'already-set-up' }, 403);
       }
       if (credentials.password.length < 8) {
         return json({ error: 'password-too-short' }, 400);
       }
-      file = await createUserFile(credentials.password, {});
-      await writeUserFile(bucket, email, file);
+      const passwordHash = await hashPassword(credentials.password);
+      const user = await createUser(db, {
+        email,
+        name: credentials.name?.trim() || email,
+        password: passwordHash,
+      });
+      // The one and only place SuperAdmin is ever assigned - see plan
+      // mục 3/6. Seeded by migrations/0001_init.sql; if a site somehow
+      // deleted the row, setup still succeeds (just without a SuperAdmin -
+      // the operator would need to re-run migrations).
+      const superAdminRole = await getRoleByName(db, SUPER_ADMIN_ROLE);
+      if (superAdminRole) {
+        await assignRole(db, user.id, superAdminRole.id);
+      }
     } else {
-      file = await readUserFile(bucket, email);
-      if (!file || !(await verifyPassword(credentials.password, file.password))) {
+      const user = await getUserByEmail(db, email);
+      if (
+        !user ||
+        !user.active ||
+        !user.password ||
+        !(await verifyPassword(credentials.password, user.password))
+      ) {
         return badCredentials();
       }
     }
@@ -485,12 +592,16 @@ async function authRoutes(
 // The AI routes cost real money on the site owner's account, so in r2 mode
 // they get the same session gate as writes (mirrors the GitHub-mode token
 // verification in api/ai/index.ts's requireSession). Exported for generic.ts
-// to consult before delegating to the AI handler.
+// to consult before delegating to the AI handler. Per-collection
+// `magicWriter` permission is enforced separately, inside the AI handler
+// itself (still to land - see plan/user-managent.md mục 5) since only it
+// knows which collection/singleton a given ai/* request targets.
 export async function requireNativeSession(
   req: DrystackRequest,
   bucket: R2BucketLike | undefined,
+  db: D1DatabaseLike | undefined,
   secret: string | undefined
 ): Promise<boolean> {
-  if (!bucket || !secret) return false;
-  return !!(await verifiedSession(req, bucket, secret));
+  if (!bucket || !db || !secret) return false;
+  return !!(await verifiedSession(req, bucket, db, secret));
 }

@@ -67,6 +67,11 @@ export function makeHandler(_config: APIRouteConfig) {
         // (declared in wrangler.jsonc). Undefined elsewhere; the r2 handler
         // 500s loudly rather than pretending to work without it.
         r2Bucket: _config.r2Bucket ?? envVarsForCf?.DRYSTACK_R2,
+        // `storage: { kind: 'r2' }`'s user/role/permission store (declared in
+        // wrangler.jsonc, see plan/user-managent.md). Same "undefined
+        // elsewhere, 500s loudly if missing in r2 mode" shape as the bucket
+        // above.
+        d1Database: _config.d1Database ?? envVarsForCf?.DRYSTACK_DB,
       },
       {
         slugEnvName: "PUBLIC_DRYSTACK_GITHUB_APP_SLUG",

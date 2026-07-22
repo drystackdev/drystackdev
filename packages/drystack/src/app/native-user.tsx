@@ -15,7 +15,24 @@ import { useRouter } from './router';
 // small one-shot fetch of `auth/me` instead, mirrored into a context so the
 // sidebar (UserActions) can render the email/logout without every consumer
 // re-fetching.
-export type NativeUser = { email: string };
+export type NativeUser = {
+  email: string;
+  // `permissions` is the union across every role the user holds; `fullAccess`
+  // mirrors the server's SuperAdmin/Admin hardcode (see api-r2.ts's `me`
+  // route and permissions.ts). Used to gate nav items (useNavItems.tsx) and
+  // the Magic Write button (ai/MagicWriteButton.tsx) - display-only, the
+  // server enforces the real boundary on every read/write.
+  permissions: string[];
+  fullAccess: boolean;
+};
+
+export function hasNativePermission(
+  user: NativeUser | null | undefined,
+  permission: string
+): boolean {
+  if (!user) return false;
+  return user.fullAccess || user.permissions.includes(permission);
+}
 
 // undefined = still loading, null = fetch failed/unauthenticated (shouldn't
 // normally happen - the page itself is gated server-side before this ever

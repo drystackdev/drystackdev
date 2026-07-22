@@ -1,32 +1,24 @@
 import * as cookie from 'cookie';
-import { dump, load } from 'js-yaml';
 import { base64UrlDecode, base64UrlEncode } from '#base64';
 import { webcrypto } from '#webcrypto';
 import { bytesToHex } from '../hex';
 
 // Native email/password auth for `storage: { kind: 'r2' }` deployments (see
 // R2StorageConfig in config.tsx). Everything here runs on WebCrypto only so
-// the same code executes in the deployed Worker, `astro dev`'s Node process,
-// and the bun-run CLI script (scripts/drystack-auth.ts) that provisions
-// users.
+// the same code executes in the deployed Worker and `astro dev`'s Node
+// process.
 //
-// One YAML object per user at `auth/native/<email>.yaml` in the R2 bucket:
-//   password: "<one-way pbkdf2 hash>"
-//   profile: { ...display fields }
-//   createdAt: "<ISO>"
-// YAML (not JSON) so the stored profile reads like the rest of the CMS's
-// content and stays hand-editable. `load` still parses any pre-migration
-// `.json` object (JSON is a YAML subset), so legacy users keep working - see
-// legacyUserFileKey and readUserFile's fallback in api-r2.ts. The password can
-// only ever be verified, never recovered. The profile is display data (name,
-// etc.), not a credential. The `auth/` prefix is hard-excluded from the public
-// tree/blob routes and refused by the update route (see api-r2.ts) - these
-// files must never be readable or writable through the content API.
+// User accounts (email/password hash/profile fields/role assignments) live
+// in D1, not here (see d1.ts + plan/user-managent.md) - this module only
+// covers the storage-agnostic crypto (password hashing, JWT sign/verify) and
+// the R2-resident session revocation list below. The password can only ever
+// be verified, never recovered. The `auth/` prefix is hard-excluded from the
+// public tree/blob routes and refused by the update route (see api-r2.ts) -
+// files under it must never be readable or writable through the content API.
 
 const encoder = new TextEncoder();
 
 export const AUTH_DIRECTORY = 'auth';
-export const AUTH_NATIVE_PREFIX = 'auth/native/';
 // Revoked session ids (jti) live here, one empty-ish object per revoked
 // token, keyed by jti. A logout writes the current token's jti; every session
 // verification that has bucket access consults it, so a stolen-but-not-yet-
@@ -119,66 +111,17 @@ export async function verifyPassword(
   return timingSafeEqual(actual, expected);
 }
 
-// Emails become R2 object keys (`auth/native/<email>.json`), so the charset
-// is restricted to things that can never traverse or collide: no slashes, no
-// uppercase (keys are case-sensitive but emails aren't), nothing outside the
-// usual address characters.
+// D1 emails are case-insensitive (SQLite's UNIQUE index is a byte compare),
+// so normalizing here is what actually makes them unique - keeps the same
+// charset restriction (no slashes/uppercase) the old R2-object-key scheme
+// used, since nothing depends on that shape anymore but a stable, boring
+// email normalization rule is still worth keeping.
 export function normalizeEmail(email: string): string | null {
   const normalized = email.trim().toLowerCase();
   if (!/^[a-z0-9][a-z0-9._%+-]*@[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(normalized)) {
     return null;
   }
   return normalized;
-}
-
-export function userFileKey(email: string) {
-  return `${AUTH_NATIVE_PREFIX}${email}.yaml`;
-}
-
-// Where users were stored before the YAML switch. Reads fall back to it and
-// writes delete it, so a live deployment's existing accounts migrate on first
-// touch instead of vanishing (which would make the site look "unset up").
-export function legacyUserFileKey(email: string) {
-  return `${AUTH_NATIVE_PREFIX}${email}.json`;
-}
-
-export type NativeAuthUserFile = {
-  password: string;
-  profile?: unknown;
-  createdAt?: string;
-};
-
-export function serializeUserFile(file: NativeAuthUserFile): string {
-  return dump(file);
-}
-
-// Parses a stored user file. `load` reads both YAML and legacy JSON (JSON is a
-// YAML subset), so this is safe against either on-disk format. Returns null for
-// anything that isn't a valid user record (no string password), matching the
-// old JSON.parse guard.
-export function parseUserFile(text: string): NativeAuthUserFile | null {
-  let parsed: unknown;
-  try {
-    parsed = load(text);
-  } catch {
-    return null;
-  }
-  if (typeof (parsed as { password?: unknown } | undefined)?.password !== 'string') {
-    return null;
-  }
-  return parsed as NativeAuthUserFile;
-}
-
-export async function createUserFile(
-  password: string,
-  profile: unknown,
-  createdAt: string = new Date().toISOString()
-): Promise<NativeAuthUserFile> {
-  return {
-    password: await hashPassword(password),
-    profile: profile ?? {},
-    createdAt,
-  };
 }
 
 // Minimal HS256 JWT - header/payload/signature, base64url, HMAC-SHA-256 with

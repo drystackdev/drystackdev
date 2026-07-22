@@ -10,12 +10,19 @@ import {
   R2BucketLike,
   R2ObjectMetaLike,
 } from './api-r2';
+import { hashPassword, signSession } from './native-auth';
 import {
-  createUserFile,
-  legacyUserFileKey,
-  signSession,
-  userFileKey,
-} from './native-auth';
+  D1DatabaseLike,
+  assignRole,
+  createRole,
+  createUser,
+  deleteUser,
+  getRoleByName,
+  setUserActive,
+  updateRolePermissions,
+} from './d1';
+import { makeTestD1 } from './d1-test-helpers';
+import { SUPER_ADMIN_ROLE } from './permissions';
 import { DrystackRequest, DrystackResponse } from './internal-utils';
 
 const SECRET = 's'.repeat(32);
@@ -117,31 +124,56 @@ async function sessionCookie(email = 'admin@example.com') {
   return `drystack-session=${await signSession({ email }, SECRET)}`;
 }
 
-async function seedUser(bucket: MemoryBucket, email = 'admin@example.com') {
-  const file = await createUserFile('hunter2-hunter2', { name: 'Admin' });
-  await bucket.put(userFileKey(email), encoder.encode(JSON.stringify(file)));
+// Defaults to SuperAdmin (full access) so every pre-existing test that isn't
+// specifically about permission enforcement keeps its old "a logged-in user
+// can do anything" behavior. Permission-restriction tests pass `role`
+// explicitly (an already-seeded builtin name, or a RoleRow from
+// `createRole`/`updateRolePermissions`).
+async function seedUser(
+  db: D1DatabaseLike,
+  email = 'admin@example.com',
+  options: { password?: string; role?: string } = {}
+) {
+  const password = options.password ?? 'hunter2-hunter2';
+  const user = await createUser(db, {
+    email,
+    name: 'Admin',
+    password: await hashPassword(password),
+  });
+  const role = await getRoleByName(db, options.role ?? SUPER_ADMIN_ROLE);
+  if (role) await assignRole(db, user.id, role.id);
+  return user;
 }
 
 async function listAllKeys(bucket: MemoryBucket) {
   return [...bucket.store.keys()];
 }
 
-test('missing bucket or secret is a loud 500', async () => {
-  const noBucket = r2ModeApiHandler(testConfig, undefined, SECRET);
+test('missing bucket, database, or secret is a loud 500', async () => {
+  const db = makeTestD1();
+  const bucket = new MemoryBucket();
+  const noBucket = r2ModeApiHandler(testConfig, undefined, db, SECRET);
   expect((await noBucket(request('GET', 'tree'), ['tree'])).status).toBe(500);
-  const noSecret = r2ModeApiHandler(testConfig, new MemoryBucket(), undefined);
+  const noDb = r2ModeApiHandler(testConfig, bucket, undefined, SECRET);
+  expect((await noDb(request('GET', 'tree'), ['tree'])).status).toBe(500);
+  const noSecret = r2ModeApiHandler(testConfig, bucket, db, undefined);
   expect((await noSecret(request('GET', 'tree'), ['tree'])).status).toBe(500);
 });
 
-test('tree lists only content/asset dirs and never auth/', async () => {
+test('tree requires a session and lists only content/asset dirs, never auth/', async () => {
   const bucket = new MemoryBucket();
+  const db = makeTestD1();
   await bucket.put('blog/hello/index.yaml', encoder.encode('title: hello'));
   await bucket.put('assets/pic.png', encoder.encode('png-bytes'));
   await bucket.put('unrelated/top-secret.txt', encoder.encode('nope'));
-  await seedUser(bucket);
-  const handler = r2ModeApiHandler(testConfig, bucket, SECRET);
+  await seedUser(db);
+  const handler = r2ModeApiHandler(testConfig, bucket, db, SECRET);
 
-  const res = await handler(request('GET', 'tree'), ['tree']);
+  // anonymous → 401, not just an empty/public tree
+  expect((await handler(request('GET', 'tree'), ['tree'])).status).toBe(401);
+
+  const cookie = await sessionCookie();
+  const res = await handler(request('GET', 'tree', { cookie }), ['tree']);
   expect(res.status).toBe(200);
   const paths = (bodyJson(res) as { path: string; type: string }[])
     .filter(e => e.type === 'blob')
@@ -158,31 +190,48 @@ test('tree lists only content/asset dirs and never auth/', async () => {
 
   // no-cors header is required, same as local mode
   expect(
-    (await handler(request('GET', 'tree', { noCors: false }), ['tree'])).status
+    (await handler(request('GET', 'tree', { noCors: false, cookie }), ['tree']))
+      .status
   ).toBe(400);
 });
 
 test('blob serves by sha and refuses auth/ and unknown paths', async () => {
   const bucket = new MemoryBucket();
+  const db = makeTestD1();
   const contents = encoder.encode('title: hello');
   await bucket.put('blog/hello/index.yaml', contents);
-  await seedUser(bucket);
-  const handler = r2ModeApiHandler(testConfig, bucket, SECRET);
+  await seedUser(db);
+  const handler = r2ModeApiHandler(testConfig, bucket, db, SECRET);
+  const cookie = await sessionCookie();
   const sha = await blobSha(contents);
 
+  // anonymous → 401
+  expect(
+    (
+      await handler(request('GET', `blob/${sha}/blog/hello/index.yaml`), [
+        'blob',
+        sha,
+        'blog',
+        'hello',
+        'index.yaml',
+      ])
+    ).status
+  ).toBe(401);
+
   const ok = await handler(
-    request('GET', `blob/${sha}/blog/hello/index.yaml`),
+    request('GET', `blob/${sha}/blog/hello/index.yaml`, { cookie }),
     ['blob', sha, 'blog', 'hello', 'index.yaml']
   );
   expect(ok.status).toBe(200);
   expect(decoder.decode(ok.body as Uint8Array)).toEqual('title: hello');
 
   const wrongSha = await handler(
-    request('GET', `blob/${'0'.repeat(40)}/blog/hello/index.yaml`),
+    request('GET', `blob/${'0'.repeat(40)}/blog/hello/index.yaml`, { cookie }),
     ['blob', '0'.repeat(40), 'blog', 'hello', 'index.yaml']
   );
   expect(wrongSha.status).toBe(404);
 
+  // auth/ paths are rejected before the session is even checked
   const authPath = await handler(
     request('GET', `blob/${sha}/auth/native/admin@example.com.yaml`),
     ['blob', sha, 'auth', 'native', 'admin@example.com.yaml']
@@ -192,10 +241,11 @@ test('blob serves by sha and refuses auth/ and unknown paths', async () => {
 
 test('update requires a session, writes with sha metadata, deletes prefixes', async () => {
   const bucket = new MemoryBucket();
+  const db = makeTestD1();
   await bucket.put('blog/old/index.yaml', encoder.encode('title: old'));
   await bucket.put('blog/old/assets/img.png', encoder.encode('img'));
-  await seedUser(bucket);
-  const handler = r2ModeApiHandler(testConfig, bucket, SECRET);
+  await seedUser(db);
+  const handler = r2ModeApiHandler(testConfig, bucket, db, SECRET);
 
   const body = {
     additions: [
@@ -250,11 +300,12 @@ test('update requires a session, writes with sha metadata, deletes prefixes', as
   expect(bucket.store.has('auth/native/attacker@example.com.yaml')).toBe(false);
 });
 
-test('auth flow: status → setup → login → me → logout', async () => {
+test('auth flow: status → setup (assigns SuperAdmin) → login → me → logout', async () => {
   const bucket = new MemoryBucket();
-  const handler = r2ModeApiHandler(testConfig, bucket, SECRET);
+  const db = makeTestD1();
+  const handler = r2ModeApiHandler(testConfig, bucket, db, SECRET);
 
-  // fresh bucket wants setup
+  // fresh database wants setup
   let res = await handler(request('GET', 'auth/status'), ['auth', 'status']);
   expect(bodyJson(res)).toEqual({ needsSetup: true, authenticated: false });
 
@@ -267,10 +318,10 @@ test('auth flow: status → setup → login → me → logout', async () => {
   );
   expect(res.status).toBe(400);
 
-  // first admin created, session cookies set
+  // first admin created, session cookies set, SuperAdmin assigned
   res = await handler(
     request('POST', 'auth/setup', {
-      body: { email: 'Admin@Example.com', password: 'hunter2-hunter2' },
+      body: { email: 'Admin@Example.com', password: 'hunter2-hunter2', name: 'Khan' },
     }),
     ['auth', 'setup']
   );
@@ -327,7 +378,13 @@ test('auth flow: status → setup → login → me → logout', async () => {
   const cookie = await sessionCookie();
   res = await handler(request('GET', 'auth/me', { cookie }), ['auth', 'me']);
   expect(res.status).toBe(200);
-  expect(bodyJson(res)).toEqual({ email: 'admin@example.com' });
+  // SuperAdmin (assigned by setup above) has fullAccess - no need to list
+  // permission strings individually (see permissions.ts's hardcode).
+  expect(bodyJson(res)).toEqual({
+    email: 'admin@example.com',
+    permissions: [],
+    fullAccess: true,
+  });
   // me without → 401
   res = await handler(request('GET', 'auth/me'), ['auth', 'me']);
   expect(res.status).toBe(401);
@@ -346,8 +403,9 @@ test('auth flow: status → setup → login → me → logout', async () => {
 
 test('logout revokes the jti - the same still-unexpired token stops working everywhere', async () => {
   const bucket = new MemoryBucket();
-  await seedUser(bucket);
-  const handler = r2ModeApiHandler(testConfig, bucket, SECRET);
+  const db = makeTestD1();
+  await seedUser(db);
+  const handler = r2ModeApiHandler(testConfig, bucket, db, SECRET);
   const cookie = await sessionCookie();
 
   // works before logout
@@ -408,8 +466,9 @@ test('logout revokes the jti - the same still-unexpired token stops working ever
 
 test('a real write bumps the content version, a no-op write does not', async () => {
   const bucket = new MemoryBucket();
-  await seedUser(bucket);
-  const handler = r2ModeApiHandler(testConfig, bucket, SECRET);
+  const db = makeTestD1();
+  await seedUser(db);
+  const handler = r2ModeApiHandler(testConfig, bucket, db, SECRET);
   const cookie = await sessionCookie();
 
   const before = await getContentVersion(bucket);
@@ -455,13 +514,15 @@ test('a real write bumps the content version, a no-op write does not', async () 
   expect(await getContentVersion(bucket)).not.toEqual(after);
 });
 
-test('a removed user file immediately invalidates their existing session - not just via jti revocation', async () => {
+test('a deleted user immediately invalidates their existing session - not just via jti revocation', async () => {
   const bucket = new MemoryBucket();
-  await seedUser(bucket, 'admin@example.com');
-  await seedUser(bucket, 'second@example.com');
+  const db = makeTestD1();
+  const admin = await seedUser(db, 'admin@example.com');
+  const second = await seedUser(db, 'second@example.com');
   const adminCookie = await sessionCookie('admin@example.com');
   const secondCookie = await sessionCookie('second@example.com');
-  const handler = r2ModeApiHandler(testConfig, bucket, SECRET);
+  const handler = r2ModeApiHandler(testConfig, bucket, db, SECRET);
+  void admin;
 
   // works before deletion
   expect(
@@ -473,12 +534,13 @@ test('a removed user file immediately invalidates their existing session - not j
     ).status
   ).toBe(200);
 
-  // simulate the account being removed (e.g. via scripts/drystack-auth.ts)
-  await bucket.delete(userFileKey('second@example.com'));
+  // simulate the account being removed (e.g. via scripts/drystack-auth.ts, or
+  // the future user-management "Delete" button)
+  await deleteUser(db, second.id);
 
   // the exact same cookie - still cryptographically valid, unexpired, and
   // never explicitly logged out (no revoked/<jti> entry) - is now rejected,
-  // because verifiedSession() also checks the user file still exists.
+  // because verifiedSession() also checks the D1 user row still exists.
   expect(
     (
       await handler(request('GET', 'auth/me', { cookie: secondCookie }), [
@@ -510,30 +572,212 @@ test('a removed user file immediately invalidates their existing session - not j
   ).toBe(200);
 });
 
-test('legacy .json user files still authenticate via the read fallback', async () => {
+test('deactivating a user (active = 0) invalidates their session immediately', async () => {
   const bucket = new MemoryBucket();
-  const file = await createUserFile('hunter2-hunter2', { name: 'Legacy Admin' });
-  await bucket.put(
-    legacyUserFileKey('admin@example.com'),
-    encoder.encode(JSON.stringify(file))
-  );
+  const db = makeTestD1();
+  const user = await seedUser(db);
   const cookie = await sessionCookie();
-  const handler = r2ModeApiHandler(testConfig, bucket, SECRET);
+  const handler = r2ModeApiHandler(testConfig, bucket, db, SECRET);
 
-  // reads (here, `me`) fall back to the legacy key
-  const me = await handler(request('GET', 'auth/me', { cookie }), ['auth', 'me']);
-  expect(me.status).toBe(200);
-  expect(bodyJson(me)).toEqual({ email: 'admin@example.com' });
-  expect(await listAllKeys(bucket)).toContain(
-    'auth/native/admin@example.com.json'
-  );
+  expect(
+    (await handler(request('GET', 'auth/me', { cookie }), ['auth', 'me']))
+      .status
+  ).toBe(200);
 
-  // login against the legacy file also works
+  await setUserActive(db, user.id, false);
+  expect(
+    (await handler(request('GET', 'auth/me', { cookie }), ['auth', 'me']))
+      .status
+  ).toBe(401);
+
+  // a deactivated user also can't log back in
   const login = await handler(
     request('POST', 'auth/login', {
       body: { email: 'admin@example.com', password: 'hunter2-hunter2' },
     }),
     ['auth', 'login']
   );
-  expect(login.status).toBe(200);
+  expect(login.status).toBe(401);
+
+  await setUserActive(db, user.id, true);
+  expect(
+    (await handler(request('GET', 'auth/me', { cookie }), ['auth', 'me']))
+      .status
+  ).toBe(200);
+});
+
+// ---------------------------------------------------------------------------
+// Permission enforcement (plan/user-managent.md mục 5)
+// ---------------------------------------------------------------------------
+
+test('a role with only collection:blog.view can read but not write', async () => {
+  const bucket = new MemoryBucket();
+  const db = makeTestD1();
+  await bucket.put('blog/hello/index.yaml', encoder.encode('title: hello'));
+  const viewer = await createRole(db, 'Viewer');
+  await updateRolePermissions(db, viewer.id, ['collection:blog.view']);
+  await seedUser(db, 'viewer@example.com', { role: 'Viewer' });
+  const cookie = await sessionCookie('viewer@example.com');
+  const handler = r2ModeApiHandler(testConfig, bucket, db, SECRET);
+
+  const tree = await handler(request('GET', 'tree', { cookie }), ['tree']);
+  expect(tree.status).toBe(200);
+  expect(
+    (bodyJson(tree) as { path: string }[]).map(e => e.path)
+  ).toContain('blog/hello/index.yaml');
+
+  const sha = await blobSha(encoder.encode('title: hello'));
+  const blob = await handler(
+    request('GET', `blob/${sha}/blog/hello/index.yaml`, { cookie }),
+    ['blob', sha, 'blog', 'hello', 'index.yaml']
+  );
+  expect(blob.status).toBe(200);
+
+  const write = await handler(
+    request('POST', 'update', {
+      body: {
+        additions: [
+          {
+            path: 'blog/new/index.yaml',
+            contents: base64UrlEncode(encoder.encode('title: new')),
+          },
+        ],
+        deletions: [],
+      },
+      cookie,
+    }),
+    ['update']
+  );
+  expect(write.status).toBe(403);
+  expect(bucket.store.has('blog/new/index.yaml')).toBe(false);
+});
+
+test('a role without collection:blog.view never sees blog/ in tree or blob, but unowned paths stay visible', async () => {
+  const bucket = new MemoryBucket();
+  const db = makeTestD1();
+  await bucket.put('blog/hello/index.yaml', encoder.encode('title: hello'));
+  await bucket.put('assets/pic.png', encoder.encode('png-bytes'));
+  await createRole(db, 'NoAccess'); // permissions stay '[]'
+  await seedUser(db, 'noaccess@example.com', { role: 'NoAccess' });
+  const cookie = await sessionCookie('noaccess@example.com');
+  const handler = r2ModeApiHandler(testConfig, bucket, db, SECRET);
+
+  const tree = await handler(request('GET', 'tree', { cookie }), ['tree']);
+  expect(tree.status).toBe(200);
+  const paths = (bodyJson(tree) as { path: string }[]).map(e => e.path);
+  expect(paths).not.toContain('blog/hello/index.yaml');
+  expect(paths).toContain('assets/pic.png');
+
+  const sha = await blobSha(encoder.encode('title: hello'));
+  const blob = await handler(
+    request('GET', `blob/${sha}/blog/hello/index.yaml`, { cookie }),
+    ['blob', sha, 'blog', 'hello', 'index.yaml']
+  );
+  expect(blob.status).toBe(403);
+});
+
+test('created vs updated are distinct permissions - each only unlocks its own case', async () => {
+  const bucket = new MemoryBucket();
+  const db = makeTestD1();
+  await bucket.put('blog/existing/index.yaml', encoder.encode('title: existing'));
+
+  const creator = await createRole(db, 'Creator');
+  await updateRolePermissions(db, creator.id, [
+    'collection:blog.view',
+    'collection:blog.created',
+  ]);
+  await seedUser(db, 'creator@example.com', { role: 'Creator' });
+  const creatorCookie = await sessionCookie('creator@example.com');
+  const handler = r2ModeApiHandler(testConfig, bucket, db, SECRET);
+
+  // Creator can add a new file...
+  const createNew = await handler(
+    request('POST', 'update', {
+      body: {
+        additions: [
+          {
+            path: 'blog/new/index.yaml',
+            contents: base64UrlEncode(encoder.encode('title: new')),
+          },
+        ],
+        deletions: [],
+      },
+      cookie: creatorCookie,
+    }),
+    ['update']
+  );
+  expect(createNew.status).toBe(200);
+
+  // ...but not overwrite an existing one (that's `updated`, which Creator
+  // doesn't have).
+  const editExisting = await handler(
+    request('POST', 'update', {
+      body: {
+        additions: [
+          {
+            path: 'blog/existing/index.yaml',
+            contents: base64UrlEncode(encoder.encode('title: changed')),
+          },
+        ],
+        deletions: [],
+      },
+      cookie: creatorCookie,
+    }),
+    ['update']
+  );
+  expect(editExisting.status).toBe(403);
+  expect(decoder.decode(bucket.store.get('blog/existing/index.yaml')!.contents)).toEqual(
+    'title: existing'
+  );
+});
+
+test('deleted permission gates deletions independently of created/updated', async () => {
+  const bucket = new MemoryBucket();
+  const db = makeTestD1();
+  await bucket.put('blog/existing/index.yaml', encoder.encode('title: existing'));
+
+  const editor = await createRole(db, 'EditOnly');
+  await updateRolePermissions(db, editor.id, [
+    'collection:blog.view',
+    'collection:blog.updated',
+  ]);
+  await seedUser(db, 'editor@example.com', { role: 'EditOnly' });
+  const cookie = await sessionCookie('editor@example.com');
+  const handler = r2ModeApiHandler(testConfig, bucket, db, SECRET);
+
+  const del = await handler(
+    request('POST', 'update', {
+      body: { additions: [], deletions: [{ path: 'blog/existing' }] },
+      cookie,
+    }),
+    ['update']
+  );
+  expect(del.status).toBe(403);
+  expect(bucket.store.has('blog/existing/index.yaml')).toBe(true);
+});
+
+test('Admin has full access without any stored permissions, but SuperAdmin-only actions stay app-level (not tested here)', async () => {
+  const bucket = new MemoryBucket();
+  const db = makeTestD1();
+  await bucket.put('blog/existing/index.yaml', encoder.encode('title: existing'));
+  await seedUser(db, 'admin2@example.com', { role: 'Admin' });
+  const cookie = await sessionCookie('admin2@example.com');
+  const handler = r2ModeApiHandler(testConfig, bucket, db, SECRET);
+
+  const write = await handler(
+    request('POST', 'update', {
+      body: {
+        additions: [
+          {
+            path: 'blog/new/index.yaml',
+            contents: base64UrlEncode(encoder.encode('title: new')),
+          },
+        ],
+        deletions: [{ path: 'blog/existing' }],
+      },
+      cookie,
+    }),
+    ['update']
+  );
+  expect(write.status).toBe(200);
 });

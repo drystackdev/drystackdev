@@ -337,7 +337,7 @@ function CreateItemInner(props: {
   const config = useConfig();
 
   const { collectionConfig, schema } = useCollection(props.collection);
-  const aiEntryDescription = useAiEntryDescription(config, props.collection);
+  const aiEntryDescription = useAiEntryDescription(config, "collection", props.collection);
 
   const [forceValidation, setForceValidation] = useState(false);
   const formatInfo = getCollectionFormat(config, props.collection);

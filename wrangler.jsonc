@@ -19,6 +19,20 @@
   "r2_buckets": [
     { "binding": "DRYSTACK_R2", "bucket_name": "drystack-content" }
   ],
+  // User/role/permission store for `storage: { kind: 'r2' }` (see
+  // plan/user-managent.md) - replaces the old auth/native/*.yaml files in R2.
+  // `database_id` below is a placeholder: run `bunx wrangler d1 create
+  // drystack-db` once and paste the real id here before deploying. Dev uses
+  // miniflare's local simulation of this same binding (.wrangler/state), same
+  // as the R2 bucket above, and works fine with the placeholder id.
+  "d1_databases": [
+    {
+      "binding": "DRYSTACK_DB",
+      "database_name": "drystack-db",
+      "database_id": "REPLACE_WITH_ID_FROM_WRANGLER_D1_CREATE",
+      "migrations_dir": "migrations"
+    }
+  ],
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["BuildStatusHub"] }
   ],

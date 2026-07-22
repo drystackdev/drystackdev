@@ -1,11 +1,9 @@
 /** @jest-environment node */
 import { expect, test } from '@jest/globals';
 import {
-  createUserFile,
   hashPassword,
   normalizeEmail,
   signSession,
-  userFileKey,
   verifyPassword,
   verifySession,
   getSessionFromCookieHeader,
@@ -85,27 +83,3 @@ test('normalizeEmail lowercases and rejects key-unsafe addresses', () => {
   expect(normalizeEmail('user@example')).toBeNull();
 });
 
-test('userFileKey builds the auth/native path', () => {
-  expect(userFileKey('user@example.com')).toEqual(
-    'auth/native/user@example.com.yaml'
-  );
-});
-
-test('createUserFile stores the profile as plain JSON', async () => {
-  const file = await createUserFile('secret-password', { name: 'Khan' });
-  expect(file.profile).toEqual({ name: 'Khan' });
-});
-
-test('createUserFile defaults a missing profile to {}', async () => {
-  const file = await createUserFile('secret-password', undefined);
-  expect(file.profile).toEqual({});
-});
-
-test('createUserFile stamps createdAt (overridable)', async () => {
-  const file = await createUserFile('secret-password', {});
-  expect(typeof file.createdAt).toEqual('string');
-  expect(new Date(file.createdAt!).toString()).not.toEqual('Invalid Date');
-
-  const stamped = await createUserFile('secret-password', {}, '2020-01-01T00:00:00.000Z');
-  expect(stamped.createdAt).toEqual('2020-01-01T00:00:00.000Z');
-});

@@ -4,6 +4,7 @@ import { Config } from "..";
 import { DrystackResponse, DrystackRequest, redirect } from "./internal-utils";
 import { handleGitHubAppCreation, localModeApiHandler } from "#api-handler";
 import { R2BucketLike, r2ModeApiHandler, requireNativeSession } from "./api-r2";
+import { D1DatabaseLike } from "./d1";
 import { makeAiRouteHandler } from "./ai";
 import { webcrypto } from "#webcrypto";
 import { bytesToHex } from "../hex";
@@ -53,6 +54,14 @@ export type APIRouteConfig = {
    * degrading.
    */
   r2Bucket?: R2BucketLike;
+  /**
+   * The D1 database backing `storage: { kind: 'r2' }`'s user/role/permission
+   * store (see plan/user-managent.md) - on Cloudflare this is the
+   * `DRYSTACK_DB` binding (see @drystack/astro's api.tsx). Required in r2
+   * mode; the handler returns a loud 500 without it rather than silently
+   * degrading.
+   */
+  d1Database?: D1DatabaseLike;
 };
 
 type InnerAPIRouteConfig = {
@@ -131,6 +140,11 @@ export function makeGenericAPIRouteHandler(
       DRY_AI_MODEL: _config2.aiModel,
       DRY_AI_BASE_URL: _config2.aiBaseUrl,
     },
+    // Only consulted by requireMagicWriterPermission when storage.kind ===
+    // 'r2' - harmless to pass for local/github, which ignore them.
+    r2Bucket: _config.r2Bucket,
+    d1Database: _config.d1Database,
+    secret: _config2.secret,
   });
 
   // `ai/*` has to be dispatched ahead of every branch below, because each of
@@ -173,6 +187,7 @@ export function makeGenericAPIRouteHandler(
     const handler = r2ModeApiHandler(
       _config2.config,
       _config.r2Bucket,
+      _config.d1Database,
       _config2.secret,
     );
     // Not wrapped in `withAi`: that dispatches `ai/*` unauthenticated, which
@@ -184,7 +199,14 @@ export function makeGenericAPIRouteHandler(
     return async (req: DrystackRequest): Promise<DrystackResponse> => {
       const params = getParams(req);
       if (params[0] === "ai" && aiHandler) {
-        if (!(await requireNativeSession(req, _config.r2Bucket, _config2.secret))) {
+        if (
+          !(await requireNativeSession(
+            req,
+            _config.r2Bucket,
+            _config.d1Database,
+            _config2.secret,
+          ))
+        ) {
           return {
             status: 401,
             headers: { "content-type": "application/json" },

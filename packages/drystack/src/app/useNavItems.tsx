@@ -14,6 +14,8 @@ import l10nMessages from "./l10n";
 import { useAppState, useConfig } from "./shell/context";
 import { useChanged } from "./shell/data";
 import { useDraftKeys } from "./persistence";
+import { isR2Config } from "./storage-mode";
+import { hasNativePermission, useNativeUser } from "./native-user";
 
 type ItemData = {
   key: string;
@@ -90,12 +92,43 @@ export function useNavItems(): ItemOrGroup[] {
     draftSingletons,
   };
 
+  // r2 mode only (plan/user-managent.md mục 6): a collection/singleton whose
+  // role(s) lack `view` doesn't show up in nav at all - not just "click
+  // through and get blocked". Applied uniformly whether the site uses the
+  // default collections/singletons grouping above or its own
+  // `config.ui.navigation` (custom groups can name collection/singleton keys
+  // too). This is UX only, mirroring but not replacing the real 403 the
+  // server already enforces on tree/blob (api-r2.ts) for the same case -
+  // someone could still hit the URL directly and get denied there. While the
+  // one-shot `auth/me` fetch is still in flight (`nativeUser === undefined`),
+  // everything stays visible rather than flashing empty - it's corrected
+  // within one round-trip, and the page itself is already gated server-side
+  // before the shell ever renders.
+  const nativeUser = useNativeUser();
+  const filterByViewPermission = isR2Config(config) && nativeUser != null;
+  const keyIsViewable = (key: string) => {
+    if (!filterByViewPermission) return true;
+    if (config.collections && key in config.collections) {
+      return hasNativePermission(nativeUser, `collection:${key}.view`);
+    }
+    if (config.singletons && key in config.singletons) {
+      return hasNativePermission(nativeUser, `singleton:${key}.view`);
+    }
+    return true;
+  };
+
   const itemOrGroups: ItemOrGroup[] = Array.isArray(items)
-    ? items.map((key) => populateItemData(key, options))
-    : Object.entries(items).map(([section, keys]) => ({
-        title: section,
-        children: keys.map((key) => populateItemData(key, options)),
-      }));
+    ? items
+        .filter(keyIsViewable)
+        .map((key) => populateItemData(key, options))
+    : Object.entries(items)
+        .map(([section, keys]) => ({
+          title: section,
+          children: keys
+            .filter(keyIsViewable)
+            .map((key) => populateItemData(key, options)),
+        }))
+        .filter((group) => group.children.length > 0);
 
   // File management is a system-owned route (works the same in local and
   // github storage, see SidebarNav's old comment) rather than a

@@ -1,35 +1,34 @@
 #!/usr/bin/env bun
 // Provision native-auth users for `storage: { kind: 'r2' }` (see
-// plan/auth.md). Writes `auth/native/<email>.yaml` objects - password hashed
-// with PBKDF2, profile stored as YAML - through `wrangler r2 object`,
-// so the same command targets miniflare's local dev bucket (default) or the
-// real one (--remote).
+// plan/user-managent.md). Users live in the D1 `user` table now (not R2
+// YAML objects), reached through `wrangler d1 execute` so the same command
+// targets miniflare's local dev database (default) or the real one
+// (--remote) - same shape as the old R2-object-based version of this script.
 //
-//   bun scripts/drystack-auth.ts add    <email> [--profile '{"name":"..."}'] [--password <pw>] [--remote]
+//   bun scripts/drystack-auth.ts add    <email> [--name <name>] [--password <pw>] [--remote]
 //   bun scripts/drystack-auth.ts passwd <email> [--password <pw>] [--remote]
 //   bun scripts/drystack-auth.ts remove <email> [--remote]
 //
-// Without --password the script prompts with hidden input. `passwd` keeps
-// the stored profile; `add` on an existing email overwrites the whole file.
+// Without --password the script prompts with hidden input. `add` upserts
+// (existing email keeps its role assignments, just gets a new name/password
+// and is reactivated); it does NOT assign any role - use the Role
+// management UI (or a direct `wrangler d1 execute`) to grant one. `remove`
+// also deletes the user's role assignments (D1 doesn't reliably enforce the
+// `ON DELETE CASCADE` foreign key outside a real transaction, so this script
+// does it explicitly rather than assuming it happened).
+//
+// This is a break-glass tool - it doesn't re-implement the app's own rules
+// (e.g. "can't delete the SuperAdmin"), the same way the old script could
+// write any R2 object directly. Use the admin UI for anything routine.
 
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import {
-  createUserFile,
-  legacyUserFileKey,
-  normalizeEmail,
-  parseUserFile,
-  serializeUserFile,
-  userFileKey,
-} from '../packages/drystack/src/api/native-auth';
+import { normalizeEmail, hashPassword } from '../packages/drystack/src/api/native-auth';
 
-const BUCKET = 'drystack-content';
+const DATABASE = 'drystack-db';
 
 function usage(): never {
   console.error(
-    'usage: bun scripts/drystack-auth.ts <add|passwd|remove> <email> [--password <pw>] [--profile <json>] [--remote]'
+    'usage: bun scripts/drystack-auth.ts <add|passwd|remove> <email> [--name <name>] [--password <pw>] [--remote]'
   );
   process.exit(1);
 }
@@ -60,56 +59,40 @@ async function promptHidden(label: string): Promise<string> {
   });
 }
 
-function wrangler(args: string[], opts: { allowFail?: boolean } = {}) {
+// Single-quoted SQL string literal - doubles embedded quotes, the standard
+// SQL escape (and what SQLite/D1 expects).
+function sqlString(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+function d1Execute(sql: string, remote: boolean, json = false) {
+  const args = [
+    'd1',
+    'execute',
+    DATABASE,
+    `--command=${sql}`,
+    remote ? '--remote' : '--local',
+  ];
+  if (json) args.push('--json');
   const result = spawnSync('bunx', ['wrangler', ...args], {
     stdio: ['ignore', 'pipe', 'pipe'],
     encoding: 'utf8',
   });
-  if (result.status !== 0 && !opts.allowFail) {
+  if (result.status !== 0) {
     console.error(result.stderr || result.stdout);
     process.exit(result.status ?? 1);
   }
-  return result;
+  return result.stdout;
 }
 
-function putObject(key: string, contents: string, remote: boolean) {
-  const dir = mkdtempSync(join(tmpdir(), 'drystack-auth-'));
-  const file = join(dir, 'user.yaml');
+function d1QueryRows<T>(sql: string, remote: boolean): T[] {
+  const stdout = d1Execute(sql, remote, true);
   try {
-    writeFileSync(file, contents);
-    wrangler([
-      'r2',
-      'object',
-      'put',
-      `${BUCKET}/${key}`,
-      `--file=${file}`,
-      '--content-type=text/yaml',
-      remote ? '--remote' : '--local',
-    ]);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
-
-function getObject(key: string, remote: boolean): string | null {
-  const dir = mkdtempSync(join(tmpdir(), 'drystack-auth-'));
-  const file = join(dir, 'user.json');
-  try {
-    const result = wrangler(
-      [
-        'r2',
-        'object',
-        'get',
-        `${BUCKET}/${key}`,
-        `--file=${file}`,
-        remote ? '--remote' : '--local',
-      ],
-      { allowFail: true }
-    );
-    if (result.status !== 0 || !existsSync(file)) return null;
-    return readFileSync(file, 'utf8');
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
+    const parsed = JSON.parse(stdout);
+    return parsed?.[0]?.results ?? [];
+  } catch {
+    console.error(`Could not parse wrangler d1 execute --json output:\n${stdout}`);
+    process.exit(1);
   }
 }
 
@@ -130,27 +113,13 @@ if (!email) {
   console.error(`Invalid email: ${emailArg}`);
   process.exit(1);
 }
-const key = userFileKey(email);
-const where = remote ? 'remote bucket' : 'local dev bucket (.wrangler/state)';
+const where = remote ? 'remote database' : 'local dev database (.wrangler/state)';
 
 if (command === 'remove') {
-  wrangler([
-    'r2',
-    'object',
-    'delete',
-    `${BUCKET}/${key}`,
-    remote ? '--remote' : '--local',
-  ]);
-  // Also drop any pre-YAML `.json` object, so an old account fully clears.
-  wrangler(
-    [
-      'r2',
-      'object',
-      'delete',
-      `${BUCKET}/${legacyUserFileKey(email)}`,
-      remote ? '--remote' : '--local',
-    ],
-    { allowFail: true }
+  d1Execute(
+    `DELETE FROM user_role WHERE user_id = (SELECT id FROM user WHERE email = ${sqlString(email)}); ` +
+      `DELETE FROM user WHERE email = ${sqlString(email)};`,
+    remote
   );
   console.log(`Removed ${email} from ${where}.`);
   process.exit(0);
@@ -162,36 +131,36 @@ if (password.length < 8) {
   console.error('Password must be at least 8 characters.');
   process.exit(1);
 }
+const passwordHash = await hashPassword(password);
+const now = new Date().toISOString();
 
 if (command === 'add') {
-  let profile: unknown = {};
-  const rawProfile = flagValue('--profile');
-  if (rawProfile) {
-    try {
-      profile = JSON.parse(rawProfile);
-    } catch {
-      console.error('--profile must be valid JSON');
-      process.exit(1);
-    }
-  }
-  const file = await createUserFile(password, profile);
-  putObject(key, serializeUserFile(file), remote);
-  console.log(`Created/updated ${email} in ${where}.`);
+  const name = flagValue('--name') ?? email;
+  d1Execute(
+    `INSERT INTO user (email, name, password, active, created_at, updated_at)
+     VALUES (${sqlString(email)}, ${sqlString(name)}, ${sqlString(passwordHash)}, 1, ${sqlString(now)}, ${sqlString(now)})
+     ON CONFLICT(email) DO UPDATE SET
+       name = excluded.name,
+       password = excluded.password,
+       active = 1,
+       updated_at = excluded.updated_at;`,
+    remote
+  );
+  console.log(
+    `Created/updated ${email} in ${where}. No role assigned - use the Role management UI to grant one.`
+  );
 } else {
-  // passwd: keep the existing profile, replace only the password hash. Read the
-  // current YAML object, falling back to a pre-migration `.json` one.
-  const existing =
-    getObject(key, remote) ?? getObject(legacyUserFileKey(email), remote);
-  if (!existing) {
-    console.error(`No user file for ${email} in ${where} - use \`add\` first.`);
+  const existing = d1QueryRows<{ id: number }>(
+    `SELECT id FROM user WHERE email = ${sqlString(email)};`,
+    remote
+  );
+  if (!existing.length) {
+    console.error(`No user for ${email} in ${where} - use \`add\` first.`);
     process.exit(1);
   }
-  const parsed = parseUserFile(existing);
-  if (!parsed) {
-    console.error(`Existing file for ${email} is not a valid user record.`);
-    process.exit(1);
-  }
-  const file = await createUserFile(password, parsed.profile ?? {});
-  putObject(key, serializeUserFile(file), remote);
+  d1Execute(
+    `UPDATE user SET password = ${sqlString(passwordHash)}, updated_at = ${sqlString(now)} WHERE email = ${sqlString(email)};`,
+    remote
+  );
   console.log(`Password updated for ${email} in ${where}.`);
 }

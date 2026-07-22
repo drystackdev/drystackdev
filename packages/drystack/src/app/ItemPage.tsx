@@ -170,7 +170,7 @@ function ItemPageInner(
     onUpdate: parentOnUpdate,
   } = props;
   const { collectionConfig, schema } = useCollection(collection);
-  const aiEntryDescription = useAiEntryDescription(config, collection);
+  const aiEntryDescription = useAiEntryDescription(config, "collection", collection);
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   const router = useRouter();
@@ -768,7 +768,7 @@ function HeaderActions(props: {
   } = props;
   const isBelowDesktop = useMediaQuery(breakpointQueries.below.desktop);
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
-  const aiEntryDescription = useAiEntryDescription(useConfig(), collection);
+  const aiEntryDescription = useAiEntryDescription(useConfig(), "collection", collection);
   const [deleteAlertIsOpen, setDeleteAlertOpen] = useState(false);
   const [duplicateAlertIsOpen, setDuplicateAlertOpen] = useState(false);
   const otherSlugs = useSlugsInCollection(collection).filter(
