@@ -104,6 +104,32 @@ test('addUser creates a pending-invite user (no password) and returns the token'
   expect(row?.password).toBeNull();
 });
 
+test('addUser sends an email with an absolute link (derived from the request origin), when configured', async () => {
+  const db = makeTestD1();
+  const { session } = await seedUser(db, 'admin@example.com', SUPER_ADMIN_ROLE);
+  const sentEmails: { to: string; subject: string; html: string }[] = [];
+  const res = await userManagementRoutes(
+    request('POST', { email: 'new@example.com', name: 'New User' }),
+    ['users'],
+    await makeDeps({
+      db,
+      session: async () => session,
+      sendEmail: async params => {
+        sentEmails.push(params);
+        return true;
+      },
+    })
+  );
+  expect(res.status).toBe(200);
+  const body = bodyJson(res);
+  expect(body.emailSent).toBe(true);
+  expect(sentEmails).toHaveLength(1);
+  expect(sentEmails[0].to).toEqual('new@example.com');
+  expect(sentEmails[0].html).toContain(
+    `http://localhost/password-setting?token=${body.inviteToken}`
+  );
+});
+
 test('addUser rejects a duplicate email', async () => {
   const db = makeTestD1();
   const { session } = await seedUser(db, 'admin@example.com', SUPER_ADMIN_ROLE);

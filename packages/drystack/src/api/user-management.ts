@@ -55,6 +55,14 @@ function newToken(): string {
   return bytesToHex(webcrypto.getRandomValues(new Uint8Array(24)));
 }
 
+// Email links need an absolute URL - there's no browser location to resolve
+// a relative one against once the link is read outside the app. `req.url`
+// is the real deployed origin (not a config value that could drift from
+// it), same as the request the admin is currently making.
+function passwordSettingLink(req: DrystackRequest, token: string): string {
+  return `${new URL(req.url).origin}/password-setting?token=${token}`;
+}
+
 const INVITE_TOKEN_TTL_HOURS = 24;
 const RESET_TOKEN_TTL_HOURS = 1;
 
@@ -181,7 +189,7 @@ async function addUser(
     emailSent = await sendEmail({
       to: email,
       subject: 'Mời tham gia quản trị site',
-      html: inviteEmailHtml(body.name, `/password-setting?token=${token}`),
+      html: inviteEmailHtml(body.name, passwordSettingLink(req, token)),
     }).catch(() => false);
   }
 
@@ -193,6 +201,7 @@ async function addUser(
 }
 
 async function resendInvite(
+  req: DrystackRequest,
   db: D1DatabaseLike,
   userId: number,
   sendEmail: SendEmail | undefined
@@ -210,7 +219,7 @@ async function resendInvite(
     emailSent = await sendEmail({
       to: user.email,
       subject: 'Mời tham gia quản trị site',
-      html: inviteEmailHtml(user.name, `/password-setting?token=${token}`),
+      html: inviteEmailHtml(user.name, passwordSettingLink(req, token)),
     }).catch(() => false);
   }
   return json({ inviteToken: token, emailSent });
@@ -590,7 +599,7 @@ async function forgotPassword(
     await sendEmail({
       to: user.email,
       subject: 'Yêu cầu đặt lại mật khẩu',
-      html: resetEmailHtml(`/password-setting?token=${token}`),
+      html: resetEmailHtml(passwordSettingLink(req, token)),
     }).catch(() => false);
   }
   return genericOk;
@@ -650,7 +659,7 @@ export async function userManagementRoutes(
     if (!Number.isInteger(userId)) return notFound();
 
     if (req.method === 'POST' && params[2] === 'resend-invite' && params.length === 3) {
-      return resendInvite(db, userId, sendEmail);
+      return resendInvite(req, db, userId, sendEmail);
     }
     if (req.method === 'POST' && params[2] === 'active' && params.length === 3) {
       return setActive(req, db, current, userId);

@@ -3,6 +3,8 @@ import { ReactElement, useMemo } from "react";
 
 import { folderIcon } from "@keystar/ui/icon/icons/folderIcon";
 import { signpostIcon } from "@keystar/ui/icon/icons/signpostIcon";
+import { usersIcon } from "@keystar/ui/icon/icons/usersIcon";
+import { shieldIcon } from "@keystar/ui/icon/icons/shieldIcon";
 
 import {
   Config,
@@ -149,6 +151,29 @@ export function useNavItems(): ItemOrGroup[] {
       redirectsItem.isDivider
         ? redirectsItem
         : { ...redirectsItem, icon: signpostIcon }
+    );
+  }
+  // User/Role management (plan/user-managent.md mục 0/6): r2-only, and only
+  // for a session with fullAccess (SuperAdmin/Admin) - a bare Editor-shaped
+  // role has no business here. `nativeUser == null` covers both "still
+  // loading" and "not r2 mode at all" (no NativeUserProvider mounted then),
+  // so both stay hidden until proven otherwise rather than flashing on.
+  if (isR2Config(config) && nativeUser?.fullAccess) {
+    systemChildren.push(
+      {
+        key: "users",
+        href: `${basePath}/users`,
+        label: stringFormatter.format("userManagementNavItem"),
+        changed: false,
+        icon: usersIcon,
+      },
+      {
+        key: "roles",
+        href: `${basePath}/roles`,
+        label: stringFormatter.format("roleManagementNavItem"),
+        changed: false,
+        icon: shieldIcon,
+      },
     );
   }
   itemOrGroups.push({

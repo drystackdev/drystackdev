@@ -5,6 +5,7 @@ import { DrystackResponse, DrystackRequest, redirect } from "./internal-utils";
 import { handleGitHubAppCreation, localModeApiHandler } from "#api-handler";
 import { R2BucketLike, r2ModeApiHandler, requireNativeSession } from "./api-r2";
 import { D1DatabaseLike } from "./d1";
+import { EmailSenderBinding } from "./email";
 import { makeAiRouteHandler } from "./ai";
 import { webcrypto } from "#webcrypto";
 import { bytesToHex } from "../hex";
@@ -62,6 +63,16 @@ export type APIRouteConfig = {
    * degrading.
    */
   d1Database?: D1DatabaseLike;
+  /**
+   * Sends invite/forgot-password emails (see plan/user-managent.md mục 7) -
+   * on Cloudflare this is the `DRYSTACK_EMAIL` send_email binding (declared
+   * in wrangler.jsonc). Undefined means email isn't configured yet - the
+   * affected routes still succeed, just without sending anything (see
+   * user-management.ts).
+   */
+  emailSender?: EmailSenderBinding;
+  /** The verified `from` address for emails sent via `emailSender`. */
+  emailFrom?: string;
 };
 
 type InnerAPIRouteConfig = {
@@ -189,6 +200,8 @@ export function makeGenericAPIRouteHandler(
       _config.r2Bucket,
       _config.d1Database,
       _config2.secret,
+      _config.emailSender,
+      _config.emailFrom,
     );
     // Not wrapped in `withAi`: that dispatches `ai/*` unauthenticated, which
     // is fine for local (dev machine) and github (its own token check inside

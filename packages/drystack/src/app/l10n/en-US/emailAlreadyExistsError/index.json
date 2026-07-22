@@ -1,0 +1,6 @@
+{
+  "key": "emailAlreadyExistsError",
+  "value": "This email is already in use.",
+  "notes": "",
+  "type": "global"
+}

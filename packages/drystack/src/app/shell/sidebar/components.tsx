@@ -11,6 +11,7 @@ import { logOutIcon } from '@keystar/ui/icon/icons/logOutIcon';
 import { monitorIcon } from '@keystar/ui/icon/icons/monitorIcon';
 import { moonIcon } from '@keystar/ui/icon/icons/moonIcon';
 import { sunIcon } from '@keystar/ui/icon/icons/sunIcon';
+import { userIcon } from '@keystar/ui/icon/icons/userIcon';
 import { Flex } from '@keystar/ui/layout';
 import { Menu, MenuTrigger } from '@keystar/ui/menu';
 import { ClearSlots } from '@keystar/ui/slots';
@@ -121,6 +122,14 @@ export function UserMenu(user: {
 
   const menuItems = useMemo(() => {
     let items: MenuItem[] = [];
+    if (isR2Config(config)) {
+      items.push({
+        key: 'profile',
+        label: stringFormatter.format('profileAction'),
+        href: `${basePath}/profile`,
+        icon: userIcon,
+      });
+    }
     items.push({
       key: 'logout',
       label: stringFormatter.format('logOutAction'),

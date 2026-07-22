@@ -1,0 +1,6 @@
+{
+  "key": "avatarInvalidTypeError",
+  "value": "Only PNG, JPEG, WebP, or GIF images are allowed.",
+  "notes": "",
+  "type": "global"
+}

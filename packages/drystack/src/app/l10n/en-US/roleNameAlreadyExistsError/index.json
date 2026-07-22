@@ -1,0 +1,6 @@
+{
+  "key": "roleNameAlreadyExistsError",
+  "value": "A role with this name already exists.",
+  "notes": "",
+  "type": "global"
+}

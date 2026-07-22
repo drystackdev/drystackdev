@@ -1,0 +1,6 @@
+{
+  "key": "avatarInvalidTypeError",
+  "value": "Chỉ chấp nhận ảnh PNG, JPEG, WebP hoặc GIF.",
+  "notes": "",
+  "type": "global"
+}

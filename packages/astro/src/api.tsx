@@ -72,6 +72,17 @@ export function makeHandler(_config: APIRouteConfig) {
         // elsewhere, 500s loudly if missing in r2 mode" shape as the bucket
         // above.
         d1Database: _config.d1Database ?? envVarsForCf?.DRYSTACK_DB,
+        // Invite/forgot-password emails (plan/user-managent.md mục 7) -
+        // unlike bucket/database above, missing here is NOT a hard error:
+        // user-management.ts treats no sendEmail as "not configured yet"
+        // and falls back to a copyable link (see AddUserPage.tsx).
+        emailSender: _config.emailSender ?? envVarsForCf?.DRYSTACK_EMAIL,
+        emailFrom:
+          _config.emailFrom ??
+          envVarsForCf?.DRYSTACK_EMAIL_FROM ??
+          tryOrUndefined(() => {
+            return import.meta.env.DRYSTACK_EMAIL_FROM;
+          }),
       },
       {
         slugEnvName: "PUBLIC_DRYSTACK_GITHUB_APP_SLUG",

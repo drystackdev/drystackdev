@@ -1,0 +1,6 @@
+{
+  "key": "emailAlreadyExistsError",
+  "value": "Email này đã được sử dụng.",
+  "notes": "",
+  "type": "global"
+}

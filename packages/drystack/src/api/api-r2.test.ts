@@ -18,6 +18,7 @@ import {
   createUser,
   deleteUser,
   getRoleByName,
+  getUserByEmail,
   setUserActive,
   updateRolePermissions,
 } from './d1';
@@ -334,6 +335,11 @@ test('auth flow: status → setup (assigns SuperAdmin) → login → me → logo
   expect(setCookies.some(v => v.startsWith('drystack-session-hint=1'))).toBe(
     true
   );
+  // /register-first sets the password directly (no separate invite step to
+  // verify against) - it must count as verified immediately, or the User
+  // list page would show a nonsensical "Resend invite" button for the
+  // SuperAdmin (caught by hand while testing against a real dev server).
+  expect((await getUserByEmail(db, 'admin@example.com'))?.email_verify_at).toBeTruthy();
   expect(
     setCookies.find(v => v.startsWith('drystack-session='))
   ).toContain('HttpOnly');
@@ -384,6 +390,7 @@ test('auth flow: status → setup (assigns SuperAdmin) → login → me → logo
     email: 'admin@example.com',
     permissions: [],
     fullAccess: true,
+    isSuperAdmin: true,
   });
   // me without → 401
   res = await handler(request('GET', 'auth/me'), ['auth', 'me']);

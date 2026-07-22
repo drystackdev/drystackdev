@@ -1,0 +1,6 @@
+{
+  "key": "userDeleteConfirmBody",
+  "value": "This will permanently delete {email}.",
+  "notes": "",
+  "type": "global"
+}

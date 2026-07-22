@@ -24,6 +24,9 @@ export type NativeUser = {
   // server enforces the real boundary on every read/write.
   permissions: string[];
   fullAccess: boolean;
+  // Only SuperAdmin deletes users or grants/revokes Admin (plan mục 4) -
+  // fullAccess is true for Admin too, so this is separate.
+  isSuperAdmin: boolean;
 };
 
 export function hasNativePermission(

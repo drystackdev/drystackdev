@@ -1,0 +1,6 @@
+{
+  "key": "roleNameAlreadyExistsError",
+  "value": "Đã tồn tại role với tên này.",
+  "notes": "",
+  "type": "global"
+}

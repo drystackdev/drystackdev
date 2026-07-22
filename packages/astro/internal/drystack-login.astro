@@ -30,14 +30,22 @@ const t = vi
       setupTitle: 'Tạo tài khoản quản trị',
       setupHint:
         'Chưa có tài khoản nào. Tạo tài khoản quản trị đầu tiên cho trang này.',
+      forgotTitle: 'Quên mật khẩu',
+      name: 'Tên',
       email: 'Email',
       password: 'Mật khẩu',
       showPassword: 'Hiện mật khẩu',
       hidePassword: 'Ẩn mật khẩu',
       submitLogin: 'Đăng nhập',
       submitSetup: 'Tạo tài khoản',
+      submitForgot: 'Gửi link đặt lại mật khẩu',
+      forgotLink: 'Quên mật khẩu?',
+      backToLogin: 'Quay lại đăng nhập',
+      forgotSentMessage:
+        'Nếu email này tồn tại, một link đặt lại mật khẩu đã được gửi tới đó.',
       errorBadCredentials: 'Email hoặc mật khẩu không đúng.',
       errorPasswordShort: 'Mật khẩu phải có ít nhất 8 ký tự.',
+      errorNameRequired: 'Vui lòng nhập tên.',
       errorGeneric: 'Có lỗi xảy ra, thử lại sau.',
       loading: 'Đang xử lý…',
     }
@@ -46,19 +54,28 @@ const t = vi
       setupTitle: 'Create admin account',
       setupHint:
         'No accounts exist yet. Create the first admin account for this site.',
+      forgotTitle: 'Forgot password',
+      name: 'Name',
       email: 'Email',
       password: 'Password',
       showPassword: 'Show password',
       hidePassword: 'Hide password',
       submitLogin: 'Sign in',
       submitSetup: 'Create account',
+      submitForgot: 'Send reset link',
+      forgotLink: 'Forgot password?',
+      backToLogin: 'Back to sign in',
+      forgotSentMessage:
+        'If that email exists, a password reset link was just sent to it.',
       errorBadCredentials: 'Incorrect email or password.',
       errorPasswordShort: 'Password must be at least 8 characters.',
+      errorNameRequired: 'Please enter a name.',
       errorGeneric: 'Something went wrong, try again later.',
       loading: 'Working…',
     };
 
 const apiBase = `/api/${basePath}/auth`;
+const forgotPasswordUrl = `/api/${basePath}/forgot-password`;
 ---
 
 <!doctype html>
@@ -76,7 +93,14 @@ const apiBase = `/api/${basePath}/auth`;
       <p id="setup-hint" hidden>
         {t.setupHint}
       </p>
+      <p id="forgot-sent-message" hidden>
+        {t.forgotSentMessage}
+      </p>
       <form id="login-form">
+        <label id="name-label" hidden>
+          <span>{t.name}</span>
+          <input name="name" type="text" autocomplete="name" />
+        </label>
         <label>
           <span>{t.email}</span>
           <input
@@ -87,7 +111,7 @@ const apiBase = `/api/${basePath}/auth`;
             autofocus
           />
         </label>
-        <label>
+        <label id="password-label">
           <span>{t.password}</span>
           <div class="password-field">
             <input
@@ -106,6 +130,9 @@ const apiBase = `/api/${basePath}/auth`;
             />
           </div>
         </label>
+        <button type="button" id="forgot-toggle" class="link-button">
+          {t.forgotLink}
+        </button>
         <p id="error" role="alert" hidden />
         <button type="submit" id="submit">
           {t.submitLogin}
@@ -117,6 +144,7 @@ const apiBase = `/api/${basePath}/auth`;
       is:inline
       define:vars={{
         apiBase,
+        forgotPasswordUrl,
         strings: t,
         fallbackTarget: `/${basePath}`,
       }}
@@ -126,6 +154,12 @@ const apiBase = `/api/${basePath}/auth`;
       const submitEl = document.getElementById('submit');
       const titleEl = document.getElementById('form-title');
       const hintEl = document.getElementById('setup-hint');
+      const forgotSentEl = document.getElementById('forgot-sent-message');
+      const nameLabelEl = document.getElementById('name-label');
+      const nameInputEl = nameLabelEl.querySelector('input');
+      const passwordLabelEl = document.getElementById('password-label');
+      const passwordInputEl = passwordLabelEl.querySelector('input');
+      const forgotToggleEl = document.getElementById('forgot-toggle');
 
       // `from` comes off the URL client-side and is only ever assigned to
       // location when it's a same-origin absolute path.
@@ -133,7 +167,13 @@ const apiBase = `/api/${basePath}/auth`;
       const rawFrom = params.get('from') ?? '';
       const target = /^\/(?!\/)/.test(rawFrom) ? rawFrom : fallbackTarget;
 
+      // 'login' | 'setup' | 'forgot' - 'setup' is register-first (see
+      // plan/user-managent.md mục 6: same page, no separate /register-first
+      // route - `needsSetup` already gated this form to only the site's
+      // very first account). 'forgot' is a client-side toggle, independent
+      // of server state.
       let mode = 'login';
+
       fetch(`${apiBase}/status`)
         .then((res) => (res.ok ? res.json() : null))
         .then((status) => {
@@ -146,28 +186,70 @@ const apiBase = `/api/${basePath}/auth`;
             titleEl.textContent = strings.setupTitle;
             document.title = strings.setupTitle;
             hintEl.hidden = false;
+            forgotToggleEl.hidden = true;
+            nameLabelEl.hidden = false;
+            nameInputEl.required = true;
             submitEl.textContent = strings.submitSetup;
-            form
-              .querySelector('input[name=password]')
-              .setAttribute('autocomplete', 'new-password');
+            passwordInputEl.setAttribute('autocomplete', 'new-password');
           }
         })
         .catch(() => {});
 
+      forgotToggleEl.addEventListener('click', () => {
+        if (mode === 'forgot') {
+          mode = 'login';
+          titleEl.textContent = strings.title;
+          document.title = strings.title;
+          passwordLabelEl.hidden = false;
+          passwordInputEl.required = true;
+          forgotToggleEl.textContent = strings.forgotLink;
+          submitEl.textContent = strings.submitLogin;
+          forgotSentEl.hidden = true;
+        } else {
+          mode = 'forgot';
+          titleEl.textContent = strings.forgotTitle;
+          document.title = strings.forgotTitle;
+          passwordLabelEl.hidden = true;
+          passwordInputEl.required = false;
+          forgotToggleEl.textContent = strings.backToLogin;
+          submitEl.textContent = strings.submitForgot;
+          forgotSentEl.hidden = true;
+        }
+        errorEl.hidden = true;
+      });
+
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
         errorEl.hidden = true;
+        forgotSentEl.hidden = true;
         submitEl.disabled = true;
         const original = submitEl.textContent;
         submitEl.textContent = strings.loading;
         try {
           const data = new FormData(form);
+          if (mode === 'forgot') {
+            await fetch(forgotPasswordUrl, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ email: data.get('email') }),
+            });
+            // Always the same message whether the email exists or not -
+            // same anti-enumeration principle as the login error below.
+            forgotSentEl.hidden = false;
+            return;
+          }
+          if (mode === 'setup' && !String(data.get('name') ?? '').trim()) {
+            errorEl.textContent = strings.errorNameRequired;
+            errorEl.hidden = false;
+            return;
+          }
           const res = await fetch(`${apiBase}/${mode}`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
               email: data.get('email'),
               password: data.get('password'),
+              ...(mode === 'setup' ? { name: data.get('name') } : {}),
             }),
           });
           if (res.ok) {
@@ -273,6 +355,7 @@ const apiBase = `/api/${basePath}/auth`;
         text-align: center;
       }
       #setup-hint,
+      #forgot-sent-message,
       .hint {
         margin: -0.75rem 0 1rem;
         font-size: 0.85rem;
@@ -331,12 +414,26 @@ const apiBase = `/api/${basePath}/auth`;
         width: 18px;
         height: 18px;
       }
+      .link-button {
+        justify-self: end;
+        margin-top: -0.5rem;
+        background: none;
+        border: 0;
+        padding: 0;
+        font: inherit;
+        font-size: 0.85rem;
+        color: var(--accent);
+        cursor: pointer;
+      }
+      .link-button:hover {
+        text-decoration: underline;
+      }
       #error {
         margin: 0;
         font-size: 0.85rem;
         color: var(--error);
       }
-      button {
+      button[type='submit'] {
         font: inherit;
         font-weight: 600;
         border: 0;

@@ -612,6 +612,16 @@ import "@drystack/core/ui";
             pattern: `/login`,
             prerender: false,
           });
+          // Invite-verify + forgot-password land here (plan/user-managent.md
+          // mục 6) - same "injected unconditionally, redirects home for
+          // non-r2 kinds" reasoning as /login above.
+          injectRoute({
+            // @ts-ignore - kept for Astro 2/3 where the option was named `entryPoint`
+            entryPoint: "@drystack/astro/internal/drystack-password-setting.astro",
+            entrypoint: "@drystack/astro/internal/drystack-password-setting.astro",
+            pattern: `/password-setting`,
+            prerender: false,
+          });
         }
         // Prerendered (unlike the two routes above): it needs no per-request
         // handling, so Astro executes it once during `astro build` and writes

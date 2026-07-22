@@ -25,6 +25,7 @@ import {
   getActiveSessionUser,
   getRoleByName,
   getUserByEmail,
+  setPasswordAndConsumeToken,
 } from './d1';
 import {
   SUPER_ADMIN_ROLE,
@@ -35,6 +36,7 @@ import {
 } from './permissions';
 import { getPathOwners, ownerForPath, permissionForPath } from './permission-paths';
 import { AVATAR_DIRECTORY, userManagementRoutes } from './user-management';
+import { EmailSenderBinding, makeCloudflareEmailSender } from './email';
 
 // R2-backed twin of api-node.ts: same routes, same request/response shapes,
 // with the filesystem swapped for an R2 bucket and the whole thing runnable
@@ -230,8 +232,11 @@ export function r2ModeApiHandler(
   config: Config,
   bucket: R2BucketLike | undefined,
   db: D1DatabaseLike | undefined,
-  secret: string | undefined
+  secret: string | undefined,
+  emailSender?: EmailSenderBinding,
+  emailFrom?: string
 ) {
+  const sendEmail = makeCloudflareEmailSender(emailSender, emailFrom);
   return async (
     req: DrystackRequest,
     params: string[]
@@ -270,6 +275,7 @@ export function r2ModeApiHandler(
       return userManagementRoutes(req, params, {
         db,
         session,
+        sendEmail,
         putAvatarObject: async (path, contents) => {
           await bucket.put(path, contents);
         },
@@ -285,6 +291,9 @@ export function r2ModeApiHandler(
     }
     if (req.method === 'GET' && params[0] === 'blob') {
       return blob(req, config, params, bucket, session);
+    }
+    if (req.method === 'GET' && params[0] === 'avatar') {
+      return avatarBlob(req, params.slice(1).join('/'), bucket, session);
     }
     if (req.method === 'POST' && joined === 'update') {
       const current = await session();
@@ -335,14 +344,7 @@ async function blob(
   }
   const expectedSha = params[1];
   const filepath = params.slice(2).join('/');
-  // Avatars (`_system/avatars/`) aren't part of any collection/singleton, so
-  // they're outside getIsPathValid's normal allowlist - allowed here
-  // specifically for reads (see user-management.ts's uploadAvatar for the
-  // write side, which never goes through the generic `update` route).
-  if (
-    !getIsPathValid(config)(filepath) &&
-    !filepath.startsWith(`${AVATAR_DIRECTORY}/`)
-  ) {
+  if (!getIsPathValid(config)(filepath)) {
     return { status: 400, body: 'Bad Request' };
   }
   const current = await session();
@@ -361,6 +363,47 @@ async function blob(
     return { status: 404, body: 'Not Found' };
   }
   return { status: 200, body: contents };
+}
+
+const AVATAR_CONTENT_TYPES: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  webp: 'image/webp',
+  gif: 'image/gif',
+};
+
+// Separate from `blob` above on purpose: avatars are shown via a plain
+// `<img src>` (UsersPage's table, the sidebar, the profile page), which
+// can't attach the `no-cors: 1` header `blob` requires, and have no git
+// blob sha to pin against (they're outside the content tree entirely - see
+// uploadAvatar in user-management.ts, which never goes through the generic
+// `update` route). Still requires a session and validates the path stays
+// inside AVATAR_DIRECTORY - just without those two blob-specific mechanics.
+async function avatarBlob(
+  req: DrystackRequest,
+  filepath: string,
+  bucket: R2BucketLike,
+  session: () => Promise<VerifiedSession | null>
+): Promise<DrystackResponse> {
+  if (
+    !filepath.startsWith(`${AVATAR_DIRECTORY}/`) ||
+    filepath.includes('..') ||
+    filepath.includes('\\')
+  ) {
+    return { status: 400, body: 'Bad Request' };
+  }
+  const current = await session();
+  if (!current) return { status: 401, body: 'Not authorized' };
+  const object = await bucket.get(filepath);
+  if (!object) return { status: 404, body: 'Not Found' };
+  const ext = filepath.slice(filepath.lastIndexOf('.') + 1).toLowerCase();
+  const contentType = AVATAR_CONTENT_TYPES[ext];
+  if (!contentType) return { status: 404, body: 'Not Found' };
+  return {
+    status: 200,
+    headers: { 'content-type': contentType },
+    body: new Uint8Array(await object.arrayBuffer()),
+  };
 }
 
 async function update(
@@ -499,6 +542,11 @@ async function authRoutes(
       email: current.email,
       permissions: [...effectivePermissions(current.roles)],
       fullAccess: isSuperAdmin(current.roles) || isAdmin(current.roles),
+      // Only SuperAdmin can delete users / grant-or-revoke Admin (mục 4) -
+      // fullAccess alone can't tell the two apart, and the UsersPage/
+      // RolesPage delete/promote buttons need to know before they even
+      // render, not just when the server 403s the attempt.
+      isSuperAdmin: isSuperAdmin(current.roles),
     });
   }
 
@@ -558,6 +606,15 @@ async function authRoutes(
         name: credentials.name?.trim() || email,
         password: passwordHash,
       });
+      // Stamps email_verify_at: this person just proved control of the
+      // account by setting its password directly (there's no separate
+      // invite step to verify against, unlike `POST users`) - without this
+      // the User list page would show a nonsensical "Resend invite" button
+      // for the SuperAdmin, who already has a password. Same call
+      // add/resend-invite's token flow ends with, just re-affirming the
+      // password already set above (setPasswordAndConsumeToken is
+      // idempotent here - invite_token is already null).
+      await setPasswordAndConsumeToken(db, user.id, passwordHash);
       // The one and only place SuperAdmin is ever assigned - see plan
       // mục 3/6. Seeded by migrations/0001_init.sql; if a site somehow
       // deleted the row, setup still succeeds (just without a SuperAdmin -

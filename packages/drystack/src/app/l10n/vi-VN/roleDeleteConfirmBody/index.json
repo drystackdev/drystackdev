@@ -1,0 +1,6 @@
+{
+  "key": "roleDeleteConfirmBody",
+  "value": "Thao tác này sẽ xoá vĩnh viễn role \"{role}\". Nhập đúng tên role để xác nhận.",
+  "notes": "",
+  "type": "global"
+}

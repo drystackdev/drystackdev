@@ -1,0 +1,6 @@
+{
+  "key": "roleDeleteConfirmBody",
+  "value": "This will permanently delete the role \"{role}\". Type the role name to confirm.",
+  "notes": "",
+  "type": "global"
+}

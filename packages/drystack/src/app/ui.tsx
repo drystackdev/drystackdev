@@ -26,6 +26,11 @@ import { PageBody, PageRoot } from "./shell/page";
 import { EmptyState } from "./shell/empty-state";
 import { SingletonPage } from "./SingletonPage";
 import { FileManagerPage } from "./file-manager/FileManagerPage";
+import { ProfilePage } from "./user-management/ProfilePage";
+import { UsersPage } from "./user-management/UsersPage";
+import { AddUserPage } from "./user-management/AddUserPage";
+import { RolesPage } from "./user-management/RolesPage";
+import { RolePermissionsPage } from "./user-management/RolePermissionsPage";
 import { CreatedGitHubApp } from "./onboarding/created-github-app";
 import { DrystackSetup } from "./onboarding/setup";
 import { RepoNotFound } from "./onboarding/repo-not-found";
@@ -48,6 +53,25 @@ function parseParamsWithoutBranch(params: string[]) {
   }
   if (params.length === 1 && params[0] === "files") {
     return { page: "files" as const };
+  }
+  if (params.length === 1 && params[0] === "profile") {
+    return { page: "profile" as const };
+  }
+  if (params.length === 1 && params[0] === "users") {
+    return { page: "users" as const };
+  }
+  if (params.length === 2 && params[0] === "users" && params[1] === "add") {
+    return { page: "users-add" as const };
+  }
+  if (params.length === 1 && params[0] === "roles") {
+    return { page: "roles" as const };
+  }
+  if (
+    params.length === 3 &&
+    params[0] === "roles" &&
+    params[2] === "permissions"
+  ) {
+    return { page: "role-permissions" as const, roleId: params[1] };
   }
   if (params.length === 2 && params[0] === "singleton") {
     return { singleton: params[1] };
@@ -180,6 +204,16 @@ function PageInner({ config }: { config: Config }) {
           />
         ) : parsedParams.page === "files" ? (
           <FileManagerPage />
+        ) : parsedParams.page === "profile" ? (
+          <ProfilePage />
+        ) : parsedParams.page === "users" ? (
+          <UsersPage />
+        ) : parsedParams.page === "users-add" ? (
+          <AddUserPage />
+        ) : parsedParams.page === "roles" ? (
+          <RolesPage />
+        ) : parsedParams.page === "role-permissions" ? (
+          <RolePermissionsPage roleId={parsedParams.roleId} />
         ) : (
           <DashboardPage
             config={config as unknown as Config}
