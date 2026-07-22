@@ -4,13 +4,16 @@ import { useLocalizedStringFormatter } from '@react-aria/i18n';
 
 import { Avatar } from '@keystar/ui/avatar';
 import { Badge } from '@keystar/ui/badge';
-import { Button } from '@keystar/ui/button';
-import { Checkbox } from '@keystar/ui/checkbox';
-import { DialogContainer } from '@keystar/ui/dialog';
+import { ActionButton, Button } from '@keystar/ui/button';
+import { AlertDialog, DialogContainer } from '@keystar/ui/dialog';
+import { Icon } from '@keystar/ui/icon';
+import { checkCircle2Icon } from '@keystar/ui/icon/icons/checkCircle2Icon';
 import { Flex } from '@keystar/ui/layout';
 import { ProgressCircle } from '@keystar/ui/progress';
 import { SortDescriptor } from '@keystar/ui/table';
+import { Switch } from '@keystar/ui/switch';
 import { toastQueue } from '@keystar/ui/toast';
+import { Tooltip, TooltipTrigger } from '@keystar/ui/tooltip';
 import { Heading, Text } from '@keystar/ui/typography';
 
 import type { ComponentSchema } from '../../form/api';
@@ -51,6 +54,10 @@ export function UsersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [confirmingActiveChange, setConfirmingActiveChange] = useState<{
+    user: PublicUser;
+    nextValue: boolean;
+  } | null>(null);
   const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
     column: 'updatedAt',
     direction: 'descending',
@@ -191,12 +198,10 @@ export function UsersPage() {
               ? stringFormatter.format('userActiveLabel')
               : stringFormatter.format('userInactiveLabel'),
             node: (
-              <Checkbox
+              <Switch
                 isSelected={user.active}
                 aria-label={stringFormatter.format('userActiveLabel')}
-                onChange={isSelected =>
-                  withMutation(() => api.setUserActive(user.id, isSelected))
-                }
+                onChange={isSelected => setConfirmingActiveChange({ user, nextValue: isSelected })}
               />
             ),
           }),
@@ -207,11 +212,21 @@ export function UsersPage() {
         cols.push({
           descriptor,
           renderCell: user => ({
-            textValue: user.emailVerifyAt ?? stringFormatter.format('userResendInviteAction'),
+            textValue: user.emailVerifyAt
+              ? stringFormatter.format('userVerifiedLabel')
+              : stringFormatter.format('userResendInviteAction'),
             node: user.emailVerifyAt ? (
-              <Badge tone="positive">
-                <Text>{formatDateTime(user.emailVerifyAt)}</Text>
-              </Badge>
+              <TooltipTrigger>
+                <ActionButton prominence="low" aria-label={stringFormatter.format('userVerifiedLabel')}>
+                  <Icon src={checkCircle2Icon} color="positive" />
+                  <Text>{stringFormatter.format('userVerifiedLabel')}</Text>
+                </ActionButton>
+                <Tooltip>
+                  {stringFormatter.format('userVerifiedTooltip', {
+                    date: formatDateTime(user.emailVerifyAt),
+                  })}
+                </Tooltip>
+              </TooltipTrigger>
             ) : (
               <Button
                 onPress={() =>
@@ -264,7 +279,11 @@ export function UsersPage() {
           const indices = matchesByUser.get(user.id)?.get(descriptor.key);
           return {
             textValue: value,
-            node: <HighlightedText text={value} indices={indices} />,
+            node: (
+              <Text>
+                <HighlightedText text={value} indices={indices} />
+              </Text>
+            ),
           };
         },
       });
@@ -334,6 +353,33 @@ export function UsersPage() {
               reload();
             }}
           />
+        )}
+      </DialogContainer>
+      <DialogContainer onDismiss={() => setConfirmingActiveChange(null)}>
+        {confirmingActiveChange && (
+          <AlertDialog
+            title={stringFormatter.format('userActiveConfirmTitle')}
+            tone={confirmingActiveChange.nextValue ? undefined : 'critical'}
+            cancelLabel={stringFormatter.format('cancel')}
+            primaryActionLabel={stringFormatter.format(
+              confirmingActiveChange.nextValue ? 'userActivateAction' : 'userDeactivateAction'
+            )}
+            onCancel={() => setConfirmingActiveChange(null)}
+            onPrimaryAction={() => {
+              const { user, nextValue } = confirmingActiveChange;
+              setConfirmingActiveChange(null);
+              withMutation(() => api.setUserActive(user.id, nextValue));
+            }}
+          >
+            <Text>
+              {stringFormatter.format(
+                confirmingActiveChange.nextValue
+                  ? 'userActivateConfirmBody'
+                  : 'userDeactivateConfirmBody',
+                { name: confirmingActiveChange.user.name }
+              )}
+            </Text>
+          </AlertDialog>
         )}
       </DialogContainer>
     </PageRoot>

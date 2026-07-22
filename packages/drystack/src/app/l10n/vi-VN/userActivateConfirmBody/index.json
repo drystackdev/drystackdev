@@ -1,0 +1,6 @@
+{
+  "key": "userActivateConfirmBody",
+  "value": "Cấp lại quyền truy cập cho {name}? Người này sẽ đăng nhập được ngay.",
+  "notes": "",
+  "type": "global"
+}

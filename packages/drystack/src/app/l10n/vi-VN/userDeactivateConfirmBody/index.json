@@ -1,0 +1,6 @@
+{
+  "key": "userDeactivateConfirmBody",
+  "value": "Thu hồi quyền truy cập của {name}? Người này sẽ không đăng nhập được cho tới khi được kích hoạt lại.",
+  "notes": "",
+  "type": "global"
+}

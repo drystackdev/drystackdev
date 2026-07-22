@@ -1,0 +1,6 @@
+{
+  "key": "userDeactivateConfirmBody",
+  "value": "Revoke {name}'s access? They won't be able to sign in until reactivated.",
+  "notes": "",
+  "type": "global"
+}

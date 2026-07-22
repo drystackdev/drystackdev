@@ -4,18 +4,26 @@ import { useLocalizedStringFormatter } from '@react-aria/i18n';
 import { AlertDialog, Dialog, DialogContainer } from '@keystar/ui/dialog';
 import { ActionButton, Button, ButtonGroup } from '@keystar/ui/button';
 import { Badge } from '@keystar/ui/badge';
+import { Checkbox } from '@keystar/ui/checkbox';
 import { Icon } from '@keystar/ui/icon';
-import { xIcon } from '@keystar/ui/icon/icons/xIcon';
+import { pencilIcon } from '@keystar/ui/icon/icons/pencilIcon';
+import { trash2Icon } from '@keystar/ui/icon/icons/trash2Icon';
 import { Flex } from '@keystar/ui/layout';
-import { Picker, Item } from '@keystar/ui/picker';
 import { ProgressCircle } from '@keystar/ui/progress';
 import { SearchField } from '@keystar/ui/search-field';
 import { Content } from '@keystar/ui/slots';
+import { SortDescriptor } from '@keystar/ui/table';
 import { TextField } from '@keystar/ui/text-field';
 import { toastQueue } from '@keystar/ui/toast';
+import { Tooltip, TooltipTrigger } from '@keystar/ui/tooltip';
 import { Heading, Text } from '@keystar/ui/typography';
 
+import type { ComponentSchema } from '../../form/api';
 import l10nMessages from '../l10n';
+import { sortBy } from '../collection-sort';
+import { ColumnDescriptor } from '../collection-table/column-model';
+import { DataColumn, EntityTableView, FixtureColumn } from '../collection-table/EntityTableView';
+import { useCollectionViewState } from '../collection-table/useCollectionViewState';
 import { PageBody, PageHeader, PageRoot } from '../shell/page';
 import { useRouter } from '../router';
 import { notFound } from '../not-found';
@@ -26,6 +34,8 @@ import { useNativeUser } from '../native-user';
 import { EmptyState } from '../shell/empty-state';
 import { ApiError, PublicRole, PublicUser, UserManagementApi, makeUserManagementApi } from './api';
 
+const VIEW_STATE_KEY = '__drystack-roles';
+
 export function RolesPage() {
   const config = useConfig();
   if (!isR2Config(config)) notFound();
@@ -33,51 +43,173 @@ export function RolesPage() {
   const api = useMemo(() => makeUserManagementApi(router.basePath), [router.basePath]);
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const nativeUser = useNativeUser();
+  const canManage = !!nativeUser?.fullAccess;
 
   const [reloadKey, setReloadKey] = useState(0);
   const reload = useCallback(() => setReloadKey(k => k + 1), []);
   const rolesState = useData(useCallback(() => api.listRoles(), [api, reloadKey]));
   const usersState = useData(useCallback(() => api.listUsers(), [api, reloadKey]));
 
-  const [addingRole, setAddingRole] = useState(false);
   const [renamingRole, setRenamingRole] = useState<PublicRole | null>(null);
   const [membersRole, setMembersRole] = useState<PublicRole | null>(null);
   const [deletingRole, setDeletingRole] = useState<PublicRole | null>(null);
+  const [addingRole, setAddingRole] = useState(false);
 
   const roles = rolesState.kind === 'loaded' ? rolesState.data : [];
   const users = usersState.kind === 'loaded' ? usersState.data : [];
 
+  const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
+    column: 'name',
+    direction: 'ascending',
+  });
+  const { columnWidths, setColumnWidths } = useCollectionViewState(VIEW_STATE_KEY);
+
+  const sortedRoles = useMemo(() => {
+    return [...roles].sort((a, b) => {
+      const read = (role: PublicRole) => {
+        switch (sortDescriptor.column) {
+          case 'members':
+            return role.userCount;
+          case 'permissions':
+            return role.isLocked ? Number.POSITIVE_INFINITY : role.permissions.length;
+          default:
+            return role.name;
+        }
+      };
+      return sortBy(sortDescriptor.direction!, read(a), read(b));
+    });
+  }, [roles, sortDescriptor]);
+
+  const dataColumns = useMemo<DataColumn<PublicRole>[]>(() => {
+    const descriptor = (key: string, label: string): ColumnDescriptor => ({
+      key,
+      label,
+      displayKind: 'text',
+      schema: {} as ComponentSchema,
+    });
+    return [
+      {
+        descriptor: descriptor('name', stringFormatter.format('roleNameLabel')),
+        renderCell: role => ({
+          textValue: role.name,
+          node: (
+            <Flex alignItems="center" gap="small">
+              <Text weight="medium">{role.name}</Text>
+              {!role.isLocked && canManage && (
+                <TooltipTrigger>
+                  <ActionButton
+                    prominence="low"
+                    aria-label={stringFormatter.format('roleRenameAction')}
+                    onPress={() => setRenamingRole(role)}
+                  >
+                    <Icon src={pencilIcon} />
+                  </ActionButton>
+                  <Tooltip>{stringFormatter.format('roleRenameAction')}</Tooltip>
+                </TooltipTrigger>
+              )}
+            </Flex>
+          ),
+        }),
+      },
+      {
+        descriptor: descriptor('members', stringFormatter.format('roleMembersColumnLabel')),
+        renderCell: role => ({
+          textValue: stringFormatter.format('roleUserCountLabel', { count: role.userCount }),
+          node: (
+            <ActionButton onPress={() => setMembersRole(role)}>
+              <Badge>
+                <Text>{stringFormatter.format('roleUserCountLabel', { count: role.userCount })}</Text>
+              </Badge>
+            </ActionButton>
+          ),
+        }),
+      },
+      {
+        descriptor: descriptor('permissions', stringFormatter.format('rolePermissionsColumnLabel')),
+        renderCell: role => ({
+          textValue: role.isLocked
+            ? stringFormatter.format('roleFullAccessLabel')
+            : stringFormatter.format('rolePermissionCountLabel', { count: role.permissions.length }),
+          node: role.isLocked ? (
+            <Badge tone="accent">
+              <Text>{stringFormatter.format('roleFullAccessLabel')}</Text>
+            </Badge>
+          ) : (
+            <ActionButton
+              onPress={() => router.push(`${router.basePath}/roles/${role.id}/permissions`)}
+            >
+              <Badge>
+                <Text>
+                  {stringFormatter.format('rolePermissionCountLabel', {
+                    count: role.permissions.length,
+                  })}
+                </Text>
+              </Badge>
+            </ActionButton>
+          ),
+        }),
+      },
+    ];
+  }, [stringFormatter, canManage, router]);
+
+  const trailingColumns = useMemo<FixtureColumn<PublicRole>[]>(
+    () => [
+      {
+        key: 'actions',
+        label: stringFormatter.format('roleDeleteAction'),
+        width: 48,
+        minWidth: 48,
+        hideHeader: true,
+        renderCell: role => ({
+          textValue: stringFormatter.format('roleDeleteAction'),
+          node: (
+            <TooltipTrigger>
+              <ActionButton
+                prominence="low"
+                aria-label={stringFormatter.format('roleDeleteAction')}
+                isDisabled={role.isLocked || role.userCount > 0 || !canManage}
+                onPress={() => setDeletingRole(role)}
+              >
+                <Icon src={trash2Icon} color="critical" />
+              </ActionButton>
+              <Tooltip>{stringFormatter.format('roleDeleteAction')}</Tooltip>
+            </TooltipTrigger>
+          ),
+        }),
+      },
+    ],
+    [stringFormatter, canManage]
+  );
+
   return (
-    <PageRoot containerWidth="medium">
+    <PageRoot containerWidth="none">
       <PageHeader>
-        <Heading elementType="h1" size="small" flex minWidth={0}>
+        <Heading elementType="h1" id="page-title" size="small" flex minWidth={0}>
           {stringFormatter.format('roleManagementNavItem')}
         </Heading>
         <Button marginStart="auto" prominence="high" onPress={() => setAddingRole(true)}>
           {stringFormatter.format('roleAddAction')}
         </Button>
       </PageHeader>
-      <PageBody>
+      <PageBody isScrollable={false}>
         {rolesState.kind === 'loading' ? (
           <EmptyState>
             <ProgressCircle isIndeterminate aria-label={stringFormatter.format('loadingEntriesAriaLabel')} />
           </EmptyState>
         ) : (
-          <Flex direction="column" gap="regular" marginTop="large">
-            {roles.map(role => (
-              <RoleRow
-                key={role.id}
-                role={role}
-                canManage={!!nativeUser?.fullAccess}
-                onRename={() => setRenamingRole(role)}
-                onManageMembers={() => setMembersRole(role)}
-                onDelete={() => setDeletingRole(role)}
-                onOpenPermissions={() =>
-                  router.push(`${router.basePath}/roles/${role.id}/permissions`)
-                }
-              />
-            ))}
-          </Flex>
+          <EntityTableView
+            aria-labelledby="page-title"
+            dataColumns={dataColumns}
+            trailingColumns={trailingColumns}
+            items={sortedRoles}
+            getItemKey={role => String(role.id)}
+            sortDescriptor={sortDescriptor}
+            onSortChange={setSortDescriptor}
+            columnWidths={columnWidths}
+            onColumnWidthsChange={setColumnWidths}
+            onAction={() => {}}
+            renderEmptyState={() => <EmptyState title={stringFormatter.format('roleNoMembersLabel')} />}
+          />
         )}
       </PageBody>
 
@@ -131,65 +263,6 @@ export function RolesPage() {
         )}
       </DialogContainer>
     </PageRoot>
-  );
-}
-
-function RoleRow(props: {
-  role: PublicRole;
-  canManage: boolean;
-  onRename: () => void;
-  onManageMembers: () => void;
-  onDelete: () => void;
-  onOpenPermissions: () => void;
-}) {
-  const { role } = props;
-  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
-
-  return (
-    <Flex
-      alignItems="center"
-      gap="large"
-      padding="regular"
-      borderBottom="muted"
-      wrap
-    >
-      <Text flex minWidth="scale.2400" weight="medium">
-        {role.name}
-      </Text>
-      <Button isDisabled={role.isLocked || !props.canManage} onPress={props.onRename}>
-        {stringFormatter.format('roleRenameAction')}
-      </Button>
-      <ActionButton onPress={props.onManageMembers}>
-        <Badge>
-          <Text>
-            {stringFormatter.format('roleUserCountLabel', { count: role.userCount })}
-          </Text>
-        </Badge>
-      </ActionButton>
-      {role.isLocked ? (
-        <Badge tone="accent">
-          <Text>{stringFormatter.format('roleFullAccessLabel')}</Text>
-        </Badge>
-      ) : (
-        <ActionButton onPress={props.onOpenPermissions}>
-          <Badge>
-            <Text>
-              {stringFormatter.format('rolePermissionCountLabel', {
-                count: role.permissions.length,
-              })}
-            </Text>
-          </Badge>
-        </ActionButton>
-      )}
-      <Button
-        marginStart="auto"
-        tone="critical"
-        isDisabled={role.isLocked || role.userCount > 0 || !props.canManage}
-        onPress={props.onDelete}
-      >
-        {stringFormatter.format('roleDeleteAction')}
-      </Button>
-    </Flex>
   );
 }
 
@@ -318,26 +391,22 @@ function ManageMembersDialog(props: {
   const [search, setSearch] = useState('');
   const [pendingUserId, setPendingUserId] = useState<number | null>(null);
 
-  const members = props.users.filter(u => u.roles.includes(role.name));
-  const nonMembers = props.users
-    .filter(u => !u.roles.includes(role.name))
-    .filter(
-      u =>
-        !search.trim() ||
-        u.email.toLowerCase().includes(search.trim().toLowerCase()) ||
-        u.name.toLowerCase().includes(search.trim().toLowerCase())
-    );
+  const visibleUsers = props.users.filter(
+    u =>
+      !search.trim() ||
+      u.email.toLowerCase().includes(search.trim().toLowerCase()) ||
+      u.name.toLowerCase().includes(search.trim().toLowerCase())
+  );
 
-  const runMutation = async (fn: () => Promise<unknown>) => {
+  const toggleMember = async (user: PublicUser, isMember: boolean) => {
+    setPendingUserId(user.id);
     try {
-      await fn();
+      await (isMember ? api.assignRole(user.id, role.id) : api.unassignRole(user.id, role.id));
       props.onChanged();
-    } catch (err) {
-      toastQueue.critical(
-        err instanceof ApiError
-          ? stringFormatter.format('genericErrorToast')
-          : stringFormatter.format('genericErrorToast')
-      );
+    } catch {
+      toastQueue.critical(stringFormatter.format('genericErrorToast'));
+    } finally {
+      setPendingUserId(null);
     }
   };
 
@@ -345,51 +414,32 @@ function ManageMembersDialog(props: {
     <Dialog aria-label={stringFormatter.format('roleMembersTitle', { role: role.name })}>
       <Heading>{stringFormatter.format('roleMembersTitle', { role: role.name })}</Heading>
       <Content>
-        <Flex direction="column" gap="large">
-          <Flex direction="column" gap="regular">
-            {members.length === 0 && (
-              <Text color="neutralTertiary">{stringFormatter.format('roleNoMembersLabel')}</Text>
-            )}
-            {members.map(user => (
-              <Flex key={user.id} alignItems="center" gap="regular">
-                <Text flex>
-                  {user.name} ({user.email})
-                </Text>
-                <ActionButton
-                  aria-label={stringFormatter.format('roleRemoveMemberAction')}
-                  onPress={() => runMutation(() => api.unassignRole(user.id, role.id))}
-                >
-                  <Icon src={xIcon} />
-                </ActionButton>
-              </Flex>
-            ))}
-          </Flex>
-          <Flex direction="column" gap="regular">
-            <SearchField
-              aria-label={stringFormatter.format('search')}
-              placeholder={stringFormatter.format('roleAddMemberSearchPlaceholder')}
-              value={search}
-              onChange={setSearch}
-            />
-            {search.trim() && (
-              <Picker
-                aria-label={stringFormatter.format('roleAddMemberAction')}
-                items={nonMembers}
-                selectedKey={pendingUserId != null ? String(pendingUserId) : null}
-                onSelectionChange={key => {
-                  const userId = Number(key);
-                  if (!Number.isInteger(userId)) return;
-                  setPendingUserId(userId);
-                  runMutation(() => api.assignRole(userId, role.id)).finally(() => {
-                    setPendingUserId(null);
-                    setSearch('');
-                  });
-                }}
-              >
-                {user => <Item key={String(user.id)}>{`${user.name} (${user.email})`}</Item>}
-              </Picker>
-            )}
-          </Flex>
+        <Flex direction="column" gap="regular">
+          <SearchField
+            aria-label={stringFormatter.format('search')}
+            placeholder={stringFormatter.format('roleAddMemberSearchPlaceholder')}
+            value={search}
+            onChange={setSearch}
+          />
+          {visibleUsers.length === 0 ? (
+            <Text color="neutralTertiary">{stringFormatter.format('roleNoMembersLabel')}</Text>
+          ) : (
+            <Flex direction="column" gap="regular">
+              {visibleUsers.map(user => {
+                const isMember = user.roles.includes(role.name);
+                return (
+                  <Checkbox
+                    key={user.id}
+                    isSelected={isMember}
+                    isDisabled={pendingUserId === user.id}
+                    onChange={isSelected => toggleMember(user, isSelected)}
+                  >
+                    {`${user.name} (${user.email})`}
+                  </Checkbox>
+                );
+              })}
+            </Flex>
+          )}
         </Flex>
       </Content>
       <ButtonGroup>

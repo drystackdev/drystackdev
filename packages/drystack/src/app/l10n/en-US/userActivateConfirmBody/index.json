@@ -1,0 +1,6 @@
+{
+  "key": "userActivateConfirmBody",
+  "value": "Give {name} access again? They will be able to sign in immediately.",
+  "notes": "",
+  "type": "global"
+}
