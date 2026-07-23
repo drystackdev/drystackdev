@@ -377,6 +377,12 @@ const cellClass = css({
   boxSizing: "border-box",
   minWidth: 0,
   outline: `1px dashed ${tokenSchema.color.border.muted}`,
+  // the focused/active item's outline switches to the same accent color as a
+  // selected table cell's border (see schema.tsx's `.selectedCell::after`),
+  // so "this is the current item" reads consistently across both node types
+  "&[data-active]": {
+    outlineColor: tokenSchema.color.alias.borderSelected,
+  },
   // the resize grip appears while the cell is hovered or is the active item
   "&:hover [data-resize-grip], &[data-active] [data-resize-grip]": {
     opacity: 1,

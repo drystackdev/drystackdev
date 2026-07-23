@@ -266,14 +266,8 @@ const tableLayoutStyles = {
   position: "relative",
 } as const;
 
-// selection affordances the editor needs in both modes: a selected cell's
-// own highlight has to win over the browser's text selection.
+// stop content from bouncing around when widgets are added
 const tableSelectionStyles = {
-  "&:has(.selectedCell) *::selection": {
-    backgroundColor: "transparent",
-  },
-
-  // stop content from bouncing around when widgets are added
   ".ProseMirror-widget + *": {
     marginTop: 0,
   },
@@ -302,12 +296,6 @@ const cellAffordanceStyles = {
   boxSizing: "border-box",
   position: "relative",
 
-  "&.selectedCell": {
-    backgroundColor: tokenSchema.color.alias.backgroundSelected,
-    "& *::selection": {
-      backgroundColor: "transparent",
-    },
-  },
   "&.selectedCell::after": {
     border: `1px solid ${tokenSchema.color.alias.borderSelected}`,
     position: "absolute",

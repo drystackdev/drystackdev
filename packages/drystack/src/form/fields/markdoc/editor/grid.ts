@@ -261,9 +261,11 @@ export const deleteFocusedCell: Command = (state, dispatch) => {
 };
 
 // move the caret into the previous/next sibling cell within the same grid.
-// Bound to Tab / Shift-Tab. At the grid's first/last cell there is nowhere to
-// go, but we still consume the key (return true) so focus never escapes the
-// editor - an unhandled Tab blurs the whole contenteditable.
+// Bound to Tab / Shift-Tab. Tab at the grid's *last* cell adds a new one
+// (mirroring the toolbar's "+"), so tabbing through a grid can grow it the
+// same way tabbing through a table's last cell adds a row. Shift-Tab at the
+// *first* cell has nowhere sensible to go, so it just consumes the key - an
+// unhandled Tab would otherwise blur the whole contenteditable.
 export function moveToAdjacentCell(direction: 1 | -1): Command {
   return (state, dispatch) => {
     const cell = findGridCell(state);
@@ -276,8 +278,10 @@ export function moveToAdjacentCell(direction: 1 | -1): Command {
     const index = cellPositions.indexOf(cell.pos);
     const targetPos =
       index === -1 ? undefined : cellPositions[index + direction];
-    // at the grid edge: consume the key so Tab doesn't blur the editor
-    if (targetPos === undefined) return true;
+    if (targetPos === undefined) {
+      if (direction === 1) return addCellAfterFocused(state, dispatch);
+      return true;
+    }
     if (dispatch) {
       // land the caret at the start of the target cell's content
       const $target = state.doc.resolve(targetPos + 1);

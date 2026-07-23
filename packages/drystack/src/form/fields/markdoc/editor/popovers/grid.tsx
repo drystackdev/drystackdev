@@ -37,7 +37,7 @@ const gridDeleteIcon = (
   <path d="M12 3v17a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1H3m13 4l5 5m-5 0l5-5" />
 );
 
-const spacingFieldWidth = 70;
+const spacingFieldWidth = 110;
 
 // Grid track counts (columns/rows) aren't user-configurable - columns are a
 // fixed 12-unit grid, rows auto-grow to fit the tallest cell (see grid.ts's
@@ -49,24 +49,27 @@ function GridSpacingPicker(props: { node: Node; pos: number }) {
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const gap = props.node.attrs.gap as string;
   return (
-    <Picker
-      aria-label={stringFormatter.format("gridSpacing")}
-      selectedKey={gap}
-      onSelectionChange={(key) => {
-        const value = String(key);
-        runCommand((state, dispatch) => {
-          if (dispatch) {
-            dispatch(state.tr.setNodeAttribute(props.pos, "gap", value));
-          }
-          return true;
-        });
-      }}
-      UNSAFE_style={{ width: spacingFieldWidth }}
-    >
-      {GRID_GAP_OPTIONS.map((g) => (
-        <Item key={g}>{g.replace("em", "")}</Item>
-      ))}
-    </Picker>
+    <TooltipTrigger>
+      <Picker
+        aria-label={stringFormatter.format("gridSpacing")}
+        selectedKey={gap}
+        onSelectionChange={(key) => {
+          const value = String(key);
+          runCommand((state, dispatch) => {
+            if (dispatch) {
+              dispatch(state.tr.setNodeAttribute(props.pos, "gap", value));
+            }
+            return true;
+          });
+        }}
+        UNSAFE_style={{ width: spacingFieldWidth }}
+      >
+        {GRID_GAP_OPTIONS.map((g) => (
+          <Item key={g}>{g.replace("em", "")}</Item>
+        ))}
+      </Picker>
+      <Tooltip>{stringFormatter.format("gridSpacing")}</Tooltip>
+    </TooltipTrigger>
   );
 }
 
