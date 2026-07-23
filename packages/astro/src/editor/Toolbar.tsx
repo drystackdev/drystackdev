@@ -20,7 +20,6 @@ import {
   resolveEntryRef,
   type EntryRef,
 } from "@drystack/core/path-utils";
-import { getAuth } from "@drystack/core/auth";
 import {
   openMediaLibrary,
   waitForMediaLibraryOpener,
@@ -32,7 +31,7 @@ import { useLocalizedStringFormatter } from "@react-aria/i18n";
 import apiPath from "virtual:drystack-path";
 import { Badge } from "@keystar/ui/badge";
 import { ActionButton, Button, ButtonGroup } from "@keystar/ui/button";
-import { AlertDialog, Dialog, DialogContainer } from "@keystar/ui/dialog";
+import { Dialog, DialogContainer } from "@keystar/ui/dialog";
 import { Icon } from "@keystar/ui/icon";
 import { editIcon } from "@keystar/ui/icon/icons/editIcon";
 import { xIcon } from "@keystar/ui/icon/icons/xIcon";
@@ -58,6 +57,7 @@ import {
   FormValueContentFromPreviewProps,
   clientSideValidateProp,
   EntryDirectoryProvider,
+  CurrentEntryRefProvider,
 } from "@drystack/core/field-editor";
 import {
   enableEditing,
@@ -80,7 +80,7 @@ import {
   putPendingBlob,
   getPendingBlob,
 } from "./store";
-import { saveEdits, getCurrentBranchName, getGithubToken } from "./save";
+import { saveEdits, getCurrentBranchName } from "./save";
 import { isDemoConfig } from "@drystack/core/storage-mode";
 import {
   editKey,
@@ -89,8 +89,6 @@ import {
   parseEditKey,
   resolveSchemaAtFieldPath,
 } from "@drystack/core/edit-sync";
-import { CloudflareStatusInline } from "@drystack/core/deploy-cloudflare-status";
-import { useVeiDeploy } from "./deploy";
 
 // Loaded lazily (only once the visual editor actually enters edit mode) -
 // this chunk pulls in urql + graphcache + the admin's field-editor/file-
@@ -104,6 +102,11 @@ const VeiAdminProviders = lazy(() =>
 const FileManagerHost = lazy(() =>
   import("@drystack/core/file-manager-host").then((m) => ({
     default: m.FileManagerHost,
+  })),
+);
+const ContentRefPickerHost = lazy(() =>
+  import("@drystack/core/content-ref-picker-host").then((m) => ({
+    default: m.ContentRefPickerHost,
   })),
 );
 // Lazy for the same reason, and doubly worth it here: this one pulls in
@@ -322,17 +325,6 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   // viewport-relative and goes stale the instant the page scrolls.
   const arrayGearElRef = useRef<HTMLElement | null>(null);
 
-  // isGithub gates the brand/merge/deploy flow Save triggers automatically
-  // (see onSave/runSave below) - local mode has no branch concept and keeps
-  // its old instant, confirm-free save.
-  const isGithub = config.storage.kind === "github";
-  const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
-  const {
-    deploy,
-    isBusy: deployBusy,
-    label: deployLabel,
-    isOnDefaultBranch,
-  } = useVeiDeploy(config);
 
   // Hover dropdown state - the menu itself is portaled to <body>.
   const refWrapRef = useRef<HTMLDivElement>(null);
@@ -505,13 +497,10 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   // see the lazy() imports above) - mounted whenever edit mode is on, not
   // lazily per-click, so both the field-editor dialogs below and the image/
   // file spot click handlers can assume it's either ready or not yet
-  // attempted, with no per-click mount race to arbitrate. `currentBranch`
-  // only matters in github mode.
+  // attempted, with no per-click mount race to arbitrate.
   type ProviderState =
     | { status: "idle" }
-    | { status: "loading" }
-    | { status: "ready"; currentBranch: string }
-    | { status: "blocked"; message: string };
+    | { status: "ready"; currentBranch: string };
   const [providerState, setProviderState] = useState<ProviderState>({
     status: "idle",
   });
@@ -520,94 +509,20 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   // every time it changes.
   const providerStateRef = useRef(providerState);
   providerStateRef.current = providerState;
-  // Caches a successful github resolution for the lifetime of this page load
-  // (the visual editor mounts once and is never torn down) so toggling edit
-  // mode off/on doesn't re-hit the network and remount VeiAdminProviders
-  // every time - only the first resolution per page load pays that cost.
-  const resolvedProviderRef = useRef<{ currentBranch: string } | null>(null);
-  // Re-runs the resolution below on demand - requireProviderReady calls this
-  // when blocked, so a click while blocked also kicks off a retry instead of
-  // only toasting forever (the previous auth failure isn't retried
-  // otherwise; only toggling edit mode off/on used to force one).
-  const resolveProviderRef = useRef<() => void>(() => {});
 
   useEffect(() => {
-    if (!editing) {
-      setProviderState({ status: "idle" });
-      return;
-    }
-    if (!isGithub) {
-      setProviderState({ status: "ready", currentBranch: "" });
-      return;
-    }
-    let cancelled = false;
-    const resolve = () => {
-      if (resolvedProviderRef.current) {
-        setProviderState({
-          status: "ready",
-          currentBranch: resolvedProviderRef.current.currentBranch,
-        });
-        return;
-      }
-      // github mode needs an admin session - mounting the boundary without
-      // one would hit the shell's own "not authenticated" redirect, which
-      // would navigate this live-site tab to the admin login page. The
-      // access-token cookie is short-lived (GitHub's OAuth expiry, a few
-      // hours) and nothing else refreshes it while the user only ever
-      // visits this live-site toolbar (never the admin SPA, which is where
-      // the urql authExchange that normally handles this lives) - so try a
-      // silent refresh off the still-valid, much longer-lived refresh-token
-      // cookie before bouncing the user to re-auth.
-      setProviderState({ status: "loading" });
-      const ensureToken = getGithubToken()
-        ? Promise.resolve(true)
-        : getAuth(config, adminBase).then((auth) => !!auth);
-      ensureToken.then((hasToken) => {
-        if (cancelled) return;
-        if (!hasToken) {
-          setProviderState({
-            status: "blocked",
-            message: stringFormatter.format("veiAdminLoginRequired"),
-          });
-          return;
-        }
-        getCurrentBranchName(config, stringFormatter)
-          .then((branch) => {
-            if (cancelled) return;
-            resolvedProviderRef.current = { currentBranch: branch ?? "" };
-            setProviderState({ status: "ready", currentBranch: branch ?? "" });
-          })
-          .catch((err) => {
-            if (!cancelled) {
-              setProviderState({
-                status: "blocked",
-                message: err instanceof Error ? err.message : String(err),
-              });
-            }
-          });
-      });
-    };
-    resolveProviderRef.current = resolve;
-    resolve();
-    return () => {
-      cancelled = true;
-    };
-  }, [editing, isGithub, config, stringFormatter]);
+    setProviderState(
+      editing ? { status: "ready", currentBranch: "" } : { status: "idle" },
+    );
+  }, [editing]);
 
   // Guards an image/file spot click or the array gear button: surfaces a
   // toast and returns false unless the provider boundary is actually mounted
-  // and ready to serve openMediaLibrary()/the field-editor dialogs. Kicks off
-  // a fresh resolution attempt when blocked, so the *next* click has a chance
-  // of succeeding instead of replaying the same stale failure forever.
+  // and ready to serve openMediaLibrary()/the field-editor dialogs.
   const requireProviderReady = (): boolean => {
     const s = providerStateRef.current;
     if (s.status === "ready") return true;
-    if (s.status === "blocked") resolveProviderRef.current();
-    toastQueue.critical(
-      s.status === "blocked"
-        ? s.message
-        : stringFormatter.format("veiProviderNotReady"),
-    );
+    toastQueue.critical(stringFormatter.format("veiProviderNotReady"));
     return false;
   };
 
@@ -678,15 +593,8 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     else startEditing();
   };
 
-  // The actual save - commits (brand, in github mode) then, when something
-  // landed there AND that brand isn't already the default branch, merges it
-  // in (deploy.ts's runDeploy via the deploy() hook, which owns its own
-  // conflict/nothing/committed/error toasts) before re-syncing the DOM. That
-  // ordering matters: refreshFromLatestSource reads off the *default*
-  // branch, which only has the new content once the merge lands - running it
-  // right after the brand commit would flash stale pre-merge content. When
-  // already on the default branch, saveEdits() already committed straight to
-  // it (see save.ts's ensureBrand), so there's nothing left to merge.
+  // The actual save - writes straight to disk (save.ts's saveEdits), then
+  // re-syncs the DOM from the freshly-saved source.
   const runSave = async () => {
     // saveEdits() itself also refuses in demo mode (the robust, can't-be-
     // bypassed guard - see its own comment), but checking here too means a
@@ -702,28 +610,12 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
     }
     setSaving(true);
     try {
-      const commitOid = await saveEdits(config, stringFormatter);
-
-      let deployed = false;
-      if (isGithub && commitOid && !isOnDefaultBranch) {
-        await deploy();
-        deployed = true;
-      }
+      await saveEdits(config, stringFormatter);
       await refreshFromLatestSource(config);
       await refreshCount();
-      // github's own deploy() toast is the final word on success/failure -
-      // only show a toast here when there was nothing to merge (local mode,
-      // a github save with nothing pending, or a direct save to main).
-      if (!deployed) {
-        toastQueue.positive(
-          stringFormatter.format(
-            isGithub && commitOid && isOnDefaultBranch
-              ? "veiSavedToMainSuccess"
-              : "veiChangesSavedToast",
-          ),
-          { timeout: 4000 },
-        );
-      }
+      toastQueue.positive(stringFormatter.format("veiChangesSavedToast"), {
+        timeout: 4000,
+      });
     } catch (err) {
       toastQueue.critical(err instanceof Error ? err.message : String(err));
     } finally {
@@ -732,10 +624,6 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
   };
 
   const onSave = () => {
-    if (isGithub) {
-      setConfirmSaveOpen(true);
-      return;
-    }
     void runSave();
   };
 
@@ -1029,16 +917,9 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
           whole time edit mode is on (not just while something's focused/
           hovered - see the state above), so it's always there to glance at.
           Positioned/styled entirely in editor.css, independent of .dry-bar's
-          own bottom-left placement. In github mode it's prefixed with the
-          build/deploy status (CloudflareStatusInline - busy label while
-          Save's merge/deploy is running, then whatever Cloudflare's build WS
-          reports), folded into the same flat readout rather than a separate
-          pill below it. */}
+          own bottom-left placement. */}
       {editing && (
         <div className="dry-active-spot">
-          {isGithub && (
-            <CloudflareStatusInline busy={deployBusy} busyLabel={deployLabel} />
-          )}
           {activeSpot ? (
             <>
               <span
@@ -1055,42 +936,6 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
           )}
         </div>
       )}
-
-      {/* Confirms before Save's now-heavier effect: it doesn't just write a
-          file, it either merges a brand branch into main (kicking off a
-          production deploy) or, when already on main, commits and deploys
-          straight to production with no merge step. Local mode has no
-          merge/deploy step (see onSave above) so never opens this. */}
-      <DialogContainer onDismiss={() => setConfirmSaveOpen(false)}>
-        {confirmSaveOpen && (
-          <AlertDialog
-            title={
-              isOnDefaultBranch
-                ? stringFormatter.format("veiSaveToMainTitle")
-                : stringFormatter.format("veiSaveDeployTitle")
-            }
-            tone="neutral"
-            cancelLabel={stringFormatter.format("cancel")}
-            primaryActionLabel={
-              isOnDefaultBranch
-                ? stringFormatter.format("veiSaveToMain")
-                : stringFormatter.format("veiSaveAndDeploy")
-            }
-            autoFocusButton="cancel"
-            onCancel={() => setConfirmSaveOpen(false)}
-            onPrimaryAction={() => {
-              setConfirmSaveOpen(false);
-              void runSave();
-            }}
-          >
-            <Text>
-              {isOnDefaultBranch
-                ? stringFormatter.format("veiConfirmSaveMainBody")
-                : stringFormatter.format("veiConfirmSaveDeployBody")}
-            </Text>
-          </AlertDialog>
-        )}
-      </DialogContainer>
 
       {refOpen &&
         entryList.length > 0 &&
@@ -1336,6 +1181,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
             currentBranch={providerState.currentBranch}
           >
             <FileManagerHost />
+            <ContentRefPickerHost />
             {/* fields.content spots edit in place rather than through a
                 dialog, so these mount for as long as edit mode is on. They
                 live inside the boundary because the content editor can open
@@ -1529,22 +1375,24 @@ function ContainerFieldDialog({
             this entry's own directory, matching SingletonPage.tsx's own
             EntryDirectoryProvider usage. */}
         <EntryDirectoryProvider value={resolveEntryRef(config, ref).dir}>
-          <VStack
-            id={formId}
-            elementType="form"
-            onSubmit={(event: FormEvent) => {
-              if (event.target !== event.currentTarget) return;
-              event.preventDefault();
-              onDone();
-            }}
-            gap="xxlarge"
-          >
-            <FormValueContentFromPreviewProps
-              autoFocus
-              {...previewProps}
-              forceValidation={forceValidation}
-            />
-          </VStack>
+          <CurrentEntryRefProvider value={ref}>
+            <VStack
+              id={formId}
+              elementType="form"
+              onSubmit={(event: FormEvent) => {
+                if (event.target !== event.currentTarget) return;
+                event.preventDefault();
+                onDone();
+              }}
+              gap="xxlarge"
+            >
+              <FormValueContentFromPreviewProps
+                autoFocus
+                {...previewProps}
+                forceValidation={forceValidation}
+              />
+            </VStack>
+          </CurrentEntryRefProvider>
         </EntryDirectoryProvider>
       </Content>
       <ButtonGroup>

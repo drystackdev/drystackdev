@@ -17,8 +17,10 @@ import { ProseMirrorEditor } from "../markdoc/editor/editor-view";
 import { AutocompleteDecoration } from "../markdoc/editor/autocomplete/decoration";
 import { NodeViews } from "../markdoc/editor/react-node-views";
 import { MediaScopeProvider } from "../markdoc/editor/media-scope";
+import { ContentRefScopeProvider } from "../markdoc/editor/content-ref-scope";
 import { EditorContextProvider, getToolbarId } from "../markdoc/editor/context";
 import l10nMessages from "../../../app/l10n";
+import type { EntryRef } from "../../../app/path-utils";
 
 // Distance between the edited element and the floating toolbar above it.
 const TOOLBAR_GAP = 8;
@@ -250,11 +252,13 @@ export function InlineDocumentEditor({
   value,
   onChange,
   entryDirectory,
+  currentEntryRef,
 }: {
   mount: HTMLElement;
   value: EditorState;
   onChange: (state: EditorState) => void;
   entryDirectory: string | undefined;
+  currentEntryRef?: EntryRef;
 }) {
   const id = useId();
   const editorContext = useMemo(() => ({ id }), [id]);
@@ -284,14 +288,16 @@ export function InlineDocumentEditor({
 
   return (
     <MediaScopeProvider value={mediaScope}>
-      <EditorContextProvider value={editorContext}>
-        <ProseMirrorEditor value={value} onChange={onChange} mount={mount}>
-          {toolbarVisible && <FloatingToolbar anchor={mount} id={id} />}
-          <NodeViews state={value} />
-          <EditorPopoverDecoration state={value} />
-          <AutocompleteDecoration />
-        </ProseMirrorEditor>
-      </EditorContextProvider>
+      <ContentRefScopeProvider value={currentEntryRef ?? null}>
+        <EditorContextProvider value={editorContext}>
+          <ProseMirrorEditor value={value} onChange={onChange} mount={mount}>
+            {toolbarVisible && <FloatingToolbar anchor={mount} id={id} />}
+            <NodeViews state={value} />
+            <EditorPopoverDecoration state={value} />
+            <AutocompleteDecoration />
+          </ProseMirrorEditor>
+        </EditorContextProvider>
+      </ContentRefScopeProvider>
     </MediaScopeProvider>
   );
 }

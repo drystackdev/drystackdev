@@ -4,7 +4,6 @@ import { ReactElement } from "react";
 import { ComponentSchema, SlugFormField } from "./form/api";
 import * as fields from "./form/fields";
 import type { Locale } from "./app/l10n/locales";
-import { RepoConfig } from "./app/repo-config";
 import { REDIRECTS_DIR } from "./app/redirects";
 
 // Common
@@ -73,11 +72,6 @@ export type AiConfig<Collections, Singletons> = {
   >;
 };
 
-type CommonRemoteStorageConfig = {
-  pathPrefix?: string;
-  branchPrefix?: string;
-};
-
 // Interface
 // ----------------------------------------------------------------------------
 
@@ -111,41 +105,10 @@ type Navigation<K> = K[] | { [section: string]: K[] };
 // Storage
 // ----------------------------------------------------------------------------
 
-type GitHubStorageConfig = {
-  kind: "github";
-  repo: RepoConfig;
-} & CommonRemoteStorageConfig;
-
-export type GitHubConfig<
-  Collections extends {
-    [key: string]: Collection<Record<string, ComponentSchema>, string>;
-  } = {
-    [key: string]: Collection<Record<string, ComponentSchema>, string>;
-  },
-  Singletons extends {
-    [key: string]: Singleton<Record<string, ComponentSchema>>;
-  } = {
-    [key: string]: Singleton<Record<string, ComponentSchema>>;
-  },
-> = {
-  storage: GitHubStorageConfig;
-  collections?: Collections;
-  singletons?: Singletons;
-} & CommonConfig<Collections, Singletons>;
-
-type LocalStorageConfig = {
-  kind: "local";
-};
-
-// Read-only public demo. Its own `storage.kind` (not a flag on local
-// storage): still shares local's entire shape otherwise (one tree, no
-// branches, no OAuth), so every call site that wants "local-shaped" behavior
-// for local, demo and r2 uses `isLocalShapedConfig`/`LocalShapedConfig`
-// (see app/storage-mode.ts) instead of hand-rolling an `||`. Only the handful
-// of places that need demo-specific behavior branch on `isDemoConfig`/`kind
-// === 'demo'` directly.
+// Read-only public demo. Its own `storage.kind` (not a flag on r2), sharing
+// r2's entire client shape otherwise (one tree, no branches, no OAuth).
 //
-// What distinguishes it from plain local:
+// What distinguishes it from r2:
 // - reads come from a prebuilt `/__data.zip` instead of `/api/<base>/tree`
 //   and `/api/<base>/blob/...` (see app/demo-source.ts)
 // - every write path no-ops with a toast (see app/demo-guard.ts)
@@ -158,35 +121,16 @@ type DemoStorageConfig = {
   kind: "demo";
 };
 
-// Content lives in a Cloudflare R2 bucket instead of the filesystem or a
-// GitHub repo. Local-shaped on the client (one tree, no branches, no OAuth):
+// Content lives in a Cloudflare R2 bucket. One tree, no branches, no OAuth:
 // the admin app talks to the exact same `/api/<base>/tree|blob|update` REST
-// routes as local mode - only the server side swaps `fs` for the R2 binding
-// (see api/api-r2.ts). Unlike local mode the deployment is public, so
-// `/drystack`, VEI and every write route are gated behind the native
-// email/password login (JWT signed with DRYSTACK_SECRET - see
-// api/native-auth.ts); reads stay public per the auth plan, except the
-// `auth/` prefix which is never served.
+// routes for reads/writes - only the server side swaps `fs` for the R2
+// binding (see api/api-r2.ts). The deployment is public, so `/drystack`, VEI
+// and every write route are gated behind the native email/password login
+// (JWT signed with DRYSTACK_SECRET - see api/native-auth.ts); reads stay
+// public per the auth plan, except the `auth/` prefix which is never served.
 type R2StorageConfig = {
   kind: "r2";
 };
-
-export type LocalConfig<
-  Collections extends {
-    [key: string]: Collection<Record<string, ComponentSchema>, string>;
-  } = {
-    [key: string]: Collection<Record<string, ComponentSchema>, string>;
-  },
-  Singletons extends {
-    [key: string]: Singleton<Record<string, ComponentSchema>>;
-  } = {
-    [key: string]: Singleton<Record<string, ComponentSchema>>;
-  },
-> = {
-  storage: LocalStorageConfig;
-  collections?: Collections;
-  singletons?: Singletons;
-} & CommonConfig<Collections, Singletons>;
 
 export type DemoConfig<
   Collections extends {
@@ -222,28 +166,6 @@ export type R2Config<
   singletons?: Singletons;
 } & CommonConfig<Collections, Singletons>;
 
-// "Local-shaped" configs - real local storage, the read-only public demo and
-// R2 storage, which all share local's client shape (one tree, no branches, no
-// OAuth; reads/writes over the local REST routes rather than GitHub's
-// GraphQL). Used by call sites that want the pre-split `isLocalConfig`
-// behavior (see app/storage-mode.ts's `isLocalShapedConfig`) rather than
-// distinguishing the three.
-export type LocalShapedConfig<
-  Collections extends {
-    [key: string]: Collection<Record<string, ComponentSchema>, string>;
-  } = {
-    [key: string]: Collection<Record<string, ComponentSchema>, string>;
-  },
-  Singletons extends {
-    [key: string]: Singleton<Record<string, ComponentSchema>>;
-  } = {
-    [key: string]: Singleton<Record<string, ComponentSchema>>;
-  },
-> =
-  | LocalConfig<Collections, Singletons>
-  | DemoConfig<Collections, Singletons>
-  | R2Config<Collections, Singletons>;
-
 export type Config<
   Collections extends {
     [key: string]: Collection<Record<string, ComponentSchema>, string>;
@@ -256,11 +178,7 @@ export type Config<
     [key: string]: Singleton<Record<string, ComponentSchema>>;
   },
 > = {
-  storage:
-    | LocalStorageConfig
-    | DemoStorageConfig
-    | GitHubStorageConfig
-    | R2StorageConfig;
+  storage: DemoStorageConfig | R2StorageConfig;
   collections?: Collections;
   singletons?: Singletons;
 } & ({} extends Collections ? {} : { collections: Collections }) &

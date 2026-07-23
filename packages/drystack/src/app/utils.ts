@@ -25,12 +25,6 @@ export function getCollection(config: Config, collection: string) {
   return config.collections![collection];
 }
 
-export function getBranchPrefix(config: Config) {
-  return config.storage.kind === 'github'
-    ? config.storage.branchPrefix
-    : undefined;
-}
-
 export function arrayOf<T>(arr: readonly (T | null)[]): T[] {
   return arr.filter(isDefined);
 }

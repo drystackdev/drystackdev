@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useConfig } from "../shell/context";
-import { useBaseCommit, useRepoInfo, useTree } from "../shell/data";
+import { useTree } from "../shell/data";
 import { useRouter } from "../router";
 import { fetchBlob } from "../useItemData";
 import { getTreeNodeAtPath } from "../trees";
@@ -11,8 +11,6 @@ const textDecoder = new TextDecoder();
 // `useMediaLibraryPreviewURL`, but returns text instead of an object URL
 export function useFileTextContent(path: string | null) {
   const config = useConfig();
-  const baseCommit = useBaseCommit();
-  const repoInfo = useRepoInfo();
   const { basePath } = useRouter();
   const tree = useTree().current;
   const relativePath = path?.replace(/^\/+/, "");
@@ -29,9 +27,7 @@ export function useFileTextContent(path: string | null) {
       return;
     }
     let cancelled = false;
-    Promise.resolve(
-      fetchBlob(config, sha, relativePath, baseCommit, repoInfo, basePath),
-    )
+    Promise.resolve(fetchBlob(config, sha, relativePath, basePath))
       .then((bytes) => {
         if (cancelled) return;
         setText(textDecoder.decode(bytes));

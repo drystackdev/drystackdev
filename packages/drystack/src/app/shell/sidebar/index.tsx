@@ -33,14 +33,11 @@ import { usePrevious } from "@keystar/ui/utils";
 import l10nMessages from "../../l10n";
 import { useRouter } from "../../router";
 import { ItemOrGroup, useNavItems } from "../../useNavItems";
-import { isLocalShapedConfig, isR2Config } from "../../utils";
+import { isDemoConfig } from "../../utils";
 
 import { useBrand } from "../common";
 import { SIDE_PANEL_ID } from "../constants";
 import { ThemeMenu, UserActions } from "./components";
-import { CurrentBrandChip } from "../../deploy/CurrentBrandChip";
-import { DeployButton } from "../../deploy/DeployButton";
-import { NewBranchButton } from "../../deploy/NewBranchButton";
 import { useAppState, useConfig } from "../context";
 
 const SidebarContext = createContext<OverlayTriggerState | null>(null);
@@ -82,7 +79,6 @@ export function SidebarPanel() {
   return (
     <VStack backgroundColor="surface" height="100%">
       <SidebarHeader />
-      <SidebarGitActions />
       <SidebarNav />
       <SidebarFooter />
     </VStack>
@@ -91,10 +87,10 @@ export function SidebarPanel() {
 
 function SidebarHeader() {
   let config = useConfig();
-  // r2 has a real signed-in identity (email + logout) like github, so it
-  // gets the footer treatment below, not this header shortcut - only local
-  // and demo (no identity at all) move ThemeMenu up here.
-  let isLocal = isLocalShapedConfig(config) && !isR2Config(config);
+  // r2 has a real signed-in identity (email + logout), so it gets the
+  // footer treatment below, not this header shortcut - only demo (no
+  // identity at all) moves ThemeMenu up here.
+  let isLocal = isDemoConfig(config);
   let { brandMark } = useBrand();
 
   return (
@@ -126,12 +122,12 @@ function SidebarHeader() {
   );
 }
 
-// in local/demo mode there's no user identity, so we hide the footer and
-// move the theme menu to the header. r2 has a real signed-in user (like
-// github), so it keeps the footer for UserActions (email + logout).
+// in demo mode there's no user identity, so we hide the footer and move the
+// theme menu to the header. r2 has a real signed-in user, so it keeps the
+// footer for UserActions (email + logout).
 function SidebarFooter() {
   let config = useConfig();
-  if (isLocalShapedConfig(config) && !isR2Config(config)) {
+  if (isDemoConfig(config)) {
     return null;
   }
   return (
@@ -144,25 +140,6 @@ function SidebarFooter() {
       <UserActions />
       <ThemeMenu />
     </HStack>
-  );
-}
-
-// no brand/deploy in local mode - brand is a github-only concept (plan/brand.md §12)
-// brand chip + new-branch button share a row, Deploy always gets its own line
-// below regardless of how long the brand label gets
-function SidebarGitActions() {
-  let config = useConfig();
-  if (isLocalShapedConfig(config)) {
-    return null;
-  }
-  return (
-    <VStack gap="regular" paddingY="regular" paddingX="medium">
-      <HStack gap="regular">
-        <CurrentBrandChip />
-        <NewBranchButton />
-      </HStack>
-      <DeployButton />
-    </VStack>
   );
 }
 
@@ -233,7 +210,6 @@ export function SidebarDialog() {
         })}
       >
         <SidebarHeader />
-        <SidebarGitActions />
         <SidebarNav />
         <SidebarFooter />
         <DismissButton onDismiss={state.close} />

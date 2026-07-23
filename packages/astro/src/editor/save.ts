@@ -28,7 +28,6 @@ import {
   spliceValueEdit,
 } from "@drystack/core/edit-sync";
 import { clientSideValidateProp } from "@drystack/core/field-editor";
-import { getAuth } from "@drystack/core/auth";
 import { isDemoConfig } from "@drystack/core/storage-mode";
 import { getDemoBlob, getDemoTreeEntries } from "@drystack/core/demo-source";
 // @ts-expect-error - provided by the drystack Astro integration's Vite plugin
@@ -39,11 +38,6 @@ import {
   clearPendingBlobs,
   getPendingBlobsUnder,
 } from "./store";
-import {
-  readBrandRecord,
-  writeBrandRecord,
-  type BrandRecord,
-} from "@drystack/core/brand-store";
 
 const textEncoder = new TextEncoder();
 
@@ -68,44 +62,6 @@ export function base64Encode(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-export function decodeBase64ToBytes(b64: string): Uint8Array {
-  const binary = atob(b64.replace(/\n/g, ""));
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-}
-
-export function getGithubToken(): string | null {
-  const match = document.cookie.match(
-    /(?:^|;\s*)drystack-gh-access-token=([^;]+)/,
-  );
-  return match ? decodeURIComponent(match[1]) : null;
-}
-
-// The access-token cookie is short-lived (GitHub's OAuth expiry, a few
-// hours) and nothing refreshes it while a user only ever interacts with this
-// live-site toolbar - the admin SPA's urql authExchange, which normally
-// keeps it alive, is never mounted in that case. Try the still-valid,
-// much-longer-lived refresh-token cookie before treating the session as
-// gone, so a save/publish that lands after a long idle stretch on this page
-// doesn't fail outright.
-export async function getGithubTokenWithRefresh(
-  config: Config<any, any>,
-): Promise<string | null> {
-  const token = getGithubToken();
-  if (token) return token;
-  const auth = await getAuth(config, `/${apiPath}`);
-  return auth?.accessToken ?? null;
-}
-
-export function parseRepo(repo: string | { owner: string; name: string }) {
-  if (typeof repo === "string") {
-    const [owner, name] = repo.split("/");
-    return { owner, name };
-  }
-  return repo;
-}
-
 type FileToWrite = { path: string; contents: Uint8Array };
 export type FileDiff = {
   path: string;
@@ -119,214 +75,35 @@ export type FileDiff = {
 
 const textDecoder = new TextDecoder();
 
-// Carries GitHub's machine-readable error `type` (e.g. "STALE_DATA",
-// "BRANCH_PROTECTION_RULE_VIOLATION") so callers can react to specific
-// failure modes instead of only having a joined message string.
-export class GithubGraphQLError extends Error {
-  type?: string;
-  constructor(message: string, type?: string) {
-    super(message);
-    this.type = type;
-  }
-}
-
-export async function githubGraphQL(
-  token: string,
-  query: string,
-  variables: Record<string, unknown>,
-) {
-  const res = await fetch("https://api.github.com/graphql", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ query, variables }),
-  });
-  const json = await res.json();
-  if (json.errors?.length) {
-    throw new GithubGraphQLError(
-      json.errors.map((e: { message: string }) => e.message).join("; "),
-      json.errors[0]?.type,
-    );
-  }
-  return json.data;
-}
-
-const refQuery = `
-  query GetRef($owner: String!, $name: String!) {
-    repository(owner: $owner, name: $name) {
-      defaultBranchRef {
-        name
-        target { oid }
-      }
-    }
-  }
-`;
-
-async function getDefaultBranch(
-  token: string,
-  owner: string,
-  name: string,
-  sf: LocalizedStringFormatter<string, any>,
-) {
-  const data = await githubGraphQL(token, refQuery, { owner, name });
-  const ref = data?.repository?.defaultBranchRef;
-  if (!ref)
-    throw new Error(
-      sf.format("veiDefaultBranchNotFound", { repo: `${owner}/${name}` }),
-    );
-  return { branchName: ref.name as string, oid: ref.target.oid as string };
-}
-
-const branchRefQuery = `
-  query GetBranchRef($owner: String!, $name: String!, $qualifiedName: String!) {
-    repository(owner: $owner, name: $name) {
-      ref(qualifiedName: $qualifiedName) {
-        name
-        target { oid }
-      }
-    }
-  }
-`;
-
-// Like getDefaultBranch, but for an arbitrary ref (e.g. a brand branch) -
-// returns null (rather than throwing) when the ref doesn't exist, since
-// callers use that to detect a deleted/rotated brand and recreate one.
-async function getBranchRef(
-  token: string,
-  owner: string,
-  name: string,
-  qualifiedName: string,
-): Promise<{ branchName: string; oid: string } | null> {
-  const data = await githubGraphQL(token, branchRefQuery, {
-    owner,
-    name,
-    qualifiedName,
-  });
-  const ref = data?.repository?.ref;
-  if (!ref) return null;
-  return { branchName: ref.name as string, oid: ref.target.oid as string };
-}
-
-const repoAndViewerQuery = `
-  query VeiEnsureBrand($owner: String!, $name: String!) {
-    viewer { login name }
-    repository(owner: $owner, name: $name) {
-      id
-      defaultBranchRef { name target { oid } }
-    }
-  }
-`;
-
-// The branch Save commits to. Reuses the locally-remembered brand if GitHub
-// still has it (mirrors useBrandGuard's adopt logic in brand.tsx), otherwise
-// defaults straight to the repo's default branch - brands are opt-in
-// (NewBranchButton in the admin app) now, so Save never creates one on its
-// own. A user editing straight from the live site who never opened /drystack
-// simply saves to the default branch, same as anyone else who hasn't picked
-// a brand.
-export async function ensureBrand(
-  config: Config<any, any>,
-  token: string,
-  owner: string,
-  name: string,
-  sf: LocalizedStringFormatter<string, any>,
-): Promise<BrandRecord> {
-  const existing = await readBrandRecord(config as any);
-  if (existing) {
-    const stillExists = await getBranchRef(
-      token,
-      owner,
-      name,
-      `refs/heads/${existing.ref}`,
-    );
-    if (stillExists) return existing;
-  }
-  const data = await githubGraphQL(token, repoAndViewerQuery, { owner, name });
-  const repo = data?.repository;
-  const login: string | undefined = data?.viewer?.login;
-  const defaultBranchName: string | undefined = repo?.defaultBranchRef?.name;
-  if (!repo?.id || !defaultBranchName || !login) {
-    throw new Error(sf.format("veiRepoResolveFailed"));
-  }
-  const record: BrandRecord = {
-    ref: defaultBranchName,
-    label: defaultBranchName,
-    login,
-    createdAt: Date.now(),
-  };
-  await writeBrandRecord(config as any, record);
-  return record;
-}
-
-const createCommitMutation = `
-  mutation CreateCommit($input: CreateCommitOnBranchInput!) {
-    createCommitOnBranch(input: $input) {
-      ref { id target { id oid } }
-    }
-  }
-`;
-
 async function readCurrentFile(
   config: Config<any, any>,
   filepath: string,
-  githubBranchName: string | undefined,
   sf: LocalizedStringFormatter<string, any>,
 ): Promise<Uint8Array | null> {
-  // Checked ahead of the plain "local" branch below: a demo build has no
-  // `/api/*/tree` or `/api/*/blob` routes to call (it's fully static - see
-  // app/demo-source.ts), but read-only features built on this function
-  // (getLatestFieldValues seeding a field's live value, getPendingDiffs
-  // previewing what a save *would* write) still need to work. Mirrors the
-  // local branch's own shape: a tree lookup decides existence, then a blob
-  // read gets the bytes.
+  // A demo build has no `/api/*/tree` or `/api/*/blob` routes to call (it's
+  // fully static - see app/demo-source.ts), but read-only features built on
+  // this function (getLatestFieldValues seeding a field's live value,
+  // getPendingDiffs previewing what a save *would* write) still need to
+  // work. Mirrors the r2 branch's own shape below: a tree lookup decides
+  // existence, then a blob read gets the bytes.
   if (isDemoConfig(config)) {
     const entries = await getDemoTreeEntries();
     const entry = entries.find((e) => e.path === filepath);
     if (!entry) return null;
     return await getDemoBlob(filepath);
   }
-  if (config.storage.kind === "local" || config.storage.kind === "r2") {
-    const treeRes = await fetch(`/api/${apiPath}/tree`, {
-      headers: { "no-cors": "1" },
-    });
-    if (!treeRes.ok) throw new Error(sf.format("veiReadTreeFailed"));
-    const entries: { path: string; sha: string }[] = await treeRes.json();
-    const entry = entries.find((e) => e.path === filepath);
-    if (!entry) return null;
-    const blobRes = await fetch(
-      `/api/${apiPath}/blob/${entry.sha}/${filepath}`,
-      {
-        headers: { "no-cors": "1" },
-      },
-    );
-    if (!blobRes.ok) throw new Error(sf.format("veiReadFileFailed"));
-    return new Uint8Array(await blobRes.arrayBuffer());
-  }
-  if (config.storage.kind === "github") {
-    const token = await getGithubTokenWithRefresh(config);
-    if (!token) throw new Error(sf.format("veiNotSignedIn"));
-    const { owner, name } = parseRepo((config.storage as any).repo);
-    const res = await fetch(
-      `https://api.github.com/repos/${owner}/${name}/contents/${filepath}?ref=${githubBranchName}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/vnd.github+json",
-        },
-      },
-    );
-    if (res.status === 404) return null;
-    if (!res.ok) throw new Error(sf.format("veiReadFileGithubFailed"));
-    const json = await res.json();
-    return decodeBase64ToBytes(json.content);
-  }
-  throw new Error(
-    sf.format("veiUnsupportedStorageKind", {
-      kind: (config.storage as any).kind,
-    }),
-  );
+  const treeRes = await fetch(`/api/${apiPath}/tree`, {
+    headers: { "no-cors": "1" },
+  });
+  if (!treeRes.ok) throw new Error(sf.format("veiReadTreeFailed"));
+  const entries: { path: string; sha: string }[] = await treeRes.json();
+  const entry = entries.find((e) => e.path === filepath);
+  if (!entry) return null;
+  const blobRes = await fetch(`/api/${apiPath}/blob/${entry.sha}/${filepath}`, {
+    headers: { "no-cors": "1" },
+  });
+  if (!blobRes.ok) throw new Error(sf.format("veiReadFileFailed"));
+  return new Uint8Array(await blobRes.arrayBuffer());
 }
 
 // Every file under an entry's own `assets/` directory, keyed the way a
@@ -348,7 +125,6 @@ async function readCurrentFile(
 export async function listAssetFiles(
   config: Config<any, any>,
   ref: EntryRef,
-  githubBranchName: string | undefined,
   // The content field's own dotted path (e.g. "brand.name") - a nested
   // content field's embedded images live under their own subdirectory
   // (contentAssetsDir) rather than the entry's shared `assets/`, so two
@@ -378,67 +154,26 @@ export async function listAssetFiles(
     );
     return out;
   }
-  if (config.storage.kind === "local" || config.storage.kind === "r2") {
-    const treeRes = await fetch(`/api/${apiPath}/tree`, {
-      headers: { "no-cors": "1" },
-    });
-    if (!treeRes.ok) throw new Error(sf.format("veiReadTreeFailed"));
-    const entries: { path: string; sha: string }[] = await treeRes.json();
-    await Promise.all(
-      entries
-        .filter((e) => e.path.startsWith(`${dir}/`))
-        .map(async (e) => {
-          const res = await fetch(`/api/${apiPath}/blob/${e.sha}/${e.path}`, {
-            headers: { "no-cors": "1" },
-          });
-          if (!res.ok) return;
-          out.set(
-            e.path.slice(dir.length + 1),
-            new Uint8Array(await res.arrayBuffer()),
-          );
-        }),
-    );
-    return out;
-  }
-  if (config.storage.kind === "github") {
-    const token = await getGithubTokenWithRefresh(config);
-    if (!token) throw new Error(sf.format("veiNotSignedIn"));
-    const { owner, name } = parseRepo((config.storage as any).repo);
-    const headers = {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json",
-    };
-    const res = await fetch(
-      `https://api.github.com/repos/${owner}/${name}/contents/${dir}?ref=${githubBranchName}`,
-      { headers },
-    );
-    // A singleton with no embedded images has no assets/ directory at all -
-    // an expected state, not a failure.
-    if (res.status === 404) return out;
-    if (!res.ok) throw new Error(sf.format("veiListAssetsFailed"));
-    const listing = await res.json();
-    if (!Array.isArray(listing)) return out;
-    await Promise.all(
-      listing
-        .filter((e: any) => e.type === "file")
-        .map(async (e: any) => {
-          // The contents API inlines base64 only below 1MB and omits it
-          // above; the blobs API has no such cutoff, so go straight there.
-          const blobRes = await fetch(
-            `https://api.github.com/repos/${owner}/${name}/git/blobs/${e.sha}`,
-            { headers: { ...headers, Accept: "application/vnd.github.raw" } },
-          );
-          if (!blobRes.ok) return;
-          out.set(e.name, new Uint8Array(await blobRes.arrayBuffer()));
-        }),
-    );
-    return out;
-  }
-  throw new Error(
-    sf.format("veiUnsupportedStorageKind", {
-      kind: (config.storage as any).kind,
-    }),
+  const treeRes = await fetch(`/api/${apiPath}/tree`, {
+    headers: { "no-cors": "1" },
+  });
+  if (!treeRes.ok) throw new Error(sf.format("veiReadTreeFailed"));
+  const entries: { path: string; sha: string }[] = await treeRes.json();
+  await Promise.all(
+    entries
+      .filter((e) => e.path.startsWith(`${dir}/`))
+      .map(async (e) => {
+        const res = await fetch(`/api/${apiPath}/blob/${e.sha}/${e.path}`, {
+          headers: { "no-cors": "1" },
+        });
+        if (!res.ok) return;
+        out.set(
+          e.path.slice(dir.length + 1),
+          new Uint8Array(await res.arrayBuffer()),
+        );
+      }),
   );
+  return out;
 }
 
 // Every pending edit must satisfy its own field's schema.validate before it's
@@ -689,7 +424,6 @@ async function collectContentFieldDiffs(
   fieldSchema: ContentFieldSchema,
   data: Record<string, unknown>,
   containerSchema: ComponentSchema | undefined,
-  githubBranchName: string | undefined,
   sf: LocalizedStringFormatter<string, any>,
 ): Promise<FileDiff[]> {
   const dir = resolveEntryRef(config, ref).dir;
@@ -702,7 +436,7 @@ async function collectContentFieldDiffs(
   // and serialize() then silently repoints it to /media-library/ and drops
   // its bytes instead of writing them beside the entry (see listAssetFiles).
   const [saved, pending] = await Promise.all([
-    listAssetFiles(config, ref, githubBranchName, dottedField, sf),
+    listAssetFiles(config, ref, dottedField, sf),
     getPendingBlobsUnder(assetsDir).catch(() => new Map<string, Uint8Array>()),
   ]);
   // Pending wins: it's the newer copy of any name present in both.
@@ -739,12 +473,7 @@ async function collectContentFieldDiffs(
   // nothing more to diff here.
   if (fieldSchema.contentExtension) {
     const contentPath = `${dir}/${dottedField}${fieldSchema.contentExtension}`;
-    const rawBefore = await readCurrentFile(
-      config,
-      contentPath,
-      githubBranchName,
-      sf,
-    );
+    const rawBefore = await readCurrentFile(config, contentPath, sf);
     diffs.push({
       path: contentPath,
       before: rawBefore ? textDecoder.decode(rawBefore) : "",
@@ -778,7 +507,6 @@ async function collectContentFieldDiffs(
 // Powers both saving (encode `after`) and the review diff dialog.
 async function collectFileDiffs(
   config: Config<any, any>,
-  githubBranchName: string | undefined,
   sf: LocalizedStringFormatter<string, any>,
 ): Promise<FileDiff[]> {
   const edits = await getAllEdits();
@@ -815,7 +543,7 @@ async function collectFileDiffs(
         sf.format("veiContentFieldUnsupported", { entry: entryRefKey(ref) }),
       );
     }
-    const raw = await readCurrentFile(config, dataFilepath, githubBranchName, sf);
+    const raw = await readCurrentFile(config, dataFilepath, sf);
     const before = raw ? textDecoder.decode(raw) : "";
     const data = (
       raw ? (loadDataFile(raw, format).loaded ?? {}) : {}
@@ -840,7 +568,6 @@ async function collectFileDiffs(
             schema[baseField] as unknown as ContentFieldSchema,
             data,
             undefined,
-            githubBranchName,
             sf,
           )),
         );
@@ -897,7 +624,6 @@ async function collectFileDiffs(
             leafSchema as unknown as ContentFieldSchema,
             data,
             schema[baseField],
-            githubBranchName,
             sf,
           )),
         );
@@ -914,10 +640,9 @@ async function collectFileDiffs(
 
 async function buildFileChanges(
   config: Config<any, any>,
-  githubBranchName: string | undefined,
   sf: LocalizedStringFormatter<string, any>,
 ): Promise<{ additions: FileToWrite[]; deletions: { path: string }[] }> {
-  const diffs = await collectFileDiffs(config, githubBranchName, sf);
+  const diffs = await collectFileDiffs(config, sf);
   const additions: FileToWrite[] = diffs.map((d) => ({
     path: d.path,
     contents: d.contents ?? textEncoder.encode(d.after),
@@ -926,47 +651,34 @@ async function buildFileChanges(
 }
 
 // The branch segment the admin app's routes expect (e.g. "branch/main/") -
-// GitHub mode is branch-scoped, local mode has no branch in its URLs.
+// always empty now that storage is never branch-scoped, kept as an async
+// export so bind.ts/Toolbar.tsx don't need their own no-branch special case.
 export async function getCurrentBranchName(
-  config: Config<any, any>,
-  sf: LocalizedStringFormatter<string, any>,
+  _config: Config<any, any>,
+  _sf: LocalizedStringFormatter<string, any>,
 ): Promise<string | undefined> {
-  if (config.storage.kind !== "github") return undefined;
-  const token = await getGithubTokenWithRefresh(config);
-  if (!token) throw new Error(sf.format("veiNotSignedIn"));
-  const { owner, name } = parseRepo((config.storage as any).repo);
-  const branch = await getDefaultBranch(token, owner, name, sf);
-  return branch.branchName;
+  return undefined;
 }
 
 // The entry's current on-disk field values, read straight from the source
-// (local API, or GitHub Contents API at the given branch) rather than
-// trusting whatever HTML the page happened to render with - that HTML can be
-// stale in github mode if this visitor's Cloudflare CDN edge hasn't caught
-// up with the latest deploy yet. String-valued (fields.text) entries pass
-// through as-is; fields.array entries are JSON-encoded to fit this
-// function's Record<string, string> shape, matching the encoding used
-// everywhere else on the edit-sync bus (see bind.ts's parseArrayValue and the
-// array dialog's publishEdit in Toolbar.tsx) - MVP scope, see dry.ts.
-//
-// `branch` is resolved by the caller (getCurrentBranchName), not here - a
-// page with several bound entries (a whole collection listing) calls this
-// once per entry, and re-resolving the same branch inside each call would be
-// one wasted GraphQL round trip per entry for a value that's identical every
-// time. `onlyFields`, when given, skips both the JSON re-encode and the
-// content field's sibling .html fetch for every field the caller doesn't
-// actually have a spot for - a listing page binds title/excerpt/cover, not
-// body, and has no reason to fetch every entry's whole article body just to
-// refresh three text fields.
+// rather than trusting whatever HTML the page happened to render with.
+// String-valued (fields.text) entries pass through as-is; fields.array
+// entries are JSON-encoded to fit this function's Record<string, string>
+// shape, matching the encoding used everywhere else on the edit-sync bus
+// (see bind.ts's parseArrayValue and the array dialog's publishEdit in
+// Toolbar.tsx) - MVP scope, see dry.ts. `onlyFields`, when given, skips both
+// the JSON re-encode and the content field's sibling .html fetch for every
+// field the caller doesn't actually have a spot for - a listing page binds
+// title/excerpt/cover, not body, and has no reason to fetch every entry's
+// whole article body just to refresh three text fields.
 export async function getLatestFieldValues(
   config: Config<any, any>,
   ref: EntryRef,
-  branch: string | undefined,
   onlyFields: Set<string> | undefined,
   sf: LocalizedStringFormatter<string, any>,
 ): Promise<Record<string, string>> {
   const { dir, format, dataFilepath, schema } = resolveEntryRef(config, ref);
-  const raw = await readCurrentFile(config, dataFilepath, branch, sf);
+  const raw = await readCurrentFile(config, dataFilepath, sf);
   if (!raw) return {};
   const data = (loadDataFile(raw, format).loaded ?? {}) as Record<
     string,
@@ -1000,155 +712,64 @@ export async function getLatestFieldValues(
     Object.entries(schema).map(async ([field, fieldSchema]) => {
       if (onlyFields && !onlyFields.has(field)) return;
       if (getSyncableFieldKind(fieldSchema as any) !== "content") return;
-      const raw = await readCurrentFile(config, `${dir}/${field}.html`, branch, sf);
+      const raw = await readCurrentFile(config, `${dir}/${field}.html`, sf);
       if (raw) result[field] = textDecoder.decode(raw);
     }),
   );
   return result;
 }
 
-// Before/after text for every file the pending edits would change - resolves
-// the GitHub default branch first when needed, mirroring the save path.
+// Before/after text for every file the pending edits would change.
 export async function getPendingDiffs(
   config: Config<any, any>,
   sf: LocalizedStringFormatter<string, any>,
 ): Promise<FileDiff[]> {
-  if (config.storage.kind === "github") {
-    const token = await getGithubTokenWithRefresh(config);
-    if (!token) throw new Error(sf.format("veiNotSignedIn"));
-    const { owner, name } = parseRepo((config.storage as any).repo);
-    const branch = await getDefaultBranch(token, owner, name, sf);
-    return collectFileDiffs(config, branch.branchName, sf);
-  }
-  return collectFileDiffs(config, undefined, sf);
+  return collectFileDiffs(config, sf);
 }
 
-// Returns the new commit's oid, or undefined when there was nothing to
-// commit. In local mode the write lands on the served file immediately, so
-// the caller can re-fetch via getLatestFieldValues right after. In github
-// mode this commits to whatever ensureBrand resolves to - a personal brand
-// (invisible to the default branch until deploy.ts's runDeploy merges it in,
-// invoked by the caller right after a successful save) or, now that brands
-// are opt-in, the default branch itself, which sees the change immediately.
+// Writes every pending edit to disk. A no-op (returns without writing) when
+// there's nothing pending. The write lands on the served file immediately,
+// so the caller can re-fetch via getLatestFieldValues right after.
 export async function saveEdits(
   config: Config<any, any>,
   sf: LocalizedStringFormatter<string, any>,
-): Promise<string | undefined> {
+): Promise<void> {
   // Single choke point: `saveEdits` is the only place that ever turns pending
-  // edits into a real write (github commit or local `/update` call), and
-  // Toolbar.tsx's runSave is its only caller today - guarding here instead of
-  // (or in addition to) the button click means every future caller inherits
-  // the same protection for free, and a demo build (which has no `/api/*`
-  // routes to call at all - see app/demo-source.ts) never even attempts the
-  // fetch that would otherwise 404.
+  // edits into a real write (`/update` call), and Toolbar.tsx's runSave is
+  // its only caller today - guarding here instead of (or in addition to) the
+  // button click means every future caller inherits the same protection for
+  // free, and a demo build (which has no `/api/*` routes to call at all -
+  // see app/demo-source.ts) never even attempts the fetch that would
+  // otherwise 404.
   if (isDemoConfig(config)) {
     throw new Error(sf.format("veiDemoModeNotSaved"));
   }
-  const isGithub = config.storage.kind === "github";
-  let commitOid: string | undefined;
-  if (isGithub) {
-    const token = await getGithubTokenWithRefresh(config);
-    if (!token) throw new Error(sf.format("veiNotSignedIn"));
-    const { owner, name } = parseRepo((config.storage as any).repo);
-    const brand = await ensureBrand(config, token, owner, name, sf);
-    const brandQualifiedName = `refs/heads/${brand.ref}`;
-    let branch = await getBranchRef(token, owner, name, brandQualifiedName);
-    if (!branch)
-      throw new Error(
-        sf.format("veiBrandBranchNotFound", { branch: brand.ref }),
-      );
-    let files = await buildFileChanges(config, branch.branchName, sf);
-    if (files.additions.length === 0 && files.deletions.length === 0)
-      return undefined;
-
-    const commit = () =>
-      githubGraphQL(token, createCommitMutation, {
-        input: {
-          branch: {
-            branchName: branch!.branchName,
-            repositoryNameWithOwner: `${owner}/${name}`,
-          },
-          expectedHeadOid: branch!.oid,
-          message: {
-            headline: "Update content via visual editor",
-          },
-          fileChanges: {
-            additions: files.additions.map((f) => ({
-              path: f.path,
-              contents: base64Encode(f.contents),
-            })),
-            deletions: files.deletions,
-          },
-        },
-      });
-
-    let data: Awaited<ReturnType<typeof commit>>;
-    try {
-      data = await commit();
-    } catch (err) {
-      if (!(err instanceof GithubGraphQLError)) throw err;
-      if (err.type === "BRANCH_PROTECTION_RULE_VIOLATION") {
-        throw new Error(
-          sf.format("veiBranchProtected", { branch: branch.branchName }),
-        );
-      }
-      if (err.type !== "STALE_DATA") throw err;
-      // Someone else committed to the brand branch since we read it (e.g.
-      // another tab). Refetch the branch tip and re-read the files against
-      // it, then retry exactly once - a second failure means we're racing
-      // too fast to safely auto-resolve, so surface it instead of retrying
-      // forever.
-      branch = await getBranchRef(token, owner, name, brandQualifiedName);
-      if (!branch)
-        throw new Error(
-          sf.format("veiBrandBranchNotFound", { branch: brand.ref }),
-        );
-      files = await buildFileChanges(config, branch.branchName, sf);
-      if (files.additions.length === 0 && files.deletions.length === 0)
-        return undefined;
-      try {
-        data = await commit();
-      } catch {
-        throw new Error(sf.format("veiStaleContentConflict"));
-      }
-    }
-    commitOid = data?.createCommitOnBranch?.ref?.target?.oid;
-  } else if (config.storage.kind === "local" || config.storage.kind === "r2") {
-    const files = await buildFileChanges(config, undefined, sf);
-    if (files.additions.length === 0 && files.deletions.length === 0) return;
-    const res = await fetch(`/api/${apiPath}/update`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "no-cors": "1" },
-      body: JSON.stringify({
-        additions: files.additions.map((f) => ({
-          path: f.path,
-          contents: base64Encode(f.contents),
-        })),
-        deletions: files.deletions,
-      }),
-    });
-    // In r2 mode a 401 means the session expired mid-edit - bounce through
-    // /login (edits survive in IndexedDB and `from` brings the user back).
-    if (res.status === 401 && config.storage.kind === "r2") {
-      location.assign(
-        `/login?from=${encodeURIComponent(location.pathname + location.search)}`,
-      );
-    }
-    if (!res.ok) throw new Error(await res.text());
-    // Local writes are immediately real/servable - unlike github mode (which
-    // needs a deploy to catch up, see discardEditsIfBuildIsNewer), there's no
-    // lag to bridge, so the bytes cached for previewing pending images can be
-    // dropped now instead of leaking in IndexedDB forever (the only other
-    // place that clears them is Reset, which is disabled once nothing's
-    // pending - i.e. never reachable right after a successful save).
-    await clearPendingBlobs();
-  } else {
-    throw new Error(
-      sf.format("veiUnsupportedStorageKind", {
-        kind: (config.storage as any).kind,
-      }),
+  const files = await buildFileChanges(config, sf);
+  if (files.additions.length === 0 && files.deletions.length === 0) return;
+  const res = await fetch(`/api/${apiPath}/update`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "no-cors": "1" },
+    body: JSON.stringify({
+      additions: files.additions.map((f) => ({
+        path: f.path,
+        contents: base64Encode(f.contents),
+      })),
+      deletions: files.deletions,
+    }),
+  });
+  // In r2 mode a 401 means the session expired mid-edit - bounce through
+  // /login (edits survive in IndexedDB and `from` brings the user back).
+  if (res.status === 401 && config.storage.kind === "r2") {
+    location.assign(
+      `/login?from=${encodeURIComponent(location.pathname + location.search)}`,
     );
   }
+  if (!res.ok) throw new Error(await res.text());
+  // Writes are immediately real/servable, so the bytes cached for previewing
+  // pending images can be dropped now instead of leaking in IndexedDB
+  // forever (the only other place that clears them is Reset, which is
+  // disabled once nothing's pending - i.e. never reachable right after a
+  // successful save).
+  await clearPendingBlobs();
   await publishClear();
-  return commitOid;
 }

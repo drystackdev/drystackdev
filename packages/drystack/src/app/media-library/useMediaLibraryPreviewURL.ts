@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useConfig } from "../shell/context";
-import { useBaseCommit, useRepoInfo, useTree } from "../shell/data";
+import { useTree } from "../shell/data";
 import { useRouter } from "../router";
 import { fetchBlob } from "../useItemData";
 import { getTreeNodeAtPath } from "../trees";
@@ -28,8 +28,6 @@ export function useMediaLibraryPreviewURL(
   thumbnail = false,
 ) {
   const config = useConfig();
-  const baseCommit = useBaseCommit();
-  const repoInfo = useRepoInfo();
   const { basePath } = useRouter();
   const tree = useTree().current;
   const relativePath = path?.replace(/^\/+/, "");
@@ -67,9 +65,7 @@ export function useMediaLibraryPreviewURL(
 
     let cancelled = false;
     let acquiredKey: string | null = null;
-    Promise.resolve(
-      fetchBlob(config, sha, relativePath, baseCommit, repoInfo, basePath),
-    )
+    Promise.resolve(fetchBlob(config, sha, relativePath, basePath))
       .then((bytes) => (thumbnail ? getThumbnailBytes(sha, bytes) : bytes))
       .then((bytes) => {
         if (cancelled) return;
@@ -94,8 +90,6 @@ export function useMediaLibraryPreviewURL(
 // left/right navigation is instant. Safe to call with nulls/empties.
 export function useMediaLibraryPrefetch(paths: (string | null | undefined)[]) {
   const config = useConfig();
-  const baseCommit = useBaseCommit();
-  const repoInfo = useRepoInfo();
   const { basePath } = useRouter();
   const tree = useTree().current;
   const cacheKey = paths.filter(Boolean).join("\n");
@@ -108,9 +102,7 @@ export function useMediaLibraryPrefetch(paths: (string | null | undefined)[]) {
       const sha = getTreeNodeAtPath(tree.data.tree, rel)?.entry.sha;
       if (!sha) continue;
       // fire-and-forget; fetchBlob dedupes and shares the concurrency queue
-      Promise.resolve(
-        fetchBlob(config, sha, rel, baseCommit, repoInfo, basePath),
-      ).catch(() => {});
+      Promise.resolve(fetchBlob(config, sha, rel, basePath)).catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cacheKey, tree, basePath]);

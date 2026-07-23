@@ -17,17 +17,12 @@ import { Item, TabList, TabPanels, Tabs } from "@keystar/ui/tabs";
 import { Heading, Text } from "@keystar/ui/typography";
 
 import { useConfig } from "../shell/context";
-import {
-  useBaseCommit,
-  useRepoInfo,
-  useSetTreeSha,
-  useTree,
-} from "../shell/data";
+import { useSetTreeSha, useTree } from "../shell/data";
 import { useRouter } from "../router";
 import { fetchBlob } from "../useItemData";
 import { getTreeNodeAtPath, treeSha } from "../trees";
 import { getCollectionItemPath, getSingletonPath } from "../path-utils";
-import { getEntriesInCollectionWithTreeKey, isLocalShapedConfig } from "../utils";
+import { getEntriesInCollectionWithTreeKey } from "../utils";
 import {
   MediaLibraryLocalScope,
   MediaLibraryPick,
@@ -80,8 +75,6 @@ type EntriesNav =
 // changes as you drill into a collection/singleton/slug)
 function useAssetActions() {
   const config = useConfig();
-  const baseCommit = useBaseCommit();
-  const repoInfo = useRepoInfo();
   const { basePath } = useRouter();
   const tree = useTree().current;
 
@@ -89,7 +82,7 @@ function useAssetActions() {
     if (tree.kind !== "loaded") return undefined;
     const sha = getTreeNodeAtPath(tree.data.tree, path)?.entry.sha;
     if (!sha) return undefined;
-    return fetchBlob(config, sha, path, baseCommit, repoInfo, basePath);
+    return fetchBlob(config, sha, path, basePath);
   }
 
   return { readBytes, tree };
@@ -218,13 +211,7 @@ export function FileManagerRoot(props: { mode: FileManagerMode }) {
   }
 
   async function afterMutation(result: Awaited<ReturnType<typeof trashPaths>>) {
-    // Only local mode has a manual tree-sha setter - `useSetTreeSha` throws in
-    // github mode (no SetTreeShaContext provider there). In github mode the
-    // tree refreshes on its own from the `createCommitOnBranch` result via
-    // urql's normalized cache, exactly like useUpsertItem's github save path,
-    // so calling setTreeSha here would both be wrong and throw - leaving e.g.
-    // the New Folder dialog open because the throw skips its close call.
-    if (mode.kind === "page" && result && isLocalShapedConfig(config)) {
+    if (mode.kind === "page" && result) {
       setTreeSha(await treeSha(result.tree));
     }
   }

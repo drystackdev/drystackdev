@@ -40,7 +40,7 @@ import { useCollectionViewState } from "./collection-table/useCollectionViewStat
 import l10nMessages from "./l10n";
 import { useRouter } from "./router";
 import { EmptyState } from "./shell/empty-state";
-import { useTree, TreeData, useBaseCommit, useRepoInfo } from "./shell/data";
+import { useTree, TreeData } from "./shell/data";
 import { PageRoot, PageHeader } from "./shell/page";
 import {
   getCollectionFormat,
@@ -57,7 +57,6 @@ import { getTreeNodeAtPath } from "./trees";
 import { loadDataFile } from "./required-files";
 import { parseProps } from "../form/parse-props";
 import { useData } from "./useData";
-import { useClient } from "urql";
 
 type CollectionPageProps = {
   collection: string;
@@ -285,16 +284,12 @@ function CollectionTable(
   let { searchTerm, columnDescriptors } = props;
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
-  const client = useClient();
-  const repoInfo = useRepoInfo();
   let router = useRouter();
   const collection = props.config.collections![props.collection]!;
   let [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
     column: collection.slugField,
     direction: "ascending",
   });
-
-  const baseCommit = useBaseCommit();
 
   const [pendingCheckboxEdit, setPendingCheckboxEdit] =
     useState<PendingCheckboxEdit | null>(null);
@@ -350,7 +345,6 @@ function CollectionTable(
       const formatInfo = getCollectionFormat(props.config, props.collection);
       const blobsByOid = await fetchBlobsBatch(
         props.config,
-        client,
         entriesWithStatus.map((entry) => ({
           oid: entry.sha,
           filepath: getEntryDataFilepath(
@@ -358,8 +352,6 @@ function CollectionTable(
             formatInfo,
           ),
         })),
-        baseCommit,
-        repoInfo,
         router.basePath,
       );
       const entries = entriesWithStatus.map(
@@ -423,10 +415,7 @@ function CollectionTable(
       props.config,
       props.collection,
       entriesWithStatus,
-      baseCommit,
-      repoInfo,
       router.basePath,
-      client,
     ]),
   );
 
@@ -501,10 +490,7 @@ function CollectionTable(
       if (requests.length === 0) return new Map<string, Map<string, string>>();
       const blobsByOid = await fetchBlobsBatch(
         props.config,
-        client,
         requests.map((r) => ({ oid: r.oid, filepath: r.filepath })),
-        baseCommit,
-        repoInfo,
         router.basePath,
       );
       const textByEntry = new Map<string, Map<string, string>>();
@@ -528,9 +514,6 @@ function CollectionTable(
       props.config,
       props.collection,
       props.trees,
-      client,
-      baseCommit,
-      repoInfo,
       router.basePath,
     ]),
   );

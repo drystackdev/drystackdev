@@ -12,7 +12,7 @@ export { valueToUpdater } from "../form/get-value";
 // Scopes the admin's ImageFieldInput/FileFieldInput "this entry's assets" tab
 // to a singleton's own directory - without it those inputs fall back to
 // library-only picking (see entry-form.tsx / form/fields/image/ui.tsx).
-export { EntryDirectoryProvider } from "./entry-form";
+export { EntryDirectoryProvider, CurrentEntryRefProvider } from "./entry-form";
 // A fields.slug schema's own `.Input` (SlugFieldInput) only turns on its real
 // uniqueness/collision-bump logic when it can see `PathContext === [the
 // collection's configured slugField]` and a `SlugFieldContext` carrying real

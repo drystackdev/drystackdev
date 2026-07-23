@@ -15,6 +15,7 @@ import {
   type EntryRef,
 } from "@drystack/core/path-utils";
 import { createConfiguredReader } from "./reader";
+import { resolveContentRefsInEntry } from "./content-ref-resolve";
 import {
   appendFileSync,
   mkdirSync,
@@ -290,8 +291,9 @@ export function createDry<
             slug: string;
             entry: Record<string, unknown>;
           }[]) {
-            out[slug] = attachEntrySpots(
+            out[slug] = await attachEntrySpots(
               config,
+              reader,
               { type: "collection", name, slug },
               entry,
             );
@@ -384,13 +386,22 @@ function resolveDrySpot(
 // reader.collections[name].all() call instead of re-reading each slug one at
 // a time (see readEntry's own doc comment for why that re-read would be
 // O(n²) in Astro).
-function attachEntrySpots(
+async function attachEntrySpots(
   config: Config<any, any>,
+  reader: Awaited<ReturnType<typeof createConfiguredReader>>,
   ref: EntryRef,
   entry: Record<string, unknown>,
-): DrySingleton | DryEntry<Collection<Record<string, ComponentSchema>, string>> {
+): Promise<
+  DrySingleton | DryEntry<Collection<Record<string, ComponentSchema>, string>>
+> {
   const schema = resolveEntryRef(config, ref).schema;
-  const result: Record<string, unknown> = { ...entry };
+  // Mutates a copy of `entry`'s own top-level content fields in place before
+  // anything below reads them, so both the plain prop and .bind()/.view()'s
+  // .value() see whatever a content_ref node currently points at - never a
+  // value cached from whenever the reference was inserted.
+  const entryWithResolvedRefs = { ...entry };
+  await resolveContentRefsInEntry(config, reader, schema, entryWithResolvedRefs);
+  const result: Record<string, unknown> = { ...entryWithResolvedRefs };
 
   if (ref.type === "collection") {
     // parseWithSlug (form/fields/slug/index.tsx) discards the slug half on
@@ -484,19 +495,6 @@ function attachEntrySpots(
       attrs["data-dry-value"] = assetValue(resolved.value);
     }
     if (readonly) attrs["data-dry-readonly"] = true;
-    // GitHub-mode pages are statically prerendered and served byte-identical
-    // to every visitor - emitting the real attrs would bake the full field
-    // path/kind/value into public production HTML. Route them through an
-    // opaque id instead; the real attrs are only handed back, post-auth, by
-    // the dry-map API route (see generic.ts) and patched onto the DOM by
-    // the editor client. Local mode never ships to production (confirmed
-    // dev-only), so it keeps the direct/legible attrs.
-    if (config.storage.kind === "github") {
-      return withValue(
-        { "data-dry-id": getOrCreateDryId(ref.name, attrs) },
-        resolved.value,
-      );
-    }
     return withValue(attrs, resolved.value);
   }
 
@@ -522,18 +520,18 @@ async function readEntry(
   config: Config<any, any>,
   reader: Awaited<ReturnType<typeof createConfiguredReader>>,
   ref: EntryRef,
-): Promise<ReturnType<typeof attachEntrySpots> | null> {
+): Promise<Awaited<ReturnType<typeof attachEntrySpots>> | null> {
   if (!entryRefExists(config, ref)) return null;
   if (ref.type === "singleton") {
     const entry =
       ((await (reader.singletons as any)[ref.name]?.read({
         resolveLinkedFiles: true,
       })) as Record<string, unknown> | null | undefined) ?? {};
-    return attachEntrySpots(config, ref, entry);
+    return attachEntrySpots(config, reader, ref, entry);
   }
   const entry = (await (reader.collections as any)[ref.name]?.read(ref.slug, {
     resolveLinkedFiles: true,
   })) as Record<string, unknown> | null | undefined;
   if (entry == null) return null;
-  return attachEntrySpots(config, ref, entry);
+  return attachEntrySpots(config, reader, ref, entry);
 }

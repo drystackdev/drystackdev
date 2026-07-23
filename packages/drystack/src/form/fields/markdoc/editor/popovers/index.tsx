@@ -21,6 +21,7 @@ import { LinkToolbar } from "./link-toolbar";
 import { useEditorReferenceElement } from "./reference";
 import { ImagePopover } from "./images";
 import { SvgPopover } from "./svg";
+import { ContentRefPopover } from "./content-ref";
 import { CellOptionsMenu, isSelectionInTableCell } from "./table";
 import { GridItemControls, GridPopover } from "./grid";
 import { CaptionButton } from "../figcaption";
@@ -169,6 +170,7 @@ const popoverComponents: Record<
   image: ImagePopover,
   svg: SvgPopover,
   grid: GridPopover,
+  content_ref: ContentRefPopover,
   table: function TablePopover(props) {
     const dispatchCommand = useEditorDispatchCommand();
     const stringFormatter = useLocalizedStringFormatter(l10nMessages);

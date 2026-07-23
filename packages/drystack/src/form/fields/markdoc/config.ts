@@ -75,6 +75,11 @@ export type EditorConfig = {
     | undefined;
   divider: boolean;
   codeBlock: { schema: Record<string, ComponentSchema> } | undefined;
+  // "Import content" - an atom block that resolves another singleton/
+  // collection's own top-level content field live at build time (see
+  // packages/astro/src/content-ref-resolve.ts). HTML-only, like grid - only
+  // `fields.content` opts into it (see editorOptionsToConfig's `isHtml` gate).
+  contentRef: boolean;
   // whether this field's serialization format supports storing an image by
   // reference (an unhydrated node resolved lazily from the shared media
   // library directory) rather than always embedding its bytes as a sibling
@@ -208,6 +213,8 @@ export function editorOptionsToConfig(
       : isHtml
         ? ((options as MarkdocEditorOptions).grid ?? true)
         : false,
+    // same gate as grid: HTML-only, and only fields.content's own editorOptionsToConfig call passes isHtml
+    contentRef: inlineOnly ? false : isHtml,
     link: options.link ?? true,
     image:
       !inlineOnly && options.image !== false

@@ -1,12 +1,5 @@
 import { LRUCache } from "lru-cache";
-import type { Client } from "urql";
-import { toastQueue } from "@keystar/ui/toast";
 import { useCallback, useMemo } from "react";
-import {
-  LocalizedStringDictionary,
-  LocalizedStringFormatter,
-} from "@internationalized/string";
-import l10nMessages from "./l10n";
 import { Config } from "../config";
 import {
   AssetsFormField,
@@ -15,22 +8,17 @@ import {
   fields,
 } from "../form/api";
 import { parseProps } from "../form/parse-props";
-import { getAuth } from "./auth";
 import { loadDataFile } from "./required-files";
 import { useRouter } from "./router";
-import { useBaseCommit, useRepoInfo, useTree } from "./shell/data";
+import { useTree } from "./shell/data";
 import { getDirectoriesForTreeKey, getTreeKey } from "./tree-key";
 import { TreeNode, getTreeNodeAtPath, TreeEntry, blobSha } from "./trees";
 import { LOADING, useData } from "./useData";
 import { FormatInfo, getEntryDataFilepath, MaybePromise } from "./utils";
 import { toFormattedFormDataError } from "../form/error-formatting";
-import { parseRepoConfig, serializeRepoConfig } from "./repo-config";
-import { isDemoConfig, isLocalShapedConfig } from "./storage-mode";
+import { isDemoConfig } from "./storage-mode";
 import { getDemoBlob } from "./demo-source";
-import {
-  getBlobFromPersistedCache,
-  setBlobToPersistedCache,
-} from "./object-cache";
+import { setBlobToPersistedCache } from "./object-cache";
 
 class TrackedMap<K, V> extends Map<K, V> {
   #onGet: (key: K) => void;
@@ -206,8 +194,6 @@ function getAllFilesInTree(tree: Map<string, TreeNode>): TreeEntry[] {
 
 export function useItemData(args: UseItemDataArgs) {
   const { current: currentBranch } = useTree();
-  const baseCommit = useBaseCommit();
-  const repoInfo = useRepoInfo();
   const { basePath } = useRouter();
 
   const rootTree =
@@ -266,14 +252,7 @@ export function useItemData(args: UseItemDataArgs) {
             : [node.entry];
         })
         .map((entry) => {
-          const blob = fetchBlob(
-            args.config,
-            entry.sha,
-            entry.path,
-            baseCommit,
-            repoInfo,
-            basePath,
-          );
+          const blob = fetchBlob(args.config, entry.sha, entry.path, basePath);
           if (blob instanceof Uint8Array) {
             return [entry.path, blob] as const;
           }
@@ -314,8 +293,6 @@ export function useItemData(args: UseItemDataArgs) {
       args.schema,
       args.slug,
       locationsForTreeKey,
-      baseCommit,
-      repoInfo,
       localTreeKey,
       basePath,
     ]),
@@ -345,100 +322,9 @@ export async function hydrateBlobCache(contents: Uint8Array) {
   return sha;
 }
 
-// A blob fetch that's actively being rate-limited by GitHub - surfaced
-// separately from a generic fetch failure so callers can show one shared
-// "try again later" message instead of N per-thumbnail errors.
-export class GitHubRateLimitError extends Error {
-  resetAt: Date | null;
-  constructor(resetAt: Date | null) {
-    super("GitHub API rate limit reached");
-    this.name = "GitHubRateLimitError";
-    this.resetAt = resetAt;
-  }
-}
-
-function rateLimitResetFromHeaders(headers: Headers): Date | null {
-  const reset = headers.get("x-ratelimit-reset");
-  if (!reset) return null;
-  const seconds = Number(reset);
-  return Number.isFinite(seconds) ? new Date(seconds * 1000) : null;
-}
-
-const l10nDictionary = new LocalizedStringDictionary(l10nMessages);
-
-// Non-hook fallback - notifyRateLimit runs deep in a shared blob-fetching
-// path with no render-time hook access. Takes a locale snapshot rather than
-// reacting to changes, fine for a one-off toast.
-function getDefaultFormatter(): {
-  format(key: string, variables?: Record<string, string>): string;
-} {
-  const locale =
-    (typeof document !== "undefined" && document.documentElement.lang) ||
-    (typeof navigator !== "undefined" && navigator.language) ||
-    "en-US";
-  return new LocalizedStringFormatter(locale, l10nDictionary);
-}
-
-// A directory of thumbnails can hit the rate limit dozens of times at once -
-// show one toast per 30s window instead of one per failed blob.
-let lastRateLimitToastAt = 0;
-function notifyRateLimit(resetAt: Date | null) {
-  const now = Date.now();
-  if (now - lastRateLimitToastAt < 30_000) return;
-  lastRateLimitToastAt = now;
-  const stringFormatter = getDefaultFormatter();
-  toastQueue.critical(
-    resetAt
-      ? stringFormatter.format("rateLimitReachedWithReset", {
-          time: resetAt.toLocaleTimeString(),
-        })
-      : stringFormatter.format("rateLimitReachedNoReset"),
-    { timeout: 8000 },
-  );
-}
-
-// Raw content is always fetched through an authenticated REST call, even for
-// public repos - an earlier version used unauthenticated
-// raw.githubusercontent.com for public repos, but that endpoint is capped at
-// ~60 requests/hour per browser IP, which a single directory of thumbnails
-// in the File Manager can exhaust immediately. The authenticated
-// `git/blobs/{oid}` endpoint shares the same binary-safe `Accept:
-// application/vnd.github.raw` response shape and gets the much higher
-// authenticated REST rate limit instead.
-async function fetchGitHubBlob(
-  config: Config,
-  oid: string,
-  basePath: string,
-): Promise<Response> {
-  const auth = await getAuth(config, basePath);
-  if (config.storage.kind !== "github") {
-    throw new Error("fetchGitHubBlob requires GitHub storage");
-  }
-  const res = await fetch(
-    `https://api.github.com/repos/${serializeRepoConfig(
-      config.storage.repo,
-    )}/git/blobs/${oid}`,
-    {
-      headers: {
-        Authorization: `Bearer ${auth!.accessToken}`,
-        Accept: "application/vnd.github.raw",
-      },
-    },
-  );
-  if (
-    !res.ok &&
-    (res.status === 429 ||
-      (res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0"))
-  ) {
-    throw new GitHubRateLimitError(rateLimitResetFromHeaders(res.headers));
-  }
-  return res;
-}
-
 // Caps how many blob fetches are in flight at once across the whole app -
 // a File Manager directory of N thumbnails would otherwise fire N requests
-// simultaneously on mount, which is both wasteful and makes hitting a rate
-// limit far more likely.
+// simultaneously on mount, which is both wasteful and unnecessary.
 const BLOB_FETCH_CONCURRENCY = 6;
 let activeBlobFetches = 0;
 const blobFetchQueue: (() => void)[] = [];
@@ -463,40 +349,27 @@ export function fetchBlob(
   config: Config,
   oid: string,
   filepath: string,
-  commitSha: string,
-  repoInfo: { owner: string; name: string; isPrivate: boolean } | null,
   basePath: string,
 ): MaybePromise<Uint8Array> {
   if (blobCache.has(oid)) return blobCache.get(oid)!;
 
   const promise = (async () => {
-    const isLocalOrDemo = isLocalShapedConfig(config);
-    if (!isLocalOrDemo) {
-      const stored = await getBlobFromPersistedCache(oid);
-      if (stored) {
-        blobCache.set(oid, stored);
-        return stored;
-      }
-    }
     return runBlobFetch(() =>
       isDemoConfig(config)
         ? // No `/api/*/blob` route in a demo build - it's fully static. See
           // app/demo-source.ts. Wrapped in a real Response so it flows
-          // through the exact same .ok/.arrayBuffer() handling below as the
-          // other two storage kinds. Re-copied via the Uint8Array
-          // constructor first: `getDemoBlob`'s array can come back typed as
-          // Uint8Array<ArrayBufferLike> (e.g. a view over a fetched
-          // ArrayBuffer), which BodyInit's stricter Uint8Array<ArrayBuffer>
-          // doesn't accept directly - copying guarantees a plain ArrayBuffer
-          // backing it.
+          // through the exact same .ok/.arrayBuffer() handling below as r2.
+          // Re-copied via the Uint8Array constructor first: `getDemoBlob`'s
+          // array can come back typed as Uint8Array<ArrayBufferLike> (e.g. a
+          // view over a fetched ArrayBuffer), which BodyInit's stricter
+          // Uint8Array<ArrayBuffer> doesn't accept directly - copying
+          // guarantees a plain ArrayBuffer backing it.
           getDemoBlob(filepath).then(
             (array) => new Response(new Uint8Array(array)),
           )
-        : isLocalOrDemo
-          ? fetch(`/api${basePath}/blob/${oid}/${filepath}`, {
-              headers: { "no-cors": "1" },
-            })
-          : fetchGitHubBlob(config, oid, basePath),
+        : fetch(`/api${basePath}/blob/${oid}/${filepath}`, {
+            headers: { "no-cors": "1" },
+          }),
     )
       .then(async (x) => {
         if (!x.ok) {
@@ -511,14 +384,10 @@ export function fetchBlob(
       .then((x) => {
         const array = new Uint8Array(x);
         blobCache.set(oid, array);
-        if (!isLocalOrDemo) {
-          setBlobToPersistedCache(oid, array);
-        }
         return array;
       })
       .catch((err) => {
         blobCache.delete(oid);
-        if (err instanceof GitHubRateLimitError) notifyRateLimit(err.resetAt);
         throw err;
       });
   })();
@@ -527,29 +396,12 @@ export function fetchBlob(
   return promise;
 }
 
-const textEncoderForBatch = new TextEncoder();
-
-// GitHub caps query cost/complexity - chunking keeps a single collection
-// page from ever sending one enormous request, and keeps each request well
-// under that limit regardless of collection size.
-const BATCH_BLOB_CHUNK_SIZE = 100;
-
-// Fetches many blobs in as few requests as possible. Only `storage.kind ===
-// 'github'` gets real batching: it builds one GraphQL query per chunk with
-// an aliased `object(oid: ...)` field per blob (GitHub's REST blob/tree
-// endpoints have no bulk-read equivalent, and the root `nodes(ids:)` batch
-// field takes GraphQL global ids, not git blob oids, so aliasing is the only
-// way to fold N blob reads into one request). This query is intentionally
-// built as a raw string rather than a `ts-gql` document - the number of
-// aliases varies per call, which a statically codegen'd operation can't
-// express. `local` mode has no GraphQL endpoint at all, so it falls back to
-// one request per blob via `fetchBlob`.
+// Fetches many blobs at once. There's no bulk-read endpoint, so this just
+// fans out to `fetchBlob` per entry (concurrency-limited there); kept as its
+// own function so collection pages can await one Map of results.
 export async function fetchBlobsBatch(
   config: Config,
-  client: Client,
   entries: { oid: string; filepath: string }[],
-  commitSha: string,
-  repoInfo: { owner: string; name: string; isPrivate: boolean } | null,
   basePath: string,
 ): Promise<Map<string, Uint8Array>> {
   const result = new Map<string, Uint8Array>();
@@ -564,77 +416,13 @@ export async function fetchBlobsBatch(
   }
   if (!uncached.length) return result;
 
-  if (config.storage.kind !== "github") {
-    await Promise.all(
-      uncached.map(async (entry) => {
-        result.set(
-          entry.oid,
-          await fetchBlob(
-            config,
-            entry.oid,
-            entry.filepath,
-            commitSha,
-            repoInfo,
-            basePath,
-          ),
-        );
-      }),
-    );
-    return result;
-  }
-
-  const stillUncached: typeof entries = [];
-  for (const entry of uncached) {
-    const stored = await getBlobFromPersistedCache(entry.oid);
-    if (stored) {
-      blobCache.set(entry.oid, stored);
-      result.set(entry.oid, stored);
-    } else {
-      stillUncached.push(entry);
-    }
-  }
-  if (!stillUncached.length) return result;
-
-  const repo = parseRepoConfig(config.storage.repo);
-
-  for (
-    let start = 0;
-    start < stillUncached.length;
-    start += BATCH_BLOB_CHUNK_SIZE
-  ) {
-    const chunk = stillUncached.slice(start, start + BATCH_BLOB_CHUNK_SIZE);
-    const variableDefs = chunk
-      .map((_, i) => `$oid${i}: GitObjectID!`)
-      .join(", ");
-    const selections = chunk
-      .map((_, i) => `e${i}: object(oid: $oid${i}) { ... on Blob { text } }`)
-      .join("\n");
-    const query = `query BatchBlobs($owner: String!, $name: String!, ${variableDefs}) {
-      repository(owner: $owner, name: $name) {
-        ${selections}
-      }
-    }`;
-    const variables: Record<string, string> = {
-      owner: repo.owner,
-      name: repo.name,
-    };
-    chunk.forEach((entry, i) => {
-      variables[`oid${i}`] = entry.oid;
-    });
-
-    const res = await client.query(query, variables).toPromise();
-    if (res.error) throw res.error;
-    const repository = res.data?.repository as
-      | Record<string, { text?: string | null } | null>
-      | undefined;
-    chunk.forEach((entry, i) => {
-      const text = repository?.[`e${i}`]?.text ?? "";
-      const bytes = textEncoderForBatch.encode(text);
-      blobCache.set(entry.oid, bytes);
-      setBlobToPersistedCache(entry.oid, bytes);
-      result.set(entry.oid, bytes);
-    });
-  }
-
+  await Promise.all(
+    uncached.map(async (entry) => {
+      result.set(
+        entry.oid,
+        await fetchBlob(config, entry.oid, entry.filepath, basePath),
+      );
+    }),
+  );
   return result;
 }

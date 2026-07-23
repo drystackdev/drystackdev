@@ -24,7 +24,7 @@ import {
   Collection,
   Singleton,
 } from "..";
-import { FormatInfo } from "./path-utils";
+import { EntryRef, FormatInfo } from "./path-utils";
 import { ScrollView } from "./shell/primitives";
 import { PageContainer } from "./shell/page";
 import { useContentPanelQuery } from "./shell/context";
@@ -75,6 +75,16 @@ const EntryDirectoryContext = createContext<string | null>(null);
 export const EntryDirectoryProvider = EntryDirectoryContext.Provider;
 export function useEntryDirectoryContext() {
   return useContext(EntryDirectoryContext);
+}
+
+// the EntryRef of the entry currently open in this editor - used by the
+// content field's "Import content" button (markdoc/editor/content-ref.tsx) to
+// exclude the entry being edited from its own picker (an entry can't import
+// its own content field). `null` when there's no entry in scope.
+const CurrentEntryRefContext = createContext<EntryRef | null>(null);
+export const CurrentEntryRefProvider = CurrentEntryRefContext.Provider;
+export function useCurrentEntryRefContext() {
+  return useContext(CurrentEntryRefContext);
 }
 
 export function ResetEntryLayoutContext(props: { children: ReactNode }) {

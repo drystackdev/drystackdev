@@ -60,6 +60,7 @@ import { insertNode, insertTable, toggleCodeBlock } from "./commands/misc";
 import { insertGrid } from "./grid";
 import { EditorSchema, FONT_SIZE_VALUES, FontSizeKey } from "./schema";
 import { ImageToolbarButton } from "./images";
+import { ContentRefToolbarButton } from "./content-ref";
 import { useEntryLayoutSplitPaneContext } from "../../../../app/entry-form";
 import { itemRenderer } from "./autocomplete/insert-menu";
 import { LinkDialog } from "./popovers/link-toolbar";
@@ -303,6 +304,7 @@ export const Toolbar = memo(function Toolbar(
             </>
           )}
           {nodes.image && <ImageToolbarButton />}
+          {nodes.content_ref && <ContentRefToolbarButton />}
           {marks.fontSize && <FontSizeMenu fontSize={marks.fontSize} />}
           <Separator />
           <ListButtons />

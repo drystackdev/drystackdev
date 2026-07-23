@@ -1,18 +1,11 @@
 import type { Config } from "@drystack/core";
-import { refreshAuth } from "@drystack/core/auth";
-// @ts-expect-error - provided by the drystack Astro integration's Vite plugin
-import apiPath from "virtual:drystack-path";
-import type { DryMapEntry } from "../dry";
 import {
   getAllEdits,
   publishEdit,
   publishClear,
-  getMeta,
-  setMeta,
   subscribeEdits,
   getSourceCache,
   setSourceCache,
-  clearSourceCache,
   getPendingBlob,
   clearPendingBlobs,
   entryRefKey,
@@ -20,9 +13,7 @@ import {
   type EditBusMessage,
   type EntryRef,
 } from "./store";
-import { getCurrentBranchName, getLatestFieldValues, getStringFormatter } from "./save";
-
-const BUILD_VERSION_KEY = "buildVersion";
+import { getLatestFieldValues, getStringFormatter } from "./save";
 
 let editing = false;
 let onChangeCallback: (() => void) | undefined;
@@ -737,96 +728,24 @@ export function disableEditing() {
   document.removeEventListener("click", handleAssetSpotClick, true);
 }
 
-// GitHub-mode production HTML never carries plaintext data-dry/-kind/-value
-// (see dry.ts) - only an opaque `data-dry-id`, to keep full field paths/kinds
-// out of view-source for anonymous visitors. Must run before anything else
-// touches `[data-dry]` (discardEditsIfBuildIsNewer/applyPendingEdits below
-// resolve pending IndexedDB edits by querying `[data-dry="<key>"]`, and would
-// find nothing if the real attributes aren't back on the elements yet).
-// Fetches the reverse map from the `github/dry-map` API route - which only
-// returns it once it verifies the caller's GitHub token server-side - and
-// patches the real attributes onto each `[data-dry-id]` element in place.
-// index.ts's injected script only checks whether the access-token cookie is
-// *present* (cheap, no network) before loading this far - a stale/expired/
-// revoked token still passes that check, so a 401 here isn't necessarily a
-// spoofed cookie; it's often just a token that needs refreshing. One retry
-// via the longer-lived refresh-token cookie (same recovery `getAuth` does)
-// before giving up. Returns false only once that's exhausted and the caller
-// still isn't a verified editor - callers use this to decide whether to
-// mount the editor UI at all rather than showing a half-working one where
-// nothing is actually bound. Local mode ships the real attributes directly
-// (see dry.ts), so this is a no-op there (and reports true - nothing to
-// verify).
+// Content HTML always ships the real data-dry/-kind/-value attributes
+// directly (see dry.ts) - nothing to hydrate from a server-side map. Kept as
+// an async no-op so callers (which decide whether to mount the editor UI off
+// its result) don't need their own special case.
 export async function hydrateDryAttributesFromMap(
-  config: Config<any, any>,
+  _config: Config<any, any>,
 ): Promise<boolean> {
-  if (config.storage.kind !== "github") return true;
-  const elements = document.querySelectorAll<HTMLElement>("[data-dry-id]");
-  if (elements.length === 0) return true;
-  let map: Record<string, DryMapEntry>;
-  try {
-    let res = await fetch(`/api/${apiPath}/github/dry-map`);
-    if (res.status === 401 && (await refreshAuth(`/${apiPath}`))) {
-      res = await fetch(`/api/${apiPath}/github/dry-map`);
-    }
-    if (res.status === 401) return false;
-    if (!res.ok) return true;
-    map = await res.json();
-  } catch {
-    return true;
-  }
-  for (const el of elements) {
-    const id = el.getAttribute("data-dry-id");
-    el.removeAttribute("data-dry-id");
-    const entry = id ? map[id] : undefined;
-    if (!entry) continue;
-    el.setAttribute("data-dry", entry["data-dry"]);
-    el.setAttribute("data-dry-kind", entry["data-dry-kind"]);
-    if (entry["data-dry-value"] !== undefined) {
-      el.setAttribute("data-dry-value", entry["data-dry-value"]);
-    }
-    if (entry["data-dry-readonly"]) {
-      el.setAttribute("data-dry-readonly", "true");
-    }
-  }
   return true;
 }
 
-// Cloudflare Pages builds fresh on every deploy, so buildVersion (a build-time
-// timestamp) increases with each deploy. Only github-hosted content can drift
-// out from under a browser's IndexedDB this way - a Cloudflare build finishing
-// after this tab loaded means the DOM it applies edits onto is stale - so
-// local mode (always serving whatever's on disk right now) skips this check.
-//
-// The stored high-water mark only ever moves forward. A lower buildVersion
-// than what's stored isn't a rollback signal worth acting on - it's what a
-// CDN edge node serving a not-yet-updated cache during rollout looks like -
-// so it's ignored entirely: no clear, and the stored mark isn't dragged back
-// down (which would otherwise make a later, merely-stale-again reload look
-// like a "new" deploy and wrongly clear edits made in between).
+// Cloudflare Pages builds fresh on every deploy, but content is always served
+// straight off disk/R2 (never a static prerender that could drift out from
+// under a browser's IndexedDB), so there's nothing to discard here. Kept as
+// an async no-op for the same reason as hydrateDryAttributesFromMap above.
 export async function discardEditsIfBuildIsNewer(
-  config: Config<any, any>,
-  buildVersion: number | undefined,
-): Promise<void> {
-  if (config.storage.kind !== "github" || buildVersion == null) return;
-  const lastSeen = await getMeta<number>(BUILD_VERSION_KEY);
-  if (lastSeen == null) {
-    await setMeta(BUILD_VERSION_KEY, buildVersion);
-    return;
-  }
-  if (buildVersion > lastSeen) {
-    await publishClear();
-    // The static build just caught up, so its HTML is now at least as fresh
-    // as anything cached below - keeping a stale entry around would risk it
-    // later painting over even-fresher static HTML from a *subsequent*
-    // deploy this tab never re-fetched for. Same reasoning covers the pending
-    // image blobs: any image the build just shipped is now servable from its
-    // real path, so the preview bytes cached for it are no longer needed.
-    await clearSourceCache();
-    await clearPendingBlobs();
-    await setMeta(BUILD_VERSION_KEY, buildVersion);
-  }
-}
+  _config: Config<any, any>,
+  _buildVersion: number | undefined,
+): Promise<void> {}
 
 // Repaint callbacks for content spots that currently have a live ProseMirror
 // view mounted on them, registered per field key by InlineContentEditors.tsx
@@ -1114,21 +1033,7 @@ export async function refreshFromLatestSource(
     (await getAllEdits()).map((edit) => [edit.key, edit.value]),
   );
 
-  // Resolved once for every bound entry on the page, not once per entry -
-  // getLatestFieldValues used to re-resolve the same github branch inside
-  // every call, which is one wasted GraphQL round trip per entry; a whole
-  // collection listing page would otherwise multiply that by its item count.
-  // A failure here (e.g. not signed in to GitHub) used to abort each
-  // singleton's refresh individually via its own try/catch - since every
-  // entry shares the same token/branch, one failure means all would have
-  // failed anyway, so skipping the whole refresh here is equivalent.
-  let branch: string | undefined;
   const sf = getStringFormatter();
-  try {
-    branch = await getCurrentBranchName(config, sf);
-  } catch {
-    return;
-  }
 
   await Promise.all(
     Array.from(refs.entries(), async ([key, ref]) => {
@@ -1137,7 +1042,6 @@ export async function refreshFromLatestSource(
         latest = await getLatestFieldValues(
           config,
           ref,
-          branch,
           fieldsByEntry.get(key),
           sf,
         );

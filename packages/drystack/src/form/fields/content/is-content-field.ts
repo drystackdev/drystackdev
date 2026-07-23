@@ -14,3 +14,13 @@ export function isContentEditorField(field: ComponentSchema): boolean {
     field.htmlContentEditor === true
   );
 }
+
+// The top-level (not nested in an object/array) content fields of a
+// singleton/collection's own schema - the only fields the "Import content"
+// picker (app/content-ref) offers as a source, per its no-nested-imports,
+// top-level-only scope.
+export function listTopLevelContentFields(
+  schema: Record<string, ComponentSchema>,
+): string[] {
+  return Object.keys(schema).filter((key) => isContentEditorField(schema[key]));
+}

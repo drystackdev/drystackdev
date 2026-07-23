@@ -422,6 +422,20 @@ function blocksFromChildNodes(
       // never let stylesheet/script text leak into content - the grid's
       // responsive rule rides along as a sibling <style> (see the serializer)
       if (tag === "style" || tag === "script") continue;
+      if (tag === "section" && el.hasAttribute("data-ref-content")) {
+        flush();
+        const ref = el.getAttribute("data-ref-content");
+        // `config.contentRef` off, or a malformed/empty pointer - drop rather
+        // than unwrap: unlike grid's div, this section's own children are
+        // never meaningful content (see html/serialize.ts, which always
+        // writes it empty), so there is nothing worth keeping if the node
+        // itself can't be reconstructed.
+        if (ref && state.schema.nodes.content_ref) {
+          const node = state.schema.nodes.content_ref.createChecked({ ref });
+          if (node) result.push(node);
+        }
+        continue;
+      }
       if (tag === "div" && el.hasAttribute("data-dry-grid")) {
         flush();
         if (state.schema.nodes.grid && state.schema.nodes.grid_cell) {

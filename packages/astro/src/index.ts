@@ -39,11 +39,12 @@ import { readDryMapRegistryFile, resetDryMapRegistryFile } from "./dry";
 // loud safety net, not a limit we expect to hit.
 const CLOUDFLARE_REDIRECTS_LIMIT = 2000;
 
-// A dedicated Node-runnable Vite environment for the local-storage API. The
-// Cloudflare adapter turns the default `ssr` environment into a non-runnable
-// workerd one, so we can't use `server.ssrLoadModule` to run the handler in
-// Node. This separate environment loads/executes drystack's API modules in the
-// real Node process, where `fs` writes actually work.
+// A dedicated Node-runnable Vite environment for the Node-fs-backed API
+// (demo's dev-time reads - see api-node.ts). The Cloudflare adapter turns
+// the default `ssr` environment into a non-runnable workerd one, so we can't
+// use `server.ssrLoadModule` to run the handler in Node. This separate
+// environment loads/executes drystack's API modules in the real Node
+// process, where `fs` writes actually work.
 const DRYSTACK_NODE_ENV = "drystack_local_api";
 
 const virtualPathModuleId = "virtual:drystack-path";
@@ -53,11 +54,10 @@ const virtualBuildVersionModuleId = "virtual:drystack-build-version";
 const resolvedVirtualBuildVersionModuleId = "\0" + virtualBuildVersionModuleId;
 
 // Runs the drystack API handler in the Node dev process (not workerd), so
-// `storage: 'local'` filesystem writes work under `astro dev`. Loaded lazily
-// via Vite's `ssrLoadModule` so it executes in Node with real `fs`. Only
-// local and demo storage are handled here (demo shares local's read/write
-// routes, minus the write itself - see api-node.ts's isDemoConfig guard);
-// GitHub mode is passed through to the normal route.
+// demo's Node-fs reads work under `astro dev`. Loaded lazily via Vite's
+// `ssrLoadModule` so it executes in Node with real `fs`. Only demo storage
+// is handled here (its writes are blocked anyway - see api-node.ts's
+// isDemoConfig guard); r2 is passed through to the normal workerd route.
 async function handleLocalApiRequest(
   server: ViteDevServer,
   basePath: string,
@@ -77,15 +77,12 @@ async function handleLocalApiRequest(
     env.runner.import("virtual:drystack-config"),
   ]);
   const config = configMod.default;
-  if (config?.storage?.kind !== "local" && config?.storage?.kind !== "demo") {
-    // Let the workerd-run route handle GitHub mode.
+  if (config?.storage?.kind !== "demo") {
+    // Let the workerd-run route handle r2.
     return next();
   }
 
-  const handler = genericMod.makeGenericAPIRouteHandler(
-    { config, basePath },
-    { slugEnvName: "PUBLIC_DRYSTACK_GITHUB_APP_SLUG" },
-  );
+  const handler = genericMod.makeGenericAPIRouteHandler({ config, basePath });
 
   const host = req.headers.host ?? "localhost";
   const method = req.method ?? "GET";

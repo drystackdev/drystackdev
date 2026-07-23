@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as s from 'superstruct';
 
 import { Button } from '@keystar/ui/button';
-import { DialogContainer } from '@keystar/ui/dialog';
 import { Icon } from '@keystar/ui/icon';
 import { historyIcon } from '@keystar/ui/icon/icons/historyIcon';
 import { Flex } from '@keystar/ui/layout';
@@ -17,11 +16,8 @@ import { getInitialPropsValue } from '../form/initial-values';
 import { clientSideValidateProp } from '../form/errors';
 import { useEventCallback } from '../form/fields/use-event-callback';
 
-import { CreateBranchDuringUpdateDialog } from './ItemPage';
 import l10nMessages from './l10n';
-import { useBaseCommit } from './shell/data';
 import { PageRoot, PageHeader, PageBody } from './shell/page';
-import { ForkRepoDialog } from './fork-repo';
 import {
   EntryDirectoryProvider,
   FormForEntry,
@@ -41,7 +37,6 @@ import {
   getCollectionFormat,
   getCollectionItemPath,
   getSlugFromState,
-  isGitHubConfig,
   useShowRestoredDraftMessage,
 } from './utils';
 import { useCollection, usePreviewProps } from './preview-props';
@@ -342,8 +337,6 @@ function CreateItemInner(props: {
   const [forceValidation, setForceValidation] = useState(false);
   const formatInfo = getCollectionFormat(config, props.collection);
 
-  const baseCommit = useBaseCommit();
-
   let collectionPath = `${props.basePath}/collection/${encodeURIComponent(
     props.collection
   )}`;
@@ -519,64 +512,6 @@ function CreateItemInner(props: {
           </EntryDirectoryProvider>
         </Flex>
       </PageRoot>
-
-      <DialogContainer
-        // ideally this would be a popover on desktop but using a DialogTrigger
-        // wouldn't work since this doesn't open on click but after doing a
-        // network request and it failing and manually wiring about a popover
-        // and modal would be a pain
-        onDismiss={props.resetCreateItemState}
-      >
-        {createResult.kind === 'needs-new-branch' && (
-          <CreateBranchDuringUpdateDialog
-            branchOid={baseCommit}
-            onCreate={async newBranch => {
-              router.push(
-                `${router.basePath}/branch/${encodeURIComponent(
-                  newBranch
-                )}/collection/${encodeURIComponent(props.collection)}/create`
-              );
-              if (
-                await props.createItem({ branch: newBranch, sha: baseCommit })
-              ) {
-                const slug = getSlugFromState(collectionConfig, props.state);
-
-                router.push(
-                  `${router.basePath}/branch/${encodeURIComponent(
-                    newBranch
-                  )}/collection/${encodeURIComponent(
-                    props.collection
-                  )}/item/${encodeURIComponent(slug)}`
-                );
-              }
-            }}
-            reason={createResult.reason}
-            onDismiss={props.resetCreateItemState}
-          />
-        )}
-      </DialogContainer>
-      <DialogContainer
-        // ideally this would be a popover on desktop but using a DialogTrigger
-        // wouldn't work since this doesn't open on click but after doing a
-        // network request and it failing and manually wiring about a popover
-        // and modal would be a pain
-        onDismiss={props.resetCreateItemState}
-      >
-        {createResult.kind === 'needs-fork' && isGitHubConfig(config) && (
-          <ForkRepoDialog
-            onCreate={async () => {
-              if (await props.createItem()) {
-                const slug = getSlugFromState(collectionConfig, props.state);
-                router.push(
-                  `${collectionPath}/item/${encodeURIComponent(slug)}`
-                );
-              }
-            }}
-            onDismiss={props.resetCreateItemState}
-            config={config}
-          />
-        )}
-      </DialogContainer>
     </AiLockProvider>
   );
 }

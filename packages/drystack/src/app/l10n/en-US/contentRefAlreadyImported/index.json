@@ -1,0 +1,6 @@
+{
+  "key": "contentRefAlreadyImported",
+  "value": "This field already imports another content reference and can't be imported again.",
+  "notes": "",
+  "type": "global"
+}

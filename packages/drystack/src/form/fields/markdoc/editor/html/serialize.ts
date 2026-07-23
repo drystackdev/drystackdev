@@ -560,6 +560,21 @@ function proseMirrorToHtmlNode(
       children: blocks(node.content),
     };
   }
+  if (node.type === schema.nodes.content_ref) {
+    // Always empty - the node's only attr is a pointer (see schema.tsx), and
+    // this is the one place that decides what's actually written to disk.
+    // Never bake the resolved HTML in here, even though the node view shows
+    // it while editing: that would defeat the entire point of the feature
+    // (always-live resolution, never a copy taken at insert/save time). The
+    // published page resolves the placeholder into real content at build
+    // time instead - see packages/astro/src/content-ref-resolve.ts.
+    return {
+      kind: "element",
+      tag: "section",
+      attrs: { "data-ref-content": node.attrs.ref },
+      children: [],
+    };
+  }
 
   throw new Error(`Unhandled node type: ${node.type.name}`);
 }

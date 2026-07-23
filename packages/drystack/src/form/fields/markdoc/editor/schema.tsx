@@ -58,6 +58,7 @@ import {
   svgLayoutFromElement,
 } from "./svg-markup";
 import { GridNodeView, GridCellView } from "./grid-node-view";
+import { ContentRefNodeView } from "./content-ref-node-view";
 import {
   insertGrid,
   cellStyleString,
@@ -889,6 +890,42 @@ const nodeSpecs = {
       ];
     },
   },
+  // "Import content" - a read-only, always-live-resolved reference to
+  // another singleton/collection's own top-level content field. Its only
+  // attr is a pointer (`editKey`-encoded, see app/edit-sync.ts) - never the
+  // referenced HTML itself, so there is nothing here to go stale: the editor
+  // (ContentRefNodeView) and the published page (see
+  // packages/astro/src/content-ref-resolve.ts) each resolve it fresh from
+  // whatever the source entry currently holds. Inserted only via its
+  // dedicated toolbar button (content-ref.tsx), not the generic insert menu -
+  // it needs the current entry's own EntryRef (from ContentRefScopeProvider)
+  // to exclude self-reference, which a plain insertMenu.command closure has
+  // no way to read.
+  content_ref: {
+    content: "",
+    group: "block",
+    atom: true,
+    attrs: {
+      ref: {},
+    },
+    reactNodeView: {
+      component: ContentRefNodeView,
+      rendersOwnContent: true,
+    },
+    toDOM(node) {
+      return ["section", { "data-ref-content": node.attrs.ref }];
+    },
+    parseDOM: [
+      {
+        tag: "section[data-ref-content]",
+        getAttrs(dom) {
+          if (typeof dom === "string") return false;
+          const ref = dom.getAttribute("data-ref-content");
+          return ref ? { ref } : false;
+        },
+      },
+    ],
+  },
 } satisfies Record<string, EditorNodeSpec>;
 
 const italicDOM: DOMOutputSpec = ["em", 0];
@@ -1217,6 +1254,9 @@ export function createEditorSchema(
     // "this field can hold pictures". A field with images turned off shouldn't
     // grow a second way to embed one.
     nodeSpecsWithCustomNodes.svg = nodeSpecs.svg;
+  }
+  if (config.contentRef) {
+    nodeSpecsWithCustomNodes.content_ref = nodeSpecs.content_ref;
   }
 
   const markSpecsWithCustomMarks = {

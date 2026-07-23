@@ -20,10 +20,9 @@ import { ColorScheme } from '@keystar/ui/types';
 import { Text } from '@keystar/ui/typography';
 
 import { useRouter } from '../../router';
-import { isGitHubConfig, isR2Config } from '../../utils';
+import { isR2Config } from '../../utils';
 
 import { useConfig } from '../context';
-import { useViewer } from '../viewer-data';
 import { useThemeContext } from '../theme';
 import { clearObjectCache } from '../../object-cache';
 import { clearDrafts } from '../../persistence';
@@ -134,14 +133,9 @@ export function UserMenu(user: {
     items.push({
       key: 'logout',
       label: stringFormatter.format('logOutAction'),
-      // github's logout is a plain GET the browser can navigate to
-      // directly. r2's isn't - it revokes the session's jti (POST-only,
-      // see api-r2.ts) - so that one has no `href` and instead runs
-      // through `nativeLogout` in `onAction` below.
-      href:
-        config.storage.kind === 'github'
-          ? `/api${basePath}/github/logout`
-          : undefined,
+      // r2's logout revokes the session's jti (POST-only, see api-r2.ts),
+      // so it has no `href` and instead runs through `nativeLogout` in
+      // `onAction` below.
       icon: logOutIcon,
     });
     return items;
@@ -222,17 +216,8 @@ const UserDetailsButton = forwardRef(function UserDetailsButton(
 
 function useUserData(): UserData | undefined {
   const config = useConfig();
-  const user = useViewer();
   const nativeUser = useNativeUser();
   const { basePath } = useRouter();
-
-  if (isGitHubConfig(config) && user) {
-    return {
-      avatarUrl: user.avatarUrl,
-      login: user.login,
-      name: user.name ?? user.login,
-    };
-  }
 
   if (isR2Config(config) && nativeUser) {
     return {

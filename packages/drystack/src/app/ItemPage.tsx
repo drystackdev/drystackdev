@@ -25,7 +25,6 @@ import { copyPlusIcon } from "@keystar/ui/icon/icons/copyPlusIcon";
 import { clipboardCopyIcon } from "@keystar/ui/icon/icons/clipboardCopyIcon";
 import { clipboardPasteIcon } from "@keystar/ui/icon/icons/clipboardPasteIcon";
 import { externalLinkIcon } from "@keystar/ui/icon/icons/externalLinkIcon";
-import { githubIcon } from "@keystar/ui/icon/icons/githubIcon";
 import { trash2Icon } from "@keystar/ui/icon/icons/trash2Icon";
 import { Box, Flex } from "@keystar/ui/layout";
 import { Notice } from "@keystar/ui/notice";
@@ -47,22 +46,14 @@ import { clientSideValidateProp } from "../form/errors";
 import { useEventCallback } from "../form/fields/use-event-callback";
 
 import {
-  prettyErrorForCreateBranchMutation,
-  useCreateBranchMutation,
-} from "./branch-selection";
-import {
+  CurrentEntryRefProvider,
   EntryDirectoryProvider,
   FormForEntry,
   containerWidthForEntryLayout,
 } from "./entry-form";
-import { ForkRepoDialog } from "./fork-repo";
 import l10nMessages from "./l10n";
 import { NotFoundBoundary, notFound } from "./not-found";
-import {
-  getDataFileExtension,
-  getPathPrefix,
-  type EntryRef,
-} from "./path-utils";
+import { type EntryRef } from "./path-utils";
 import { useEntryEditSync } from "./useEntryEditSync";
 import { useRouter } from "./router";
 import { useScrollToFieldParam } from "./useScrollToFieldParam";
@@ -71,7 +62,7 @@ import { useConfig } from "./shell/context";
 import { AiLockProvider } from "./ai/lock-context";
 import { MagicWriteButton, useAiEntryDescription } from "./ai/MagicWriteButton";
 import { useMagicWrite } from "./ai/useMagicWrite";
-import { useBaseCommit, useCurrentBranch, useRepoInfo } from "./shell/data";
+import { useCurrentBranch } from "./shell/data";
 import { PageBody, PageHeader, PageRoot } from "./shell/page";
 import { useSlugFieldInfo } from "./slugs";
 import { useSlugsInCollection } from "./useSlugsInCollection";
@@ -91,13 +82,10 @@ import { AdminImageThumb } from "./change-preview/AdminImageThumb";
 import { parseEntry, useItemData } from "./useItemData";
 import { ResetEntryDataButton } from "./reset-entry-data";
 import {
-  getBranchPrefix,
   getCollection,
   getCollectionFormat,
   getCollectionItemPath,
-  getRepoUrl,
   getSlugFromState,
-  isGitHubConfig,
   useShowRestoredDraftMessage,
 } from "./utils";
 import { DataState, useData, suspendOnData } from "./useData";
@@ -175,11 +163,9 @@ function ItemPageInner(
 
   const router = useRouter();
   useScrollToFieldParam();
-  const baseCommit = useBaseCommit();
   const currentBasePath = getCollectionItemPath(config, collection, itemSlug);
   const formatInfo = getCollectionFormat(config, collection);
   const currentBranch = useCurrentBranch();
-  const repoInfo = useRepoInfo();
   const [forceValidation, setForceValidation] = useState(false);
   const urlForSlug = (slug: string) =>
     collectionConfig.previewUrl
@@ -195,8 +181,8 @@ function ItemPageInner(
     to: string;
   } | null>(null);
   // The redirect decision the user last made (or explicitly declined) for
-  // this rename, kept around so a subsequent branch-protection/fork retry -
-  // which re-invokes the save - doesn't silently drop it.
+  // this rename, kept around so a subsequent save retry doesn't silently
+  // drop it.
   const [confirmedRedirect, setConfirmedRedirect] = useState<
     { from: string; to: string } | undefined
   >(undefined);
@@ -301,19 +287,6 @@ function ItemPageInner(
     }
   });
 
-  const viewHref =
-    config.storage.kind === "github" && repoInfo
-      ? `${getRepoUrl(repoInfo)}${
-          formatInfo.dataLocation === "index"
-            ? `/tree/${currentBranch}/${
-                getPathPrefix(config.storage) ?? ""
-              }${currentBasePath}`
-            : `/blob/${currentBranch}/${
-                getPathPrefix(config.storage) ?? ""
-              }${currentBasePath}${getDataFileExtension(formatInfo)}`
-        }`
-      : undefined;
-
   const formID = "item-edit-form";
 
   // allow shortcuts "cmd+s" and "ctrl+s" to save
@@ -360,7 +333,6 @@ function ItemPageInner(
             onDuplicate={onDuplicate}
             onCopy={onCopy}
             onPaste={onPaste}
-            viewHref={viewHref}
             previewHref={previewHref}
             magicWrite={props.magicWrite}
             schema={schema.fields}
@@ -389,13 +361,17 @@ function ItemPageInner(
           }}
         >
           <EntryDirectoryProvider value={currentBasePath}>
-            <FormForEntry
-              previewProps={props.previewProps as any}
-              forceValidation={forceValidation}
-              entryLayout={collectionConfig.entryLayout}
-              formatInfo={formatInfo}
-              slugField={slugInfo}
-            />
+            <CurrentEntryRefProvider
+              value={{ type: "collection", name: collection, slug: itemSlug }}
+            >
+              <FormForEntry
+                previewProps={props.previewProps as any}
+                forceValidation={forceValidation}
+                entryLayout={collectionConfig.entryLayout}
+                formatInfo={formatInfo}
+                slugField={slugInfo}
+              />
+            </CurrentEntryRefProvider>
           </EntryDirectoryProvider>
         </Box>
         <DialogContainer onDismiss={() => setPendingRename(null)}>
@@ -433,88 +409,6 @@ function ItemPageInner(
               </Text>
             </AlertDialog>
           )}
-        </DialogContainer>
-        <DialogContainer
-          // ideally this would be a popover on desktop but using a DialogTrigger wouldn't work since
-          // this doesn't open on click but after doing a network request and it failing and manually wiring about a popover and modal would be a pain
-          onDismiss={props.onResetUpdateItem}
-        >
-          {updateResult.kind === "needs-new-branch" && (
-            <CreateBranchDuringUpdateDialog
-              branchOid={baseCommit}
-              onCreate={async (newBranch) => {
-                const itemBasePath = `${
-                  router.basePath
-                }/branch/${encodeURIComponent(
-                  newBranch,
-                )}/collection/${encodeURIComponent(collection)}/item/`;
-                router.push(itemBasePath + encodeURIComponent(itemSlug));
-                const slug = getSlugFromState(collectionConfig, props.state);
-
-                const hasUpdated = await parentOnUpdate({
-                  branch: newBranch,
-                  sha: baseCommit,
-                  redirect: confirmedRedirect,
-                });
-                if (hasUpdated && slug !== itemSlug) {
-                  router.replace(itemBasePath + encodeURIComponent(slug));
-                }
-              }}
-              reason={updateResult.reason}
-              onDismiss={props.onResetUpdateItem}
-            />
-          )}
-        </DialogContainer>
-        <DialogContainer
-          // ideally this would be a popover on desktop but using a DialogTrigger
-          // wouldn't work since this doesn't open on click but after doing a
-          // network request and it failing and manually wiring about a popover
-          // and modal would be a pain
-          onDismiss={props.onResetUpdateItem}
-        >
-          {updateResult.kind === "needs-fork" &&
-            isGitHubConfig(props.config) && (
-              <ForkRepoDialog
-                onCreate={async () => {
-                  const slug = getSlugFromState(collectionConfig, props.state);
-                  const hasUpdated = await parentOnUpdate({
-                    redirect: confirmedRedirect,
-                  });
-                  if (hasUpdated && slug !== itemSlug) {
-                    router.replace(
-                      `${props.basePath}/collection/${encodeURIComponent(
-                        collection,
-                      )}/item/${encodeURIComponent(slug)}`,
-                    );
-                  }
-                }}
-                onDismiss={props.onResetUpdateItem}
-                config={props.config}
-              />
-            )}
-        </DialogContainer>
-        <DialogContainer
-          // ideally this would be a popover on desktop but using a DialogTrigger
-          // wouldn't work since this doesn't open on click but after doing a
-          // network request and it failing and manually wiring about a popover
-          // and modal would be a pain
-          onDismiss={resetDeleteItem}
-        >
-          {deleteResult.kind === "needs-fork" &&
-            isGitHubConfig(props.config) && (
-              <ForkRepoDialog
-                onCreate={async () => {
-                  await deleteItem();
-                  router.push(
-                    `${props.basePath}/collection/${encodeURIComponent(
-                      collection,
-                    )}`,
-                  );
-                }}
-                onDismiss={resetDeleteItem}
-                config={props.config}
-              />
-            )}
         </DialogContainer>
         <DialogContainer onDismiss={() => setReviewOpen(false)}>
           {reviewOpen && (
@@ -744,7 +638,6 @@ function HeaderActions(props: {
   onCopy: () => void;
   onPaste: () => void;
   previewHref?: string;
-  viewHref?: string;
   magicWrite: ReturnType<typeof useMagicWrite>;
   schema: Record<string, ComponentSchema>;
   state: Record<string, unknown>;
@@ -764,7 +657,6 @@ function HeaderActions(props: {
     onCopy,
     onPaste,
     previewHref,
-    viewHref,
   } = props;
   const isBelowDesktop = useMediaQuery(breakpointQueries.below.desktop);
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
@@ -820,19 +712,9 @@ function HeaderActions(props: {
         rel: "noopener noreferrer",
       });
     }
-    if (viewHref) {
-      items.push({
-        key: "view",
-        label: stringFormatter.format("viewOnGithub"),
-        icon: githubIcon,
-        href: viewHref,
-        target: "_blank",
-        rel: "noopener noreferrer",
-      });
-    }
 
     return items;
-  }, [previewHref, viewHref, stringFormatter]);
+  }, [previewHref, stringFormatter]);
 
   const indicatorElement = (() => {
     if (isLoading) {
@@ -1059,84 +941,6 @@ function DeleteEntryDialog(props: {
         )}
       </Flex>
     </AlertDialog>
-  );
-}
-
-export function CreateBranchDuringUpdateDialog(props: {
-  branchOid: string;
-  onCreate: (branchName: string) => void;
-  onDismiss: () => void;
-  reason: string;
-}) {
-  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
-  const repoInfo = useRepoInfo();
-  const [branchName, setBranchName] = useState("");
-  const [{ error, fetching, data }, createBranch] = useCreateBranchMutation();
-  const isLoading = fetching || !!data?.createRef?.__typename;
-
-  const config = useConfig();
-  const branchPrefix = getBranchPrefix(config);
-  const propsForBranchPrefix = branchPrefix
-    ? {
-        UNSAFE_className: css({
-          "& input": {
-            paddingInlineStart: tokenSchema.size.space.xsmall,
-          },
-        }),
-        startElement: (
-          <Flex
-            alignItems="center"
-            paddingStart="regular"
-            justifyContent="center"
-            pointerEvents="none"
-          >
-            <Text color="neutralSecondary">{branchPrefix}</Text>
-          </Flex>
-        ),
-      }
-    : {};
-
-  return (
-    <Dialog>
-      <form
-        style={{ display: "contents" }}
-        onSubmit={async (event) => {
-          if (event.target !== event.currentTarget) return;
-          event.preventDefault();
-          const fullBranchName = (branchPrefix ?? "") + branchName;
-          const name = `refs/heads/${fullBranchName}`;
-          const result = await createBranch({
-            input: { name, oid: props.branchOid, repositoryId: repoInfo!.id },
-          });
-          if (result.data?.createRef?.__typename) {
-            props.onCreate(fullBranchName);
-          }
-        }}
-      >
-        <Heading>{stringFormatter.format("newBranch")}</Heading>
-        <Content>
-          <Flex gap="large" direction="column">
-            <TextField
-              value={branchName}
-              onChange={setBranchName}
-              label={stringFormatter.format("branchNameLabel")}
-              description={props.reason}
-              autoFocus
-              errorMessage={prettyErrorForCreateBranchMutation(error, stringFormatter)}
-              {...propsForBranchPrefix}
-            />
-          </Flex>
-        </Content>
-        <ButtonGroup>
-          <Button isDisabled={isLoading} onPress={props.onDismiss}>
-            {stringFormatter.format("cancel")}
-          </Button>
-          <Button isPending={isLoading} prominence="high" type="submit">
-            {stringFormatter.format("createBranchAndSave")}
-          </Button>
-        </ButtonGroup>
-      </form>
-    </Dialog>
   );
 }
 

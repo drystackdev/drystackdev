@@ -109,6 +109,54 @@ export function appendRedirect(
   return out;
 }
 
+// Single-hop lookup against the redirect table - sufficient because
+// appendRedirect's own write-time invariant guarantees chains never exceed
+// one hop (see its worked example above), so there is nothing to walk.
+// Returns undefined when `fromPath` has no redirect (a live page, or an
+// unrelated path).
+export function resolveRedirectSingleHop(
+  entries: RedirectEntry[],
+  fromPath: string,
+): string | undefined {
+  const normalized = normalizeRedirectPath(fromPath);
+  const match = entries.find(
+    (entry) => normalizeRedirectPath(entry.from) === normalized,
+  );
+  return match ? normalizeRedirectPath(match.to) : undefined;
+}
+
+// Forward direction of a collection's `previewUrl` template substitution -
+// centralized here since both the redirect resolver below and ItemPage.tsx's
+// own rename-confirmation copy need the identical substitution to agree on
+// what a slug's public URL is.
+export function urlForSlugFromPreviewUrl(
+  previewUrl: string,
+  slug: string,
+  branch: string,
+): string {
+  return previewUrl.replace("{slug}", slug).replace("{branch}", branch);
+}
+
+// Reverse of urlForSlugFromPreviewUrl: recovers the slug embedded in `url` by
+// a previewUrl template that already has `branch` baked in. Returns undefined
+// if `url` doesn't actually match the template's prefix/suffix, or the
+// template has no `{slug}` token to invert - true only for a malformed
+// config, since every realistic collection previewUrl has exactly one.
+export function slugFromPreviewUrlMatch(
+  previewUrl: string,
+  branch: string,
+  url: string,
+): string | undefined {
+  const withBranch = previewUrl.replace("{branch}", branch);
+  const slugIndex = withBranch.indexOf("{slug}");
+  if (slugIndex === -1) return undefined;
+  const prefix = withBranch.slice(0, slugIndex);
+  const suffix = withBranch.slice(slugIndex + "{slug}".length);
+  if (!url.startsWith(prefix) || !url.endsWith(suffix)) return undefined;
+  const middle = url.slice(prefix.length, url.length - suffix.length);
+  return middle || undefined;
+}
+
 // Render the redirect table to a Cloudflare `_redirects` file body. One
 // `from to 301` line per entry; static entries only, so ordering is not
 // load-bearing beyond dedupe.

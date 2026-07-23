@@ -8,8 +8,8 @@ export const prerender = false;
 
 // r2-mode deployments are public, so the admin shell itself sits behind the
 // native login (see plan/auth.md): no valid session cookie means a redirect
-// out to /login before any admin JS is served. Other storage kinds keep
-// their existing flows (local: none needed, github: its own OAuth).
+// out to /login before any admin JS is served. Demo builds need no such
+// check - they're read-only and fully static.
 if (config?.storage?.kind === 'r2') {
   const session = await getNativeSession(Astro.request);
   if (!session) {

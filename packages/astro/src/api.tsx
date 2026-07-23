@@ -12,18 +12,6 @@ export function makeHandler(_config: APIRouteConfig) {
     const handler = makeGenericAPIRouteHandler(
       {
         ..._config,
-        clientId:
-          _config.clientId ??
-          envVarsForCf?.DRYSTACK_GITHUB_CLIENT_ID ??
-          tryOrUndefined(() => {
-            return import.meta.env.DRYSTACK_GITHUB_CLIENT_ID;
-          }),
-        clientSecret:
-          _config.clientSecret ??
-          envVarsForCf?.DRYSTACK_GITHUB_CLIENT_SECRET ??
-          tryOrUndefined(() => {
-            return import.meta.env.DRYSTACK_GITHUB_CLIENT_SECRET;
-          }),
         secret:
           _config.secret ??
           envVarsForCf?.DRYSTACK_SECRET ??
@@ -57,12 +45,6 @@ export function makeHandler(_config: APIRouteConfig) {
           tryOrUndefined(() => {
             return import.meta.env.DRY_AI_BASE_URL;
           }),
-        // The `github/dry-map` route self-fetches its own deployed static
-        // assets through this - Cloudflare's `ASSETS` binding (declared in
-        // wrangler.jsonc) is a `Fetcher`, so `.fetch(url)` works the same as
-        // the global `fetch`. Undefined on adapters with no such binding;
-        // the route just 404s rather than ever serving the map.
-        assetsFetcher: _config.assetsFetcher ?? envVarsForCf?.ASSETS,
         // `storage: { kind: 'r2' }` reads/writes through this bucket binding
         // (declared in wrangler.jsonc). Undefined elsewhere; the r2 handler
         // 500s loudly rather than pretending to work without it.
@@ -97,9 +79,6 @@ export function makeHandler(_config: APIRouteConfig) {
           tryOrUndefined(() => {
             return import.meta.env.RESEND_FROM;
           }),
-      },
-      {
-        slugEnvName: "PUBLIC_DRYSTACK_GITHUB_APP_SLUG",
       },
     );
     const { body, headers, status } = await handler(context.request);

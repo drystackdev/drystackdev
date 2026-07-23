@@ -1,6 +1,5 @@
 import { useLocalizedStringFormatter } from "@react-aria/i18n";
 import l10nMessages from "./l10n";
-import { useRouter } from "./router";
 import { useScrollToFieldParam } from "./useScrollToFieldParam";
 import {
   FormEvent,
@@ -25,18 +24,13 @@ import { clientSideValidateProp } from "../form/errors";
 import { getInitialPropsValue } from "../form/initial-values";
 import { useEventCallback } from "../form/fields/use-event-callback";
 import {
-  getDataFileExtension,
-  getPathPrefix,
-  getRepoUrl,
   getSingletonFormat,
   getSingletonPath,
-  isGitHubConfig,
   useShowRestoredDraftMessage,
 } from "./utils";
 
-import { CreateBranchDuringUpdateDialog } from "./ItemPage";
 import { PageBody, PageHeader, PageRoot } from "./shell/page";
-import { useBaseCommit, useCurrentBranch, useRepoInfo } from "./shell/data";
+import { useCurrentBranch } from "./shell/data";
 import { useConfig } from "./shell/context";
 import { AiLockProvider } from "./ai/lock-context";
 import { MagicWriteButton, useAiEntryDescription } from "./ai/MagicWriteButton";
@@ -52,8 +46,8 @@ import { parseEntry, useItemData } from "./useItemData";
 import { serializeEntryToFiles, useUpsertItem } from "./updating";
 import { ResetEntryDataButton } from "./reset-entry-data";
 import { Icon } from "@keystar/ui/icon";
-import { ForkRepoDialog } from "./fork-repo";
 import {
+  CurrentEntryRefProvider,
   EntryDirectoryProvider,
   FormForEntry,
   containerWidthForEntryLayout,
@@ -66,7 +60,6 @@ import * as s from "superstruct";
 import { useData } from "./useData";
 import { ActionGroup, Item } from "@keystar/ui/action-group";
 import { useMediaQuery, breakpointQueries } from "@keystar/ui/style";
-import { githubIcon } from "@keystar/ui/icon/icons/githubIcon";
 import { externalLinkIcon } from "@keystar/ui/icon/icons/externalLinkIcon";
 import { usePreviewProps, useSingleton } from "./preview-props";
 import { ComponentSchema, GenericPreviewProps } from "..";
@@ -100,7 +93,6 @@ function SingletonPageInner(
 ) {
   const [reviewOpen, setReviewOpen] = useState(false);
   const isBelowDesktop = useMediaQuery(breakpointQueries.below.desktop);
-  const repoInfo = useRepoInfo();
   const currentBranch = useCurrentBranch();
   const [forceValidation, setForceValidation] = useState(false);
 
@@ -112,32 +104,14 @@ function SingletonPageInner(
   );
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
-  const router = useRouter();
   useScrollToFieldParam();
 
   const previewHref = useMemo(() => {
     if (!singletonConfig.previewUrl) return undefined;
     return singletonConfig.previewUrl.replace("{branch}", currentBranch);
   }, [currentBranch, singletonConfig.previewUrl]);
-  const isGitHub = isGitHubConfig(props.config);
   const formatInfo = getSingletonFormat(props.config, props.singleton);
-  const singletonExists = !!props.initialState;
   const singletonPath = getSingletonPath(props.config, props.singleton);
-
-  const viewHref =
-    isGitHub && singletonExists && repoInfo
-      ? `${getRepoUrl(repoInfo)}${
-          formatInfo.dataLocation === "index"
-            ? `/tree/${currentBranch}/${
-                getPathPrefix(props.config.storage) ?? ""
-              }${singletonPath}`
-            : `/blob/${
-                getPathPrefix(props.config.storage) ?? ""
-              }${currentBranch}/${singletonPath}${getDataFileExtension(
-                formatInfo,
-              )}`
-        }`
-      : undefined;
 
   const menuActions = useMemo(() => {
     const actions: {
@@ -169,22 +143,10 @@ function SingletonPageInner(
         rel: "noopener noreferrer",
       });
     }
-    if (viewHref) {
-      actions.push({
-        key: "view",
-        label: stringFormatter.format("viewOnGithub"),
-        icon: githubIcon,
-        href: viewHref,
-        target: "_blank",
-        rel: "noopener noreferrer",
-      });
-    }
     return actions;
-  }, [previewHref, viewHref, stringFormatter]);
+  }, [previewHref, stringFormatter]);
 
   const formID = "singleton-form";
-
-  const baseCommit = useBaseCommit();
 
   // build tracking now lives on the Deploy button (deploy/DeployButton.tsx):
   // saves commit to the editor's brand branch, which never triggers a
@@ -344,53 +306,18 @@ function SingletonPageInner(
             <Notice tone="critical">{props.updateResult.error.message}</Notice>
           )}
           <EntryDirectoryProvider value={singletonPath}>
-            <FormForEntry
-              previewProps={props.previewProps as any}
-              forceValidation={forceValidation}
-              entryLayout={singletonConfig.entryLayout}
-              formatInfo={formatInfo}
-              slugField={undefined}
-            />
-          </EntryDirectoryProvider>
-          <DialogContainer
-            // ideally this would be a popover on desktop but using a DialogTrigger wouldn't work since
-            // this doesn't open on click but after doing a network request and it failing and manually wiring about a popover and modal would be a pain
-            onDismiss={props.onResetUpdateItem}
-          >
-            {props.updateResult.kind === "needs-new-branch" && (
-              <CreateBranchDuringUpdateDialog
-                branchOid={baseCommit}
-                onCreate={async (newBranch) => {
-                  router.push(
-                    `${router.basePath}/branch/${encodeURIComponent(
-                      newBranch,
-                    )}/singleton/${encodeURIComponent(props.singleton)}`,
-                  );
-                  props.onUpdate({ branch: newBranch, sha: baseCommit });
-                }}
-                reason={props.updateResult.reason}
-                onDismiss={props.onResetUpdateItem}
+            <CurrentEntryRefProvider
+              value={{ type: "singleton", name: props.singleton }}
+            >
+              <FormForEntry
+                previewProps={props.previewProps as any}
+                forceValidation={forceValidation}
+                entryLayout={singletonConfig.entryLayout}
+                formatInfo={formatInfo}
+                slugField={undefined}
               />
-            )}
-          </DialogContainer>
-          <DialogContainer
-            // ideally this would be a popover on desktop but using a DialogTrigger
-            // wouldn't work since this doesn't open on click but after doing a
-            // network request and it failing and manually wiring about a popover
-            // and modal would be a pain
-            onDismiss={props.onResetUpdateItem}
-          >
-            {props.updateResult.kind === "needs-fork" &&
-              isGitHubConfig(props.config) && (
-                <ForkRepoDialog
-                  onCreate={async () => {
-                    props.onUpdate();
-                  }}
-                  onDismiss={props.onResetUpdateItem}
-                  config={props.config}
-                />
-              )}
-          </DialogContainer>
+            </CurrentEntryRefProvider>
+          </EntryDirectoryProvider>
           <DialogContainer onDismiss={() => setReviewOpen(false)}>
             {reviewOpen && (
               <ChangePreviewDialog

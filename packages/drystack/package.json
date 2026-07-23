@@ -128,6 +128,18 @@
       "drystack-src": "./src/app/file-manager/FileManagerHost.tsx",
       "default": "./dist/app/file-manager/FileManagerHost.js"
     },
+    "./content-ref-picker-host": {
+      "drystack-src": "./src/app/content-ref/ContentRefPickerHost.tsx",
+      "default": "./dist/app/content-ref/ContentRefPickerHost.js"
+    },
+    "./content-ref-bridge": {
+      "drystack-src": "./src/app/content-ref/bridge.ts",
+      "default": "./dist/app/content-ref/bridge.js"
+    },
+    "./content-is-content-field": {
+      "drystack-src": "./src/form/fields/content/is-content-field.ts",
+      "default": "./dist/form/fields/content/is-content-field.js"
+    },
     "./field-editor": {
       "drystack-src": "./src/app/field-editor.tsx",
       "default": "./dist/app/field-editor.js"
@@ -148,26 +160,6 @@
       "drystack-src": "./src/app/build-status-protocol.ts",
       "default": "./dist/app/build-status-protocol.js"
     },
-    "./brand-store": {
-      "drystack-src": "./src/app/brand-store.ts",
-      "default": "./dist/app/brand-store.js"
-    },
-    "./brand-label": {
-      "drystack-src": "./src/app/brand-label.ts",
-      "default": "./dist/app/brand-label.js"
-    },
-    "./deploy-merge": {
-      "drystack-src": "./src/app/deploy/merge3.ts",
-      "default": "./dist/app/deploy/merge3.js"
-    },
-    "./deploy-merge-base": {
-      "drystack-src": "./src/app/deploy/merge-base.ts",
-      "default": "./dist/app/deploy/merge-base.js"
-    },
-    "./deploy-cloudflare-status": {
-      "drystack-src": "./src/app/deploy/CloudflareStatus.tsx",
-      "default": "./dist/app/deploy/CloudflareStatus.js"
-    },
     "./yaml": {
       "drystack-src": "./src/yaml.ts",
       "default": "./dist/yaml.js"
@@ -175,10 +167,6 @@
     "./reader": {
       "drystack-src": "./src/reader/index.ts",
       "default": "./dist/reader/index.js"
-    },
-    "./reader/github": {
-      "drystack-src": "./src/reader/github.ts",
-      "default": "./dist/reader/github.js"
     },
     "./reader/r2": {
       "drystack-src": "./src/reader/r2.ts",
@@ -222,7 +210,6 @@
     "@react-stately/utils": "^3.10.6",
     "@react-types/shared": "^3.29.0",
     "@sindresorhus/slugify": "^1.1.2",
-    "@ts-gql/tag": "^0.7.3",
     "@types/react": "^19.0.8",
     "@urql/core": "^5.0.4",
     "@urql/exchange-auth": "^2.2.0",
@@ -282,9 +269,6 @@
     "@jest/expect": "^29.7.0",
     "@jest/globals": "^29.7.0",
     "@testing-library/user-event": "^14.6.1",
-    "@ts-gql/compiler": "^0.16.7",
-    "@ts-gql/eslint-plugin": "^0.9.1",
-    "@ts-gql/next": "^17.0.1",
     "@types/is-hotkey": "^0.1.7",
     "@types/js-yaml": "^4.0.5",
     "@types/mdast": "^4.0.3",
@@ -311,14 +295,6 @@
   "peerDependencies": {
     "react": "^18.2.0 || ^19.0.0",
     "react-dom": "^18.2.0 || ^19.0.0"
-  },
-  "ts-gql": {
-    "schema": "./github.graphql",
-    "mode": "no-transform",
-    "addTypename": false,
-    "scalars": {
-      "GitObjectID": "string"
-    }
   },
   "imports": {
     "#react-cache-in-react-server": {

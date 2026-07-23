@@ -11,10 +11,7 @@ export type {
   DemoConfig,
   EntryLayout,
   Format,
-  GitHubConfig,
   Glob,
-  LocalConfig,
-  LocalShapedConfig,
   R2Config,
   Singleton,
 } from './config';

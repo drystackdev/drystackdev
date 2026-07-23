@@ -197,13 +197,6 @@ export type FormatInfo = {
   dataLocation: 'index' | 'outer';
 };
 
-export function getPathPrefix(storage: Config['storage']) {
-  if (storage.kind !== 'github' || !storage.pathPrefix) {
-    return undefined;
-  }
-  return fixPath(storage.pathPrefix) + '/';
-}
-
 // Identifies one editable entry - either the singleton's own single instance,
 // or one slug's worth of a collection. Shared vocabulary between the visual
 // editor (packages/astro/src/editor) and the edit-sync bus so both address a

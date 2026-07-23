@@ -9,13 +9,13 @@ import { getCloudflareEnv } from "./cloudflare-env";
 // simulation). So we prefer the local reader whenever a real filesystem is
 // actually available, regardless of `storage.kind` - `storage.kind` alone
 // can't distinguish "building on Cloudflare" from "live in the deployed
-// Worker" since both have the same non-dev config. The GitHub reader is
-// the fallback for contexts with no filesystem at all, e.g. a genuinely
-// live `prerender: false` route running post-deploy in the Worker runtime.
-// Both readers are dynamically imported so the unused one (and its
-// node:fs/node:path imports, in the "local" reader's case) is never
-// evaluated - a static import would pull node:fs/promises into the
-// Workers bundle even when never called.
+// Worker" since both have the same non-dev config. The r2 reader is the
+// fallback for contexts with no filesystem at all, e.g. a genuinely live
+// `prerender: false` route running post-deploy in the Worker runtime.
+// Dynamically imported so the unused one (and its node:fs/node:path
+// imports, in the local-fs reader's case) is never evaluated - a static
+// import would pull node:fs/promises into the Workers bundle even when
+// never called.
 async function hasBuildTimeFilesystem(): Promise<boolean> {
   try {
     if (!process.versions?.node) return false;
@@ -30,45 +30,19 @@ export async function createConfiguredReader(config: Config<any, any>) {
   // Whenever a real filesystem is available - local dev, and the Cloudflare
   // build's Node prerender env (astro.config.mjs sets
   // `prerenderEnvironment: 'node'`) - every storage kind prefers it over a
-  // network/R2 round trip: it's the same content, faster, and (for github)
-  // avoids the API rate limit. Only a genuinely live Worker request with no
-  // filesystem - a `prerender: false` route running post-deploy - falls
-  // through to the kind-specific remote reader below.
-  if (
-    config.storage.kind === "local" ||
-    config.storage.kind === "demo" ||
-    (await hasBuildTimeFilesystem())
-  ) {
+  // network/R2 round trip: it's the same content, faster. Only a genuinely
+  // live Worker request with no filesystem - a `prerender: false` route
+  // running post-deploy - falls through to the r2 reader below.
+  if (config.storage.kind === "demo" || (await hasBuildTimeFilesystem())) {
     const { createReader } = await import("@drystack/core/reader");
     return createReader(process.cwd(), config);
   }
-  if (config.storage.kind === "r2") {
-    const { createR2Reader } = await import("@drystack/core/reader/r2");
-    const bucket = (await getCloudflareEnv())?.DRYSTACK_R2;
-    if (!bucket) {
-      throw new Error(
-        "createConfiguredReader(): storage.kind 'r2' has no DRYSTACK_R2 binding at request time - check wrangler.jsonc's r2_buckets entry",
-      );
-    }
-    return createR2Reader(config, bucket);
+  const { createR2Reader } = await import("@drystack/core/reader/r2");
+  const bucket = (await getCloudflareEnv())?.DRYSTACK_R2;
+  if (!bucket) {
+    throw new Error(
+      "createConfiguredReader(): storage.kind 'r2' has no DRYSTACK_R2 binding at request time - check wrangler.jsonc's r2_buckets entry",
+    );
   }
-  if (config.storage.kind === "github") {
-    const { createGitHubReader } = await import("@drystack/core/reader/github");
-    const repo = config.storage.repo;
-    const repoString = (
-      typeof repo === "string" ? repo : `${repo.owner}/${repo.name}`
-    ).replace(/\.git$/, "");
-    return createGitHubReader(config, {
-      repo: repoString as `${string}/${string}`,
-      pathPrefix: config.storage.pathPrefix,
-      // Unauthenticated GitHub API requests are capped at 60/hour - enough
-      // to trip during repeated local builds. Set DRYSTACK_GITHUB_TOKEN in
-      // .env (a classic PAT with public_repo/repo read access) to build
-      // against the authenticated 5000/hour limit instead.
-      token: import.meta.env.DRYSTACK_GITHUB_TOKEN,
-    });
-  }
-  throw new Error(
-    `createConfiguredReader(): MVP 1 chưa hỗ trợ storage.kind "${(config.storage as any).kind}"`,
-  );
+  return createR2Reader(config, bucket);
 }

@@ -1,9 +1,6 @@
-import * as cookie from "cookie";
-
 import type { Config } from "../..";
 import type { ComponentSchema } from "../../form/api";
 import type { DrystackRequest, DrystackResponse } from "../internal-utils";
-import { verifyGitHubAccess } from "../github-access";
 import type { D1DatabaseLike } from "../d1";
 import type { R2BucketLike } from "../api-r2";
 import { verifiedSession } from "../api-r2";
@@ -57,8 +54,8 @@ export type AiRouteConfig = {
   config: Config<any, any>;
   env: AiEnv;
   // Only consulted when config.storage.kind === 'r2' (see
-  // requireMagicWriterPermission below) - undefined for local/github, which
-  // have their own session shapes and no per-collection permission model.
+  // requireMagicWriterPermission below) - undefined for demo, which has no
+  // per-collection permission model (and no API routes at all).
   r2Bucket?: R2BucketLike;
   d1Database?: D1DatabaseLike;
   secret?: string;
@@ -151,39 +148,12 @@ function handleStatus(
 }
 
 /**
- * In GitHub mode the admin UI is deployed publicly, so without this the AI
- * routes would be an open, unauthenticated proxy to a paid AI account. Local
- * mode only ever runs on the developer's own machine.
- *
- * The token is verified against GitHub, not merely read: the cookie is
- * caller-supplied, so treating its presence as proof would let any visitor
- * spend the site owner's key by setting one. These routes cost real money on
- * someone else's account, which is a higher bar than the rest of the admin
- * API - `description` and `context` reach the model as free text, so an
- * unverified caller would have a general-purpose LLM proxy, not just the
- * ability to fill in one entry's fields.
- */
-async function requireSession(
-  req: DrystackRequest,
-  config: Config<any, any>,
-): Promise<DrystackResponse | undefined> {
-  if (config.storage.kind !== "github") return undefined;
-  const cookies = cookie.parse(req.headers.get("cookie") ?? "");
-  const token = cookies["drystack-gh-access-token"];
-  if (!token || !(await verifyGitHubAccess(config, token))) {
-    return json({ error: "Chưa đăng nhập." }, 401);
-  }
-  return undefined;
-}
-
-/**
  * r2 mode's per-collection `magicWriter` permission (plan/user-managent.md
- * mục 5) - separate from `requireSession` above, which only ever handles
- * github mode's cookie check (r2 mode's "is there any session at all" gate
- * already ran in generic.ts, before this handler was even reached; this is
- * the finer-grained "does *this* collection/singleton allow AI generation
- * for *this* session's roles" check on top of that). No-op for local/github,
- * which have no permission model to consult.
+ * mục 5) - r2 mode's "is there any session at all" gate already ran in
+ * generic.ts, before this handler was even reached; this is the
+ * finer-grained "does *this* collection/singleton allow AI generation for
+ * *this* session's roles" check on top of that). No-op for demo, which has
+ * no permission model to consult.
  */
 async function requireMagicWriterPermission(
   req: DrystackRequest,
@@ -220,9 +190,6 @@ async function handleModels(
   config: Config<any, any>,
   resolved: AiRuntimeConfig | AiConfigError,
 ): Promise<DrystackResponse> {
-  const denied = await requireSession(req, config);
-  if (denied) return denied;
-
   if (isAiConfigError(resolved)) {
     return json(
       { error: resolved.message, reason: resolved.reason, params: resolved.params },
@@ -265,9 +232,6 @@ async function handleVerifyModel(
   config: Config<any, any>,
   resolved: AiRuntimeConfig | AiConfigError,
 ): Promise<DrystackResponse> {
-  const denied = await requireSession(req, config);
-  if (denied) return denied;
-
   if (isAiConfigError(resolved)) {
     return json(
       { error: resolved.message, reason: resolved.reason, params: resolved.params },
@@ -332,9 +296,6 @@ async function preflight(
   // Authentication is checked before anything else, config included:
   // answering config questions first would tell an anonymous caller whether a
   // key is present, which is nobody's business but the signed-in user's.
-  const denied = await requireSession(req, config);
-  if (denied) return denied;
-
   if (isAiConfigError(resolved)) {
     return json(
       {

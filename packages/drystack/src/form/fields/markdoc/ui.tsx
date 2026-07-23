@@ -10,10 +10,12 @@ import { markdocToProseMirror } from './editor/markdoc/parse';
 import { format, parse } from '#markdoc';
 import { proseMirrorToMarkdoc } from './editor/markdoc/serialize';
 import {
+  useCurrentEntryRefContext,
   useEntryDirectoryContext,
   useEntryLayoutSplitPaneContext,
 } from '../../../app/entry-form';
 import { MediaScopeProvider } from './editor/media-scope';
+import { ContentRefScopeProvider } from './editor/content-ref-scope';
 import { fromMarkdown } from 'mdast-util-from-markdown';
 import { toMarkdown } from 'mdast-util-to-markdown';
 import {
@@ -135,6 +137,7 @@ export function DocumentFieldInput(
 ) {
   let entryLayoutPane = useEntryLayoutSplitPaneContext();
   let entryDirectory = useEntryDirectoryContext();
+  let currentEntryRef = useCurrentEntryRefContext();
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
 
   let fieldProps: FieldProps = {
@@ -160,18 +163,20 @@ export function DocumentFieldInput(
           : null
       }
     >
-      <Field
-        height={entryLayoutPane === 'main' ? '100%' : undefined}
-        {...fieldProps}
-      >
-        {inputProps => (
-          <Editor
-            {...inputProps}
-            value={props.value}
-            onChange={props.onChange}
-          />
-        )}
-      </Field>
+      <ContentRefScopeProvider value={currentEntryRef}>
+        <Field
+          height={entryLayoutPane === 'main' ? '100%' : undefined}
+          {...fieldProps}
+        >
+          {inputProps => (
+            <Editor
+              {...inputProps}
+              value={props.value}
+              onChange={props.onChange}
+            />
+          )}
+        </Field>
+      </ContentRefScopeProvider>
     </MediaScopeProvider>
   );
 }

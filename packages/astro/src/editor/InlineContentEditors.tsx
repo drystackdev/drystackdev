@@ -144,13 +144,9 @@ function InlineContentEditor({
     let cancelled = false;
     const html = el.innerHTML;
     Promise.all([
-      listAssetFiles(
-        config,
-        ref,
-        currentBranch || undefined,
-        field,
-        stringFormatter,
-      ).catch(() => new Map<string, Uint8Array>()),
+      listAssetFiles(config, ref, field, stringFormatter).catch(
+        () => new Map<string, Uint8Array>(),
+      ),
       getPendingBlobsUnder(assetsDir).catch(
         () => new Map<string, Uint8Array>(),
       ),
@@ -253,6 +249,7 @@ function InlineContentEditor({
           });
       }}
       entryDirectory={entryDir}
+      currentEntryRef={ref}
     />
   );
 }

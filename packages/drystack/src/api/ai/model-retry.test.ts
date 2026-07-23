@@ -13,7 +13,7 @@ import { clearModelCache } from "./model-registry";
 const schema = { title: fields.slug({ name: { label: "Tiêu đề" } }) };
 
 const config = {
-  storage: { kind: "local" },
+  storage: { kind: "demo" },
   ai: { lang: "vi-VN", for: { blog: "một bài blog" } },
   collections: { blog: { label: "Blog", schema } },
 } as any;

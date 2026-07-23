@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { DialogContainer } from "@keystar/ui/dialog";
 
-import { useBaseCommit, useRepoInfo, useTree } from "../shell/data";
+import { useTree } from "../shell/data";
 import { useConfig } from "../shell/context";
 import { useRouter } from "../router";
 import { fetchBlob } from "../useItemData";
@@ -75,8 +75,6 @@ export function FileManagerHost() {
   }, [libraryEntries, upload]);
 
   const config = useConfig();
-  const baseCommit = useBaseCommit();
-  const repoInfo = useRepoInfo();
   const { basePath } = useRouter();
   const tree = useTree().current;
 
@@ -88,10 +86,10 @@ export function FileManagerHost() {
       const path = `${MEDIA_LIBRARY_DIRECTORY}/${filename}`;
       const sha = getTreeNodeAtPath(tree.data.tree, path)?.entry.sha;
       if (!sha) return undefined;
-      return fetchBlob(config, sha, path, baseCommit, repoInfo, basePath);
+      return fetchBlob(config, sha, path, basePath);
     });
     return () => registerMediaLibraryBytesResolver(null);
-  }, [tree, config, baseCommit, repoInfo, basePath]);
+  }, [tree, config, basePath]);
 
   const resolveAndClose = (picks: MediaLibraryPick[] | undefined) => {
     if (picks) {

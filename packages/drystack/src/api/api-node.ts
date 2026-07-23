@@ -2,21 +2,16 @@ import * as s from 'superstruct';
 import {
   realFsPromises as fs,
   realPath as path,
-  realCrypto,
 } from './real-node';
 import { Config } from '../config';
 import {
   DrystackRequest,
   DrystackResponse,
-  redirect,
 } from './internal-utils';
 import { readToDirEntries, getAllowedDirectories } from './read-local';
 import { blobSha } from '../app/trees';
 import { base64UrlDecode } from '#base64';
-import { exchangeGitHubAppManifestCode } from './github-app-manifest';
 import { isDemoConfig } from '../app/storage-mode';
-
-const { randomBytes } = realCrypto;
 
 // this should be trivially dead code eliminated
 // it's just to ensure the types are exactly the same between this and local-noop.ts
@@ -28,40 +23,6 @@ function _typeTest() {
   let _c: typeof a = b;
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let _d: typeof b = a;
-}
-
-const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-export async function handleGitHubAppCreation(
-  req: DrystackRequest,
-  slugEnvVarName: string | undefined,
-  uiBasePath: string
-): Promise<DrystackResponse> {
-  const result = await exchangeGitHubAppManifestCode(req);
-  if (!result.ok) return result.response;
-  const ghAppDataResult = result.data;
-  const toAddToEnv = `# drystack
-DRYSTACK_GITHUB_CLIENT_ID=${ghAppDataResult.client_id}
-DRYSTACK_GITHUB_CLIENT_SECRET=${ghAppDataResult.client_secret}
-DRYSTACK_SECRET=${randomBytes(40).toString('hex')}
-${
-  slugEnvVarName
-    ? `${slugEnvVarName}=${ghAppDataResult.slug} # https://github.com/apps/${ghAppDataResult.slug}\n`
-    : ''
-}`;
-
-  let prevEnv: string | undefined;
-  try {
-    prevEnv = await fs.readFile('.env', 'utf-8');
-  } catch (err) {
-    if ((err as any).code !== 'ENOENT') throw err;
-  }
-  const newEnv = prevEnv ? `${prevEnv}\n\n${toAddToEnv}` : toAddToEnv;
-  await fs.writeFile('.env', newEnv);
-  await wait(200);
-  return redirect(
-    `${uiBasePath}/created-github-app?slug=${encodeURIComponent(ghAppDataResult.slug)}`
-  );
 }
 
 export function localModeApiHandler(

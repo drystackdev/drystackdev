@@ -1,17 +1,10 @@
 import { useCallback } from "react";
 import { base64Encode } from "#base64";
 import { useConfig } from "../shell/context";
-import {
-  useBaseCommit,
-  useRepoInfo,
-  useTree,
-  useCurrentUnscopedTree,
-  hydrateTreeCacheWithEntries,
-} from "../shell/data";
+import { useTree, hydrateTreeCacheWithEntries } from "../shell/data";
 import { useRouter } from "../router";
 import { fetchBlob } from "../useItemData";
-import { getTreeNodeAtPath, updateTreeWithChanges, TreeEntry } from "../trees";
-import { useCommitFileChanges } from "../shell/useCommitFileChanges";
+import { getTreeNodeAtPath, TreeEntry } from "../trees";
 import { TRASH_DIRECTORY } from "./constants";
 import { isDemoConfig } from "../storage-mode";
 import { blockWriteInDemo } from "../demo-guard";
@@ -63,73 +56,12 @@ async function postUpdate(
 
 // Trash/restore are emulated as a single call that both writes the bytes at
 // the new location (`additions`) and removes the old path (`deletions`) -
-// there's no dedicated move/rename endpoint. Local storage does this via the
-// `/update` REST route; github storage commits the same change straight to
-// the branch via `useCommitFileChanges`, mirroring how uploads commit (see
-// useFileManagerUpload.ts).
+// there's no dedicated move/rename endpoint, so this always goes through the
+// `/update` REST route.
 export function useTrash() {
   const config = useConfig();
-  const baseCommit = useBaseCommit();
-  const repoInfo = useRepoInfo();
   const { basePath } = useRouter();
   const tree = useTree().current;
-  const unscopedTreeData = useCurrentUnscopedTree();
-  const commitFileChanges = useCommitFileChanges();
-  const isGitHub = config.storage.kind === "github";
-
-  const commitToGitHub = useCallback(
-    async (
-      message: string,
-      additions: { path: string; contents: Uint8Array }[],
-      deletions: readonly string[],
-    ) => {
-      const unscopedTree =
-        unscopedTreeData.kind === "loaded"
-          ? unscopedTreeData.data.tree
-          : undefined;
-      if (!unscopedTree) throw new Error("Tree not loaded");
-      const updatedTree = await updateTreeWithChanges(unscopedTree, {
-        additions,
-        deletions: [...deletions],
-      });
-      const result = await commitFileChanges({
-        message,
-        additions,
-        deletions: deletions.map((path) => ({ path })),
-      });
-      if (result.kind === "needs-fork") {
-        throw new Error(
-          "This repository requires a fork to make changes - use the entry editor to request one first.",
-        );
-      }
-      if (result.kind === "error") throw result.error;
-      const hydrated = await hydrateTreeCacheWithEntries(updatedTree.entries);
-      // No setTreeSha in github mode: there's no SetTreeShaContext
-      // provider there so it would throw. The tree refreshes from the commit
-      // result via urql's normalized cache, same as useUpsertItem's save path.
-      return hydrated;
-    },
-    [unscopedTreeData, commitFileChanges],
-  );
-
-  // a directory-shaped path may be selected (e.g. a whole trashed folder) -
-  // github deletions must name individual blobs, so expand any folder entry
-  // to its descendant files first (mirrors FileManagerRoot's expandFolders)
-  const expandToBlobPaths = useCallback(
-    (paths: readonly string[]) => {
-      if (tree.kind !== "loaded") return paths;
-      return paths.flatMap((path) => {
-        const node = getTreeNodeAtPath(tree.data.tree, path);
-        if (node?.entry.type === "tree") {
-          return descendantBlobPaths(tree.data.entries, path).map(
-            (e) => e.path,
-          );
-        }
-        return [path];
-      });
-    },
-    [tree],
-  );
 
   const movePaths = useCallback(
     async (paths: readonly string[], transform: (path: string) => string) => {
@@ -142,26 +74,12 @@ export function useTrash() {
         paths.map(async (path) => {
           const sha = getTreeNodeAtPath(tree.data.tree, path)?.entry.sha;
           if (!sha) return null;
-          const contents = await fetchBlob(
-            config,
-            sha,
-            path,
-            baseCommit,
-            repoInfo,
-            basePath,
-          );
+          const contents = await fetchBlob(config, sha, path, basePath);
           return { path, newPath: transform(path), contents };
         }),
       );
       const valid = files.filter((x): x is NonNullable<typeof x> => x !== null);
       if (valid.length === 0) return undefined;
-      if (isGitHub) {
-        return commitToGitHub(
-          "Move files",
-          valid.map((f) => ({ path: f.newPath, contents: f.contents })),
-          valid.map((f) => f.path),
-        );
-      }
       return postUpdate(
         basePath,
         valid.map((f) => ({
@@ -171,7 +89,7 @@ export function useTrash() {
         valid.map((f) => ({ path: f.path })),
       );
     },
-    [tree, config, baseCommit, repoInfo, basePath, isGitHub, commitToGitHub],
+    [tree, config, basePath],
   );
 
   const trashPaths = useCallback(
@@ -190,9 +108,6 @@ export function useTrash() {
         blockWriteInDemo();
         return undefined;
       }
-      if (isGitHub) {
-        return commitToGitHub("Delete files", [], expandToBlobPaths(paths));
-      }
       // a directory-shaped path here removes everything under it in one go
       // (server's fs.rm is called with recursive:true)
       return postUpdate(
@@ -201,7 +116,7 @@ export function useTrash() {
         paths.map((path) => ({ path })),
       );
     },
-    [config, basePath, isGitHub, commitToGitHub, expandToBlobPaths],
+    [config, basePath],
   );
 
   return { trashPaths, restorePaths, permanentlyDelete };

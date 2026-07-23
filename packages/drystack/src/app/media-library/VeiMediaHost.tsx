@@ -4,39 +4,8 @@ import type { Config } from "../../config";
 import { createUrqlClient } from "../provider";
 import { RouterProvider } from "../router";
 import { ConfigContext, AppStateContext } from "../shell/context";
-import {
-  GitHubAppShellDataProvider,
-  GitHubAppShellProvider,
-  LocalAppShellProvider,
-} from "../shell/data";
-import { isGitHubConfig, isLocalShapedConfig } from "../utils";
+import { LocalAppShellProvider } from "../shell/data";
 import { FileManagerHost } from "../file-manager/FileManagerHost";
-
-function ShellProviders({
-  config,
-  currentBranch,
-  children,
-}: {
-  config: Config<any, any>;
-  currentBranch: string;
-  children: ReactNode;
-}) {
-  if (isGitHubConfig(config)) {
-    return (
-      <GitHubAppShellDataProvider config={config}>
-        <GitHubAppShellProvider currentBranch={currentBranch} config={config}>
-          {children}
-        </GitHubAppShellProvider>
-      </GitHubAppShellDataProvider>
-    );
-  }
-  if (isLocalShapedConfig(config)) {
-    return (
-      <LocalAppShellProvider config={config}>{children}</LocalAppShellProvider>
-    );
-  }
-  return null;
-}
 
 // The provider stack needed to mount real admin surfaces (FileManagerHost,
 // but also - see packages/astro/src/editor/Toolbar.tsx - the admin's own
@@ -46,14 +15,9 @@ function ShellProviders({
 // KeystarProvider (the mounting root already provides one; Keystar dialogs
 // portal to <body> but stay in this React tree, so they still pick up that
 // theme).
-//
-// `currentBranch` only matters in github mode - resolve it (getCurrentBranchName
-// in editor/save.ts) before mounting this component; it's the same default
-// branch the visual editor's Save commits to.
 export function VeiAdminProviders({
   config,
   basePath,
-  currentBranch,
   children,
 }: {
   config: Config<any, any>;
@@ -70,9 +34,9 @@ export function VeiAdminProviders({
       <AppStateContext.Provider value={{ basePath }}>
         <RouterProvider basePath={basePath}>
           <UrqlProvider value={client}>
-            <ShellProviders config={config} currentBranch={currentBranch}>
+            <LocalAppShellProvider config={config}>
               {children}
-            </ShellProviders>
+            </LocalAppShellProvider>
           </UrqlProvider>
         </RouterProvider>
       </AppStateContext.Provider>
