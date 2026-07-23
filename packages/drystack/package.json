@@ -136,6 +136,10 @@
       "drystack-src": "./src/app/content-ref/bridge.ts",
       "default": "./dist/app/content-ref/bridge.js"
     },
+    "./content-ref-cache": {
+      "drystack-src": "./src/app/content-ref/resolved-html-cache.ts",
+      "default": "./dist/app/content-ref/resolved-html-cache.js"
+    },
     "./content-is-content-field": {
       "drystack-src": "./src/form/fields/content/is-content-field.ts",
       "default": "./dist/form/fields/content/is-content-field.js"

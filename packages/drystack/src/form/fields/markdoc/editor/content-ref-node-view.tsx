@@ -7,9 +7,17 @@ import { useReferencedContentHtml } from "../../../../app/content-ref/useReferen
 
 const sectionClass = css({
   display: "block",
+  outline: `2px solid ${tokenSchema.color.alias.borderIdle}`,
+  outlineOffset: 2,
+  transition: "outline-color 150ms ease",
+  "&:hover": {
+    outlineColor: tokenSchema.color.alias.borderHovered,
+  },
+  "&:active": {
+    outlineColor: tokenSchema.color.alias.borderPressed,
+  },
   "&[data-selected=true]": {
-    outline: `2px solid ${tokenSchema.color.alias.borderSelected}`,
-    outlineOffset: 2,
+    outlineColor: tokenSchema.color.alias.borderSelected,
   },
 });
 

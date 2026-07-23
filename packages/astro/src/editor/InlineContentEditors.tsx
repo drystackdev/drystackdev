@@ -24,6 +24,7 @@ import {
   type LatestGuard,
   type StashedBlobs,
 } from "./store";
+import { fillContentRefPlaceholdersFromCache } from "@drystack/core/content-ref-cache";
 import { setContentSpotPainter } from "./bind";
 import { listAssetFiles } from "./save";
 
@@ -182,7 +183,16 @@ function InlineContentEditor({
   useEffect(() => {
     return () => {
       const latest = stateRef.current;
-      if (latest) el.innerHTML = serializeHtml(schema, latest, entryDir);
+      if (latest) {
+        // A content_ref node always serializes to an empty placeholder (see
+        // html/serialize.ts - resolved content is never persisted), so fill
+        // it back in from whatever ContentRefNodeView last resolved (see
+        // content-ref-cache.ts) rather than showing a blank gap until the
+        // next full page load re-runs the server-side resolver.
+        el.innerHTML = fillContentRefPlaceholdersFromCache(
+          serializeHtml(schema, latest, entryDir),
+        );
+      }
     };
   }, [el, schema, entryDir]);
 
@@ -238,9 +248,18 @@ function InlineContentEditor({
         stashContentBlobs(out.other, assetsDir, stashedRef.current)
           .then(() => {
             if (!guardRef.current.isCurrent(key, token)) return;
-            return publishEdit(key, htmlFromSerializeOutput(out)).then(
-              onChange,
+            // schema.serialize() always writes content_ref back out as an
+            // empty placeholder (never persist resolved content to storage -
+            // see html/serialize.ts). Fill it back in from the cache before
+            // this HTML goes anywhere *other* than storage: publishEdit
+            // fans it out to every other same-key spot in this tab (e.g. a
+            // .view() readonly mirror - see bind.ts's paintContentSpot,
+            // which paints it directly with no re-resolution of its own)
+            // and to every other tab via the edit bus.
+            const html = fillContentRefPlaceholdersFromCache(
+              htmlFromSerializeOutput(out),
             );
+            return publishEdit(key, html).then(onChange);
           })
           .catch(() => {
             // A blob failed to stash - publishing now would embed an image

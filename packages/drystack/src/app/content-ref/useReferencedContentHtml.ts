@@ -6,9 +6,10 @@ import { fetchBlob } from "../useItemData";
 import { getTreeNodeAtPath } from "../trees";
 import { loadDataFile } from "../required-files";
 import { entryRefExists, resolveEntryRef, type EntryRef } from "../path-utils";
-import { entryRefKey } from "../edit-sync";
+import { editKey, entryRefKey } from "../edit-sync";
 import { isContentEditorField } from "../../form/fields/content/is-content-field";
 import type { AssetsFormField } from "../../form/api";
+import { cacheReferencedContentHtml } from "./resolved-html-cache";
 
 export type ReferencedContentHtmlState =
   | { status: "loading" }
@@ -46,6 +47,16 @@ export function useReferencedContentHtml(
 
   const refKey = ref ? entryRefKey(ref) : null;
 
+  // Seed the cache from the server-resolved HTML too (not just the fetches
+  // below) - an unmount-repaint (see InlineContentEditors.tsx) racing ahead
+  // of the live fetch below still has *something* correct to fall back on.
+  useEffect(() => {
+    if (ref && field && seedHtml != null) {
+      cacheReferencedContentHtml(editKey(ref, field), seedHtml);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refKey, field, seedHtml]);
+
   useEffect(() => {
     if (!ref || !field || tree.kind !== "loaded") {
       setState({ status: "not-found" });
@@ -81,18 +92,21 @@ export function useReferencedContentHtml(
       const bytes = await fetchBlob(config, sha, path, basePath);
       if (cancelled) return;
       if (contentExtension) {
-        setState({ status: "ready", html: textDecoder.decode(bytes) });
+        const html = textDecoder.decode(bytes);
+        cacheReferencedContentHtml(editKey(ref, field), html);
+        setState({ status: "ready", html });
         return;
       }
       // inline field: the html string lives directly in the data file's own
       // JSON/YAML under this field's key
       const { loaded } = loadDataFile(bytes, resolved.format);
       const html = (loaded as Record<string, unknown> | null)?.[field];
-      setState(
-        typeof html === "string"
-          ? { status: "ready", html }
-          : { status: "not-found" },
-      );
+      if (typeof html === "string") {
+        cacheReferencedContentHtml(editKey(ref, field), html);
+        setState({ status: "ready", html });
+      } else {
+        setState({ status: "not-found" });
+      }
     })().catch(() => {
       if (!cancelled) setState({ status: "not-found" });
     });
