@@ -148,14 +148,46 @@ function makeCell(
   );
 }
 
+// shared by `insertGrid` (fixed 2-cell, wired into the insert-menu) and
+// `insertGridWithItemCount` (the toolbar's item-count dropdown) - kept out of
+// `insertGrid` itself since that one is called as `(type, schema)` by
+// `insertMenu.command` (see commands/misc.ts's note on the same hazard for
+// `insertTable`), so it can't safely grow a `cellCount` parameter.
+function buildGrid(
+  gridType: NodeType,
+  cellCount: number,
+): ProseMirrorNode | null {
+  const span = clampSpan(GRID_DEFAULT_COLUMNS / cellCount, GRID_DEFAULT_COLUMNS);
+  const cells: ProseMirrorNode[] = [];
+  for (let i = 0; i < cellCount; i++) {
+    const cell = makeCell(gridType.schema, span);
+    if (!cell) return null;
+    cells.push(cell);
+  }
+  return gridType.createAndFill({}, cells);
+}
+
 // insert-menu factory (matches the `insertMenu.command` signature). Drops a
 // fresh grid with two equal cells at the selection.
 export function insertGrid(gridType: NodeType): Command {
   return (state, dispatch) => {
-    const cellA = makeCell(gridType.schema);
-    const cellB = makeCell(gridType.schema);
-    if (!cellA || !cellB) return false;
-    const grid = gridType.createAndFill({}, [cellA, cellB]);
+    const grid = buildGrid(gridType, 2);
+    if (!grid) return false;
+    if (dispatch) {
+      dispatch(state.tr.replaceSelectionWith(grid).scrollIntoView());
+    }
+    return true;
+  };
+}
+
+// the toolbar's item-count dropdown (see Toolbar.tsx's `GridInsertMenu`)
+// calls this directly, bypassing `insertMenu`.
+export function insertGridWithItemCount(
+  gridType: NodeType,
+  cellCount: number,
+): Command {
+  return (state, dispatch) => {
+    const grid = buildGrid(gridType, cellCount);
     if (!grid) return false;
     if (dispatch) {
       dispatch(state.tr.replaceSelectionWith(grid).scrollIntoView());

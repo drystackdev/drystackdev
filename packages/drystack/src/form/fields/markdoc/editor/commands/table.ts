@@ -6,7 +6,9 @@ import {
   addColSpan,
   addColumnAfter,
   addColumnBefore,
+  addRowAfter,
   cellAround,
+  goToNextCell,
   rowIsHeader,
   selectedRect,
   splitCellWithType,
@@ -193,3 +195,16 @@ export const addColumnAfterWithRebalance: Command = withColumnRebalance(
   addColumnAfter,
   false,
 );
+
+// Tab at the table's very last cell has nowhere for `goToNextCell` to go (it
+// only wraps to the next *row*, not past the last one) - rather than falling
+// through to the browser's default Tab (which escapes the editor into
+// whatever's next in the DOM, e.g. a toolbar button), add a row and land in
+// its first cell, mirroring spreadsheet/Word behavior.
+export const addRowAndFocusFirstCell: Command = (state, dispatch, view) => {
+  if (!addRowAfter(state, dispatch)) return false;
+  if (dispatch && view) {
+    goToNextCell(1)(view.state, view.dispatch);
+  }
+  return true;
+};

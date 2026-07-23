@@ -1,0 +1,6 @@
+{
+  "key": "editorGridItemCount",
+  "value": "{count, plural, one {# item} other {# items}}",
+  "notes": "",
+  "type": "global"
+}

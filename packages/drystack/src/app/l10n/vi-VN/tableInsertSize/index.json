@@ -1,0 +1,6 @@
+{
+  "key": "tableInsertSize",
+  "value": "Bảng {rows} × {cols}",
+  "notes": "",
+  "type": "global"
+}

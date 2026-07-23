@@ -24,6 +24,7 @@ import {
   EditorToolbarSeparator,
 } from "@keystar/ui/editor";
 import { Icon } from "@keystar/ui/icon";
+import { Flex } from "@keystar/ui/layout";
 import { alignCenterIcon } from "@keystar/ui/icon/icons/alignCenterIcon";
 import { alignJustifyIcon } from "@keystar/ui/icon/icons/alignJustifyIcon";
 import { alignLeftIcon } from "@keystar/ui/icon/icons/alignLeftIcon";
@@ -55,8 +56,8 @@ import {
   useEditorViewRef,
 } from "./editor-view";
 import { toggleList } from "./lists";
-import { insertNode, insertTable, toggleCodeBlock } from "./commands/misc";
-import { insertGrid } from "./grid";
+import { insertNode, insertTableWithSize, toggleCodeBlock } from "./commands/misc";
+import { insertGridWithItemCount } from "./grid";
 import { EditorSchema, FONT_SIZE_VALUES, FontSizeKey } from "./schema";
 import { ImageToolbarButton } from "./images";
 import { ContentRefToolbarButton } from "./content-ref";
@@ -64,7 +65,7 @@ import { useEntryLayoutSplitPaneContext } from "../../../../app/entry-form";
 import { itemRenderer } from "./autocomplete/insert-menu";
 import { LinkDialog } from "./popovers/link-toolbar";
 import { TextColorDialog } from "./popovers/text-color-dialog";
-import { DialogContainer } from "@keystar/ui/dialog";
+import { DialogContainer, DialogTrigger } from "@keystar/ui/dialog";
 import { linkIcon } from "@keystar/ui/icon/icons/linkIcon";
 import { markAround } from "./popovers";
 import { useEditorKeydownListener } from "./keydown";
@@ -373,32 +374,8 @@ export const Toolbar = memo(function Toolbar(
                 </Tooltip>
               </TooltipTrigger>
             )}
-            {nodes.table && (
-              <TooltipTrigger>
-                <ToolbarButton
-                  aria-label={stringFormatter.format("editorTable")}
-                  command={insertTable(nodes.table)}
-                >
-                  <Icon src={tableIcon} />
-                </ToolbarButton>
-                <Tooltip>
-                  <Text>{stringFormatter.format("editorTable")}</Text>
-                </Tooltip>
-              </TooltipTrigger>
-            )}
-            {nodes.grid && (
-              <TooltipTrigger>
-                <ToolbarButton
-                  aria-label={stringFormatter.format("editorGrid")}
-                  command={insertGrid(nodes.grid)}
-                >
-                  <Icon src={gridInsertIcon} />
-                </ToolbarButton>
-                <Tooltip>
-                  <Text>{stringFormatter.format("editorGrid")}</Text>
-                </Tooltip>
-              </TooltipTrigger>
-            )}
+            {nodes.table && <TableInsertGridPicker tableType={nodes.table} />}
+            {nodes.grid && <GridInsertMenu gridType={nodes.grid} />}
           </EditorToolbarGroup>
         </EditorToolbar>
       </ToolbarScrollArea>
@@ -1206,6 +1183,146 @@ function AlignmentControls() {
     [isDisabled, current, currentItem, runCommand, items, stringFormatter],
   );
 }
+
+// how many cells a freshly-inserted grid starts with - each divides the
+// grid's fixed 12 columns evenly (see grid.ts's `insertGrid`)
+const GRID_INSERT_ITEM_COUNTS = [1, 2, 3, 4] as const;
+
+function GridInsertMenu(props: { gridType: NodeType }) {
+  const runCommand = useEditorDispatchCommand();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
+  return (
+    <TooltipTrigger>
+      <MenuTrigger>
+        <ActionButton
+          prominence="low"
+          aria-label={stringFormatter.format("editorGrid")}
+        >
+          <Icon src={gridInsertIcon} />
+        </ActionButton>
+        <Menu
+          onAction={(key) => {
+            runCommand(insertGridWithItemCount(props.gridType, Number(key)));
+          }}
+        >
+          {GRID_INSERT_ITEM_COUNTS.map((count) => (
+            <Item key={String(count)}>
+              {stringFormatter.format("editorGridItemCount", { count })}
+            </Item>
+          ))}
+        </Menu>
+      </MenuTrigger>
+      <Tooltip>
+        <Text>{stringFormatter.format("editorGrid")}</Text>
+      </Tooltip>
+    </TooltipTrigger>
+  );
+}
+
+// Word/Sheets-style hover grid for inserting a table: hovering the Nth
+// row/column of the 10×10 grid highlights that rectangle and shows its size,
+// clicking inserts a table of exactly that size. `insertTableWithSize` is a
+// dedicated command (rather than a 2nd/3rd param on `insertTable` itself) -
+// see commands/misc.ts's note on why `insertTable` can't safely grow params.
+const TABLE_PICKER_SIZE = 10;
+const TABLE_PICKER_CELL_SIZE = 18;
+
+function TableInsertGridPicker(props: { tableType: NodeType }) {
+  const runCommand = useEditorDispatchCommand();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
+  const [hover, setHover] = useState<{ rows: number; cols: number } | null>(
+    null,
+  );
+  return (
+    <DialogTrigger type="popover" hideArrow>
+      <ActionButton
+        prominence="low"
+        aria-label={stringFormatter.format("editorTable")}
+      >
+        <Icon src={tableIcon} />
+      </ActionButton>
+      {(close: () => void) => (
+        <Flex
+          direction="column"
+          gap="small"
+          padding="regular"
+          alignItems="center"
+        >
+          <Text>
+            {hover
+              ? stringFormatter.format("tableInsertSize", {
+                  rows: hover.rows,
+                  cols: hover.cols,
+                })
+              : stringFormatter.format("editorTable")}
+          </Text>
+          <div
+            className={tablePickerGridClass}
+            role="grid"
+            aria-label={stringFormatter.format("editorTable")}
+            onMouseLeave={() => setHover(null)}
+          >
+            {Array.from({ length: TABLE_PICKER_SIZE * TABLE_PICKER_SIZE }).map(
+              (_, i) => {
+                const row = Math.floor(i / TABLE_PICKER_SIZE);
+                const col = i % TABLE_PICKER_SIZE;
+                const isActive =
+                  !!hover && row < hover.rows && col < hover.cols;
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    className={
+                      isActive
+                        ? tablePickerCellActiveClass
+                        : tablePickerCellClass
+                    }
+                    aria-label={stringFormatter.format("tableInsertSize", {
+                      rows: row + 1,
+                      cols: col + 1,
+                    })}
+                    // keep the editor selection where it was - otherwise
+                    // pressing would blur it before the command runs
+                    onMouseDown={(event) => event.preventDefault()}
+                    onMouseEnter={() =>
+                      setHover({ rows: row + 1, cols: col + 1 })
+                    }
+                    onClick={() => {
+                      runCommand(
+                        insertTableWithSize(props.tableType, row + 1, col + 1),
+                      );
+                      close();
+                    }}
+                  />
+                );
+              },
+            )}
+          </div>
+        </Flex>
+      )}
+    </DialogTrigger>
+  );
+}
+
+const tablePickerGridClass = css({
+  display: "grid",
+  gridTemplateColumns: `repeat(${TABLE_PICKER_SIZE}, ${TABLE_PICKER_CELL_SIZE}px)`,
+  gridTemplateRows: `repeat(${TABLE_PICKER_SIZE}, ${TABLE_PICKER_CELL_SIZE}px)`,
+  gap: 2,
+});
+
+const tablePickerCellClass = css({
+  boxSizing: "border-box",
+  border: `1px solid ${tokenSchema.color.border.muted}`,
+  background: "transparent",
+  padding: 0,
+  cursor: "pointer",
+});
+
+const tablePickerCellActiveClass = css(tablePickerCellClass, {
+  backgroundColor: tokenSchema.color.alias.backgroundSelected,
+  borderColor: tokenSchema.color.alias.borderSelected,
+});
 
 function removeAllMarks(): Command {
   return (state, dispatch) => {

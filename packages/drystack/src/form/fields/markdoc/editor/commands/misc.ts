@@ -1,5 +1,5 @@
 import { setBlockType } from "prosemirror-commands";
-import { NodeType } from "prosemirror-model";
+import { Node as ProseMirrorNode, NodeType } from "prosemirror-model";
 import { Command, NodeSelection } from "prosemirror-state";
 import { getEditorSchema } from "../schema";
 
@@ -50,7 +50,16 @@ export function toggleCodeBlock(
   };
 }
 
-export function insertTable(tableType: NodeType): Command {
+// shared by `insertTable` (fixed 3×3, wired into the insert-menu) and
+// `insertTableWithSize` (the toolbar's hover-grid picker, see Toolbar.tsx's
+// `TableInsertGridPicker`) - kept out of `insertTable` itself since that one
+// is called as `(nodeType, editorSchema)` by `insertMenu.command` (see the
+// note above), so it can't safely grow a `rows`/`columns` parameter.
+function buildTable(
+  tableType: NodeType,
+  rows: number,
+  columns: number,
+): ProseMirrorNode {
   const rowType = tableType.contentMatch.defaultType!;
   const cellType = rowType.contentMatch.defaultType!;
   const headerType = getEditorSchema(tableType.schema).nodes.table_header!;
@@ -59,19 +68,40 @@ export function insertTable(tableType: NodeType): Command {
   // resolveEffectiveColumnWidths/rebalanceColumnWidthsForInsert, which rely
   // on columns already having a real width to redistribute when a new one
   // is inserted later.
-  const initialColumns = 3;
-  const widthPercent = Math.round((100 / initialColumns) * 10) / 10;
-  return (state, dispatch) => {
-    const header = headerType.createAndFill({ widthPercent })!;
-    const cell = cellType.createAndFill({ widthPercent })!;
-    const headerRow = rowType.create(undefined, [header, header, header]);
-    const row = rowType.create(undefined, [cell, cell, cell]);
-    dispatch?.(
-      state.tr.replaceSelectionWith(
-        tableType.create(undefined, [headerRow, row, row]),
-      ),
+  const widthPercent = Math.round((100 / columns) * 10) / 10;
+  const headerCells = Array.from({ length: columns }, () =>
+    headerType.createAndFill({ widthPercent })!,
+  );
+  const headerRow = rowType.create(undefined, headerCells);
+  const bodyRows = Array.from({ length: Math.max(rows - 1, 0) }, () => {
+    const cells = Array.from({ length: columns }, () =>
+      cellType.createAndFill({ widthPercent })!,
     );
+    return rowType.create(undefined, cells);
+  });
+  return tableType.create(undefined, [headerRow, ...bodyRows]);
+}
 
+export function insertTable(tableType: NodeType): Command {
+  return (state, dispatch) => {
+    dispatch?.(state.tr.replaceSelectionWith(buildTable(tableType, 3, 3)));
+    return true;
+  };
+}
+
+// the toolbar's Word-style hover-grid picker (see Toolbar.tsx's
+// `TableInsertGridPicker`) calls this directly, bypassing `insertMenu` -
+// `rows`/`columns` come from whichever cell in the 10×10 grid the user
+// clicked.
+export function insertTableWithSize(
+  tableType: NodeType,
+  rows: number,
+  columns: number,
+): Command {
+  return (state, dispatch) => {
+    dispatch?.(
+      state.tr.replaceSelectionWith(buildTable(tableType, rows, columns)),
+    );
     return true;
   };
 }

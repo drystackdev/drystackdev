@@ -25,7 +25,9 @@ import {
   liftListItem,
   sinkListItem,
 } from '../lists';
+import { goToNextCell } from 'prosemirror-tables';
 import { moveToAdjacentCell, deleteEmptyGridCell } from '../grid';
+import { addRowAndFocusFirstCell } from './table';
 import { EditorSchema } from '../schema';
 import { Command, NodeSelection } from 'prosemirror-state';
 import { NodeType, ResolvedPos } from 'prosemirror-model';
@@ -94,6 +96,17 @@ export function keymapForSchema(
     add('Shift-Tab', moveToAdjacentCell(-1));
     add('Backspace', deleteEmptyGridCell);
     add('Delete', deleteEmptyGridCell);
+  }
+  if (nodes.table_cell) {
+    // Tab hops between table cells (goToNextCell wraps to the next row's
+    // first cell); at the very last cell there's no next row to wrap to, so
+    // it falls through to addRowAndFocusFirstCell, which adds one. Without
+    // this, an unhandled Tab there escapes the editor into the next
+    // focusable DOM element (e.g. a toolbar button) instead of growing the
+    // table. Shift-Tab at the first cell just consumes the key - same
+    // reasoning as grid_cell's Shift-Tab above.
+    add('Tab', chainCommands(goToNextCell(1), addRowAndFocusFirstCell));
+    add('Shift-Tab', chainCommands(goToNextCell(-1), () => true));
   }
   if (nodes.paragraph) {
     add(
