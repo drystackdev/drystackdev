@@ -3,26 +3,22 @@ import type { Node as ProseMirrorNode, NodeType } from "prosemirror-model";
 import type { Command, EditorState } from "prosemirror-state";
 import { NodeSelection, Selection } from "prosemirror-state";
 
-// The grid is a flat CSS-grid whose track count is configurable per grid (the
-// `columns` attr, default 24 - like a 24-unit design grid). Each `grid_cell`
+// The grid is a flat CSS-grid with a fixed 12-unit track count (like a
+// classic 12-column design grid - not user-configurable). Each `grid_cell`
 // spans N of those tracks; cells that overflow the track count wrap onto a new
 // visual row via the grid's auto-flow. On mobile the whole thing collapses to
 // a single column (see GRID_RESPONSIVE_CSS).
-export const GRID_DEFAULT_COLUMNS = 24;
-export const GRID_DEFAULT_SPAN = 12;
+export const GRID_DEFAULT_COLUMNS = 12;
+export const GRID_DEFAULT_SPAN = 6;
 export const GRID_DEFAULT_ROW_SPAN = 1;
 export const GRID_DEFAULT_GAP = "0.5em";
 // explicit row-track count - an even split of the grid's height into N equal
 // (`1fr`) rows. `1` (the default) behaves the same as leaving it unset: a
-// single auto-sized row that grows with content.
+// single auto-sized row that grows with content. Not user-configurable either
+// - it's derived automatically from the tallest cell's rowSpan (see
+// GridCellView's commitSpans in grid-node-view.tsx).
 export const GRID_DEFAULT_ROWS = 1;
 export const GRID_MOBILE_BREAKPOINT = 720;
-
-// column-count presets offered in the grid toolbar
-export const GRID_COLUMN_OPTIONS = [6, 12, 16, 24] as const;
-
-// row-count presets offered in the grid toolbar
-export const GRID_ROW_OPTIONS = [1, 2, 3, 4, 6] as const;
 
 // gap presets offered in the grid toolbar (0.25em … 3rem)
 export const GRID_GAP_OPTIONS = [
@@ -308,50 +304,6 @@ export function setFocusedCellPlace(place: GridPlace): Command {
     if (!cell) return false;
     if (dispatch) {
       dispatch(state.tr.setNodeAttribute(cell.pos, "place", place));
-    }
-    return true;
-  };
-}
-
-// set the grid's track count and rescale every cell's span proportionally so
-// the visual layout is preserved across the change (two 50% cells stay 50%).
-// `gridPos` is the position *before* the grid node.
-export function setGridColumns(gridPos: number, columns: number): Command {
-  return (state, dispatch) => {
-    const grid = state.doc.nodeAt(gridPos);
-    if (!grid || grid.type.name !== "grid") return false;
-    const nextColumns = clampColumns(columns);
-    const oldColumns: number = grid.attrs.columns;
-    if (nextColumns === oldColumns) return false;
-    if (dispatch) {
-      // setNodeAttribute uses a SetAttr step, so no child positions shift -
-      // each cell sits at `gridPos + 1 + offset` throughout the transaction
-      let tr = state.tr.setNodeAttribute(gridPos, "columns", nextColumns);
-      grid.forEach((cell, offset) => {
-        const nextSpan = clampSpan(
-          (cell.attrs.span * nextColumns) / oldColumns,
-          nextColumns,
-        );
-        if (nextSpan !== cell.attrs.span) {
-          tr = tr.setNodeAttribute(gridPos + 1 + offset, "span", nextSpan);
-        }
-      });
-      dispatch(tr);
-    }
-    return true;
-  };
-}
-
-// unlike columns, rows have no per-cell attribute to rescale - cells don't
-// carry a row span, they just auto-flow - so this is a plain attribute set.
-export function setGridRows(gridPos: number, rows: number): Command {
-  return (state, dispatch) => {
-    const grid = state.doc.nodeAt(gridPos);
-    if (!grid || grid.type.name !== "grid") return false;
-    const nextRows = clampRows(rows);
-    if (nextRows === grid.attrs.rows) return false;
-    if (dispatch) {
-      dispatch(state.tr.setNodeAttribute(gridPos, "rows", nextRows));
     }
     return true;
   };

@@ -7,7 +7,6 @@ import {
   ReactElement,
   ReactNode,
   memo,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -482,21 +481,6 @@ const ToolbarScrollArea = (props: { children: ReactNode }) => {
     moved: false,
   });
   const elRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const el = elRef.current;
-    if (!el) return;
-    // React attaches `onWheel` as a passive listener, so its
-    // `event.preventDefault()` can't actually stop the page from also
-    // scrolling vertically - a real, non-passive listener is required to
-    // contain the gesture inside the toolbar.
-    const onWheel = (event: WheelEvent) => {
-      if (el.scrollWidth <= el.clientWidth || event.deltaY === 0) return;
-      el.scrollLeft += event.deltaY;
-      event.preventDefault();
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, []);
   return (
     <div
       ref={elRef}
@@ -531,6 +515,14 @@ const ToolbarScrollArea = (props: { children: ReactNode }) => {
         const el = event.currentTarget;
         if (event.pointerType === "mouse" && event.button !== 0) return;
         if (el.scrollWidth <= el.clientWidth) return;
+        // React re-fires portaled events (e.g. the Text Color dialog's
+        // DialogContainer, mounted at document.body) through the *React*
+        // tree, not the DOM tree - without this check, dragging inside that
+        // portaled dialog (the color picker, hex field, swatches) is seen as
+        // a pointerdown "on" the toolbar and hijacks it into drag-scrolling.
+        // el.contains() checks real DOM containment, which portal content
+        // never satisfies.
+        if (!el.contains(event.target as Node)) return;
         drag.current = {
           dragging: true,
           pointerId: event.pointerId,
@@ -542,6 +534,17 @@ const ToolbarScrollArea = (props: { children: ReactNode }) => {
       onPointerMoveCapture={(event) => {
         const state = drag.current;
         if (!state.dragging || event.pointerId !== state.pointerId) return;
+        // Before the threshold is crossed, this pointer hasn't been captured
+        // yet, so its target still follows normal hit-testing - if a
+        // dropdown/dialog opens mid-hold and ends up under the cursor (a
+        // portaled node, same concern as the pointerdown check above), moving
+        // the mouse over it must not be read as toolbar drag-scroll. Once
+        // `moved` flips true below, setPointerCapture pins the target to `el`
+        // for the rest of the gesture, so this check is a no-op from then on.
+        if (!state.moved && !event.currentTarget.contains(event.target as Node)) {
+          state.dragging = false;
+          return;
+        }
         const delta = event.clientX - state.startX;
         if (!state.moved) {
           if (Math.abs(delta) < 5) return;

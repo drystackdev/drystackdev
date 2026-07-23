@@ -192,6 +192,7 @@ export function ImagePopover(props: {
           </TooltipTrigger>
           <CaptionButton
             caption={props.node.attrs.caption}
+            subject={stringFormatter.format("captionImage")}
             onSubmit={(caption) => {
               runCommand((state, dispatch) => {
                 if (dispatch) {

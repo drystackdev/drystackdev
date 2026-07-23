@@ -18,7 +18,12 @@ import {
   useEditorViewRef,
   useEditorState,
 } from "./editor-view";
-import { GRID_DEFAULT_COLUMNS, GRID_DEFAULT_ROWS, clampSpan } from "./grid";
+import {
+  GRID_DEFAULT_COLUMNS,
+  GRID_DEFAULT_ROWS,
+  clampRows,
+  clampSpan,
+} from "./grid";
 import { Figcaption } from "./figcaption";
 
 // A ProseMirror editor is a *single* contenteditable, so `document.activeElement`
@@ -121,18 +126,40 @@ export function GridCellView(props: NodeViewProps) {
     rows: number;
   } | null>(null);
 
+  // commits the dragged cell's span/rowSpan, then re-derives the *grid's*
+  // `rows` track count as the largest rowSpan across all its cells - so
+  // dragging one item taller grows the whole grid to fit it, and shrinking
+  // the tallest item shrinks the grid back down. Returns the grid's
+  // (possibly unchanged) rows count so the live resize label stays accurate.
   const commitSpans = useCallback(
-    (nextSpan: number, nextRowSpan: number) => {
+    (nextSpan: number, nextRowSpan: number): number => {
       const view = viewRef.current;
       const pos = getPosRef.current();
-      if (!view || pos == null) return;
+      if (!view || pos == null) return nextRowSpan;
       const current = view.state.doc.nodeAt(pos);
-      if (!current) return;
+      if (!current) return nextRowSpan;
+      const $pos = view.state.doc.resolve(pos);
+      const grid = $pos.parent;
+      const gridPos = $pos.before($pos.depth);
+      let maxRowSpan = nextRowSpan;
+      if (grid.type.name === "grid") {
+        grid.forEach((cell, offset) => {
+          const cellPos = gridPos + 1 + offset;
+          maxRowSpan = Math.max(
+            maxRowSpan,
+            cellPos === pos ? nextRowSpan : cell.attrs.rowSpan,
+          );
+        });
+      }
+      const nextRows = clampRows(maxRowSpan);
+      const rowsChanged =
+        grid.type.name === "grid" && grid.attrs.rows !== nextRows;
       if (
         current.attrs.span === nextSpan &&
-        current.attrs.rowSpan === nextRowSpan
+        current.attrs.rowSpan === nextRowSpan &&
+        !rowsChanged
       ) {
-        return;
+        return nextRows;
       }
       let tr = view.state.tr;
       if (current.attrs.span !== nextSpan) {
@@ -141,7 +168,11 @@ export function GridCellView(props: NodeViewProps) {
       if (current.attrs.rowSpan !== nextRowSpan) {
         tr = tr.setNodeAttribute(pos, "rowSpan", nextRowSpan);
       }
+      if (rowsChanged) {
+        tr = tr.setNodeAttribute(gridPos, "rows", nextRows);
+      }
       view.dispatch(tr);
+      return nextRows;
     },
     [viewRef],
   );
@@ -164,19 +195,19 @@ export function GridCellView(props: NodeViewProps) {
       const nextRowSpan =
         drag.axis === "column"
           ? drag.lastRowSpan
-          : clampSpan(
-              (drag.startHeight + dy + drag.rowGap) / drag.rowPitch,
-              drag.rows,
-            );
+          : // not clamped to the grid's *current* row count - dragging past it
+            // grows the grid (see commitSpans), it doesn't cap the cell
+            clampRows((drag.startHeight + dy + drag.rowGap) / drag.rowPitch);
       if (nextSpan !== drag.lastSpan || nextRowSpan !== drag.lastRowSpan) {
         drag.lastSpan = nextSpan;
         drag.lastRowSpan = nextRowSpan;
-        commitSpans(nextSpan, nextRowSpan);
+        const nextRows = commitSpans(nextSpan, nextRowSpan);
+        drag.rows = nextRows;
         setResizeLabel({
           span: nextSpan,
           columns: drag.columns,
           rowSpan: nextRowSpan,
-          rows: drag.rows,
+          rows: nextRows,
         });
       }
     },

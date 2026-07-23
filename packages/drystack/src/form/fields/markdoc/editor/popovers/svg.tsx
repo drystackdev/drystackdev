@@ -129,6 +129,7 @@ export function SvgPopover(props: {
           </TooltipTrigger>
           <CaptionButton
             caption={props.node.attrs.caption}
+            subject={stringFormatter.format("captionSvg")}
             onSubmit={(caption) => setAttribute("caption", caption)}
           />
         </Flex>

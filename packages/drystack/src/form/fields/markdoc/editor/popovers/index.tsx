@@ -23,11 +23,11 @@ import { ImagePopover } from "./images";
 import { SvgPopover } from "./svg";
 import { ContentRefPopover } from "./content-ref";
 import { CellOptionsMenu, isSelectionInTableCell } from "./table";
-import { GridItemControls, GridPopover } from "./grid";
+import { GridPopover } from "./grid";
 import { CaptionButton } from "../figcaption";
 import { Dialog, DialogContainer } from "@keystar/ui/dialog";
 import { FormValue } from "../FormValue";
-import { Heading } from "@keystar/ui/typography";
+import { Heading, Text } from "@keystar/ui/typography";
 import { pencilIcon } from "@keystar/ui/icon/icons/pencilIcon";
 import { ComponentSchema } from "../../../../api";
 import { toSerialized, useDeserializedValue } from "../props-serialization";
@@ -116,6 +116,57 @@ function withShouldUse(
   return Object.assign(val, { shouldShow });
 }
 
+// Exported as its own named function (rather than inline in
+// `popoverComponents`) so `MergedPopover` can render it as one row alongside
+// an enclosing grid/image's own popover when they're nested together - see
+// `findContainerAncestors`.
+function TablePopover(props: { node: Node; state: EditorState; pos: number }) {
+  const dispatchCommand = useEditorDispatchCommand();
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
+
+  return (
+    <Flex gap="regular" padding="regular" alignItems="center">
+      {isSelectionInTableCell(props.state) && (
+        <>
+          <CellOptionsMenu node={props.node} />
+          <Divider orientation="vertical" />
+        </>
+      )}
+      <CaptionButton
+        caption={props.node.attrs.caption}
+        subject={stringFormatter.format("captionTable")}
+        onSubmit={(caption) => {
+          dispatchCommand((state, dispatch) => {
+            if (dispatch) {
+              dispatch(state.tr.setNodeAttribute(props.pos, "caption", caption));
+            }
+            return true;
+          });
+        }}
+      />
+      <Divider orientation="vertical" />
+      <TooltipTrigger>
+        <ActionButton
+          prominence="low"
+          onPress={() => {
+            dispatchCommand((state, dispatch) => {
+              if (dispatch) {
+                dispatch(
+                  state.tr.delete(props.pos, props.pos + props.node.nodeSize),
+                );
+              }
+              return true;
+            });
+          }}
+        >
+          <Icon src={tableDeleteIcon} />
+        </ActionButton>
+        <Tooltip tone="critical">{stringFormatter.format("remove")}</Tooltip>
+      </TooltipTrigger>
+    </Flex>
+  );
+}
+
 const popoverComponents: Record<
   string,
   NodePopoverRenderer & { shouldShow?(schema: EditorSchema): boolean }
@@ -171,51 +222,7 @@ const popoverComponents: Record<
   svg: SvgPopover,
   grid: GridPopover,
   content_ref: ContentRefPopover,
-  table: function TablePopover(props) {
-    const dispatchCommand = useEditorDispatchCommand();
-    const stringFormatter = useLocalizedStringFormatter(l10nMessages);
-
-    return (
-      <Flex gap="regular" padding="regular" alignItems="center">
-        {isSelectionInTableCell(props.state) && (
-          <>
-            <CellOptionsMenu node={props.node} />
-            <Divider orientation="vertical" />
-          </>
-        )}
-        <CaptionButton
-          caption={props.node.attrs.caption}
-          onSubmit={(caption) => {
-            dispatchCommand((state, dispatch) => {
-              if (dispatch) {
-                dispatch(state.tr.setNodeAttribute(props.pos, "caption", caption));
-              }
-              return true;
-            });
-          }}
-        />
-        <Divider orientation="vertical" />
-        <TooltipTrigger>
-          <ActionButton
-            prominence="low"
-            onPress={() => {
-              dispatchCommand((state, dispatch) => {
-                if (dispatch) {
-                  dispatch(
-                    state.tr.delete(props.pos, props.pos + props.node.nodeSize),
-                  );
-                }
-                return true;
-              });
-            }}
-          >
-            <Icon src={tableDeleteIcon} />
-          </ActionButton>
-          <Tooltip tone="critical">{stringFormatter.format("remove")}</Tooltip>
-        </TooltipTrigger>
-      </Flex>
-    );
-  },
+  table: TablePopover,
   heading: withShouldUse(
     function HeadingPopover(props) {
       const dispatchCommand = useEditorDispatchCommand();
@@ -258,84 +265,81 @@ const popoverComponents: Record<
   ),
 } satisfies Partial<Record<keyof EditorSchema["nodes"], NodePopoverRenderer>>;
 
-// A table living inside a grid cell (`grid > grid_cell > table`) sits under
-// two popover-worthy ancestors, but the plain ancestor walk in
-// `getPopoverDecoration` stops at the first match - the table - so the
-// enclosing grid's controls (add/delete item, layout, settings) become
-// unreachable while editing that table. This merges both toolbars into one
-// instead of picking one over the other.
-function TableInGridPopover(props: {
-  grid: { node: Node; pos: number };
-  table: { node: Node; pos: number };
-  state: EditorState;
-}) {
-  const dispatchCommand = useEditorDispatchCommand();
-  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
+// Row labels for the merged popover below - keyed by node type name so
+// `MergedPopover` can look one up for whatever's in a given layer.
+const mergedRowLabelKeys: Partial<Record<string, string>> = {
+  image: "nodeTypeImage",
+  table: "nodeTypeTable",
+  grid: "nodeTypeGrid",
+};
+
+// A node living inside a grid/table cell (`grid > grid_cell > table`,
+// `grid > grid_cell > image`, `table > table_cell > image`, ...) sits under
+// two-or-more popover-worthy ancestors, but the plain ancestor walk in
+// `getPopoverDecoration` stops at the first (innermost) match - so an
+// enclosing grid's or table's own controls (add/delete item, cell options)
+// become unreachable while editing what's nested inside it. This walks past
+// that first match to collect every enclosing grid/table, innermost first.
+function findContainerAncestors(
+  $pos: ResolvedPos,
+  fromDepth: number,
+): { node: Node; pos: number }[] {
+  const ancestors: { node: Node; pos: number }[] = [];
+  for (let i = fromDepth; i > 0; i--) {
+    const node = $pos.node(i);
+    if (node.type.name === "grid" || node.type.name === "table") {
+      ancestors.push({ node, pos: $pos.start(i) - 1 });
+    }
+  }
+  return ancestors;
+}
+
+// One row of the merged popover - a leading label naming which node the row's
+// controls belong to (see the caller's `mergedRowLabelKeys`), so an image's,
+// a table's, and a grid's controls stacked together don't read as one
+// undifferentiated toolbar (each already has its own "Caption" button, which
+// would otherwise be ambiguous - see figcaption.tsx's `subject` prop).
+function PopoverRow(props: { label: string; children: ReactElement }) {
   return (
-    <Flex gap="regular" padding="regular" alignItems="center">
-      <GridItemControls
-        node={props.grid.node}
-        state={props.state}
-        pos={props.grid.pos}
-      />
-      {isSelectionInTableCell(props.state) && (
-        <>
-          <Divider orientation="vertical" />
-          <CellOptionsMenu node={props.table.node} />
-        </>
-      )}
-      <Divider orientation="vertical" />
-      <CaptionButton
-        caption={props.table.node.attrs.caption}
-        onSubmit={(caption) => {
-          dispatchCommand((state, dispatch) => {
-            if (dispatch) {
-              dispatch(
-                state.tr.setNodeAttribute(props.table.pos, "caption", caption),
-              );
-            }
-            return true;
-          });
-        }}
-      />
-      <Divider orientation="vertical" />
-      <TooltipTrigger>
-        <ActionButton
-          prominence="low"
-          onPress={() => {
-            dispatchCommand((state, dispatch) => {
-              if (dispatch) {
-                dispatch(
-                  state.tr.delete(
-                    props.table.pos,
-                    props.table.pos + props.table.node.nodeSize,
-                  ),
-                );
-              }
-              return true;
-            });
-          }}
-        >
-          <Icon src={tableDeleteIcon} />
-        </ActionButton>
-        <Tooltip tone="critical">{stringFormatter.format("editorRemoveTable")}</Tooltip>
-      </TooltipTrigger>
+    <Flex direction="row" gap="regular" alignItems="center">
+      <Text
+        UNSAFE_style={{ width: "4em", flexShrink: 0 }}
+        color="neutralSecondary"
+      >
+        {props.label}
+      </Text>
+      {props.children}
     </Flex>
   );
 }
 
-// Walks ancestors from `fromDepth` up looking for an enclosing `grid` node -
-// used to detect the table-in-grid case above. Depth-generic (rather than
-// just checking the immediate parent) since a table sits a couple of levels
-// under its grid (`grid > grid_cell > table`).
-function findGridAncestor($pos: ResolvedPos, fromDepth: number) {
-  for (let i = fromDepth; i > 0; i--) {
-    const node = $pos.node(i);
-    if (node.type.name === "grid") {
-      return { node, pos: $pos.start(i) - 1 };
-    }
-  }
-  return null;
+// Renders every layer found by `findContainerAncestors` (plus the innermost
+// node itself) as its own labeled row, each using that node type's existing
+// standalone popover component unmodified - so e.g. an image nested in a
+// grid gets an "Image" row (the image's own align/replace/caption controls)
+// stacked above a "Grid" row (add/delete item, spacing, grid caption).
+function MergedPopover(props: {
+  layers: { node: Node; pos: number }[];
+  state: EditorState;
+}) {
+  const stringFormatter = useLocalizedStringFormatter(l10nMessages);
+  return (
+    <Flex direction="column" gap="regular" padding="regular">
+      {props.layers.map((layer) => {
+        const Component = popoverComponents[layer.node.type.name];
+        if (!Component) return null;
+        const labelKey = mergedRowLabelKeys[layer.node.type.name];
+        const label = labelKey
+          ? stringFormatter.format(labelKey)
+          : layer.node.type.name;
+        return (
+          <PopoverRow key={layer.pos} label={label}>
+            <Component node={layer.node} state={props.state} pos={layer.pos} />
+          </PopoverRow>
+        );
+      })}
+    </Flex>
+  );
 }
 
 export function markAround($pos: ResolvedPos, markType: MarkType) {
@@ -433,9 +437,10 @@ type PopoverDecoration =
     }
   | {
       adaptToBoundary: EditorPopoverProps["adaptToBoundary"] & {};
-      kind: "table-in-grid";
-      grid: { node: Node; pos: number };
-      table: { node: Node; pos: number };
+      kind: "merged";
+      // innermost first - the node the selection actually landed in, then
+      // each enclosing grid/table wrapping it
+      layers: { node: Node; pos: number }[];
     };
 
 function InlineComponentPopover(props: {
@@ -748,26 +753,24 @@ function getPopoverDecoration(state: EditorState): PopoverDecoration | null {
       component !== undefined &&
       (!component.shouldShow || component.shouldShow(editorSchema))
     ) {
-      if (node.type.name === "table") {
-        const gridAncestor = findGridAncestor(
-          state.selection.$from,
-          state.selection.$from.depth,
-        );
-        if (gridAncestor) {
-          return {
-            adaptToBoundary: "flip",
-            kind: "table-in-grid",
-            grid: gridAncestor,
-            table: { node, pos: state.selection.from },
-          };
-        }
+      const pos = state.selection.from;
+      const ancestors = findContainerAncestors(
+        state.selection.$from,
+        state.selection.$from.depth,
+      );
+      if (ancestors.length > 0) {
+        return {
+          adaptToBoundary: "flip",
+          kind: "merged",
+          layers: [{ node, pos }, ...ancestors],
+        };
       }
       return {
         adaptToBoundary: popoverAdaptToBoundary(node),
         kind: "node",
         node,
         component,
-        pos: state.selection.from,
+        pos,
       };
     }
   }
@@ -786,16 +789,13 @@ function getPopoverDecoration(state: EditorState): PopoverDecoration | null {
       (!component.shouldShow || component.shouldShow(editorSchema))
     ) {
       const pos = $pos.start(i) - 1;
-      if (node.type.name === "table") {
-        const gridAncestor = findGridAncestor($pos, i - 1);
-        if (gridAncestor) {
-          return {
-            adaptToBoundary: "flip",
-            kind: "table-in-grid",
-            grid: gridAncestor,
-            table: { node, pos },
-          };
-        }
+      const ancestors = findContainerAncestors($pos, i - 1);
+      if (ancestors.length > 0) {
+        return {
+          adaptToBoundary: "flip",
+          kind: "merged",
+          layers: [{ node, pos }, ...ancestors],
+        };
       }
       return {
         adaptToBoundary: popoverAdaptToBoundary(node),
@@ -817,21 +817,24 @@ function PopoverInner(props: {
   const from =
     props.decoration.kind === "node"
       ? props.decoration.pos
-      : props.decoration.kind === "table-in-grid"
-        ? props.decoration.table.pos
+      : props.decoration.kind === "merged"
+        ? props.decoration.layers[0].pos
         : props.decoration.from;
   const to =
     props.decoration.kind === "node"
       ? props.decoration.pos + props.decoration.node.nodeSize
-      : props.decoration.kind === "table-in-grid"
-        ? props.decoration.table.pos + props.decoration.table.node.nodeSize
+      : props.decoration.kind === "merged"
+        ? props.decoration.layers[0].pos +
+          props.decoration.layers[0].node.nodeSize
         : props.decoration.to;
 
   const reference = useEditorReferenceElement(from, to);
   const editorViewRef = useEditorViewRef();
   const isFloatable =
-    props.decoration.kind === "node" &&
-    FLOATABLE_NODE_TYPES.has(props.decoration.node.type.name);
+    (props.decoration.kind === "node" &&
+      FLOATABLE_NODE_TYPES.has(props.decoration.node.type.name)) ||
+    (props.decoration.kind === "merged" &&
+      FLOATABLE_NODE_TYPES.has(props.decoration.layers[0].node.type.name));
 
   return (
     reference && (
@@ -853,12 +856,8 @@ function PopoverInner(props: {
         // the toolbar
         UNSAFE_style={isFloatable ? { zIndex: 2 } : undefined}
       >
-        {props.decoration.kind === "table-in-grid" ? (
-          <TableInGridPopover
-            grid={props.decoration.grid}
-            table={props.decoration.table}
-            state={props.state}
-          />
+        {props.decoration.kind === "merged" ? (
+          <MergedPopover layers={props.decoration.layers} state={props.state} />
         ) : props.decoration.kind === "node" ? (
           <props.decoration.component
             {...props.decoration}

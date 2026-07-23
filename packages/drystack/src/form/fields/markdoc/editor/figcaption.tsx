@@ -69,6 +69,7 @@ function CaptionIcon() {
 // deliberate, explicit Save/Cancel moment, rather than committing on every
 // keystroke like a toolbar field would).
 function CaptionDialog(props: {
+  title: string;
   caption: string;
   onSubmit: (caption: string) => void;
 }) {
@@ -86,10 +87,10 @@ function CaptionDialog(props: {
           props.onSubmit(caption);
         }}
       >
-        <Heading>{stringFormatter.format("caption")}</Heading>
+        <Heading>{props.title}</Heading>
         <Content>
           <TextField
-            label={stringFormatter.format("caption")}
+            label={props.title}
             autoFocus
             value={caption}
             onChange={setCaption}
@@ -110,8 +111,14 @@ function CaptionDialog(props: {
 // grid popovers - a dedicated button (rather than a field folded into an
 // existing settings surface) so all three nodes get the same discoverable
 // affordance regardless of how different their other popover controls are.
+// `subject` names what's being captioned ("Image caption"/"Table
+// caption"/"Grid caption") rather than a bare "Caption" - once a merged
+// popover (see popovers/index.tsx's mergeable-ancestor layers) can show an
+// image's, a table's, and a grid's caption button side by side, a generic
+// label no longer says which one is which.
 export function CaptionButton(props: {
   caption: string;
+  subject: string;
   onSubmit: (caption: string) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -121,16 +128,17 @@ export function CaptionButton(props: {
       <TooltipTrigger>
         <ActionButton
           prominence="low"
-          aria-label={stringFormatter.format("caption")}
+          aria-label={props.subject}
           onPress={() => setIsOpen(true)}
         >
           <CaptionIcon />
         </ActionButton>
-        <Tooltip>{stringFormatter.format("caption")}</Tooltip>
+        <Tooltip>{props.subject}</Tooltip>
       </TooltipTrigger>
       <DialogContainer onDismiss={() => setIsOpen(false)}>
         {isOpen && (
           <CaptionDialog
+            title={props.subject}
             caption={props.caption}
             onSubmit={(caption) => {
               props.onSubmit(caption);

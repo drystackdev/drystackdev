@@ -1,4 +1,4 @@
-import { ReactElement, useState } from "react";
+import { useState } from "react";
 import { Node } from "prosemirror-model";
 import { EditorState } from "prosemirror-state";
 import { useLocalizedStringFormatter } from "@react-aria/i18n";
@@ -16,7 +16,6 @@ import { xIcon } from "@keystar/ui/icon/icons/xIcon";
 import { Divider, Flex } from "@keystar/ui/layout";
 import { Picker, Item } from "@keystar/ui/picker";
 import { css, tokenSchema } from "@keystar/ui/style";
-import { Text } from "@keystar/ui/typography";
 import { TooltipTrigger, Tooltip } from "@keystar/ui/tooltip";
 
 import { useEditorDispatchCommand, useEditorState } from "../editor-view";
@@ -27,12 +26,8 @@ import {
   findGridCell,
   gridHasContent,
   setFocusedCellPlace,
-  setGridColumns,
-  setGridRows,
   GridPlace,
   GRID_GAP_OPTIONS,
-  GRID_COLUMN_OPTIONS,
-  GRID_ROW_OPTIONS,
 } from "../grid";
 
 // "Remove grid" icon (a layout box with a torn corner) - not in @keystar/ui's
@@ -42,126 +37,36 @@ const gridDeleteIcon = (
   <path d="M12 3v17a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1H3m13 4l5 5m-5 0l5-5" />
 );
 
-// Not in @keystar/ui's bundled (Tabler-derived) icon set, so drawn directly
-// rather than through <Icon> - that wrapper assumes a 24×24 stroke-only
-// glyph, but this one is a filled 16×16 shape.
-function GridSettingsIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="1em"
-      height="1em"
-      viewBox="0 0 16 16"
-      aria-hidden="true"
-    >
-      <path d="M0 0h16v16H0z" fill="none" />
-      <path
-        fill="currentColor"
-        d="M2 10h3a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1m9-9h3a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 9a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1zm0-10a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h3a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2zM2 9a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h3a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2zm7 2a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-3a2 2 0 0 1-2-2zM0 2a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm5.354.854a.5.5 0 1 0-.708-.708L3 3.793l-.646-.647a.5.5 0 1 0-.708.708l1 1a.5.5 0 0 0 .708 0z"
-      />
-    </svg>
-  );
-}
+const spacingFieldWidth = 70;
 
-// Keystar's `Picker` stacks its label above the field (no `labelPosition`
-// prop in this version) - this puts the label to the left instead, matching
-// the settings panel's row layout, and lets the field itself stay narrow
-// since these are all short values (a track count, a CSS length).
-function SettingRow(props: { label: string; children: ReactElement }) {
-  return (
-    <Flex direction="row" alignItems="center" justifyContent="space-between">
-      <Text>{props.label}</Text>
-      {props.children}
-    </Flex>
-  );
-}
-
-const settingFieldWidth = 90;
-
-// The gear opens a settings panel (keystar's Menu has no nested submenus, so
-// the grid-wide controls - columns, rows, gap - live in a popover instead of
-// as separate toolbar buttons). Add/delete item live as their own +/x
-// buttons on the toolbar (see GridPopover).
-function GridSettingsMenu(props: {
-  node: Node;
-  state: EditorState;
-  pos: number;
-}) {
+// Grid track counts (columns/rows) aren't user-configurable - columns are a
+// fixed 12-unit grid, rows auto-grow to fit the tallest cell (see grid.ts's
+// GRID_DEFAULT_COLUMNS and GridCellView's commitSpans). Spacing is the only
+// grid-wide setting left, so it lives directly on the toolbar rather than
+// behind a settings menu.
+function GridSpacingPicker(props: { node: Node; pos: number }) {
   const runCommand = useEditorDispatchCommand();
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
-  const columns = String(props.node.attrs.columns);
-  const rows = String(props.node.attrs.rows);
   const gap = props.node.attrs.gap as string;
   return (
-    <DialogTrigger type="popover" hideArrow>
-      <ActionButton prominence="low" aria-label={stringFormatter.format("gridSettings")}>
-        <GridSettingsIcon />
-      </ActionButton>
-      {(close: () => void) => (
-        <Flex
-          direction="column"
-          gap="regular"
-          padding="large"
-          UNSAFE_style={{ minWidth: 200 }}
-        >
-          <SettingRow label={stringFormatter.format("gridColumn")}>
-            <Picker
-              aria-label={stringFormatter.format("gridColumn")}
-              selectedKey={columns}
-              onSelectionChange={(key) => {
-                runCommand(
-                  setGridColumns(props.pos, parseInt(String(key), 10)),
-                );
-                close();
-              }}
-              UNSAFE_style={{ width: settingFieldWidth }}
-            >
-              {GRID_COLUMN_OPTIONS.map((cols) => (
-                <Item key={String(cols)}>{String(cols)}</Item>
-              ))}
-            </Picker>
-          </SettingRow>
-          <SettingRow label={stringFormatter.format("gridRow")}>
-            <Picker
-              aria-label={stringFormatter.format("gridRow")}
-              selectedKey={rows}
-              onSelectionChange={(key) => {
-                runCommand(setGridRows(props.pos, parseInt(String(key), 10)));
-                close();
-              }}
-              UNSAFE_style={{ width: settingFieldWidth }}
-            >
-              {GRID_ROW_OPTIONS.map((r) => (
-                <Item key={String(r)}>{String(r)}</Item>
-              ))}
-            </Picker>
-          </SettingRow>
-          <SettingRow label={stringFormatter.format("gridSpacing")}>
-            <Picker
-              aria-label={stringFormatter.format("gridSpacing")}
-              selectedKey={gap}
-              onSelectionChange={(key) => {
-                const value = String(key);
-                runCommand((state, dispatch) => {
-                  if (dispatch) {
-                    dispatch(
-                      state.tr.setNodeAttribute(props.pos, "gap", value),
-                    );
-                  }
-                  return true;
-                });
-                close();
-              }}
-              UNSAFE_style={{ width: settingFieldWidth }}
-            >
-              {GRID_GAP_OPTIONS.map((g) => (
-                <Item key={g}>{g.replace("em", "")}</Item>
-              ))}
-            </Picker>
-          </SettingRow>
-        </Flex>
-      )}
-    </DialogTrigger>
+    <Picker
+      aria-label={stringFormatter.format("gridSpacing")}
+      selectedKey={gap}
+      onSelectionChange={(key) => {
+        const value = String(key);
+        runCommand((state, dispatch) => {
+          if (dispatch) {
+            dispatch(state.tr.setNodeAttribute(props.pos, "gap", value));
+          }
+          return true;
+        });
+      }}
+      UNSAFE_style={{ width: spacingFieldWidth }}
+    >
+      {GRID_GAP_OPTIONS.map((g) => (
+        <Item key={g}>{g.replace("em", "")}</Item>
+      ))}
+    </Picker>
   );
 }
 
@@ -339,9 +244,10 @@ export function GridItemControls(props: {
 
   return (
     <>
-      <GridSettingsMenu node={props.node} state={props.state} pos={props.pos} />
+      <GridSpacingPicker node={props.node} pos={props.pos} />
       <CaptionButton
         caption={props.node.attrs.caption}
+        subject={stringFormatter.format("captionGrid")}
         onSubmit={(caption) => {
           runCommand((state, dispatch) => {
             if (dispatch) {
