@@ -40,6 +40,11 @@ export function EditorAutocomplete<Item extends object>(
         minWidth="element.medium"
         placement="bottom-start"
         reference={referenceElement}
+        // the sticky toolbar sits at zIndex:2 (see Toolbar.tsx's
+        // ToolbarWrapper) - typing "/" on the first line or two of content
+        // floats this popover right underneath it, and without a higher
+        // zIndex of its own it renders behind the toolbar instead of over it
+        UNSAFE_style={{ zIndex: 3 }}
       >
         {listbox}
       </EditorPopover>
