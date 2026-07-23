@@ -2,7 +2,6 @@
   "name": "drystackdev",
   "compatibility_date": "2025-01-01",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "@drystack/astro/worker",
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS"
