@@ -154,22 +154,25 @@ export function RolesPage() {
         width: 48,
         minWidth: 48,
         hideHeader: true,
-        renderCell: role => ({
-          textValue: stringFormatter.format('roleDeleteAction'),
-          node: (
-            <TooltipTrigger>
-              <ActionButton
-                prominence="low"
-                aria-label={stringFormatter.format('roleDeleteAction')}
-                isDisabled={role.isLocked || role.userCount > 0 || !canManage}
-                onPress={() => setDeletingRole(role)}
-              >
-                <Icon src={trash2Icon} color="critical" />
-              </ActionButton>
-              <Tooltip>{stringFormatter.format('roleDeleteAction')}</Tooltip>
-            </TooltipTrigger>
-          ),
-        }),
+        renderCell: role => {
+          const isDeleteDisabled = role.isLocked || role.userCount > 0 || !canManage;
+          return {
+            textValue: stringFormatter.format('roleDeleteAction'),
+            node: (
+              <TooltipTrigger>
+                <ActionButton
+                  prominence="low"
+                  aria-label={stringFormatter.format('roleDeleteAction')}
+                  isDisabled={isDeleteDisabled}
+                  onPress={() => setDeletingRole(role)}
+                >
+                  <Icon src={trash2Icon} color={isDeleteDisabled ? undefined : 'critical'} />
+                </ActionButton>
+                <Tooltip>{stringFormatter.format('roleDeleteAction')}</Tooltip>
+              </TooltipTrigger>
+            ),
+          };
+        },
       },
     ],
     [stringFormatter, canManage]
@@ -201,6 +204,7 @@ export function RolesPage() {
             onSortChange={setSortDescriptor}
             columnWidths={columnWidths}
             onColumnWidthsChange={setColumnWidths}
+            disableColumnResizing
             onAction={() => {}}
             renderEmptyState={() => <EmptyState title={stringFormatter.format('roleNoMembersLabel')} />}
           />

@@ -22,7 +22,7 @@ import { useEditorReferenceElement } from "./reference";
 import { ImagePopover } from "./images";
 import { SvgPopover } from "./svg";
 import { ContentRefPopover } from "./content-ref";
-import { CellOptionsMenu, isSelectionInTableCell } from "./table";
+import { TableCellActions, isSelectionInTableCell } from "./table";
 import { GridPopover } from "./grid";
 import { CaptionButton } from "../figcaption";
 import { Dialog, DialogContainer } from "@keystar/ui/dialog";
@@ -128,7 +128,7 @@ function TablePopover(props: { node: Node; state: EditorState; pos: number }) {
     <Flex gap="regular" padding="regular" alignItems="center">
       {isSelectionInTableCell(props.state) && (
         <>
-          <CellOptionsMenu node={props.node} />
+          <TableCellActions node={props.node} />
           <Divider orientation="vertical" />
         </>
       )}

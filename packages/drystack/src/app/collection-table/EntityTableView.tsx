@@ -76,6 +76,10 @@ export type EntityTableViewProps<Item> = {
   onAction: (key: string) => void;
   renderEmptyState: () => ReactElement;
   "aria-labelledby"?: string;
+  // when true, data columns render at their given/default width and can't be
+  // dragged - for tables whose columns don't need a persisted layout (e.g.
+  // fixed-shape roles/users tables).
+  disableColumnResizing?: boolean;
 };
 
 // The shared, data-source-agnostic table shell used by the collection list
@@ -92,6 +96,7 @@ export function EntityTableView<Item>(props: EntityTableViewProps<Item>) {
     items,
     getItemKey,
     columnWidths,
+    disableColumnResizing = false,
   } = props;
 
   // live drag feedback for controlled column widths - react-stately only
@@ -142,12 +147,12 @@ export function EntityTableView<Item>(props: EntityTableViewProps<Item>) {
         // shrink to whatever space the others don't claim, absorbing any
         // slack left behind by showing/hiding columns
         width:
-          c.descriptor.key === lastDataKey
+          disableColumnResizing || c.descriptor.key === lastDataKey
             ? undefined
             : (liveColumnWidths[c.descriptor.key] ??
               columnWidths?.[c.descriptor.key]),
         minWidth: COLUMN_MIN_WIDTH,
-        allowsResizing: true,
+        allowsResizing: !disableColumnResizing,
         allowsSorting: true,
         isRowHeader: true,
         hideHeader: false,
@@ -162,6 +167,7 @@ export function EntityTableView<Item>(props: EntityTableViewProps<Item>) {
     lastDataKey,
     liveColumnWidths,
     columnWidths,
+    disableColumnResizing,
   ]);
 
   const tableWrapperRef = useRef<HTMLDivElement>(null);

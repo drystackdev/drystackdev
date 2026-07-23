@@ -30,7 +30,7 @@ import {
   WithInsertMenuNodeSpec,
 } from "./autocomplete/insert-menu";
 import { setBlockType, wrapIn } from "prosemirror-commands";
-import { insertNode, insertTable } from "./commands/misc";
+import { insertNode, insertSvgDrawing, insertTable } from "./commands/misc";
 import {
   getColumnWidthPercents,
   TableColgroupNodeView,
@@ -53,7 +53,6 @@ import { ImageNodeView, imageContainerAlignStyle } from "./image-node-view";
 import { SvgNodeView } from "./svg-node-view";
 import {
   applySvgLayout,
-  PLACEHOLDER_SVG_MARKUP,
   sanitizeSvgElement,
   svgLayoutFromElement,
 } from "./svg-markup";
@@ -702,20 +701,7 @@ const nodeSpecs = {
       label: "Drawing",
       description: "Insert an inline SVG drawing or chart",
       icon: svgInsertIcon,
-      // Its own command rather than the shared `insertNode`, which fills every
-      // attr from its default - and `markup` has none, since an empty drawing
-      // isn't a thing. Seeds a placeholder for the author to replace via the
-      // node's edit dialog.
-      command: (nodeType) => (state, dispatch) => {
-        if (dispatch) {
-          dispatch(
-            state.tr.replaceSelectionWith(
-              nodeType.createChecked({ markup: PLACEHOLDER_SVG_MARKUP }),
-            ),
-          );
-        }
-        return true;
-      },
+      command: insertSvgDrawing,
     },
     reactNodeView: {
       component: SvgNodeView,

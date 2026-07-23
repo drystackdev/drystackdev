@@ -2,6 +2,7 @@ import { setBlockType } from "prosemirror-commands";
 import { Node as ProseMirrorNode, NodeType } from "prosemirror-model";
 import { Command, NodeSelection } from "prosemirror-state";
 import { getEditorSchema } from "../schema";
+import { PLACEHOLDER_SVG_MARKUP } from "../svg-markup";
 
 // NB: passed straight into `insertMenu.command` in several node specs, which
 // calls it as `(nodeType, editorSchema)`. Any second parameter added here would
@@ -18,6 +19,24 @@ export function insertNode(nodeType: NodeType): Command {
     }
     if (dispatch) {
       dispatch(state.tr.replaceSelectionWith(nodeType.createAndFill()!));
+    }
+    return true;
+  };
+}
+
+// Its own command rather than `insertNode`, which fills every attr from its
+// default - and `markup` has none, since an empty drawing isn't a thing.
+// Seeds a placeholder for the author to replace via the node's edit dialog.
+// Shared by the insert-menu's "Drawing" entry (schema.tsx) and the toolbar's
+// drawing button (Toolbar.tsx).
+export function insertSvgDrawing(nodeType: NodeType): Command {
+  return (state, dispatch) => {
+    if (dispatch) {
+      dispatch(
+        state.tr.replaceSelectionWith(
+          nodeType.createChecked({ markup: PLACEHOLDER_SVG_MARKUP }),
+        ),
+      );
     }
     return true;
   };

@@ -56,7 +56,12 @@ import {
   useEditorViewRef,
 } from "./editor-view";
 import { toggleList } from "./lists";
-import { insertNode, insertTableWithSize, toggleCodeBlock } from "./commands/misc";
+import {
+  insertNode,
+  insertSvgDrawing,
+  insertTableWithSize,
+  toggleCodeBlock,
+} from "./commands/misc";
 import { insertGridWithItemCount } from "./grid";
 import { EditorSchema, FONT_SIZE_VALUES, FontSizeKey } from "./schema";
 import { ImageToolbarButton } from "./images";
@@ -70,6 +75,7 @@ import { linkIcon } from "@keystar/ui/icon/icons/linkIcon";
 import { markAround } from "./popovers";
 import { useEditorKeydownListener } from "./keydown";
 import { gridInsertIcon } from "#icons/gridInsertIcon";
+import { svgInsertIcon } from "#icons/svgInsertIcon";
 import { textColorIcon } from "#icons/textColorIcon";
 import { ContentToolbarAiButton } from "../../../../app/ai/ContentToolbarAiButton";
 
@@ -376,6 +382,19 @@ export const Toolbar = memo(function Toolbar(
             )}
             {nodes.table && <TableInsertGridPicker tableType={nodes.table} />}
             {nodes.grid && <GridInsertMenu gridType={nodes.grid} />}
+            {nodes.svg && (
+              <TooltipTrigger>
+                <ToolbarButton
+                  aria-label={stringFormatter.format("editorDrawing")}
+                  command={insertSvgDrawing(nodes.svg)}
+                >
+                  <Icon src={svgInsertIcon} />
+                </ToolbarButton>
+                <Tooltip>
+                  <Text>{stringFormatter.format("editorDrawing")}</Text>
+                </Tooltip>
+              </TooltipTrigger>
+            )}
           </EditorToolbarGroup>
         </EditorToolbar>
       </ToolbarScrollArea>
