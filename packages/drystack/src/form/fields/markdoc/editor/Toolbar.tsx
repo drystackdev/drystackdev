@@ -89,6 +89,7 @@ export function ToolbarButton(props: {
   isSelected?: (editorState: EditorState) => boolean;
   isDisabled?: (editorState: EditorState) => boolean;
   command: Command;
+  UNSAFE_className?: string;
 }) {
   const state = useEditorState();
   const runCommand = useEditorDispatchCommand();
@@ -100,6 +101,7 @@ export function ToolbarButton(props: {
         aria-label={props["aria-label"]}
         isSelected={isSelected}
         isDisabled={isDisabled}
+        UNSAFE_className={props.UNSAFE_className}
         onPress={() => {
           runCommand(props.command);
         }}

@@ -52,7 +52,11 @@ export function ContentRefNodeView(props: {
   const isSelected =
     props.hasNodeSelection || props.isNodeCompletelyWithinSelection;
   const parsed = parseEditKey(node.attrs.ref as string);
-  const state = useReferencedContentHtml(parsed ?? null, parsed?.field ?? null);
+  const state = useReferencedContentHtml(
+    parsed ?? null,
+    parsed?.field ?? null,
+    node.attrs.seedHtml as string | null,
+  );
 
   if (!parsed || state.status === "not-found") {
     return (

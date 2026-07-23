@@ -205,7 +205,11 @@ function FloatingToolbar({ anchor, id }: { anchor: HTMLElement; id: string }) {
   // way to reach the buttons that fall off it. Capping `maxWidth` to what's
   // left of the viewport forces ToolbarScrollArea's own `overflowX: auto`
   // (see Toolbar.tsx) to actually kick in and scroll internally instead.
-  const maxWidth = `calc(100vw - ${rect.left}px - ${VIEWPORT_SIDE_MARGIN}px)`;
+  //
+  // Also capped to the anchor's own width: a narrow content spot (e.g. a
+  // short heading) shouldn't grow a wide toolbar past the content it's
+  // editing just because the viewport has room for it.
+  const maxWidth = `${Math.min(rect.width, window.innerWidth - rect.left - VIEWPORT_SIDE_MARGIN)}px`;
 
   return createPortal(
     <KeystarProvider

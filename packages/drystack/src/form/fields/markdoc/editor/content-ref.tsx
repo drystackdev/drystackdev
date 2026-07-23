@@ -1,5 +1,6 @@
 import { Icon } from "@keystar/ui/icon";
 import { importIcon } from "@keystar/ui/icon/icons/importIcon";
+import { css } from "@keystar/ui/style";
 import { Tooltip, TooltipTrigger } from "@keystar/ui/tooltip";
 import { Text } from "@keystar/ui/typography";
 import { useLocalizedStringFormatter } from "@react-aria/i18n";
@@ -9,6 +10,15 @@ import { useContentRefScope } from "./content-ref-scope";
 import { getEditorSchema } from "./schema";
 import { editKey } from "../../../../app/edit-sync";
 import { ToolbarButton } from "./Toolbar";
+
+// The picker this button opens is awaited async (openContentRefPicker), so
+// the button sits focused for the whole round trip - long enough that a
+// stray drag/selection gesture over it highlights its label like selected
+// text. Suppressing that while focused keeps the button looking like an
+// idle toolbar button, not a text selection, during the wait.
+const noSelectWhileFocusedClass = css({
+  "&:focus": { userSelect: "none" },
+});
 
 /**
  * Toolbar button for "Import content" - opens the content-ref picker
@@ -25,6 +35,7 @@ export function ContentRefToolbarButton() {
     <TooltipTrigger>
       <ToolbarButton
         aria-label={stringFormatter.format("contentRefButtonLabel")}
+        UNSAFE_className={noSelectWhileFocusedClass}
         command={(_, dispatch, view) => {
           if (dispatch && view) {
             (async () => {

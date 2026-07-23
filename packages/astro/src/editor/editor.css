@@ -164,11 +164,33 @@ body.editing [data-dry-kind="object"] {
    with no z-index of their own. Without this, the host page's positioned
    sections (z-index 1..60) paint over the dialog. Lift any Keystar overlay
    layer that lands directly on <body>. The main editor provider is nested
-   inside #drystack-editor-root, so `body >` never matches it. */
+   inside #drystack-editor-root, so `body >` never matches it.
+
+   `position: absolute` here, not `relative`: a Tooltip/Popover's own bubble
+   (e.g. any TooltipTrigger button in the toolbar) is positioned by react-aria's
+   calculatePosition(), which computes its top/left assuming its containing
+   block is the *unstyled* <body> - i.e. the page's own scrollable origin (see
+   that function's own "if body doesn't have position:relative, absolute is
+   relative to the viewport - that's why we use the visual viewport" comment).
+   `position: relative` turns THIS wrapper into that containing block instead,
+   anchored wherever it happens to fall in <body>'s normal flow (typically far
+   down a long page) rather than at the document origin react-aria assumed -
+   every calculatePosition-based overlay (Tooltip's arrow included) then lands
+   off by that wrapper's own offset, reading as the arrow/bubble having drifted
+   away from the button it points to. `absolute; top: 0; left: 0` keeps
+   z-index working (still a positioned element) while pinning this wrapper's
+   own origin to (0, 0) of the document - the same effective containing block
+   an unstyled <body> would have provided - so descendants' calculatePosition
+   math resolves exactly like it does in the admin app (no such wrapper
+   between <body> and the overlay there). Zero-sized and already
+   `background: transparent` (see Overlay.tsx), so removing it from flow here
+   changes no visible layout. */
 body > .kui-scheme--light,
 body > .kui-scheme--dark,
 body > .kui-scheme--auto {
-  position: relative;
+  position: absolute;
+  top: 0;
+  left: 0;
   z-index: 2147483001;
 }
 

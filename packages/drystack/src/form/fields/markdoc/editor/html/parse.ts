@@ -431,7 +431,19 @@ function blocksFromChildNodes(
         // writes it empty), so there is nothing worth keeping if the node
         // itself can't be reconstructed.
         if (ref && state.schema.nodes.content_ref) {
-          const node = state.schema.nodes.content_ref.createChecked({ ref });
+          // On a live page (VEI), content-ref-resolve.ts has already baked
+          // the referenced entry's current HTML into this section server-
+          // side - `el.innerHTML` is never empty there. Carrying it through
+          // as `seedHtml` lets ContentRefNodeView paint it immediately
+          // instead of re-fetching client-side what the server just
+          // resolved (see schema.tsx's content_ref spec). The admin's own
+          // saved HTML always has an empty section here (html/serialize.ts
+          // never writes the resolved content back out), so this is a no-op
+          // there and that editor keeps live-fetching as before.
+          const node = state.schema.nodes.content_ref.createChecked({
+            ref,
+            seedHtml: el.innerHTML || null,
+          });
           if (node) result.push(node);
         }
         continue;

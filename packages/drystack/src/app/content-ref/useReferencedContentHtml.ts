@@ -29,14 +29,20 @@ const textDecoder = new TextDecoder();
 export function useReferencedContentHtml(
   ref: EntryRef | null,
   field: string | null,
+  // Pre-resolved HTML to paint immediately, before this hook's own fetch
+  // resolves - see schema.tsx's content_ref.seedHtml. Only ever non-null on
+  // a live page (VEI), where the server has already resolved it; the admin
+  // editor always calls this without one and shows the loading state as
+  // before.
+  seedHtml?: string | null,
 ): ReferencedContentHtmlState {
   const config = useConfig();
   const { basePath } = useRouter();
   const tree = useTree().current;
 
-  const [state, setState] = useState<ReferencedContentHtmlState>({
-    status: "loading",
-  });
+  const [state, setState] = useState<ReferencedContentHtmlState>(() =>
+    seedHtml != null ? { status: "ready", html: seedHtml } : { status: "loading" },
+  );
 
   const refKey = ref ? entryRefKey(ref) : null;
 
@@ -50,7 +56,11 @@ export function useReferencedContentHtml(
       return;
     }
     let cancelled = false;
-    setState({ status: "loading" });
+    // Keep whatever's already on screen (the seed, or a previous fetch's
+    // result) while resolving live in the background instead of flashing
+    // back to "loading" - the seed in particular is already correct as of
+    // the last server render, so there's nothing to hide it for.
+    setState((prev) => (prev.status === "ready" ? prev : { status: "loading" }));
     (async () => {
       const resolved = resolveEntryRef(config, ref);
       const fieldSchema = resolved.schema[field];

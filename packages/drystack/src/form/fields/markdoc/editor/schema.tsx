@@ -881,6 +881,17 @@ const nodeSpecs = {
     atom: true,
     attrs: {
       ref: {},
+      // Purely a client-side cache hint, never round-tripped through save:
+      // html/serialize.ts always writes the section back out empty, so
+      // there's nothing here for a later parse of *saved* HTML to find. Only
+      // populated when parse.ts reads this node off a live page's own DOM,
+      // where packages/astro/src/content-ref-resolve.ts has already baked
+      // the current referenced HTML in server-side (see that file's doc
+      // comment). Lets ContentRefNodeView paint that immediately instead of
+      // showing "loading" and re-fetching client-side something the server
+      // just resolved a moment ago - see useReferencedContentHtml's seed
+      // param.
+      seedHtml: { default: null },
     },
     reactNodeView: {
       component: ContentRefNodeView,
@@ -895,7 +906,7 @@ const nodeSpecs = {
         getAttrs(dom) {
           if (typeof dom === "string") return false;
           const ref = dom.getAttribute("data-ref-content");
-          return ref ? { ref } : false;
+          return ref ? { ref, seedHtml: dom.innerHTML || null } : false;
         },
       },
     ],

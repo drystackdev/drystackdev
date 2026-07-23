@@ -33,7 +33,16 @@ test("parses into an atom content_ref node with only the ref attr", () => {
   const doc = htmlToProseMirror(html, blockSchema(), new Map());
   const node = doc.firstChild!;
   expect(node.type.name).toBe("content_ref");
-  expect(node.attrs).toEqual({ ref: REF });
+  expect(node.attrs).toEqual({ ref: REF, seedHtml: null });
+  expect(node.childCount).toBe(0);
+});
+
+test("captures a live page's already-resolved section body as seedHtml, without adding it to the node's own content", () => {
+  const html = `<section data-ref-content="${REF}"><p>Resolved</p></section>`;
+  const doc = htmlToProseMirror(html, blockSchema(), new Map());
+  const node = doc.firstChild!;
+  expect(node.type.name).toBe("content_ref");
+  expect(node.attrs).toEqual({ ref: REF, seedHtml: "<p>Resolved</p>" });
   expect(node.childCount).toBe(0);
 });
 
