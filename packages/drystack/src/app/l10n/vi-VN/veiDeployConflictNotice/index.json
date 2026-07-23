@@ -1,6 +1,0 @@
-{
-  "key": "veiDeployConflictNotice",
-  "value": "Có xung đột giữa brand và nhánh chính - hãy mở admin để xử lý và deploy.",
-  "notes": "",
-  "type": "global"
-}

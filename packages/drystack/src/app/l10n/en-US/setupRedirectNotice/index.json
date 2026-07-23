@@ -1,6 +1,0 @@
-{
-  "key": "setupRedirectNotice",
-  "value": "After visiting GitHub to create the GitHub app, you'll be redirected back here and secrets generated from GitHub will be written to your .env file.",
-  "notes": "",
-  "type": "global"
-}

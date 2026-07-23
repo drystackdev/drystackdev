@@ -1,6 +1,0 @@
-{
-  "key": "veiBrandBranchNotFound",
-  "value": "Không tìm thấy nhánh brand \"{branch}\" trên GitHub.",
-  "notes": "",
-  "type": "global"
-}

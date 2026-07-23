@@ -1,6 +1,0 @@
-{
-  "key": "veiDeployConflictNotice",
-  "value": "There's a conflict between the brand and the main branch - open the admin to resolve it and deploy.",
-  "notes": "",
-  "type": "global"
-}

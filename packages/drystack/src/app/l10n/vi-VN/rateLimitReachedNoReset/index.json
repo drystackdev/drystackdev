@@ -1,6 +1,0 @@
-{
-  "key": "rateLimitReachedNoReset",
-  "value": "Đã đạt giới hạn tốc độ API của GitHub",
-  "notes": "",
-  "type": "global"
-}

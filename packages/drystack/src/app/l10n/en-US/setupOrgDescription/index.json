@@ -1,6 +1,0 @@
-{
-  "key": "setupOrgDescription",
-  "value": "You must be an owner or GitHub App manager in the organization to create the GitHub App. Leave this blank to create the app in your personal account.",
-  "notes": "",
-  "type": "global"
-}

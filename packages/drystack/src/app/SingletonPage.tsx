@@ -148,11 +148,6 @@ function SingletonPageInner(
 
   const formID = "singleton-form";
 
-  // build tracking now lives on the Deploy button (deploy/DeployButton.tsx):
-  // saves commit to the editor's brand branch, which never triggers a
-  // Cloudflare build on its own - only merging a brand into the default
-  // branch does. See plan/brand.md §11.
-
   const isCreating = props.initialState === null;
 
   const onCreate = async () => {

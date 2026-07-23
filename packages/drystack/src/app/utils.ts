@@ -38,13 +38,6 @@ export type MaybePromise<T> = T | Promise<T>;
 
 export * from './storage-mode';
 
-export function getRepoPath(config: { owner: string; name: string }) {
-  return `${config.owner}/${config.name}`;
-}
-export function getRepoUrl(config: { owner: string; name: string }) {
-  return `https://github.com/${getRepoPath(config)}`;
-}
-
 export function getSlugFromState(
   collectionConfig: {
     slugField: string;

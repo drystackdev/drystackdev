@@ -1,6 +1,0 @@
-{
-  "key": "setupExistingAppNotice",
-  "value": "Nếu bạn đã tạo GitHub app, hãy đảm bảo thêm các biến môi trường sau:",
-  "notes": "",
-  "type": "global"
-}

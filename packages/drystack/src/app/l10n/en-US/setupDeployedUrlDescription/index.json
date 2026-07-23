@@ -1,6 +1,0 @@
-{
-  "key": "setupDeployedUrlDescription",
-  "value": "This should the root of your domain. If you're not sure where drystack will be deployed, leave this blank and you can update the GitHub app later.",
-  "notes": "",
-  "type": "global"
-}

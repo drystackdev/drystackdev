@@ -1,6 +1,0 @@
-{
-  "key": "repoNotFoundSuffix",
-  "value": "nhưng drystack không thể truy cập repo này. Có thể do bạn không có quyền truy cập repo này hoặc chưa thêm GitHub app vào đó.",
-  "notes": "",
-  "type": "global"
-}

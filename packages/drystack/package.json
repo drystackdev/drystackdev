@@ -152,14 +152,6 @@
       "drystack-src": "./src/app/required-files.ts",
       "default": "./dist/app/required-files.js"
     },
-    "./build-status": {
-      "drystack-src": "./src/app/build-status.ts",
-      "default": "./dist/app/build-status.js"
-    },
-    "./build-status-protocol": {
-      "drystack-src": "./src/app/build-status-protocol.ts",
-      "default": "./dist/app/build-status-protocol.js"
-    },
     "./yaml": {
       "drystack-src": "./src/yaml.ts",
       "default": "./dist/yaml.js"

@@ -132,10 +132,8 @@ export function useNavItems(): ItemOrGroup[] {
         }))
         .filter((group) => group.children.length > 0);
 
-  // File management is a system-owned route (works the same in local and
-  // github storage, see SidebarNav's old comment) rather than a
-  // collection/singleton, so it's built by hand instead of going through
-  // populateItemData.
+  // File management is a system-owned route rather than a collection/
+  // singleton, so it's built by hand instead of going through populateItemData.
   const systemChildren: Item[] = [
     {
       key: "files",

@@ -1,6 +1,0 @@
-{
-  "key": "setupRedirectNotice",
-  "value": "Sau khi t\u1ea1o GitHub app tr\u00ean GitHub, b\u1ea1n s\u1ebd \u0111\u01b0\u1ee3c chuy\u1ec3n h\u01b0\u1edbng v\u1ec1 \u0111\u00e2y v\u00e0 c\u00e1c secret t\u1eeb GitHub s\u1ebd \u0111\u01b0\u1ee3c ghi v\u00e0o t\u1ec7p .env.",
-  "notes": "",
-  "type": "global"
-}

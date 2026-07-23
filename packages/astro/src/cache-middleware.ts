@@ -66,6 +66,14 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return response;
   }
 
+  // Buffered rather than streamed via `.clone().body`: the Cache API has to
+  // buffer the whole body to store it anyway, and racing a live
+  // `cache.put()` read against the client's own read of a tee()'d stream
+  // has been observed to silently truncate the client-facing copy to zero
+  // bytes under `astro dev`'s Miniflare/workerd simulation. One buffer,
+  // reused for both response bodies below, sidesteps that race entirely.
+  const body = await response.arrayBuffer();
+
   // Two independent copies with deliberately different Cache-Control:
   // Cloudflare's Cache API honors the STORED response's own Cache-Control
   // when deciding whether to keep it at all - a `max-age=0` (what the
@@ -76,7 +84,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // actually governs when it goes stale (the next save mints a new key).
   const cacheHeaders = new Headers(response.headers);
   cacheHeaders.set("cache-control", "public, max-age=31536000, immutable");
-  const toCache = new Response(response.clone().body, {
+  const toCache = new Response(body, {
     status: response.status,
     statusText: response.statusText,
     headers: cacheHeaders,
@@ -85,13 +93,19 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // The copy actually sent to the browser always revalidates - browsers
   // must never hold their own stale copy past one navigation; our edge
   // cache above is the only layer allowed to persist across requests.
-  response.headers.set("cache-control", "public, max-age=0, must-revalidate");
-  response.headers.set(debugHeader, "MISS");
+  const clientHeaders = new Headers(response.headers);
+  clientHeaders.set("cache-control", "public, max-age=0, must-revalidate");
+  clientHeaders.set(debugHeader, "MISS");
+  const clientResponse = new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: clientHeaders,
+  });
 
   const cfContext = (context.locals as { cfContext?: ExecutionContextLike })
     .cfContext;
   const stored = cache.put(cacheKey, toCache);
   if (cfContext) cfContext.waitUntil(stored);
   else await stored;
-  return response;
+  return clientResponse;
 });

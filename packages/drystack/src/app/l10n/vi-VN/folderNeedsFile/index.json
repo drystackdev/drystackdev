@@ -1,6 +1,6 @@
 {
   "key": "folderNeedsFile",
-  "value": "Thư mục cần ít nhất một tệp - GitHub không thể lưu thư mục trống.",
+  "value": "Thư mục cần ít nhất một tệp - hệ thống lưu trữ không thể lưu thư mục trống.",
   "notes": "",
   "type": "global"
 }

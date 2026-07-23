@@ -1,6 +1,0 @@
-{
-  "key": "veiDeployBlobReadFailed",
-  "value": "Could not read file contents from GitHub.",
-  "notes": "",
-  "type": "global"
-}

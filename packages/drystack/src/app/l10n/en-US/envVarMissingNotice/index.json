@@ -1,6 +1,0 @@
-{
-  "key": "envVarMissingNotice",
-  "value": "The {envName} environment variable wasn't provided so we can't link to the GitHub app installation page. You should find the App on GitHub and add the repo yourself.",
-  "notes": "",
-  "type": "global"
-}

@@ -7,11 +7,6 @@
     "directory": "./dist",
     "binding": "ASSETS"
   },
-  "durable_objects": {
-    "bindings": [
-      { "name": "BUILD_STATUS_HUB", "class_name": "BuildStatusHub" }
-    ]
-  },
   "r2_buckets": [
     { "binding": "DRYSTACK_R2", "bucket_name": "drystack-content" }
   ],
@@ -23,18 +18,6 @@
       "migrations_dir": "migrations"
     }
   ],
-  "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["BuildStatusHub"] }
-  ],
-  "queues": {
-    "consumers": [
-      {
-        "queue": "drystack-build-events",
-        "max_batch_size": 10,
-        "max_batch_timeout": 5
-      }
-    ]
-  },
   "observability": {
     "enabled": false,
     "head_sampling_rate": 1,

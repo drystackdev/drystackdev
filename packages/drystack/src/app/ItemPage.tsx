@@ -213,11 +213,6 @@ function ItemPageInner(
   };
   const isSavingDisabled = updateResult.kind === "loading" || !props.hasChanged;
 
-  // build tracking now lives on the Deploy button (deploy/DeployButton.tsx):
-  // saves commit to the editor's brand branch, which never triggers a
-  // Cloudflare build on its own - only merging a brand into the default
-  // branch does. See plan/brand.md §11.
-
   // Saves the entry, optionally folding a `from → to` 301 into the same
   // commit (see useUpsertItem's `redirect` option in updating.tsx). Shared by
   // the direct-save path below and by the rename-confirm dialog's actions.
