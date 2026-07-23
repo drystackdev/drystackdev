@@ -12,22 +12,9 @@
       { "name": "BUILD_STATUS_HUB", "class_name": "BuildStatusHub" }
     ]
   },
-  // Content storage for `storage: { kind: 'r2' }` - the CMS reads/writes
-  // content + assets here. Also holds the session-revocation list
-  // (auth/revoked/<jti>, see native-auth.ts) and user avatars
-  // (_system/avatars/, see user-management.ts) - neither ever served by the
-  // content API's tree/blob/update routes. User accounts themselves live in
-  // D1 now, not here (see d1_databases below) - dev uses miniflare's local
-  // simulation of this binding (.wrangler/state).
   "r2_buckets": [
     { "binding": "DRYSTACK_R2", "bucket_name": "drystack-content" }
   ],
-  // User/role/permission store for `storage: { kind: 'r2' }` (see
-  // plan/user-managent.md). `database_id` below is a placeholder: run
-  // `bunx wrangler d1 create drystack-db` once and paste the real id here
-  // before deploying. Dev uses miniflare's local simulation of this same
-  // binding (.wrangler/state), same as the R2 bucket above, and works fine
-  // with the placeholder id.
   "d1_databases": [
     {
       "binding": "DRYSTACK_DB",
@@ -36,17 +23,6 @@
       "migrations_dir": "migrations"
     }
   ],
-  // Invite/forgot-password emails (plan/user-managent.md mục 7). Prefer
-  // Resend (works on Workers Free plan): set RESEND_API_KEY as a secret
-  // (`bunx wrangler secret put RESEND_API_KEY`) and RESEND_FROM as a
-  // verified address. This `send_email` binding is the Cloudflare-native
-  // fallback - requires the Workers Paid plan; the `from` domain must be
-  // onboarded first via `bunx wrangler email sending enable yourdomain.com`,
-  // then set DRYSTACK_EMAIL_FROM. Without any of the above,
-  // user-management.ts's sendEmail is simply undefined -
-  // add/resend-invite/forgot-password still work, the admin UI just shows a
-  // copyable link instead of "email sent" (see AddUserPage.tsx).
-  "send_email": [{ "name": "DRYSTACK_EMAIL" }],
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["BuildStatusHub"] }
   ],
