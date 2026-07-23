@@ -2,14 +2,14 @@
 
 drystack is a customized fork of Keystatic.
 
-> **⚠️ Standing rule - no exceptions:** every feature (file manager, uploads, trash/delete, editing, media library, etc.) **must work in both `storage.kind === 'local'` and `storage.kind === 'github'`.** This applies to every change, not just new features - if you touch a write path, verify both modes before calling the work done.
+> **⚠️ Standing rule - no exceptions:** every feature (file manager, uploads, trash/delete, editing, media library, etc.) **must work in both `storage.kind === 'demo'` and `storage.kind === 'r2'`.** This applies to every change, not just new features - if you touch a write path, verify both modes before calling the work done. (`local` and `github` storage kinds were removed 2026-07-23 - r2 is now the only writable backend, demo is the read-only public showcase.)
 
 Checklist for any change that reads or writes content:
 
-1. Find the relevant `isLocalConfig`/`isGitHubConfig` (or `config.storage.kind`) call sites in `packages/drystack/src/app/utils.ts` and the feature's own files.
-2. Wire up the GitHub path via `useCommitFileChanges` / GraphQL `createCommitOnBranch` (`packages/drystack/src/app/shell/useCommitFileChanges.ts`) - don't rely solely on the local-only `/update` REST API.
-3. If GitHub support genuinely can't land in the same change, gate the feature's UI so it's hidden for GitHub mode (pattern: `packages/drystack/src/app/shell/sidebar/index.tsx`'s "File management" nav item) and leave a comment explaining what's still local-only.
-4. Prefer implementing the GitHub path over gating when the underlying primitive already supports it (e.g. `useCommitFileChanges` already batches `additions`+`deletions` in one commit) - don't hide a feature just because the first draft only touched local mode.
+1. Find the relevant `isDemoConfig`/`isR2Config` (or `config.storage.kind`) call sites in `packages/drystack/src/app/storage-mode.ts` and the feature's own files.
+2. Both modes read/write through the same local-shaped REST routes (`/api/<base>/tree`, `/blob`, `/update` - see `packages/drystack/src/api/generic.ts` and `api-node.ts`/`api-r2.ts`); r2 just swaps the storage backend from disk to a Cloudflare R2 bucket server-side and sits behind native email/password login (`api/native-auth.ts`). There's no branch/commit model to wire up separately - a feature that works against the REST routes already works in both modes.
+3. Demo is read-only: every write path must no-op through `blockWriteInDemo()`/`blockWriteInDemoWithError()` (`packages/drystack/src/app/demo-guard.ts`), never silently succeed or throw an unhandled error.
+4. If a feature genuinely can't work in demo (e.g. it needs a real signed-in identity), gate its UI off `isR2Config`/`isDemoConfig` rather than crashing - see `packages/drystack/src/app/shell/sidebar/index.tsx`'s `SidebarFooter`/`SidebarHeader` for the pattern (r2 gets the identity-aware footer, demo moves the theme menu to the header instead).
 
 ## Configuration
 

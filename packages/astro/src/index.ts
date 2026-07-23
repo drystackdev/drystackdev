@@ -160,9 +160,11 @@ const ASSET_COPY_EXCLUDE = new Set([
 // client output but knows nothing about these dirs, so every CMS-managed image
 // 404s once deployed. This mirrors those `assets/` dirs into the client output,
 // preserving their repo-relative path, so the `/…/assets/<file>` URLs stored in
-// image fields resolve in production. Works for both storage kinds: the files
-// are on disk at build time (local mode: the dev disk; github mode: the repo
-// checkout Cloudflare builds from). `.deleted` trash dirs are skipped so files
+// image fields resolve in production. The files are on disk at build time -
+// the dev disk locally, or the repo checkout Cloudflare builds from. r2's own
+// content (uploaded after the initial seed) is served straight from the
+// bucket at request time instead, so this only matters for whatever's
+// actually checked into the repo. `.deleted` trash dirs are skipped so files
 // the user removed via the File Manager don't get republished.
 function copyDrystackAssets(root: string, clientDir: string) {
   const found: string[] = [];
@@ -216,12 +218,12 @@ function writeCmsRedirectsFile(root: string, clientDir: string) {
   appendFileSync(destPath, separator + body + "\n");
 }
 
-// Flushes dry.ts's build-time id→{data-dry,kind,value} registry (populated
-// only for storage.kind === 'github' - see dry.ts's readSingleton) to a
-// static asset, gated behind GitHub auth by the `github/dry-map` route
-// (generic.ts) - not encrypted, since the registry only reveals field
-// paths/kinds, not any actual site secret. Empty registry (local mode, or no
-// .bind()/.view() calls at all) means nothing to write.
+// Flushes dry.ts's build-time id→{data-dry,kind,value} registry to a static
+// asset. Currently always empty (dry.ts's getOrCreateDryId - the only thing
+// that ever populates the registry - has no remaining caller now that every
+// storage kind ships its data-dry attributes directly), so this is a no-op
+// today; kept in case a future storage kind needs the opaque-id indirection
+// again.
 async function writeDryMapFile(clientDir: string) {
   const registry = readDryMapRegistryFile();
   if (Object.keys(registry).length === 0) return;
@@ -637,12 +639,13 @@ import "@drystack/core/ui";
 
         // Under the Cloudflare adapter, `astro dev` executes on-demand routes
         // inside workerd. workerd's node:fs compat can *read* the host disk but
-        // rejects writes (`mkdir` → "operation not permitted"), so the
-        // local-storage API (`/api/<path>/update`, and reads for consistency)
-        // can't run there. Intercept those requests in a Node-side Vite dev
-        // middleware - it runs in the real Node host where fs writes work - and
-        // run the exact same handler `drystack-api.js` uses. GitHub-mode
-        // requests (OAuth, app creation) fall through to the workerd route.
+        // rejects writes (`mkdir` → "operation not permitted"), so demo's
+        // Node-fs-backed API (`/api/<path>/update` - blocked at the write step
+        // for demo, but the route still needs to run - and reads for
+        // consistency) can't run there. Intercept those requests in a
+        // Node-side Vite dev middleware - it runs in the real Node host where
+        // fs writes work - and run the exact same handler `drystack-api.js`
+        // uses. r2 requests fall through to the workerd route.
         updateConfig({
           vite: {
             environments: {
@@ -688,13 +691,13 @@ import "@drystack/core/ui";
         });
 
         // MVP 1 visual DOM editor - stage 1: tiny eligibility check present on
-        // every page (dev, a logged-in-GitHub cookie in prod, an r2-mode
-        // native-session hint cookie, or a demo build). Only when eligible
-        // does it dynamically import the real editor (stage 2), so anonymous
-        // visitors on a normal (non-demo) production site never download the
-        // editor chunk. The r2 hint cookie is presence-only (see
-        // native-auth.ts): it merely downloads the editor UI - every actual
-        // write is verified server-side against the HttpOnly session JWT.
+        // every page (dev, an r2-mode native-session hint cookie, or a demo
+        // build). Only when eligible does it dynamically import the real
+        // editor (stage 2), so anonymous visitors on a normal (non-demo)
+        // production site never download the editor chunk. The r2 hint
+        // cookie is presence-only (see native-auth.ts): it merely downloads
+        // the editor UI - every actual write is verified server-side against
+        // the HttpOnly session JWT.
         //
         // Demo builds are the one case where every visitor is meant to see
         // the toolbar with no login at all - that's the point of the mode
@@ -704,7 +707,7 @@ import "@drystack/core/ui";
         // so this stays in sync with that switch automatically.
         injectScript(
           "page",
-          `const eligible = import.meta.env.DEV || document.cookie.includes('drystack-gh-access-token=') || document.cookie.includes('drystack-session-hint=') || ${JSON.stringify(demoStaticBuild)};
+          `const eligible = import.meta.env.DEV || document.cookie.includes('drystack-session-hint=') || ${JSON.stringify(demoStaticBuild)};
 if (eligible) {
   if (import.meta.env.DEV) {
     // The editor is mounted manually (not as an Astro/React island), so
@@ -727,11 +730,10 @@ if (eligible) {
     import('virtual:drystack-build-version'),
     import('@drystack/astro/editor'),
   ]);
-  // Stage 1's DEV-mode bypass (above) exists so a local/github/demo site
-  // never needs to log in just to iterate on content - those kinds have no
-  // real auth to check anyway (local/demo) or the dev server IS the trusted
-  // environment (github). r2 is different: it has real login even in dev
-  // (plan/auth.md), so mounting the editor off DEV alone would show the
+  // Stage 1's DEV-mode bypass (above) exists so a demo site never needs to
+  // log in just to iterate on content - demo has no real auth to check
+  // anyway. r2 is different: it has real login even in dev (plan/auth.md),
+  // so mounting the editor off DEV alone would show the
   // pen/edit UI to a signed-out visitor. Gate on the actual session-hint
   // cookie here instead, now that \`cfg\` (loaded live through Vite, unlike
   // stage 1's synchronous check) can say for certain whether this build is
