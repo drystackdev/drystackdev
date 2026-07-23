@@ -204,7 +204,6 @@ const redirectsSingleton = singleton({
       fields.object({
         from: fields.text({ label: "Old URL" }),
         to: fields.text({ label: "New URL" }),
-        createdAt: fields.text({ label: "Created" }),
       }),
       {
         label: "Redirect list",

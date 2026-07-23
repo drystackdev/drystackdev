@@ -11,13 +11,15 @@ import {
   createContext,
   useCallback,
   useContext,
+  useId,
   useRef,
 } from "react";
 
 import { Badge } from "@keystar/ui/badge";
 import { Icon } from "@keystar/ui/icon";
-import { Divider, ScrollView, HStack, VStack } from "@keystar/ui/layout";
-import { NavList, NavItem, NavGroup } from "@keystar/ui/nav-list";
+import { chevronDownIcon } from "@keystar/ui/icon/icons/chevronDownIcon";
+import { Box, Divider, ScrollView, HStack, VStack } from "@keystar/ui/layout";
+import { NavList, NavItem } from "@keystar/ui/nav-list";
 import { Blanket } from "@keystar/ui/overlays";
 import { StatusLight } from "@keystar/ui/status-light";
 import {
@@ -37,6 +39,7 @@ import { isDemoConfig } from "../../utils";
 
 import { useBrand } from "../common";
 import { SIDE_PANEL_ID } from "../constants";
+import { useExpandedNavGroups } from "./collapsed-groups";
 import { ThemeMenu, UserActions } from "./components";
 import { useAppState, useConfig } from "../context";
 
@@ -223,6 +226,7 @@ export function SidebarNav() {
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const navItems = useNavItems();
   const isCurrent = useIsCurrent();
+  const [expandedGroups, toggleGroup] = useExpandedNavGroups();
 
   return (
     <ScrollView flex paddingY="large" paddingEnd="medium">
@@ -235,7 +239,12 @@ export function SidebarNav() {
         </NavItem>
 
         {navItems.map((item, i) => (
-          <NavItemOrGroup key={i} itemOrGroup={item} />
+          <NavItemOrGroup
+            key={i}
+            itemOrGroup={item}
+            expandedGroups={expandedGroups}
+            onToggleGroup={toggleGroup}
+          />
         ))}
       </NavList>
     </ScrollView>
@@ -262,7 +271,17 @@ function useIsCurrent() {
 
 // Renderers
 // ----------------------------------------------------------------------------
-function NavItemOrGroup({ itemOrGroup }: { itemOrGroup: ItemOrGroup }) {
+type NavItemOrGroupProps = {
+  itemOrGroup: ItemOrGroup;
+  expandedGroups: Set<string>;
+  onToggleGroup: (title: string) => void;
+};
+
+function NavItemOrGroup({
+  itemOrGroup,
+  expandedGroups,
+  onToggleGroup,
+}: NavItemOrGroupProps) {
   const isCurrent = useIsCurrent();
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   if (itemOrGroup.isDivider) {
@@ -271,11 +290,20 @@ function NavItemOrGroup({ itemOrGroup }: { itemOrGroup: ItemOrGroup }) {
 
   if (itemOrGroup.children) {
     return (
-      <NavGroup title={itemOrGroup.title}>
+      <CollapsibleNavGroup
+        title={itemOrGroup.title}
+        collapsed={!expandedGroups.has(itemOrGroup.title)}
+        onToggle={() => onToggleGroup(itemOrGroup.title)}
+      >
         {itemOrGroup.children.map((child, i) => (
-          <NavItemOrGroup itemOrGroup={child} key={i} />
+          <NavItemOrGroup
+            itemOrGroup={child}
+            key={i}
+            expandedGroups={expandedGroups}
+            onToggleGroup={onToggleGroup}
+          />
         ))}
-      </NavGroup>
+      </CollapsibleNavGroup>
     );
   }
 
@@ -309,5 +337,102 @@ function NavItemOrGroup({ itemOrGroup }: { itemOrGroup: ItemOrGroup }) {
       </Text>
       {changeElement}
     </NavItem>
+  );
+}
+
+// A collapsible stand-in for @keystar/ui/nav-list's NavGroup (which has no
+// expand/collapse of its own - see its "collapsible?" TODO) - same heading
+// look and list semantics, plus a toggle button and a real height animation
+// (grid-template-rows 0fr → 1fr, not a fixed max-height guess) instead of
+// just mounting/unmounting the group's children.
+function CollapsibleNavGroup(props: {
+  title: string;
+  collapsed: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  const { title, collapsed, onToggle, children } = props;
+  const baseId = useId();
+  const headingId = `${baseId}-heading`;
+  const bodyId = `${baseId}-body`;
+
+  return (
+    <li
+      className={css({
+        "&:not(:first-child)": {
+          marginBlockStart: tokenSchema.size.space.regular,
+        },
+        "&:not(:last-child)": {
+          marginBlockEnd: tokenSchema.size.space.regular,
+        },
+      })}
+    >
+      <button
+        type="button"
+        id={headingId}
+        onClick={onToggle}
+        aria-expanded={!collapsed}
+        aria-controls={bodyId}
+        className={css({
+          alignItems: "center",
+          background: "none",
+          border: 0,
+          color: tokenSchema.color.foreground.neutralSecondary,
+          cursor: "pointer",
+          display: "flex",
+          justifyContent: "space-between",
+          gap: tokenSchema.size.space.small,
+          paddingBlock: tokenSchema.size.space.regular,
+          paddingInlineEnd: tokenSchema.size.space.medium,
+          paddingInlineStart: tokenSchema.size.space.medium,
+          textAlign: "start",
+          width: "100%",
+          "&:hover": {
+            color: tokenSchema.color.foreground.neutralEmphasis,
+          },
+          "& svg": {
+            flexShrink: 0,
+            transition: transition("transform", { easing: "easeOut" }),
+          },
+          '&[aria-expanded="false"] svg': {
+            transform: "rotate(-90deg)",
+          },
+        })}
+      >
+        <Text
+          elementType="span"
+          truncate
+          size="small"
+          weight="bold"
+          color="neutralTertiary"
+          UNSAFE_className={css({ textTransform: "uppercase" })}
+        >
+          {title}
+        </Text>
+        <Icon src={chevronDownIcon} size="small" />
+      </button>
+      <div
+        className={css({
+          display: "grid",
+          gridTemplateRows: "0fr",
+          transition: transition("grid-template-rows", { easing: "easeOut" }),
+          '&[data-expanded="true"]': {
+            gridTemplateRows: "1fr",
+          },
+        })}
+        data-expanded={!collapsed}
+      >
+        <div className={css({ minHeight: 0, overflow: "hidden" })}>
+          <Box
+            elementType="ul"
+            id={bodyId}
+            aria-labelledby={headingId}
+            flexShrink={0}
+          >
+            {children}
+          </Box>
+        </div>
+      </div>
+    </li>
   );
 }

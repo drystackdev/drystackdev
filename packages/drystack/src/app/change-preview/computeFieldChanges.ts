@@ -1,11 +1,16 @@
 import isEqual from "fast-deep-equal";
-import { ComponentSchema, ObjectField } from "../../form/api";
+import { ArrayField, ComponentSchema, ObjectField } from "../../form/api";
 import {
   FieldChange,
   prettifyContentHtml,
   summarizeContentChange,
 } from "./ChangePreviewDialog";
-import { getSyncableFieldKind, isAssetKind } from "../edit-sync";
+import {
+  getSyncableFieldKind,
+  isAssetKind,
+  resolveValueAtFieldPath,
+  spliceValueEdit,
+} from "../edit-sync";
 import type { ContentSummary } from "../../form/fields/content";
 
 const textDecoder = new TextDecoder();
@@ -58,13 +63,115 @@ function stringifyFieldValue(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
-// Top-level-only: walks the entry's own fields, not into nested
-// array/object/conditional fields - good enough for a first pass at "what
-// changed", and avoids having to special-case every field kind's internal
-// shape. Non-string values (arrays, objects) fall back to a pretty-printed
-// JSON diff via stringifyFieldValue; the rich-text `content` field is shown as
-// its word/character counts instead (summarizeContentChange), since its value
-// is an editor state whose JSON is neither readable nor what VEI shows.
+// Walks one field at any depth, recursing into array/object containers down
+// to their leaf fields instead of stopping at the top level - the visual
+// editor's own review dialog (Toolbar.tsx's getPendingChanges) already shows
+// one row per leaf (it binds DOM spots that deep), so this mirrors that
+// granularity via dotted keys ("cards.0.title") rather than falling back to
+// a whole-container JSON diff, which used to be the only option here and
+// read as an unreviewable wall of text for any edit inside a nested field.
+// `sublabel` carries the dotted path once nested, since two same-named
+// leaves in different array items (two cards' "Title") would otherwise be
+// indistinguishable rows.
+function walk(
+  path: string,
+  label: string,
+  fieldSchema: ComponentSchema,
+  before: unknown,
+  after: unknown,
+  changes: FieldChange[],
+  stringFormatter?: Parameters<typeof summarizeContentChange>[1],
+): void {
+  if (isEqual(before, after)) return;
+  const kind = getSyncableFieldKind(fieldSchema);
+  const sublabel = path.includes(".") ? path : undefined;
+
+  if (kind === "content") {
+    changes.push({
+      key: path,
+      label,
+      sublabel,
+      kind: "text",
+      before: summarizeContentChange(
+        contentSummaryOf(fieldSchema, before),
+        stringFormatter,
+      ),
+      after: summarizeContentChange(
+        contentSummaryOf(fieldSchema, after),
+        stringFormatter,
+      ),
+      diffBefore: prettifyContentHtml(contentHtmlOf(fieldSchema, before) ?? ""),
+      diffAfter: prettifyContentHtml(contentHtmlOf(fieldSchema, after) ?? ""),
+    });
+    return;
+  }
+
+  if (kind === "object") {
+    const beforeObj =
+      before && typeof before === "object" && !Array.isArray(before)
+        ? (before as Record<string, unknown>)
+        : {};
+    const afterObj =
+      after && typeof after === "object" && !Array.isArray(after)
+        ? (after as Record<string, unknown>)
+        : {};
+    for (const [seg, subSchema] of Object.entries(
+      (fieldSchema as ObjectField).fields,
+    )) {
+      walk(
+        `${path}.${seg}`,
+        (subSchema as { label?: string }).label ?? seg,
+        subSchema,
+        beforeObj[seg],
+        afterObj[seg],
+        changes,
+        stringFormatter,
+      );
+    }
+    return;
+  }
+
+  if (kind === "array") {
+    const element = (fieldSchema as ArrayField<ComponentSchema>).element;
+    const elementLabel = (element as { label?: string }).label ?? label;
+    const beforeArr = Array.isArray(before) ? before : [];
+    const afterArr = Array.isArray(after) ? after : [];
+    const len = Math.max(beforeArr.length, afterArr.length);
+    for (let i = 0; i < len; i++) {
+      walk(
+        `${path}.${i}`,
+        elementLabel,
+        element,
+        beforeArr[i],
+        afterArr[i],
+        changes,
+        stringFormatter,
+      );
+    }
+    return;
+  }
+
+  const columnKind =
+    fieldSchema.kind === "form"
+      ? (fieldSchema as { columnKind?: string }).columnKind
+      : undefined;
+  const rowKind: FieldChange["kind"] = isAssetKind(columnKind)
+    ? columnKind
+    : "text";
+  changes.push({
+    key: path,
+    label,
+    sublabel,
+    kind: rowKind,
+    before: stringifyFieldValue(before),
+    after: stringifyFieldValue(after),
+  });
+}
+
+// Walks the entry's own fields, recursing into nested array/object fields
+// down to their leaf fields (see `walk` above) - kept identical to how the
+// visual editor's Toolbar.tsx computes its own pending-changes list so the
+// two review dialogs never disagree about what changed for the same edit.
 export function computeFieldChanges(
   schema: ObjectField<Record<string, ComponentSchema>>,
   initialState: Record<string, unknown> | null,
@@ -75,42 +182,36 @@ export function computeFieldChanges(
   for (const [key, field] of Object.entries(schema.fields)) {
     const before = initialState ? initialState[key] : undefined;
     const after = state[key];
-    if (isEqual(before, after)) continue;
     const label = (field as { label?: string }).label ?? key;
-    // Compared above on the real values, summarized only for display - see
-    // summarizeContentChange for why those must stay separate.
-    if (getSyncableFieldKind(field) === "content") {
-      changes.push({
-        key,
-        label,
-        kind: "text",
-        before: summarizeContentChange(
-          contentSummaryOf(field, before),
-          stringFormatter,
-        ),
-        after: summarizeContentChange(
-          contentSummaryOf(field, after),
-          stringFormatter,
-        ),
-        diffBefore: prettifyContentHtml(contentHtmlOf(field, before) ?? ""),
-        diffAfter: prettifyContentHtml(contentHtmlOf(field, after) ?? ""),
-      });
-      continue;
-    }
-    const columnKind =
-      field.kind === "form"
-        ? (field as { columnKind?: string }).columnKind
-        : undefined;
-    const kind: FieldChange["kind"] = isAssetKind(columnKind)
-      ? columnKind
-      : "text";
-    changes.push({
-      key,
-      label,
-      kind,
-      before: stringifyFieldValue(before),
-      after: stringifyFieldValue(after),
-    });
+    walk(key, label, field, before, after, changes, stringFormatter);
   }
   return changes;
+}
+
+// Reverts a single FieldChange row (identified by its possibly-nested dotted
+// `key`, e.g. "cards.0.title") back to its original value within `state`,
+// without disturbing any other pending edit to the same top-level field.
+// Shared by ItemPage.tsx and SingletonPage.tsx's `onRevertField`, which used
+// to only handle a bare top-level key - a leftover from before this file
+// started emitting nested keys.
+export function revertFieldAtKey(
+  schema: ObjectField<Record<string, ComponentSchema>>,
+  state: Record<string, unknown>,
+  resetState: Record<string, unknown>,
+  key: string,
+): Record<string, unknown> {
+  const [baseField, ...rest] = key.split(".");
+  if (rest.length === 0) {
+    return { ...state, [baseField]: resetState[baseField] };
+  }
+  const baseSchema = schema.fields[baseField];
+  if (!baseSchema) return state;
+  const resetLeaf = resolveValueAtFieldPath(
+    resetState[baseField],
+    rest.join("."),
+  );
+  return {
+    ...state,
+    [baseField]: spliceValueEdit(state[baseField], rest, baseSchema, () => resetLeaf),
+  };
 }

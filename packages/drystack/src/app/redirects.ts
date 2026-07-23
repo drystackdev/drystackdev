@@ -14,7 +14,6 @@ export const REDIRECTS_FILE_PATH = `${REDIRECTS_DIR}/index.yaml`;
 export type RedirectEntry = {
   from: string;
   to: string;
-  createdAt?: string;
 };
 
 // Public URLs only ever differ here by a trailing slash; normalise so `/blog/a`
@@ -40,12 +39,7 @@ export function parseRedirectEntries(value: unknown): RedirectEntry[] {
     const from = normalizeRedirectPath(String((item as any).from ?? ""));
     const to = normalizeRedirectPath(String((item as any).to ?? ""));
     if (!from || !to) continue;
-    const createdAt = (item as any).createdAt;
-    result.push({
-      from,
-      to,
-      createdAt: createdAt == null ? "" : String(createdAt),
-    });
+    result.push({ from, to });
   }
   return result;
 }
@@ -64,7 +58,7 @@ export function parseRedirectEntries(value: unknown): RedirectEntry[] {
 // page now living at A.
 export function appendRedirect(
   entries: RedirectEntry[],
-  incoming: { from: string; to: string; createdAt?: string },
+  incoming: { from: string; to: string },
 ): RedirectEntry[] {
   const from = normalizeRedirectPath(incoming.from);
   const to = normalizeRedirectPath(incoming.to);
@@ -88,11 +82,7 @@ export function appendRedirect(
   //    (e.g. the URL was renamed back to its original), in which case there is
   //    nothing to redirect.
   if (from !== to) {
-    next.push({
-      from,
-      to,
-      createdAt: incoming.createdAt ?? new Date().toISOString().slice(0, 10),
-    });
+    next.push({ from, to });
   }
 
   // 4. Final safety sweep: no self-redirects, no duplicate sources (last write

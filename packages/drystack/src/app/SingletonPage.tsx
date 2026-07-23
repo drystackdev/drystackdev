@@ -40,7 +40,10 @@ import {
   ChangePreviewDialog,
   type FieldChange,
 } from "./change-preview/ChangePreviewDialog";
-import { computeFieldChanges } from "./change-preview/computeFieldChanges";
+import {
+  computeFieldChanges,
+  revertFieldAtKey,
+} from "./change-preview/computeFieldChanges";
 import { AdminImageThumb } from "./change-preview/AdminImageThumb";
 import { parseEntry, useItemData } from "./useItemData";
 import { serializeEntryToFiles, useUpsertItem } from "./updating";
@@ -506,10 +509,10 @@ function LocalSingletonPage(
     (key: string) => {
       setState((s) => ({
         localTreeKey: s.localTreeKey,
-        state: { ...s.state, [key]: resetState[key] },
+        state: revertFieldAtKey(schema, s.state, resetState, key),
       }));
     },
-    [resetState],
+    [resetState, schema],
   );
   return (
     <SingletonPageInner

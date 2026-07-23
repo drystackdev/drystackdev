@@ -167,9 +167,14 @@ async function getPendingChanges(
             label = fieldSchema?.label ?? parsed.field;
           }
         }
+        // Matches computeFieldChanges.ts's own sublabel: two same-named leaves
+        // in different array items (e.g. two cards' "Title") read as
+        // identical rows otherwise, so the dotted path disambiguates them.
+        const fieldPath = parsed?.field ?? e.key;
         return {
           key: e.key,
           label,
+          sublabel: fieldPath.includes(".") ? fieldPath : undefined,
           kind,
           isContent: dryKind === "content",
           before: getOriginalValue(e.key) ?? "",
