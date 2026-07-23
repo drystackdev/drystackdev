@@ -31,7 +31,8 @@ function useCandidateSources(excludeRef: EntryRef | null): Source[] {
     const singletons: Source[] = Object.entries(config.singletons ?? {})
       .filter(([name]) => name !== REDIRECTS_SINGLETON_KEY)
       .filter(
-        ([name]) => !(excludeRef?.type === "singleton" && excludeRef.name === name),
+        ([name]) =>
+          !(excludeRef?.type === "singleton" && excludeRef.name === name),
       )
       .filter(([, cfg]) => listTopLevelContentFields(cfg.schema).length > 0)
       .map(([name, cfg]) => ({
@@ -123,13 +124,11 @@ export function ContentRefPickerDialog(props: {
 
   const htmlState = useReferencedContentHtml(ref, field);
   const alreadyImported =
-    htmlState.status === "ready" && htmlState.html.includes("data-ref-content=");
+    htmlState.status === "ready" &&
+    htmlState.html.includes("data-ref-content=");
 
   const canConfirm =
-    !!ref &&
-    !!field &&
-    htmlState.status === "ready" &&
-    !alreadyImported;
+    !!ref && !!field && htmlState.status === "ready" && !alreadyImported;
 
   return (
     <Dialog size="medium">
@@ -155,7 +154,7 @@ export function ContentRefPickerDialog(props: {
               >
                 {(item) => (
                   <Item key={`${item.type}:${item.name}`}>
-                    {`${item.kindLabel} — ${item.label}`}
+                    {`${item.kindLabel} - ${item.label}`}
                   </Item>
                 )}
               </Combobox>
@@ -205,7 +204,12 @@ export function ContentRefPickerDialog(props: {
           isDisabled={!canConfirm}
           onPress={() => {
             if (!ref || !field) return;
-            dismiss();
+            // Don't call `dismiss()` here - it triggers the same `onDismiss`
+            // the host resolves the pending pick with `undefined` from, which
+            // would race with (and always beat) `onSubmit` below since a
+            // promise's first resolution wins. Closing happens as a side
+            // effect of `onSubmit` once the host clears its pending request
+            // (see FileManagerDialog.tsx for the same pattern).
             props.onSubmit({ ref, field });
           }}
         >

@@ -26,7 +26,7 @@ export function AiLockOverlay(props: { children: ReactNode }) {
         // This div only exists while the AI writes, so it must not resize the
         // field on its way in. A no-op wherever the parent's height is auto
         // (every field in a form layout); it matters in the content pane, whose
-        // editor sizes against its parent — see app/entry-form.tsx.
+        // editor sizes against its parent - see app/entry-form.tsx.
         height: "100%",
         // Marks it as "being written" without shifting layout - a border or
         // padding here would make every field jump as the stream progresses.

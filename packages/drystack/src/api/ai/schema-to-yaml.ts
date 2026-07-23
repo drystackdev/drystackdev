@@ -253,7 +253,7 @@ function renderLines(
 ): string {
   const lines: string[] = [];
   for (const spec of specs) {
-    const desc = spec.description ? ` — ${spec.description}` : "";
+    const desc = spec.description ? ` - ${spec.description}` : "";
 
     if (spec.kind === "object") {
       lines.push(`${indent}${spec.key} (nhóm, gồm): ${spec.label}${desc}`);

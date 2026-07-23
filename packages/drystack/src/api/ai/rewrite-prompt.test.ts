@@ -41,11 +41,11 @@ test("asks for a bare fragment, and only the passage", () => {
   expect(prompt).not.toContain("khoảng 1000 từ");
 });
 
-// The repo's formatter rewrites `—` to `-` on save, string literals included.
+// The repo's formatter rewrites `-` to `-` on save, string literals included.
 // The prompt reads fine either way, so nothing but a test would notice - and
 // it would silently drift from schema-to-yaml.ts, which does use em-dashes.
 test("prompt text survives the formatter's em-dash rewriting", () => {
-  expect(system()).not.toContain("—");
+  expect(system()).not.toContain("-");
 });
 
 test("user prompt puts context, passage and instruction in that order", () => {
@@ -54,8 +54,12 @@ test("user prompt puts context, passage and instruction in that order", () => {
     selection: "<p>Đoạn gốc.</p>",
     description: "viết ngắn gọn hơn",
   });
-  expect(prompt.indexOf("NGỮ CẢNH")).toBeLessThan(prompt.indexOf("ĐOẠN CẦN SỬA"));
-  expect(prompt.indexOf("ĐOẠN CẦN SỬA")).toBeLessThan(prompt.indexOf("YÊU CẦU"));
+  expect(prompt.indexOf("NGỮ CẢNH")).toBeLessThan(
+    prompt.indexOf("ĐOẠN CẦN SỬA"),
+  );
+  expect(prompt.indexOf("ĐOẠN CẦN SỬA")).toBeLessThan(
+    prompt.indexOf("YÊU CẦU"),
+  );
   expect(prompt).toContain("title: Tiêu đề bài");
   expect(prompt).toContain("<p>Đoạn gốc.</p>");
   expect(prompt).toContain("viết ngắn gọn hơn");
