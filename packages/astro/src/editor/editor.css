@@ -166,32 +166,67 @@ body.editing [data-dry-kind="object"] {
    layer that lands directly on <body>. The main editor provider is nested
    inside #drystack-editor-root, so `body >` never matches it.
 
-   `position: absolute` here, not `relative`: a Tooltip/Popover's own bubble
-   (e.g. any TooltipTrigger button in the toolbar) is positioned by react-aria's
-   calculatePosition(), which computes its top/left assuming its containing
-   block is the *unstyled* <body> - i.e. the page's own scrollable origin (see
-   that function's own "if body doesn't have position:relative, absolute is
-   relative to the viewport - that's why we use the visual viewport" comment).
-   `position: relative` turns THIS wrapper into that containing block instead,
-   anchored wherever it happens to fall in <body>'s normal flow (typically far
-   down a long page) rather than at the document origin react-aria assumed -
-   every calculatePosition-based overlay (Tooltip's arrow included) then lands
-   off by that wrapper's own offset, reading as the arrow/bubble having drifted
-   away from the button it points to. `absolute; top: 0; left: 0` keeps
-   z-index working (still a positioned element) while pinning this wrapper's
-   own origin to (0, 0) of the document - the same effective containing block
-   an unstyled <body> would have provided - so descendants' calculatePosition
-   math resolves exactly like it does in the admin app (no such wrapper
-   between <body> and the overlay there). Zero-sized and already
-   `background: transparent` (see Overlay.tsx), so removing it from flow here
-   changes no visible layout. */
+   `position: fixed` here, not `relative` or `absolute`: a Tooltip/Popover's
+   own bubble (e.g. any TooltipTrigger button in the toolbar, or a Combobox's
+   listbox) is positioned by react-aria's calculatePosition()/floating-ui,
+   which compute top/left - and, for a listbox, available height via the
+   `size` middleware - assuming their containing block is the *unstyled*
+   <body> (see calculatePosition's own "if body doesn't have
+   position:relative, absolute is relative to the viewport - that's why we
+   use the visual viewport" comment). `position: relative` turns THIS wrapper
+   into that containing block instead, anchored wherever it happens to fall in
+   <body>'s normal flow (typically far down a long page) rather than at the
+   document origin react-aria assumed - every calculatePosition-based overlay
+   (Tooltip's arrow included) then lands off by that wrapper's own offset,
+   reading as the arrow/bubble having drifted away from the button it points
+   to. `position: absolute; top: 0; left: 0` fixes that origin, but is STILL
+   wrong: `.dry-bar` (the VEI toolbar) and anything it opens are
+   `position: fixed` and never move, while an absolutely-positioned wrapper
+   scrolls away with the document - so the wrapper's one-time computed
+   top/left (react-aria does not reposition on plain window/body scroll, only
+   on a scrollable ancestor *other than* body) drifts out from under its
+   trigger as the page scrolls, and a Combobox listbox's `size` middleware -
+   which measures available space down to the *viewport* edge - sees this
+   scrolled-away, effectively near-zero-height wrapper as its boundary and
+   clamps the listbox to a sliver instead of the real remaining space. `fixed;
+   top: 0; left: 0` pins the wrapper to the viewport in the same frame the
+   fixed toolbar itself never leaves, so both the trigger↔wrapper offset and
+   the available-space measurement stay correct at any scroll position, with
+   no scroll listener needed. Zero-sized and already `background: transparent`
+   (see Overlay.tsx), so removing it from flow here changes no visible
+   layout.
+
+   `right: 0; bottom: 0` (making this span the full viewport, not just pin its
+   top-left corner) is required too, not cosmetic: a Tooltip's overlay wrapper
+   has no in-flow content of its own (its only child is the tooltip bubble,
+   itself `position: absolute`, which contributes nothing to a shrink-to-fit
+   parent). With `width`/`height` left `auto`, this fixed wrapper's
+   shrink-to-fit size collapses to ~0, so the tooltip bubble's own
+   shrink-to-fit width - computed against that ~0 containing block - collapses
+   too, wrapping every word onto its own line ("Itali/c ⌘/I") instead of
+   rendering as one line capped by `maxWidth: singleLineWidth`. Spanning the
+   full viewport gives both the tooltip and any Combobox listbox the same
+   real containing block the unstyled <body> would have provided.
+
+   `pointer-events: none` here is required once this wrapper spans the full
+   viewport (rather than collapsing to ~0 as it did before `right`/`bottom`
+   were added) - left `auto` it would otherwise sit over the whole page,
+   invisible (`background: transparent`, set by Overlay.tsx) but intercepting
+   every click, and freeze the host page while any tooltip/popover/listbox is
+   mounted. Every interactive overlay Keystar renders into this wrapper
+   (Popover, Modal, Tray) already sets its own `pointer-events: auto` - the
+   library expects a non-interactive ancestor and opts individual overlays
+   back in, so this doesn't disable them. */
 body > .kui-scheme--light,
 body > .kui-scheme--dark,
 body > .kui-scheme--auto {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 2147483001;
+  pointer-events: none;
 }
 
 .dry-bar {

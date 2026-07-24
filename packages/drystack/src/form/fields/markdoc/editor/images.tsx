@@ -4,7 +4,8 @@ import { dropPoint } from 'prosemirror-transform';
 
 import { Icon } from '@keystar/ui/icon';
 import { imageIcon } from '#icons/imageIcon';
-import { Tooltip, TooltipTrigger } from '@keystar/ui/tooltip';
+import { Tooltip } from '@keystar/ui/tooltip';
+import { ScrollDismissTooltipTrigger } from './ScrollDismissTooltipTrigger';
 import { Text } from '@keystar/ui/typography';
 import { useLocalizedStringFormatter } from '@react-aria/i18n';
 import l10nMessages from '../../../../app/l10n';
@@ -141,7 +142,7 @@ export function ImageToolbarButton() {
   const mediaScope = useMediaScope();
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   return (
-    <TooltipTrigger>
+    <ScrollDismissTooltipTrigger>
       <ToolbarButton
         aria-label={stringFormatter.format('image')}
         command={(_, dispatch, view) => {
@@ -176,6 +177,6 @@ export function ImageToolbarButton() {
       <Tooltip>
         <Text>{stringFormatter.format('image')}</Text>
       </Tooltip>
-    </TooltipTrigger>
+    </ScrollDismissTooltipTrigger>
   );
 }

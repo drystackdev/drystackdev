@@ -20,7 +20,8 @@ import { editIcon } from "@keystar/ui/icon/icons/editIcon";
 import { link2Icon } from "@keystar/ui/icon/icons/link2Icon";
 import { link2OffIcon } from "@keystar/ui/icon/icons/link2OffIcon";
 import { trash2Icon } from "@keystar/ui/icon/icons/trash2Icon";
-import { TooltipTrigger, Tooltip } from "@keystar/ui/tooltip";
+import { Tooltip } from "@keystar/ui/tooltip";
+import { ScrollDismissTooltipTrigger } from "../ScrollDismissTooltipTrigger";
 import { ToggleButton } from "@keystar/ui/button";
 import { EditorState, NodeSelection } from "prosemirror-state";
 import { useEditorDispatchCommand, useEditorSchema } from "../editor-view";
@@ -68,7 +69,7 @@ export function SvgPopover(props: {
     <>
       <Flex gap="regular" padding="regular">
         <Flex gap="small">
-          <TooltipTrigger>
+          <ScrollDismissTooltipTrigger>
             <ToggleButton
               prominence="low"
               isSelected={align === "left"}
@@ -78,8 +79,8 @@ export function SvgPopover(props: {
               <Icon src={alignLeftIcon} />
             </ToggleButton>
             <Tooltip>{stringFormatter.format("imageFloatLeft")}</Tooltip>
-          </TooltipTrigger>
-          <TooltipTrigger>
+          </ScrollDismissTooltipTrigger>
+          <ScrollDismissTooltipTrigger>
             <ToggleButton
               prominence="low"
               isSelected={align === "center"}
@@ -89,8 +90,8 @@ export function SvgPopover(props: {
               <Icon src={alignCenterIcon} />
             </ToggleButton>
             <Tooltip>{stringFormatter.format("imageCenter")}</Tooltip>
-          </TooltipTrigger>
-          <TooltipTrigger>
+          </ScrollDismissTooltipTrigger>
+          <ScrollDismissTooltipTrigger>
             <ToggleButton
               prominence="low"
               isSelected={align === "right"}
@@ -100,12 +101,12 @@ export function SvgPopover(props: {
               <Icon src={alignRightIcon} />
             </ToggleButton>
             <Tooltip>{stringFormatter.format("imageFloatRight")}</Tooltip>
-          </TooltipTrigger>
+          </ScrollDismissTooltipTrigger>
         </Flex>
         <Divider orientation="vertical" />
         <Flex gap="small">
           {schema.config.htmlLayout && (
-            <TooltipTrigger>
+            <ScrollDismissTooltipTrigger>
               <ToggleButton
                 prominence="low"
                 isSelected={lockAspectRatio}
@@ -119,14 +120,14 @@ export function SvgPopover(props: {
               <Tooltip>
                 {stringFormatter.format("imageLockAspectRatio")}
               </Tooltip>
-            </TooltipTrigger>
+            </ScrollDismissTooltipTrigger>
           )}
-          <TooltipTrigger>
+          <ScrollDismissTooltipTrigger>
             <ActionButton prominence="low" onPress={() => setDialogOpen(true)}>
               <Icon src={editIcon} />
             </ActionButton>
             <Tooltip>{stringFormatter.format("edit")}</Tooltip>
-          </TooltipTrigger>
+          </ScrollDismissTooltipTrigger>
           <CaptionButton
             caption={props.node.attrs.caption}
             subject={stringFormatter.format("captionSvg")}
@@ -134,7 +135,7 @@ export function SvgPopover(props: {
           />
         </Flex>
         <Divider orientation="vertical" />
-        <TooltipTrigger>
+        <ScrollDismissTooltipTrigger>
           <ActionButton
             prominence="low"
             onPress={() => {
@@ -151,7 +152,7 @@ export function SvgPopover(props: {
             <Icon src={trash2Icon} />
           </ActionButton>
           <Tooltip tone="critical">{stringFormatter.format("remove")}</Tooltip>
-        </TooltipTrigger>
+        </ScrollDismissTooltipTrigger>
       </Flex>
       <DialogContainer onDismiss={() => setDialogOpen(false)}>
         {dialogOpen && (
@@ -304,7 +305,7 @@ function SvgDialog(props: {
                   value={height ?? undefined}
                   onChange={onHeightField}
                 />
-                <TooltipTrigger>
+                <ScrollDismissTooltipTrigger>
                   <ToggleButton
                     prominence="low"
                     isSelected={lockAspectRatio}
@@ -316,7 +317,7 @@ function SvgDialog(props: {
                   <Tooltip>
                     {stringFormatter.format("imageLockAspectRatio")}
                   </Tooltip>
-                </TooltipTrigger>
+                </ScrollDismissTooltipTrigger>
               </Flex>
             )}
           </Flex>

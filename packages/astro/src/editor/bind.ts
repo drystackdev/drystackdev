@@ -14,6 +14,10 @@ import {
   type EntryRef,
 } from "./store";
 import { getLatestFieldValues, getStringFormatter } from "./save";
+import {
+  cacheReferencedContentHtml,
+  fillContentRefPlaceholdersFromCache,
+} from "@drystack/core/content-ref-cache";
 
 let editing = false;
 let onChangeCallback: (() => void) | undefined;
@@ -793,7 +797,42 @@ export function setContentSpotPainter(
 // every registered painter reaches all of them without touching `els`
 // directly - a live ProseMirror view must never have its DOM written
 // underneath it.
-function paintContentSpot(key: string, html: string, els: HTMLElement[]): void {
+//
+// `rawHtml` here is always a field's *raw stored* value (from the admin API
+// or this tab's own IndexedDB source-cache/edit log - see applyCachedSource,
+// refreshFromLatestSource, applyEdit), never the server-resolved HTML the
+// initial page load already has. A content_ref node always serializes to an
+// empty placeholder (html/serialize.ts - resolved content is never
+// persisted), so painting `rawHtml` verbatim would blank out any content_ref
+// this field contains - exactly an "appears then disappears" bug: the admin
+// live-sync paths above run on *every* page load for a logged-in admin
+// (applyPendingEdits's own comment: "even before Edit mode is turned on"),
+// so a stale-but-cached raw source repaints over the correctly-resolved
+// server HTML within moments of it rendering.
+//
+// Fixed via the same content-ref-cache.ts InlineContentEditors.tsx's
+// unmount-repaint uses - but that cache is normally only ever seeded by a
+// *live* resolution (ContentRefNodeView mounting, which needs edit mode
+// already on), so on a plain page load it would still be empty at the exact
+// moment this function needs it most. Closes that gap by harvesting
+// straight from `els` first: at this point they still hold whatever the
+// server originally resolved (this function hasn't overwritten them yet),
+// which for a ref this tab has never live-resolved is the *only* correct
+// copy available anywhere client-side - seed the cache from that before
+// asking it to fill `rawHtml`'s placeholders. A field with no content_ref
+// at all, or a ref that's never been resolved *anywhere* (deleted source,
+// truly never-seen-before placeholder), harvests nothing and falls back to
+// today's already-accepted behavior: paints as an empty placeholder.
+function paintContentSpot(key: string, rawHtml: string, els: HTMLElement[]): void {
+  els.forEach((el) => {
+    el.querySelectorAll<HTMLElement>("[data-ref-content]").forEach((section) => {
+      const ref = section.getAttribute("data-ref-content");
+      if (ref && section.innerHTML) {
+        cacheReferencedContentHtml(ref, section.innerHTML);
+      }
+    });
+  });
+  const html = fillContentRefPlaceholdersFromCache(rawHtml);
   // A readonly (.view()) content spot never gets a ProseMirror view mounted
   // on it (InlineContentEditors.tsx's readContentSpots skips it), so it never
   // registers a painter below - it always needs a direct paint, regardless of

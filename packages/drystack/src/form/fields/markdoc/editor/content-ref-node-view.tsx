@@ -7,7 +7,7 @@ import { useReferencedContentHtml } from "../../../../app/content-ref/useReferen
 
 const sectionClass = css({
   display: "block",
-  outline: `2px solid ${tokenSchema.color.alias.borderIdle}`,
+  outline: `1px dashed ${tokenSchema.color.alias.borderIdle}`,
   outlineOffset: 2,
   transition: "outline-color 150ms ease",
   "&:hover": {

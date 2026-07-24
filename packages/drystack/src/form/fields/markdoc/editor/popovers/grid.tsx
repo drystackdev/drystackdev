@@ -16,7 +16,8 @@ import { xIcon } from "@keystar/ui/icon/icons/xIcon";
 import { Divider, Flex } from "@keystar/ui/layout";
 import { Picker, Item } from "@keystar/ui/picker";
 import { css, tokenSchema } from "@keystar/ui/style";
-import { TooltipTrigger, Tooltip } from "@keystar/ui/tooltip";
+import { Tooltip } from "@keystar/ui/tooltip";
+import { ScrollDismissTooltipTrigger } from "../ScrollDismissTooltipTrigger";
 
 import { useEditorDispatchCommand, useEditorState } from "../editor-view";
 import { CaptionButton } from "../figcaption";
@@ -49,7 +50,7 @@ function GridSpacingPicker(props: { node: Node; pos: number }) {
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const gap = props.node.attrs.gap as string;
   return (
-    <TooltipTrigger>
+    <ScrollDismissTooltipTrigger>
       <Picker
         aria-label={stringFormatter.format("gridSpacing")}
         selectedKey={gap}
@@ -69,7 +70,7 @@ function GridSpacingPicker(props: { node: Node; pos: number }) {
         ))}
       </Picker>
       <Tooltip>{stringFormatter.format("gridSpacing")}</Tooltip>
-    </TooltipTrigger>
+    </ScrollDismissTooltipTrigger>
   );
 }
 
@@ -261,7 +262,7 @@ export function GridItemControls(props: {
         }}
       />
       <GridLayoutMenu state={props.state} />
-      <TooltipTrigger>
+      <ScrollDismissTooltipTrigger>
         <ActionButton
           prominence="low"
           aria-label={stringFormatter.format("gridAddItem")}
@@ -270,8 +271,8 @@ export function GridItemControls(props: {
           <Icon src={plusIcon} />
         </ActionButton>
         <Tooltip>{stringFormatter.format("gridAddItem")}</Tooltip>
-      </TooltipTrigger>
-      <TooltipTrigger>
+      </ScrollDismissTooltipTrigger>
+      <ScrollDismissTooltipTrigger>
         <ActionButton
           prominence="low"
           aria-label={stringFormatter.format("gridDeleteItem")}
@@ -281,7 +282,7 @@ export function GridItemControls(props: {
           <Icon src={xIcon} />
         </ActionButton>
         <Tooltip>{stringFormatter.format("gridDeleteItem")}</Tooltip>
-      </TooltipTrigger>
+      </ScrollDismissTooltipTrigger>
     </>
   );
 }
@@ -309,7 +310,7 @@ export function GridPopover(props: {
     <Flex gap="regular" padding="regular" alignItems="center">
       <GridItemControls node={props.node} state={state} pos={props.pos} />
       <Divider orientation="vertical" />
-      <TooltipTrigger>
+      <ScrollDismissTooltipTrigger>
         <ActionButton
           prominence="low"
           onPress={() => {
@@ -323,7 +324,7 @@ export function GridPopover(props: {
           <Icon src={gridDeleteIcon} />
         </ActionButton>
         <Tooltip tone="critical">{stringFormatter.format("gridRemoveTooltip")}</Tooltip>
-      </TooltipTrigger>
+      </ScrollDismissTooltipTrigger>
       <DialogContainer onDismiss={() => setConfirmOpen(false)}>
         {confirmOpen && (
           <AlertDialog

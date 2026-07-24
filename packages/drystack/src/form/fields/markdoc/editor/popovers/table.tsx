@@ -4,7 +4,8 @@ import { ActionButton } from "@keystar/ui/button";
 import { DialogTrigger } from "@keystar/ui/dialog";
 import { Icon } from "@keystar/ui/icon";
 import { Flex } from "@keystar/ui/layout";
-import { TooltipTrigger, Tooltip } from "@keystar/ui/tooltip";
+import { Tooltip } from "@keystar/ui/tooltip";
+import { ScrollDismissTooltipTrigger } from "../ScrollDismissTooltipTrigger";
 import { ReactElement } from "react";
 import { Node, ResolvedPos } from "prosemirror-model";
 import { Command, EditorState, Plugin, TextSelection } from "prosemirror-state";
@@ -144,7 +145,7 @@ function TableActionButton(props: {
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   const label = stringFormatter.format(props.labelKey);
   return (
-    <TooltipTrigger>
+    <ScrollDismissTooltipTrigger>
       <ActionButton
         prominence="low"
         aria-label={label}
@@ -154,7 +155,7 @@ function TableActionButton(props: {
         <Icon src={props.icon} />
       </ActionButton>
       <Tooltip tone={props.tone}>{label}</Tooltip>
-    </TooltipTrigger>
+    </ScrollDismissTooltipTrigger>
   );
 }
 
@@ -169,7 +170,7 @@ function HeaderToggleButton(props: { node: Node }) {
     isHeaderRow ? "tableRemoveHeaderRow" : "tableMakeHeaderRow",
   );
   return (
-    <TooltipTrigger>
+    <ScrollDismissTooltipTrigger>
       <ActionButton
         prominence="low"
         aria-label={label}
@@ -178,7 +179,7 @@ function HeaderToggleButton(props: { node: Node }) {
         <Icon src={tableToggleHeaderIcon} />
       </ActionButton>
       <Tooltip>{label}</Tooltip>
-    </TooltipTrigger>
+    </ScrollDismissTooltipTrigger>
   );
 }
 
@@ -201,7 +202,7 @@ function InsertColumnButton() {
       </ActionButton>
       {(close: () => void) => (
         <Flex gap="regular" padding="regular">
-          <TooltipTrigger>
+          <ScrollDismissTooltipTrigger>
             <ActionButton
               prominence="low"
               aria-label={stringFormatter.format("tableInsertColumnLeft")}
@@ -213,8 +214,8 @@ function InsertColumnButton() {
               <Icon src={tableInsertColumnLeftIcon} />
             </ActionButton>
             <Tooltip>{stringFormatter.format("tableInsertColumnLeft")}</Tooltip>
-          </TooltipTrigger>
-          <TooltipTrigger>
+          </ScrollDismissTooltipTrigger>
+          <ScrollDismissTooltipTrigger>
             <ActionButton
               prominence="low"
               aria-label={stringFormatter.format("tableInsertColumnRight")}
@@ -226,7 +227,7 @@ function InsertColumnButton() {
               <Icon src={tableInsertColumnRightIcon} />
             </ActionButton>
             <Tooltip>{stringFormatter.format("tableInsertColumnRight")}</Tooltip>
-          </TooltipTrigger>
+          </ScrollDismissTooltipTrigger>
         </Flex>
       )}
     </DialogTrigger>
@@ -253,7 +254,7 @@ function InsertRowButton() {
       </ActionButton>
       {(close: () => void) => (
         <Flex gap="regular" padding="regular">
-          <TooltipTrigger>
+          <ScrollDismissTooltipTrigger>
             <ActionButton
               prominence="low"
               isDisabled={isCurrentRowHeader}
@@ -266,8 +267,8 @@ function InsertRowButton() {
               <Icon src={tableInsertRowAboveIcon} />
             </ActionButton>
             <Tooltip>{stringFormatter.format("tableInsertRowAbove")}</Tooltip>
-          </TooltipTrigger>
-          <TooltipTrigger>
+          </ScrollDismissTooltipTrigger>
+          <ScrollDismissTooltipTrigger>
             <ActionButton
               prominence="low"
               aria-label={stringFormatter.format("tableInsertRowBelow")}
@@ -279,7 +280,7 @@ function InsertRowButton() {
               <Icon src={tableInsertRowBelowIcon} />
             </ActionButton>
             <Tooltip>{stringFormatter.format("tableInsertRowBelow")}</Tooltip>
-          </TooltipTrigger>
+          </ScrollDismissTooltipTrigger>
         </Flex>
       )}
     </DialogTrigger>

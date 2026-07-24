@@ -12,7 +12,8 @@ import { unlinkIcon } from '@keystar/ui/icon/icons/unlinkIcon';
 import { Flex } from '@keystar/ui/layout';
 import { Content } from '@keystar/ui/slots';
 import { TextField } from '@keystar/ui/text-field';
-import { TooltipTrigger, Tooltip } from '@keystar/ui/tooltip';
+import { Tooltip } from '@keystar/ui/tooltip';
+import { ScrollDismissTooltipTrigger } from '../ScrollDismissTooltipTrigger';
 import { Heading, Text } from '@keystar/ui/typography';
 import { useState } from 'react';
 import { isValidURL } from '../../../isValidURL';
@@ -28,13 +29,13 @@ export function LinkToolbar(props: {
   const stringFormatter = useLocalizedStringFormatter(localizedMessages);
   return (
     <Flex gap="small" padding="regular">
-      <TooltipTrigger>
+      <ScrollDismissTooltipTrigger>
         <ActionButton prominence="low" onPress={() => setDialogOpen(true)}>
           <Icon src={editIcon} />
         </ActionButton>
         <Tooltip>{stringFormatter.format('edit')}</Tooltip>
-      </TooltipTrigger>
-      <TooltipTrigger>
+      </ScrollDismissTooltipTrigger>
+      <ScrollDismissTooltipTrigger>
         <ActionButton
           prominence="low"
           onPress={() => {
@@ -46,13 +47,13 @@ export function LinkToolbar(props: {
         <Tooltip>
           <Text truncate={3}>{props.href}</Text>
         </Tooltip>
-      </TooltipTrigger>
-      <TooltipTrigger>
+      </ScrollDismissTooltipTrigger>
+      <ScrollDismissTooltipTrigger>
         <ActionButton prominence="low" onPress={props.onUnlink}>
           <Icon src={unlinkIcon} />
         </ActionButton>
         <Tooltip>{stringFormatter.format('unlink')}</Tooltip>
-      </TooltipTrigger>
+      </ScrollDismissTooltipTrigger>
       <DialogContainer
         onDismiss={() => {
           setDialogOpen(false);

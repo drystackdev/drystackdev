@@ -1,7 +1,8 @@
 import { Icon } from "@keystar/ui/icon";
 import { importIcon } from "@keystar/ui/icon/icons/importIcon";
 import { css } from "@keystar/ui/style";
-import { Tooltip, TooltipTrigger } from "@keystar/ui/tooltip";
+import { Tooltip } from "@keystar/ui/tooltip";
+import { ScrollDismissTooltipTrigger } from "./ScrollDismissTooltipTrigger";
 import { Text } from "@keystar/ui/typography";
 import { useLocalizedStringFormatter } from "@react-aria/i18n";
 import l10nMessages from "../../../../app/l10n";
@@ -32,7 +33,7 @@ export function ContentRefToolbarButton() {
   const currentEntryRef = useContentRefScope();
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   return (
-    <TooltipTrigger>
+    <ScrollDismissTooltipTrigger>
       <ToolbarButton
         aria-label={stringFormatter.format("contentRefButtonLabel")}
         UNSAFE_className={noSelectWhileFocusedClass}
@@ -61,6 +62,6 @@ export function ContentRefToolbarButton() {
       <Tooltip>
         <Text>{stringFormatter.format("contentRefButtonLabel")}</Text>
       </Tooltip>
-    </TooltipTrigger>
+    </ScrollDismissTooltipTrigger>
   );
 }

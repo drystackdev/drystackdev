@@ -6,7 +6,8 @@ import { Dialog, DialogContainer, useDialogContainer } from "@keystar/ui/dialog"
 import { Content } from "@keystar/ui/slots";
 import { css, tokenSchema } from "@keystar/ui/style";
 import { TextField } from "@keystar/ui/text-field";
-import { Tooltip, TooltipTrigger } from "@keystar/ui/tooltip";
+import { Tooltip } from "@keystar/ui/tooltip";
+import { ScrollDismissTooltipTrigger } from "./ScrollDismissTooltipTrigger";
 import { Heading } from "@keystar/ui/typography";
 
 // Admin-only skin for a node's `<figcaption>` (image/table/grid, all edited
@@ -127,7 +128,7 @@ export function CaptionButton(props: {
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   return (
     <>
-      <TooltipTrigger>
+      <ScrollDismissTooltipTrigger>
         <ActionButton
           prominence="low"
           aria-label={props.subject}
@@ -136,7 +137,7 @@ export function CaptionButton(props: {
           <CaptionIcon />
         </ActionButton>
         <Tooltip>{props.subject}</Tooltip>
-      </TooltipTrigger>
+      </ScrollDismissTooltipTrigger>
       <DialogContainer onDismiss={() => setIsOpen(false)}>
         {isOpen && (
           <CaptionDialog

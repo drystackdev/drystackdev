@@ -43,7 +43,8 @@ import { bracesIcon } from "@keystar/ui/icon/icons/bracesIcon";
 import { VStack } from "@keystar/ui/layout";
 import { Content } from "@keystar/ui/slots";
 import { toastQueue } from "@keystar/ui/toast";
-import { Tooltip, TooltipTrigger } from "@keystar/ui/tooltip";
+import { Tooltip } from "@keystar/ui/tooltip";
+import { ScrollDismissTooltipTrigger } from "@drystack/core/scroll-dismiss-tooltip-trigger";
 import { Heading, Text } from "@keystar/ui/typography";
 import {
   ChangePreviewDialog,
@@ -878,7 +879,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
                 </ActionButton>
               </div>
 
-              <TooltipTrigger>
+              <ScrollDismissTooltipTrigger>
                 <div className="dry-review">
                   <ActionButton
                     aria-label={stringFormatter.format("reviewChanges")}
@@ -895,9 +896,9 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
                   )}
                 </div>
                 <Tooltip>{stringFormatter.format("reviewChanges")}</Tooltip>
-              </TooltipTrigger>
+              </ScrollDismissTooltipTrigger>
 
-              <TooltipTrigger>
+              <ScrollDismissTooltipTrigger>
                 <Button
                   aria-label={stringFormatter.format("veiSaveChanges")}
                   prominence="high"
@@ -912,7 +913,7 @@ export function Toolbar({ config }: { config: Config<any, any> }) {
                     ? stringFormatter.format("veiSaving")
                     : stringFormatter.format("veiSaveChanges")}
                 </Tooltip>
-              </TooltipTrigger>
+              </ScrollDismissTooltipTrigger>
             </div>
           </div>
         </div>

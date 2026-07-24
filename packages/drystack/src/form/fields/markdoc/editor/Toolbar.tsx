@@ -46,7 +46,8 @@ import { underlineIcon } from "@keystar/ui/icon/icons/underlineIcon";
 import { MenuTrigger, Menu } from "@keystar/ui/menu";
 import { Picker, Item } from "@keystar/ui/picker";
 import { breakpointQueries, css, tokenSchema } from "@keystar/ui/style";
-import { Tooltip, TooltipTrigger } from "@keystar/ui/tooltip";
+import { Tooltip } from "@keystar/ui/tooltip";
+import { ScrollDismissTooltipTrigger } from "./ScrollDismissTooltipTrigger";
 import { Text, Kbd } from "@keystar/ui/typography";
 
 import {
@@ -134,7 +135,7 @@ function LinkButton(props: { link: MarkType }) {
   return useMemo(
     () => (
       <>
-        <TooltipTrigger>
+        <ScrollDismissTooltipTrigger>
           <ToolbarButton
             aria-label={stringFormatter.format("toolbarDivider")}
             command={(state, dispatch) => {
@@ -175,7 +176,7 @@ function LinkButton(props: { link: MarkType }) {
             <Text>{stringFormatter.format("editorLinkTooltip")}</Text>
             <Kbd meta>K</Kbd>
           </Tooltip>
-        </TooltipTrigger>
+        </ScrollDismissTooltipTrigger>
         <DialogContainer
           onDismiss={() => {
             setText(null);
@@ -257,7 +258,7 @@ function TextColorButton(props: { textColor: MarkType }) {
   return useMemo(
     () => (
       <>
-        <TooltipTrigger>
+        <ScrollDismissTooltipTrigger>
           <EditorToolbarButton
             aria-label={stringFormatter.format("editorTextColor")}
             isDisabled={isDisabled}
@@ -269,7 +270,7 @@ function TextColorButton(props: { textColor: MarkType }) {
           <Tooltip>
             <Text>{stringFormatter.format("editorTextColor")}</Text>
           </Tooltip>
-        </TooltipTrigger>
+        </ScrollDismissTooltipTrigger>
         <DialogContainer onDismiss={() => setDialogOpen(false)}>
           {dialogOpen && (
             <TextColorDialog
@@ -319,7 +320,7 @@ export const Toolbar = memo(function Toolbar(
           <Separator />
           <EditorToolbarGroup aria-label={stringFormatter.format("editorBlocksGroup")}>
             {nodes.divider && (
-              <TooltipTrigger>
+              <ScrollDismissTooltipTrigger>
                 <ToolbarButton
                   aria-label={stringFormatter.format("toolbarDivider")}
                   command={insertNode(nodes.divider)}
@@ -331,11 +332,11 @@ export const Toolbar = memo(function Toolbar(
                   <Text>{stringFormatter.format("toolbarDivider")}</Text>
                   <Kbd>---</Kbd>
                 </Tooltip>
-              </TooltipTrigger>
+              </ScrollDismissTooltipTrigger>
             )}
             {marks.link && <LinkButton link={marks.link} />}
             {nodes.blockquote && (
-              <TooltipTrigger>
+              <ScrollDismissTooltipTrigger>
                 <ToolbarButton
                   aria-label={stringFormatter.format("editorQuote")}
                   command={(state, dispatch) => {
@@ -365,10 +366,10 @@ export const Toolbar = memo(function Toolbar(
                   <Text>{stringFormatter.format("editorQuote")}</Text>
                   <Kbd>{">⎵"}</Kbd>
                 </Tooltip>
-              </TooltipTrigger>
+              </ScrollDismissTooltipTrigger>
             )}
             {nodes.code_block && (
-              <TooltipTrigger>
+              <ScrollDismissTooltipTrigger>
                 <ToolbarButton
                   aria-label={stringFormatter.format("editorCodeBlock")}
                   command={toggleCodeBlock(nodes.code_block, nodes.paragraph!)}
@@ -380,12 +381,12 @@ export const Toolbar = memo(function Toolbar(
                   <Text>{stringFormatter.format("editorCodeBlock")}</Text>
                   <Kbd>```</Kbd>
                 </Tooltip>
-              </TooltipTrigger>
+              </ScrollDismissTooltipTrigger>
             )}
             {nodes.table && <TableInsertGridPicker tableType={nodes.table} />}
             {nodes.grid && <GridInsertMenu gridType={nodes.grid} />}
             {nodes.svg && (
-              <TooltipTrigger>
+              <ScrollDismissTooltipTrigger>
                 <ToolbarButton
                   aria-label={stringFormatter.format("editorDrawing")}
                   command={insertSvgDrawing(nodes.svg)}
@@ -395,7 +396,7 @@ export const Toolbar = memo(function Toolbar(
                 <Tooltip>
                   <Text>{stringFormatter.format("editorDrawing")}</Text>
                 </Tooltip>
-              </TooltipTrigger>
+              </ScrollDismissTooltipTrigger>
             )}
           </EditorToolbarGroup>
         </EditorToolbar>
@@ -813,7 +814,7 @@ function InsertBlockMenu() {
 
   return (
     <MenuTrigger align="end">
-      <TooltipTrigger>
+      <ScrollDismissTooltipTrigger>
         <ActionButton
           marginEnd={entryLayoutPane === "main" ? undefined : "medium"}
         >
@@ -824,7 +825,7 @@ function InsertBlockMenu() {
           <Text>{stringFormatter.format("editorInsert")}</Text>
           <Kbd>/</Kbd>
         </Tooltip>
-      </TooltipTrigger>
+      </ScrollDismissTooltipTrigger>
       <Menu
         onAction={(id) => {
           const command = idToItem.get(id as string)?.command;
@@ -964,24 +965,40 @@ function InlineMarks() {
         disabledKeys={disabledKeys}
         selectionMode="multiple"
       >
-        {inlineMarks.slice(0, textColorInsertIndex).map(renderInlineMark)}
+        {inlineMarks
+          .slice(0, textColorInsertIndex)
+          .map((mark) => (
+            <InlineMarkButton key={mark.key} mark={mark} />
+          ))}
         {schema.marks.textColor && (
           <TextColorButton textColor={schema.marks.textColor} />
         )}
-        {inlineMarks.slice(textColorInsertIndex).map(renderInlineMark)}
+        {inlineMarks
+          .slice(textColorInsertIndex)
+          .map((mark) => (
+            <InlineMarkButton key={mark.key} mark={mark} />
+          ))}
       </EditorToolbarGroup>
     );
   }, [disabledKeys, inlineMarks, runCommand, schema.marks.textColor, selectedKeys, textColorInsertIndex, stringFormatter]);
 }
 
-function renderInlineMark(mark: {
-  key: string;
-  label: string;
-  icon: ReactElement;
-  shortcut?: string;
+// A named component (not a plain mapped-callback function) specifically so
+// useScrollDismissTooltip - a hook - has a real per-item component render to
+// attach to, matching the Rules of Hooks; calling it from inside the
+// .map() callback that used to render this inline would call it a variable
+// number of times per parent render, which React does not allow.
+function InlineMarkButton(props: {
+  mark: {
+    key: string;
+    label: string;
+    icon: ReactElement;
+    shortcut?: string;
+  };
 }) {
+  const { mark } = props;
   return (
-    <TooltipTrigger key={mark.key}>
+    <ScrollDismissTooltipTrigger>
       <EditorToolbarItem value={mark.key} aria-label={mark.label}>
         <Icon src={mark.icon} />
       </EditorToolbarItem>
@@ -989,7 +1006,7 @@ function renderInlineMark(mark: {
         <Text>{mark.label}</Text>
         {"shortcut" in mark && <Kbd meta>{mark.shortcut}</Kbd>}
       </Tooltip>
-    </TooltipTrigger>
+    </ScrollDismissTooltipTrigger>
   );
 }
 
@@ -1068,15 +1085,7 @@ function ListButtons() {
         selectionMode="single"
       >
         {items.map((item) => (
-          <TooltipTrigger key={item.key}>
-            <EditorToolbarItem value={item.key} aria-label={item.label}>
-              <Icon src={item.icon} />
-            </EditorToolbarItem>
-            <Tooltip>
-              <Text>{item.label}</Text>
-              <Kbd>{item.shortcut}</Kbd>
-            </Tooltip>
-          </TooltipTrigger>
+          <ListToolbarItemButton key={item.key} item={item} />
         ))}
       </EditorToolbarGroup>
     );
@@ -1085,6 +1094,25 @@ function ListButtons() {
 
 function removeFalse<T>(val: T): val is Exclude<T, false> {
   return val !== false;
+}
+
+// See InlineMarkButton's comment above - same reason this can't stay inlined
+// in the .map() callback that used to render it.
+function ListToolbarItemButton(props: {
+  item: { key: string; label: string; icon: ReactElement; shortcut: string };
+}) {
+  const { item } = props;
+  return (
+    <ScrollDismissTooltipTrigger>
+      <EditorToolbarItem value={item.key} aria-label={item.label}>
+        <Icon src={item.icon} />
+      </EditorToolbarItem>
+      <Tooltip>
+        <Text>{item.label}</Text>
+        <Kbd>{item.shortcut}</Kbd>
+      </Tooltip>
+    </ScrollDismissTooltipTrigger>
+  );
 }
 
 type TextAlignValue = "left" | "center" | "right" | "justify";
@@ -1169,7 +1197,7 @@ function AlignmentControls() {
 
   return useMemo(
     () => (
-      <TooltipTrigger>
+      <ScrollDismissTooltipTrigger>
         <MenuTrigger>
           <ActionButton
             prominence="low"
@@ -1199,7 +1227,7 @@ function AlignmentControls() {
         <Tooltip>
           <Text>{currentItem.label}</Text>
         </Tooltip>
-      </TooltipTrigger>
+      </ScrollDismissTooltipTrigger>
     ),
     [isDisabled, current, currentItem, runCommand, items, stringFormatter],
   );
@@ -1213,7 +1241,7 @@ function GridInsertMenu(props: { gridType: NodeType }) {
   const runCommand = useEditorDispatchCommand();
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   return (
-    <TooltipTrigger>
+    <ScrollDismissTooltipTrigger>
       <MenuTrigger>
         <ActionButton
           prominence="low"
@@ -1236,7 +1264,7 @@ function GridInsertMenu(props: { gridType: NodeType }) {
       <Tooltip>
         <Text>{stringFormatter.format("editorGrid")}</Text>
       </Tooltip>
-    </TooltipTrigger>
+    </ScrollDismissTooltipTrigger>
   );
 }
 

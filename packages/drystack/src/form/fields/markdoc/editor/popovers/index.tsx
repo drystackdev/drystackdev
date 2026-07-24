@@ -9,7 +9,8 @@ import { EditorPopover, EditorPopoverProps } from "@keystar/ui/editor";
 import { Icon } from "@keystar/ui/icon";
 import { trash2Icon } from "@keystar/ui/icon/icons/trash2Icon";
 import { Divider, Flex } from "@keystar/ui/layout";
-import { TooltipTrigger, Tooltip } from "@keystar/ui/tooltip";
+import { Tooltip } from "@keystar/ui/tooltip";
+import { ScrollDismissTooltipTrigger } from "../ScrollDismissTooltipTrigger";
 
 import {
   useEditorDispatchCommand,
@@ -63,7 +64,7 @@ function ExtraAttributesMenuItem(props: {
   const stringFormatter = useLocalizedStringFormatter(l10nMessages);
   return (
     <>
-      <TooltipTrigger>
+      <ScrollDismissTooltipTrigger>
         <ActionButton
           prominence="low"
           onPress={() => {
@@ -73,7 +74,7 @@ function ExtraAttributesMenuItem(props: {
           <Icon src={pencilIcon} />
         </ActionButton>
         <Tooltip>{stringFormatter.format("edit")}</Tooltip>
-      </TooltipTrigger>
+      </ScrollDismissTooltipTrigger>
       <DialogContainer
         onDismiss={() => {
           setIsOpen(false);
@@ -145,7 +146,7 @@ function TablePopover(props: { node: Node; state: EditorState; pos: number }) {
         }}
       />
       <Divider orientation="vertical" />
-      <TooltipTrigger>
+      <ScrollDismissTooltipTrigger>
         <ActionButton
           prominence="low"
           onPress={() => {
@@ -162,7 +163,7 @@ function TablePopover(props: { node: Node; state: EditorState; pos: number }) {
           <Icon src={tableDeleteIcon} />
         </ActionButton>
         <Tooltip tone="critical">{stringFormatter.format("remove")}</Tooltip>
-      </TooltipTrigger>
+      </ScrollDismissTooltipTrigger>
     </Flex>
   );
 }
@@ -197,7 +198,7 @@ const popoverComponents: Record<
           />
         )}
         <Divider orientation="vertical" />
-        <TooltipTrigger>
+        <ScrollDismissTooltipTrigger>
           <ActionButton
             prominence="low"
             onPress={() => {
@@ -214,7 +215,7 @@ const popoverComponents: Record<
             <Icon src={trash2Icon} />
           </ActionButton>
           <Tooltip tone="critical">{stringFormatter.format("remove")}</Tooltip>
-        </TooltipTrigger>
+        </ScrollDismissTooltipTrigger>
       </Flex>
     );
   },
@@ -237,7 +238,7 @@ const popoverComponents: Record<
             serialized={props.node.attrs.props}
           />
           <Divider orientation="vertical" />
-          <TooltipTrigger>
+          <ScrollDismissTooltipTrigger>
             <ActionButton
               prominence="low"
               onPress={() => {
@@ -257,7 +258,7 @@ const popoverComponents: Record<
               <Icon src={trash2Icon} />
             </ActionButton>
             <Tooltip tone="critical">{stringFormatter.format("remove")}</Tooltip>
-          </TooltipTrigger>
+          </ScrollDismissTooltipTrigger>
         </Flex>
       );
     },
@@ -492,7 +493,7 @@ function InlineComponentPopover(props: {
   return (
     <>
       <Flex gap="regular" padding="regular">
-        <TooltipTrigger>
+        <ScrollDismissTooltipTrigger>
           <ActionButton
             prominence="low"
             onPress={() => {
@@ -502,8 +503,8 @@ function InlineComponentPopover(props: {
             <Icon src={pencilIcon} />
           </ActionButton>
           <Tooltip>{stringFormatter.format("edit")}</Tooltip>
-        </TooltipTrigger>
-        <TooltipTrigger>
+        </ScrollDismissTooltipTrigger>
+        <ScrollDismissTooltipTrigger>
           <ActionButton
             prominence="low"
             onPress={() => {
@@ -520,7 +521,7 @@ function InlineComponentPopover(props: {
             <Icon src={trash2Icon} />
           </ActionButton>
           <Tooltip tone="critical">{stringFormatter.format("remove")}</Tooltip>
-        </TooltipTrigger>
+        </ScrollDismissTooltipTrigger>
       </Flex>
       <DialogContainer
         onDismiss={() => {
@@ -576,7 +577,7 @@ const CustomMarkPopover: MarkPopoverRenderer = (props) => {
   return (
     <>
       <Flex gap="regular" padding="regular">
-        <TooltipTrigger>
+        <ScrollDismissTooltipTrigger>
           <ActionButton
             prominence="low"
             onPress={() => {
@@ -586,8 +587,8 @@ const CustomMarkPopover: MarkPopoverRenderer = (props) => {
             <Icon src={pencilIcon} />
           </ActionButton>
           <Tooltip>{stringFormatter.format("edit")}</Tooltip>
-        </TooltipTrigger>
-        <TooltipTrigger>
+        </ScrollDismissTooltipTrigger>
+        <ScrollDismissTooltipTrigger>
           <ActionButton
             prominence="low"
             onPress={() => {
@@ -604,7 +605,7 @@ const CustomMarkPopover: MarkPopoverRenderer = (props) => {
             <Icon src={trash2Icon} />
           </ActionButton>
           <Tooltip tone="critical">{stringFormatter.format("remove")}</Tooltip>
-        </TooltipTrigger>
+        </ScrollDismissTooltipTrigger>
       </Flex>
       <DialogContainer
         onDismiss={() => {
@@ -660,11 +661,18 @@ const CustomMarkPopover: MarkPopoverRenderer = (props) => {
 // top of the grid's cells. 'flip' moves it above the grid instead. Only
 // affects the case that was already broken: while the toolbar does fit below,
 // 'flip' leaves it exactly where 'stick' would.
+//
+// A content_ref hits it too: it's a single short line (its resolved heading/
+// excerpt), routinely followed immediately by a heading or another paragraph
+// with only normal block margin between them - not enough room for the
+// popover's own height, so 'stick' wedged it over that following content
+// instead of moving out of the way. 'flip' above the content_ref block.
 function popoverAdaptToBoundary(
   node: Node,
 ): EditorPopoverProps["adaptToBoundary"] & {} {
   return FLOATABLE_NODE_TYPES.has(node.type.name) ||
-    node.type.name === "grid"
+    node.type.name === "grid" ||
+    node.type.name === "content_ref"
     ? "flip"
     : "stick";
 }

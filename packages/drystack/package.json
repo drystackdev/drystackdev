@@ -140,6 +140,10 @@
       "drystack-src": "./src/app/content-ref/resolved-html-cache.ts",
       "default": "./dist/app/content-ref/resolved-html-cache.js"
     },
+    "./scroll-dismiss-tooltip-trigger": {
+      "drystack-src": "./src/form/fields/markdoc/editor/ScrollDismissTooltipTrigger.tsx",
+      "default": "./dist/form/fields/markdoc/editor/ScrollDismissTooltipTrigger.js"
+    },
     "./content-is-content-field": {
       "drystack-src": "./src/form/fields/content/is-content-field.ts",
       "default": "./dist/form/fields/content/is-content-field.js"

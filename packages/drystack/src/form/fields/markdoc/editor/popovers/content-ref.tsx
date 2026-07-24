@@ -6,7 +6,8 @@ import { Text } from "@keystar/ui/typography";
 import { Icon } from "@keystar/ui/icon";
 import { importIcon } from "@keystar/ui/icon/icons/importIcon";
 import { trash2Icon } from "@keystar/ui/icon/icons/trash2Icon";
-import { TooltipTrigger, Tooltip } from "@keystar/ui/tooltip";
+import { Tooltip } from "@keystar/ui/tooltip";
+import { ScrollDismissTooltipTrigger } from "../ScrollDismissTooltipTrigger";
 import { useLocalizedStringFormatter } from "@react-aria/i18n";
 import l10nMessages from "../../../../../app/l10n";
 import { useEditorDispatchCommand } from "../editor-view";
@@ -36,7 +37,7 @@ export function ContentRefPopover(props: {
   return (
     <Flex gap="regular" padding="regular" alignItems="center">
       <Text>{label}</Text>
-      <TooltipTrigger>
+      <ScrollDismissTooltipTrigger>
         <ActionButton
           prominence="low"
           onPress={() => {
@@ -63,8 +64,8 @@ export function ContentRefPopover(props: {
           <Icon src={importIcon} />
         </ActionButton>
         <Tooltip>{stringFormatter.format("contentRefButtonLabel")}</Tooltip>
-      </TooltipTrigger>
-      <TooltipTrigger>
+      </ScrollDismissTooltipTrigger>
+      <ScrollDismissTooltipTrigger>
         <ActionButton
           prominence="low"
           onPress={() => {
@@ -81,7 +82,7 @@ export function ContentRefPopover(props: {
           <Icon src={trash2Icon} />
         </ActionButton>
         <Tooltip tone="critical">{stringFormatter.format("remove")}</Tooltip>
-      </TooltipTrigger>
+      </ScrollDismissTooltipTrigger>
     </Flex>
   );
 }
