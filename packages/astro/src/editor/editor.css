@@ -194,39 +194,14 @@ body.editing [data-dry-kind="object"] {
    the available-space measurement stay correct at any scroll position, with
    no scroll listener needed. Zero-sized and already `background: transparent`
    (see Overlay.tsx), so removing it from flow here changes no visible
-   layout.
-
-   `right: 0; bottom: 0` (making this span the full viewport, not just pin its
-   top-left corner) is required too, not cosmetic: a Tooltip's overlay wrapper
-   has no in-flow content of its own (its only child is the tooltip bubble,
-   itself `position: absolute`, which contributes nothing to a shrink-to-fit
-   parent). With `width`/`height` left `auto`, this fixed wrapper's
-   shrink-to-fit size collapses to ~0, so the tooltip bubble's own
-   shrink-to-fit width - computed against that ~0 containing block - collapses
-   too, wrapping every word onto its own line ("Itali/c ⌘/I") instead of
-   rendering as one line capped by `maxWidth: singleLineWidth`. Spanning the
-   full viewport gives both the tooltip and any Combobox listbox the same
-   real containing block the unstyled <body> would have provided.
-
-   `pointer-events: none` here is required once this wrapper spans the full
-   viewport (rather than collapsing to ~0 as it did before `right`/`bottom`
-   were added) - left `auto` it would otherwise sit over the whole page,
-   invisible (`background: transparent`, set by Overlay.tsx) but intercepting
-   every click, and freeze the host page while any tooltip/popover/listbox is
-   mounted. Every interactive overlay Keystar renders into this wrapper
-   (Popover, Modal, Tray) already sets its own `pointer-events: auto` - the
-   library expects a non-interactive ancestor and opts individual overlays
-   back in, so this doesn't disable them. */
+   layout. */
 body > .kui-scheme--light,
 body > .kui-scheme--dark,
 body > .kui-scheme--auto {
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
   z-index: 2147483001;
-  pointer-events: none;
 }
 
 .dry-bar {
